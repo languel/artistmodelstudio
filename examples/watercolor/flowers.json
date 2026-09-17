@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "Three Leaning Watercolor Flowers",
+  "medium": "watercolor",
+  "actions": [
+    { "op": "background", "color": "#faf7f2" },
+    { "op": "brush.bleed", "amount": 0.35 },
+    { "op": "brush.texture", "amount": 0.45 },
+    { "op": "stroke", "color": "#2c5432", "width": 2 },
+    { "op": "line", "x1": -0.6, "y1": -0.1, "x2": -0.4, "y2": 0.7 },
+    { "op": "line", "x1": -0.2, "y1": -0.2, "x2": -0.05, "y2": 0.75 },
+    { "op": "line", "x1": 0.25, "y1": -0.05, "x2": 0.35, "y2": 0.7 },
+    { "op": "noStroke" },
+    { "op": "fill", "color": "#ce526d", "opacity": 0.8 },
+    { "op": "circle", "x": -0.6, "y": -0.1, "diameter": 0.32 },
+    { "op": "fill", "color": "#d9657b", "opacity": 0.85 },
+    { "op": "circle", "x": -0.2, "y": -0.2, "diameter": 0.38 },
+    { "op": "fill", "color": "#e2788c", "opacity": 0.8 },
+    { "op": "circle", "x": 0.25, "y": -0.05, "diameter": 0.28 },
+    { "op": "brush.hatch", "distance": 8, "angle": 35 },
+    { "op": "fill", "color": "#f0b441", "opacity": 0.9 },
+    { "op": "circle", "x": -0.2, "y": -0.2, "diameter": 0.12 }
+  ]
+}

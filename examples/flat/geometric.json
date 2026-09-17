@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "Flat Bauhaus Composition",
+  "medium": "flat",
+  "actions": [
+    { "op": "background", "color": "#f2eee9" },
+    { "op": "fill", "color": "#1f2421", "opacity": 0.9 },
+    { "op": "rect", "x": -0.4, "y": 0.1, "width": 0.6, "height": 0.4 },
+    { "op": "fill", "color": "#d64045", "opacity": 0.85 },
+    { "op": "circle", "x": 0.3, "y": -0.3, "diameter": 0.55 },
+    { "op": "fill", "color": "#467599", "opacity": 0.8 },
+    { "op": "polygon", "points": [[-0.2, -0.6], [0.1, -0.1], [-0.5, -0.1]] },
+    { "op": "stroke", "color": "#1d1e18", "width": 3 },
+    { "op": "line", "x1": -0.8, "y1": 0.45, "x2": 0.8, "y2": 0.45 }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "Pixel Rose Sprite",
+  "medium": "pixel",
+  "actions": [
+    {
+      "op": "palette",
+      "colors": ["#16151c", "#693a32", "#c95267", "#e3b86c", "#eee4c8"]
+    },
+    { "op": "background", "color": 0 },
+    { "op": "mirrorX", "enabled": true },
+    { "op": "rect", "x": 12, "y": 14, "width": 8, "height": 8, "color": 2 },
+    { "op": "rect", "x": 14, "y": 16, "width": 4, "height": 4, "color": 3 },
+    { "op": "pixel", "x": 15, "y": 17, "color": 4 },
+    { "op": "vline", "x": 16, "y1": 22, "y2": 38, "color": 1 },
+    { "op": "hline", "y": 28, "x1": 12, "x2": 16, "color": 1 },
+    { "op": "pixel", "x": 11, "y": 27, "color": 1 },
+    { "op": "pixel", "x": 10, "y": 26, "color": 1 }
+  ]
+}
