@@ -1,13 +1,32 @@
 /**
- * Prompt Builder
+ * Prompt Builder with Candidate Variation Directives
  *
  * Dynamically constructs system and user prompts grounded in
- * the active Medium's declared capabilities.
+ * the active Medium's declared capabilities and injects distinct stylistic
+ * directives across the 4 candidates to guarantee aesthetic diversity.
  */
+
+export const VARIATION_DIRECTIVES = [
+  {
+    tag: 'Classic & Balanced',
+    directive: 'Compositional focus: Harmonious symmetry and balance. Use clear central focal points and natural proportions.'
+  },
+  {
+    tag: 'Dynamic & Expressive',
+    directive: 'Compositional focus: Asymmetrical dynamic tension, diagonal sweeping lines, and vigorous expressive movement.'
+  },
+  {
+    tag: 'Minimalist & Airy',
+    directive: 'Compositional focus: Poetic minimalism and restraint. Maximize negative space, use delicate sparse strokes and subtle marks.'
+  },
+  {
+    tag: 'Intricate & Layered',
+    directive: 'Compositional focus: Rich density and textural depth. Combine varied scales, layered overlapping elements, and nuanced contrast.'
+  }
+];
 
 export function buildSystemPrompt(capabilities) {
   const isPixel = capabilities.coordinateSystem === 'pixel';
-  const ops = [...(capabilities.core || []), ...(capabilities.extensions || [])];
 
   if (isPixel) {
     const cols = capabilities.dimensions?.cols || 32;
@@ -81,7 +100,10 @@ Return strictly a valid JSON drawing program with:
 No markdown outside the json block, no explanations.`;
 }
 
-export function buildUserPrompt({ prompt, previousProgram, feedback }) {
+export function buildUserPrompt({ prompt, previousProgram, feedback, candidateIndex = 0 }) {
+  const directiveObj = VARIATION_DIRECTIVES[candidateIndex % VARIATION_DIRECTIVES.length];
+  const directiveText = directiveObj ? `\n[ARTISTIC VARIATION DIRECTIVE: ${directiveObj.directive}]` : '';
+
   if (feedback && previousProgram) {
     return `Base artistic prompt: "${prompt}"
 
@@ -90,6 +112,7 @@ ${JSON.stringify(previousProgram, null, 2)}
 
 HUMAN CRITIQUE:
 "${feedback}"
+${directiveText}
 
 TASK: Revise the program to directly address the critique while keeping the core subject intact.
 Output the complete revised JSON drawing program.`;
@@ -100,12 +123,14 @@ Output the complete revised JSON drawing program.`;
 
 Parent drawing program:
 ${JSON.stringify(previousProgram, null, 2)}
+${directiveText}
 
 TASK: Generate a creative variation of this drawing. Preserve the overall palette and subject identity, but vary the arrangement, scale, angles, and detail.
 Output the complete variation JSON drawing program.`;
   }
 
   return `Create a drawing for: "${prompt}".
-Produce an expressive, balanced composition using the available actions.
+${directiveText}
+Produce an expressive, complete composition using the available actions.
 Output the complete JSON drawing program.`;
 }

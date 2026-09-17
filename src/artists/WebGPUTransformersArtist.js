@@ -64,15 +64,54 @@ export class WebGPUTransformersArtist extends Artist {
     const count = request.count || 4;
     const systemPrompt = buildSystemPrompt(request.mediumCapabilities);
     const userPrompt = buildUserPrompt(request);
+    const targetModel = request.settings?.modelId || this.modelId;
+
+    request.onProgress?.({
+      type: 'start',
+      model: targetModel,
+      endpoint: `webgpu (${this.device})`,
+      totalCandidates: count,
+      message: `Preparing WebGPU pipeline for ${targetModel} on ${this.device}...`
+    });
 
     const candidates = [];
 
     // Ensure pipeline is ready
-    if (!pipelineInstance || currentModelId !== (request.settings?.modelId || this.modelId)) {
-      await this.initPipeline(request.settings?.modelId || this.modelId, request.onProgress);
+    if (!pipelineInstance || currentModelId !== targetModel) {
+      request.onProgress?.({
+        type: 'loading_model',
+        message: `Downloading/loading weights for ${targetModel}...`
+      });
+
+      await this.initPipeline(targetModel, (p) => {
+        if (p.status === 'progress' && p.file) {
+          request.onProgress?.({
+            type: 'download_progress',
+            file: p.file,
+            progress: Math.round(p.progress || 0),
+            message: `Loading ${p.file}: ${Math.round(p.progress || 0)}%`
+          });
+        }
+      });
     }
 
     for (let i = 0; i < count; i++) {
+      if (request.signal?.aborted) {
+        request.onProgress?.({
+          type: 'aborted',
+          candidateIndex: i,
+          message: `Generation interrupted after ${candidates.length} candidate(s).`
+        });
+        break;
+      }
+
+      request.onProgress?.({
+        type: 'candidate_start',
+        candidateIndex: i,
+        model: targetModel,
+        message: `WebGPU inferencing Candidate ${String.fromCharCode(65 + i)} (${i + 1}/${count})...`
+      });
+
       const startTime = performance.now();
       const warnings = [];
       let rawText = '';
@@ -90,7 +129,6 @@ export class WebGPUTransformersArtist extends Artist {
           do_sample: true
         });
 
-        // output format is typically [{ generated_text: [...] }]
         if (Array.isArray(output) && output[0]?.generated_text) {
           const gen = output[0].generated_text;
           const lastMsg = Array.isArray(gen) ? gen[gen.length - 1] : gen;
@@ -105,12 +143,18 @@ export class WebGPUTransformersArtist extends Artist {
       }
 
       const generationTimeMs = Math.round(performance.now() - startTime);
-
-      candidates.push({
+      const candObj = {
         program: normalizeProgram(parsed),
         generationTimeMs,
         rawResponse: rawText,
         warnings
+      };
+
+      candidates.push(candObj);
+
+      request.onCandidateComplete?.({
+        candidateIndex: i,
+        candidate: candObj
       });
     }
 
@@ -131,7 +175,6 @@ export class WebGPUTransformersArtist extends Artist {
       try {
         return JSON.parse(jsonCandidate);
       } catch (e) {
-        // try removing trailing commas
         try {
           return JSON.parse(jsonCandidate.replace(/,\s*([}\]])/g, '$1'));
         } catch (e2) {

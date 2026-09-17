@@ -38,6 +38,10 @@ export class MediaRegistry {
       capabilities: m.capabilities()
     }));
   }
+
+  getAll() {
+    return Array.from(this.media.values());
+  }
 }
 
 export const defaultMediaRegistry = new MediaRegistry();

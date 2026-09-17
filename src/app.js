@@ -1,6 +1,6 @@
 /**
  * Studio Application Coordinator
- * Glues Artists, Media, Sessions, Rewards, and UI components together.
+ * Glues Artists, Media, Sessions, Rewards, Process Log, and UI components together.
  */
 
 import { defaultArtistRegistry } from './artists/artistRegistry.js';
@@ -14,6 +14,7 @@ import { CompareModal } from './ui/CompareModal.js';
 import { RewardPanel } from './ui/RewardPanel.js';
 import { DatasetModal } from './ui/DatasetModal.js';
 import { SettingsModal } from './ui/SettingsModal.js';
+import { ProcessLog } from './ui/ProcessLog.js';
 import { EXAMPLES } from '../examples/index.js';
 
 export class StudioApp {
@@ -24,8 +25,21 @@ export class StudioApp {
 
     this.activeMediumId = 'watercolor';
     this.activeMode = 'draw'; // 'draw' | 'reward' | 'datasets'
+    this.canvasSize = Number(localStorage.getItem('ams_canvas_size') || 1024);
+    this.variationLevel = localStorage.getItem('ams_variation_level') || 'medium';
+
+    this.abortController = null;
+    this.rightPaneTab = 'editor'; // 'editor' | 'log'
+
+    // Configure media canvas dimensions
+    for (const m of this.mediaRegistry.getAll()) {
+      if (typeof m.reset === 'function') {
+        m.reset({ width: this.canvasSize, height: this.canvasSize });
+      }
+    }
 
     this.statusBanner = new StatusBanner();
+    this.processLog = new ProcessLog();
 
     this.candidateGrid = new CandidateGrid({
       onSelectCandidate: (id) => this.handleSelectCandidate(id),
@@ -34,7 +48,8 @@ export class StudioApp {
       onCritique: (id) => this.handleCritique(id),
       onCompareMedia: (id) => this.handleCompareMedia(id),
       onStartOver: () => this.handleStartOver(),
-      onRate: (id, rating) => this.handleRate(id, rating)
+      onRate: (id, rating) => this.handleRate(id, rating),
+      onAnimateStrokes: (cand) => this.handleAnimateStrokes(cand)
     });
 
     this.programEditor = new ProgramEditor({
@@ -67,12 +82,18 @@ export class StudioApp {
       activeArtist: this.artistRegistry.activeId,
       activeMedium: this.activeMediumId,
       activeMode: this.activeMode,
+      canvasSize: this.canvasSize,
+      variationLevel: this.variationLevel,
       onArtistChange: (id) => this.handleArtistChange(id),
       onMediumChange: (id) => this.handleMediumChange(id),
       onModeChange: (mode) => this.handleModeChange(mode),
+      onCanvasSizeChange: (size) => this.handleCanvasSizeChange(size),
+      onVariationChange: (level) => this.handleVariationChange(level),
       onGenerate: (prompt) => this.handleGenerate(prompt),
+      onInterrupt: () => this.handleInterrupt(),
       onLoadExample: (example) => this.handleLoadExample(example),
-      onOpenSettings: () => this.settingsModal.open()
+      onOpenSettings: () => this.settingsModal.open(),
+      onToggleLog: () => this.handleToggleLog()
     });
   }
 
@@ -82,9 +103,21 @@ export class StudioApp {
       <div id="controls-container"></div>
       <div id="status-banner-container"></div>
       <main class="studio-main">
-        <div id="studio-view" class="studio-grid-layout">
-          <div id="candidate-grid-container"></div>
-          <div id="program-editor-container"></div>
+        <div id="studio-view" class="studio-hero-layout">
+          <div id="candidate-grid-container" class="studio-main-column"></div>
+          
+          <div id="right-column-container" class="studio-side-column">
+            <div class="side-column-tabs">
+              <button class="side-tab-btn active" id="tab-btn-editor" data-tab="editor">Code Editor</button>
+              <button class="side-tab-btn" id="tab-btn-log" data-tab="log">Process Log & Debug</button>
+            </div>
+            <div id="side-pane-editor" class="side-pane active">
+              <div id="program-editor-container"></div>
+            </div>
+            <div id="side-pane-log" class="side-pane">
+              <div id="process-log-container"></div>
+            </div>
+          </div>
         </div>
         <div id="reward-lab-container" style="display: none;"></div>
       </main>
@@ -92,6 +125,9 @@ export class StudioApp {
 
     this.controls.render(this.root.querySelector('#controls-container'));
     this.statusBanner.render(this.root.querySelector('#status-banner-container'));
+    this.processLog.render(this.root.querySelector('#process-log-container'));
+
+    this.attachSideTabEvents();
 
     // Check if session has existing candidates
     const existing = this.sessionStore.getCurrentCandidates();
@@ -103,11 +139,39 @@ export class StudioApp {
         this.rewardPanel.update(active);
       }
     } else {
-      // Pick first example to initialize the studio deterministically
       if (EXAMPLES.length > 0) {
         await this.handleLoadExample(EXAMPLES[0]);
       }
     }
+  }
+
+  attachSideTabEvents() {
+    const editorBtn = this.root.querySelector('#tab-btn-editor');
+    const logBtn = this.root.querySelector('#tab-btn-log');
+    const editorPane = this.root.querySelector('#side-pane-editor');
+    const logPane = this.root.querySelector('#side-pane-log');
+
+    editorBtn?.addEventListener('click', () => {
+      this.rightPaneTab = 'editor';
+      editorBtn.classList.add('active');
+      logBtn?.classList.remove('active');
+      editorPane?.classList.add('active');
+      logPane?.classList.remove('active');
+    });
+
+    logBtn?.addEventListener('click', () => {
+      this.rightPaneTab = 'log';
+      logBtn.classList.add('active');
+      editorBtn?.classList.remove('active');
+      logPane?.classList.add('active');
+      editorPane?.classList.remove('active');
+      this.processLog.render();
+    });
+  }
+
+  handleToggleLog() {
+    const logBtn = this.root.querySelector('#tab-btn-log');
+    if (logBtn) logBtn.click();
   }
 
   getActiveArtist() {
@@ -119,9 +183,43 @@ export class StudioApp {
   }
 
   async handleGenerate(prompt, previousProgram = null, feedback = null, parentId = null) {
+    this.abortController = new AbortController();
     this.controls.setGenerating(true);
+
     const artist = this.getActiveArtist();
     const medium = this.getActiveMedium();
+
+    this.processLog.setStatus('streaming');
+    this.processLog.log(`Starting generation with ${artist.name} (Medium: ${medium.name}, Canvas: ${this.canvasSize}x${this.canvasSize}, Variation: ${this.variationLevel})...`, 'info');
+
+    // If local Ollama or WebGPU, automatically switch side tab to Process Log so the user sees live progress
+    if (artist.type === 'ollama' || artist.type === 'webgpu') {
+      const logBtn = this.root.querySelector('#tab-btn-log');
+      if (logBtn && this.rightPaneTab !== 'log') logBtn.click();
+    }
+
+    const currentGenerationCandidates = [];
+    const count = 4;
+
+    // Create preliminary placeholder candidates
+    for (let i = 0; i < count; i++) {
+      const tempCand = {
+        id: `gen-${Date.now()}-${i}`,
+        prompt,
+        model: artist.name,
+        medium: medium.name,
+        program: { version: 1, actions: [] },
+        renderedImage: null,
+        rating: 0,
+        renderMetadata: { actionCount: 0, renderTimeMs: 0 }
+      };
+      currentGenerationCandidates.push(tempCand);
+    }
+
+    this.candidateGrid.update(currentGenerationCandidates, currentGenerationCandidates[0].id);
+    this.candidateGrid.setStreaming(0, 'Initializing model connection...');
+
+    let completedCandidates = [];
 
     try {
       const generatedCandidates = await artist.generate({
@@ -129,67 +227,189 @@ export class StudioApp {
         count: 4,
         mediumCapabilities: medium.capabilities(),
         previousProgram,
-        feedback
+        feedback,
+        signal: this.abortController.signal,
+        settings: {
+          variationSpread: this.variationLevel === 'low' ? 0.1 : this.variationLevel === 'high' ? 0.35 : this.variationLevel === 'wild' ? 0.5 : 0.22,
+          temperature: this.variationLevel === 'low' ? 0.5 : this.variationLevel === 'high' ? 1.0 : this.variationLevel === 'wild' ? 1.25 : 0.8
+        },
+        onProgress: (p) => {
+          if (p.type === 'start') {
+            this.processLog.log(p.message, 'info');
+            this.processLog.updateMetrics({ model: p.model, endpoint: p.endpoint });
+          } else if (p.type === 'candidate_start') {
+            this.candidateGrid.setStreaming(p.candidateIndex, p.message);
+            this.processLog.log(p.message, 'info');
+            this.processLog.updateMetrics({
+              candidate: `${String.fromCharCode(65 + p.candidateIndex)} (${p.candidateIndex + 1}/${count})`
+            });
+          } else if (p.type === 'stream_token') {
+            this.processLog.appendToken(p.tokenChunk, p.fullText);
+            this.processLog.updateMetrics({
+              tokens: p.tokenCount,
+              tokPerSec: p.speedTokPerSec,
+              elapsedMs: p.elapsedMs
+            });
+          } else if (p.type === 'aborted') {
+            this.processLog.log(p.message, 'warning');
+            this.processLog.setStatus('interrupted');
+          } else if (p.type === 'error') {
+            this.processLog.log(p.message, 'error');
+            this.processLog.setStatus('error');
+            this.processLog.setDiagnostic(p.error);
+          }
+        },
+        onPartialCandidate: async ({ candidateIndex, partialProgram, actionCount }) => {
+          try {
+            const renderRes = await medium.render(partialProgram);
+            this.candidateGrid.updateStreamingImage(candidateIndex, renderRes.image, actionCount);
+          } catch (e) {
+            // Ignore partial render errors while stream is in flight
+          }
+        },
+        onCandidateComplete: async ({ candidateIndex, candidate }) => {
+          this.processLog.log(`Candidate ${String.fromCharCode(65 + candidateIndex)} complete (${candidate.program?.actions?.length || 0} actions, ${candidate.generationTimeMs}ms). Rendering...`, 'success');
+
+          const startRender = performance.now();
+          const renderRes = await medium.render(candidate.program);
+          const renderTime = Math.round(performance.now() - startRender);
+
+          const fullCand = this.sessionStore.createCandidate({
+            prompt,
+            model: artist.name,
+            medium: medium.name,
+            program: candidate.program,
+            parentId,
+            generation: this.sessionStore.generations.length,
+            renderMetadata: {
+              executionTimeMs: candidate.generationTimeMs,
+              renderTimeMs: renderTime,
+              actionCount: candidate.program?.actions?.length || 0,
+              warnings: [...(candidate.warnings || []), ...(renderRes.warnings || [])]
+            },
+            rawResponse: candidate.rawResponse
+          });
+          fullCand.renderedImage = renderRes.image;
+
+          currentGenerationCandidates[candidateIndex] = fullCand;
+          completedCandidates.push(fullCand);
+
+          // Update grid live so Candidate A is visible while Candidate B streams!
+          this.candidateGrid.update(currentGenerationCandidates, currentGenerationCandidates[0].id);
+          this.candidateGrid.setStreaming(candidateIndex + 1 < count ? candidateIndex + 1 : null);
+        }
       });
 
-      let totalGenTime = 0;
-      let totalRenderTime = 0;
-      let totalOps = 0;
+      this.candidateGrid.setStreaming(null);
 
-      const fullCandidates = [];
-
-      for (let i = 0; i < generatedCandidates.length; i++) {
-        const item = generatedCandidates[i];
-        totalGenTime += item.generationTimeMs || 0;
-        totalOps += item.program.actions?.length || 0;
-
-        const renderStartTime = performance.now();
-        const renderRes = await medium.render(item.program);
-        const renderTime = Math.round(performance.now() - renderStartTime);
-        totalRenderTime += renderTime;
-
-        const cand = this.sessionStore.createCandidate({
+      if (completedCandidates.length > 0) {
+        this.sessionStore.addGeneration({
           prompt,
-          model: artist.name,
-          medium: medium.name,
-          program: item.program,
-          parentId,
-          generation: this.sessionStore.generations.length,
-          renderMetadata: {
-            executionTimeMs: item.generationTimeMs,
-            renderTimeMs: renderTime,
-            warnings: [...(item.warnings || []), ...(renderRes.warnings || [])]
-          },
-          rawResponse: item.rawResponse
+          candidates: completedCandidates,
+          parentId
         });
 
-        cand.renderedImage = renderRes.image;
-        fullCandidates.push(cand);
+        const activeCand = completedCandidates[0];
+        this.candidateGrid.update(completedCandidates, activeCand.id);
+        this.programEditor.update(activeCand, medium.capabilities());
+        this.rewardPanel.update(activeCand);
+
+        this.statusBanner.update({
+          model: artist.name,
+          medium: medium.name,
+          actionCount: activeCand?.program?.actions?.length || 0,
+          generationTimeMs: activeCand?.renderMetadata?.executionTimeMs || 0,
+          renderTimeMs: activeCand?.renderMetadata?.renderTimeMs || 0,
+          generationIndex: this.sessionStore.currentGeneration
+        });
+
+        this.processLog.setStatus('success');
+        this.processLog.log(`Generation round completed successfully. ${completedCandidates.length} candidate(s) ready.`, 'success');
       }
-
-      this.sessionStore.addGeneration({
-        prompt,
-        candidates: fullCandidates,
-        parentId
-      });
-
-      this.candidateGrid.update(fullCandidates, fullCandidates[0]?.id);
-      this.programEditor.update(fullCandidates[0], medium.capabilities());
-      this.rewardPanel.update(fullCandidates[0]);
-
-      this.statusBanner.update({
-        model: artist.name,
-        medium: medium.name,
-        generationTimeMs: Math.round(totalGenTime / fullCandidates.length),
-        renderTimeMs: Math.round(totalRenderTime / fullCandidates.length),
-        actionCount: fullCandidates[0]?.program?.actions?.length || 0,
-        generationIndex: this.sessionStore.currentGeneration
-      });
     } catch (err) {
-      alert('Generation error: ' + err.message);
-      console.error(err);
+      if (err.name === 'AbortError' || this.abortController?.signal?.aborted) {
+        this.processLog.setStatus('interrupted');
+        this.processLog.log('Generation interrupted by user.', 'warning');
+      } else {
+        this.processLog.setStatus('error');
+        this.processLog.log(`Error: ${err.message}`, 'error');
+        this.processLog.setDiagnostic(err.message);
+      }
     } finally {
+      this.candidateGrid.setStreaming(null);
       this.controls.setGenerating(false);
+      this.abortController = null;
+    }
+  }
+
+  handleInterrupt() {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.controls.setGenerating(false);
+      this.candidateGrid.setStreaming(null);
+      this.processLog.setStatus('interrupted');
+      this.processLog.log('Interrupted! Aborted in-flight network requests and generation.', 'warning');
+    }
+  }
+
+  async handleCanvasSizeChange(newSize) {
+    this.canvasSize = Number(newSize);
+    localStorage.setItem('ams_canvas_size', String(this.canvasSize));
+
+    for (const m of this.mediaRegistry.getAll()) {
+      if (typeof m.reset === 'function') {
+        m.reset({ width: this.canvasSize, height: this.canvasSize });
+      }
+    }
+
+    this.processLog.log(`Canvas resolution set to ${this.canvasSize} × ${this.canvasSize}. Re-rendering...`, 'info');
+
+    // Re-render current candidates in the new resolution
+    const cands = this.sessionStore.getCurrentCandidates();
+    const medium = this.getActiveMedium();
+    for (const c of cands) {
+      const res = await medium.render(c.program);
+      c.renderedImage = res.image;
+    }
+
+    this.candidateGrid.update(cands, this.sessionStore.activeCandidateId);
+    const active = this.sessionStore.getActiveCandidate();
+    if (active) {
+      this.programEditor.update(active, medium.capabilities());
+    }
+  }
+
+  handleVariationChange(newLevel) {
+    this.variationLevel = newLevel;
+    localStorage.setItem('ams_variation_level', newLevel);
+    this.processLog.log(`Candidate variation level set to "${newLevel}".`, 'info');
+  }
+
+  async handleAnimateStrokes(candidate) {
+    if (!candidate?.program?.actions) return;
+    const actions = candidate.program.actions;
+    const medium = this.getActiveMedium();
+
+    this.processLog.log(`Replaying ${actions.length} strokes progressively on Hero Preview...`, 'info');
+
+    for (let i = 1; i <= actions.length; i++) {
+      const partial = { version: 1, actions: actions.slice(0, i) };
+      try {
+        const res = await medium.render(partial);
+        const heroImg = this.root.querySelector('#hero-main-img');
+        const heroBadge = this.root.querySelector('#hero-ops-badge');
+        if (heroImg) heroImg.src = res.image;
+        if (heroBadge) heroBadge.textContent = `Animating: stroke ${i}/${actions.length}...`;
+      } catch (e) {}
+      await new Promise(r => setTimeout(r, 45));
+    }
+
+    const finalRes = await medium.render(candidate.program);
+    const heroImg = this.root.querySelector('#hero-main-img');
+    const heroBadge = this.root.querySelector('#hero-ops-badge');
+    if (heroImg) heroImg.src = finalRes.image;
+    if (heroBadge) {
+      heroBadge.textContent = `${actions.length} ops · ${candidate.renderMetadata?.renderTimeMs || 0}ms`;
     }
   }
 
@@ -233,6 +453,7 @@ export class StudioApp {
       this.candidateGrid.update([]);
       this.programEditor.update(null);
       this.rewardPanel.update(null);
+      this.processLog.clear();
     }
   }
 
@@ -265,7 +486,6 @@ export class StudioApp {
     const cand = this.sessionStore.findCandidate(candidateId);
     const medium = this.getActiveMedium();
 
-    // Re-render immediately on canvas
     const startRender = performance.now();
     const renderRes = await medium.render(newProgram);
     const renderTime = Math.round(performance.now() - startRender);
@@ -307,14 +527,15 @@ export class StudioApp {
   handleArtistChange(artistId) {
     this.artistRegistry.setActive(artistId);
     this.statusBanner.update({ model: this.getActiveArtist().name });
+    this.processLog.log(`Switched active artist to: ${this.getActiveArtist().name}`, 'info');
   }
 
   async handleMediumChange(mediumId) {
     this.activeMediumId = mediumId;
     const medium = this.getActiveMedium();
     this.statusBanner.update({ medium: medium.name });
+    this.processLog.log(`Switched active medium to: ${medium.name}`, 'info');
 
-    // Re-render current candidates in the newly selected medium
     const cands = this.sessionStore.getCurrentCandidates();
     for (const c of cands) {
       const res = await medium.render(c.program);
@@ -338,7 +559,6 @@ export class StudioApp {
       this.rewardPanel.render(rewardView);
     } else if (mode === 'datasets') {
       this.datasetModal.open();
-      // Keep previous view under modal
     } else {
       studioView.style.display = 'grid';
       rewardView.style.display = 'none';
@@ -383,6 +603,8 @@ export class StudioApp {
       renderTimeMs: renderRes.executionTimeMs,
       generationIndex: this.sessionStore.currentGeneration
     });
+
+    this.processLog.log(`Loaded example: ${example.name}`, 'info');
   }
 
   async renderCandidates(candidates) {

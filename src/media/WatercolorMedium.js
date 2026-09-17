@@ -24,8 +24,8 @@ async function getBrush() {
 export class WatercolorMedium extends Medium {
   constructor(options = {}) {
     super('watercolor', 'Watercolor');
-    this.width = options.width || 400;
-    this.height = options.height || 400;
+    this.width = options.width || 1024;
+    this.height = options.height || 1024;
     this.seed = options.seed || 42;
 
     this.defaultBleed = 0.25;

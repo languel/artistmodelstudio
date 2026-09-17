@@ -1,5 +1,5 @@
 /**
- * Mock / Procedural Artist
+ * Mock / Procedural Artist with Simulated Streaming & Canvas Iteration
  *
  * Provides immediate, deterministic, and highly responsive drawing generation
  * for zero-setup classroom testing, automated testing, and fallback use.
@@ -11,6 +11,7 @@ import { normalizeProgram } from '../language/normalize.js';
 export class MockArtist extends Artist {
   constructor() {
     super('mock', 'Procedural Artist (Instant/Offline)', 'procedural');
+    this.progressiveDelayMs = 25; // Simulated progressive stroke delay for classroom feedback
   }
 
   async generate(request) {
@@ -19,11 +20,35 @@ export class MockArtist extends Artist {
     const isPixel = request.mediumCapabilities?.coordinateSystem === 'pixel';
     const isWatercolor = request.mediumCapabilities?.id === 'watercolor';
 
+    request.onProgress?.({
+      type: 'start',
+      model: this.name,
+      endpoint: 'local-mock',
+      totalCandidates: count,
+      message: `Running Procedural Artist engine for "${prompt}"...`
+    });
+
     const candidates = [];
 
     for (let i = 0; i < count; i++) {
+      if (request.signal?.aborted) {
+        request.onProgress?.({
+          type: 'aborted',
+          candidateIndex: i,
+          message: `Procedural generation interrupted by user after ${candidates.length} candidate(s).`
+        });
+        break;
+      }
+
       const startTime = performance.now();
       const variantSeed = i;
+
+      request.onProgress?.({
+        type: 'candidate_start',
+        candidateIndex: i,
+        model: this.name,
+        message: `Synthesizing Candidate ${String.fromCharCode(65 + i)} (${i + 1}/${count})...`
+      });
 
       let program;
       if (request.feedback && request.previousProgram) {
@@ -36,13 +61,38 @@ export class MockArtist extends Artist {
         program = this.generateVectorProgram(prompt, variantSeed, isWatercolor);
       }
 
-      const generationTimeMs = Math.round(performance.now() - startTime) + Math.round(Math.random() * 20 + 10);
+      const normalized = normalizeProgram(program);
+      const actions = normalized.actions || [];
 
-      candidates.push({
-        program: normalizeProgram(program),
+      // Simulate progressive real-time stroke iteration if callbacks are provided
+      if (request.onPartialCandidate && this.progressiveDelayMs > 0) {
+        for (let a = 1; a <= actions.length; a += Math.max(1, Math.floor(actions.length / 5))) {
+          if (request.signal?.aborted) break;
+          const subActions = actions.slice(0, a);
+          request.onPartialCandidate({
+            candidateIndex: i,
+            partialProgram: { version: 1, actions: subActions },
+            actionCount: subActions.length,
+            rawText: JSON.stringify({ version: 1, actions: subActions })
+          });
+          // Non-blocking tiny sleep for visual persistence
+          await new Promise(r => setTimeout(r, this.progressiveDelayMs));
+        }
+      }
+
+      const generationTimeMs = Math.max(1, Math.round(performance.now() - startTime));
+      const candObj = {
+        program: normalized,
         generationTimeMs,
-        rawResponse: JSON.stringify(program, null, 2),
+        rawResponse: JSON.stringify(normalized, null, 2),
         warnings: []
+      };
+
+      candidates.push(candObj);
+
+      request.onCandidateComplete?.({
+        candidateIndex: i,
+        candidate: candObj
       });
     }
 
@@ -72,44 +122,70 @@ export class MockArtist extends Artist {
     }
 
     if (isFlower) {
-      // Draw 3 flowers bending left or centered
-      const numFlowers = 3;
-      for (let f = 0; f < numFlowers; f++) {
-        const xOffset = -0.5 + f * 0.45 + (seed * 0.04 - 0.06);
-        const yOffset = -0.1 + (seed % 2 === 0 ? 0.05 : -0.05) * f;
-        const stemLean = -0.15 - (seed * 0.03);
+      if (seed === 0) {
+        // Candidate A: Classic & Balanced (3 upright harmonious flowers)
+        const numFlowers = 3;
+        for (let f = 0; f < numFlowers; f++) {
+          const xOffset = -0.45 + f * 0.45;
+          const yOffset = -0.1 + (f === 1 ? -0.1 : 0.05);
 
-        // Stem
-        actions.push({ op: 'stroke', color: stemColor, width: 2.5 });
-        actions.push({
-          op: 'line',
-          x1: xOffset,
-          y1: yOffset,
-          x2: xOffset - stemLean,
-          y2: 0.65
-        });
+          actions.push({ op: 'stroke', color: stemColor, width: 2.5 });
+          actions.push({ op: 'line', x1: xOffset, y1: yOffset, x2: xOffset, y2: 0.65 });
 
-        // Flower Blossom
+          actions.push({ op: 'noStroke' });
+          actions.push({ op: 'fill', color: f === 1 ? primaryColor : secondaryColor, opacity: 0.85 });
+          actions.push({ op: 'circle', x: xOffset, y: yOffset, diameter: f === 1 ? 0.35 : 0.25 });
+
+          actions.push({ op: 'fill', color: '#ffde59', opacity: 0.95 });
+          actions.push({ op: 'circle', x: xOffset, y: yOffset, diameter: 0.08 });
+        }
+      } else if (seed === 1) {
+        // Candidate B: Dynamic & Expressive (Dramatic leftward bending arc, dynamic windswept stems)
+        actions.push({ op: 'stroke', color: stemColor, width: 3.5 });
+        actions.push({ op: 'line', x1: -0.6, y1: -0.2, x2: 0.1, y2: 0.65 });
+        actions.push({ op: 'line', x1: -0.3, y1: -0.05, x2: 0.25, y2: 0.65 });
+
         actions.push({ op: 'noStroke' });
-        actions.push({ op: 'fill', color: f % 2 === 0 ? primaryColor : secondaryColor, opacity: 0.85 });
-        actions.push({
-          op: 'circle',
-          x: xOffset,
-          y: yOffset,
-          diameter: 0.25 + (f === 1 ? 0.08 : 0) + (seed * 0.02)
-        });
+        actions.push({ op: 'fill', color: primaryColor, opacity: 0.9 });
+        actions.push({ op: 'circle', x: -0.6, y: -0.2, diameter: 0.4 });
+        actions.push({ op: 'fill', color: secondaryColor, opacity: 0.8 });
+        actions.push({ op: 'circle', x: -0.3, y: -0.05, diameter: 0.28 });
 
-        // Petals or center
-        actions.push({ op: 'fill', color: '#ffde59', opacity: 0.9 });
-        actions.push({
-          op: 'circle',
-          x: xOffset,
-          y: yOffset,
-          diameter: 0.08
-        });
+        actions.push({ op: 'fill', color: '#ffea79', opacity: 0.9 });
+        actions.push({ op: 'circle', x: -0.6, y: -0.2, diameter: 0.1 });
+        actions.push({ op: 'circle', x: -0.3, y: -0.05, diameter: 0.07 });
+      } else if (seed === 2) {
+        // Candidate C: Minimalist & Airy (Single solitary bloom with generous negative space)
+        actions.push({ op: 'stroke', color: '#2b442e', width: 1.5 });
+        actions.push({ op: 'line', x1: -0.15, y1: -0.25, x2: -0.05, y2: 0.7 });
+
+        actions.push({ op: 'noStroke' });
+        actions.push({ op: 'fill', color: primaryColor, opacity: 0.75 });
+        actions.push({ op: 'circle', x: -0.15, y: -0.25, diameter: 0.22 });
+
+        actions.push({ op: 'fill', color: '#fff1a8', opacity: 0.9 });
+        actions.push({ op: 'circle', x: -0.15, y: -0.25, diameter: 0.05 });
+      } else {
+        // Candidate D: Intricate & Layered (Cluster of 5 blossoms with rich varied scales)
+        const flowers = [
+          { x: -0.5, y: 0.1, d: 0.22, c: secondaryColor },
+          { x: -0.25, y: -0.2, d: 0.32, c: primaryColor },
+          { x: 0.05, y: 0.05, d: 0.26, c: secondaryColor },
+          { x: 0.3, y: -0.15, d: 0.28, c: primaryColor },
+          { x: 0.5, y: 0.15, d: 0.2, c: secondaryColor }
+        ];
+
+        for (const fl of flowers) {
+          actions.push({ op: 'stroke', color: stemColor, width: 2 });
+          actions.push({ op: 'line', x1: fl.x, y1: fl.y, x2: fl.x * 0.5, y2: 0.7 });
+          actions.push({ op: 'noStroke' });
+          actions.push({ op: 'fill', color: fl.c, opacity: 0.85 });
+          actions.push({ op: 'circle', x: fl.x, y: fl.y, diameter: fl.d });
+          actions.push({ op: 'fill', color: '#ffde59', opacity: 0.9 });
+          actions.push({ op: 'circle', x: fl.x, y: fl.y, diameter: fl.d * 0.3 });
+        }
       }
     } else {
-      // Landscape or geometric composition
       actions.push({ op: 'fill', color: primaryColor, opacity: 0.8 });
       actions.push({
         op: 'polygon',
@@ -138,11 +214,11 @@ export class MockArtist extends Artist {
     const rows = capabilities?.dimensions?.rows || 48;
 
     const palette = [
-      '#16151c', // 0: dark bg
-      '#693a32', // 1: stem/dark red
-      '#c95267', // 2: bright red/petal
-      '#e3b86c', // 3: warm gold
-      '#eee4c8'  // 4: highlights
+      '#16151c',
+      '#693a32',
+      '#c95267',
+      '#e3b86c',
+      '#eee4c8'
     ];
 
     const actions = [
@@ -154,14 +230,11 @@ export class MockArtist extends Artist {
     const centerX = Math.floor(cols / 2);
     const centerY = Math.floor(rows / 2) + (seed * 2 - 3);
 
-    // Blossom / sprite body
     actions.push({ op: 'rect', x: centerX - 4, y: centerY - 4, width: 8, height: 8, color: 2 });
     actions.push({ op: 'rect', x: centerX - 2, y: centerY - 2, width: 4, height: 4, color: 3 });
     actions.push({ op: 'pixel', x: centerX, y: centerY, color: 4 });
 
-    // Stem
     actions.push({ op: 'vline', x: centerX, y1: centerY + 4, y2: centerY + 16, color: 1 });
-    // Leaf
     actions.push({ op: 'hline', y: centerY + 10, x1: centerX - 4, x2: centerX, color: 1 });
 
     return { version: 1, actions };

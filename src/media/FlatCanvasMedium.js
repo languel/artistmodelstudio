@@ -12,8 +12,8 @@ import { normalizeProgram } from '../language/normalize.js';
 export class FlatCanvasMedium extends Medium {
   constructor(options = {}) {
     super('flat', 'Flat Canvas');
-    this.width = options.width || 400;
-    this.height = options.height || 400;
+    this.width = options.width || 1024;
+    this.height = options.height || 1024;
 
     // Create canvas (works in browser and node/test if canvas exists)
     if (typeof document !== 'undefined') {
@@ -95,6 +95,7 @@ export class FlatCanvasMedium extends Medium {
     let currentStrokeColor = '#111111';
     let currentStrokeOpacity = 1;
     let currentStrokeWidth = 1;
+    const strokeScale = this.width / 400;
 
     const norm = normalizeProgram(program);
 
@@ -151,7 +152,7 @@ export class FlatCanvasMedium extends Medium {
               ctx.save();
               ctx.globalAlpha = currentStrokeOpacity;
               ctx.strokeStyle = currentStrokeColor;
-              ctx.lineWidth = currentStrokeWidth;
+              ctx.lineWidth = currentStrokeWidth * strokeScale;
               ctx.stroke();
               ctx.restore();
             }
@@ -180,7 +181,7 @@ export class FlatCanvasMedium extends Medium {
               ctx.save();
               ctx.globalAlpha = currentStrokeOpacity;
               ctx.strokeStyle = currentStrokeColor;
-              ctx.lineWidth = currentStrokeWidth;
+              ctx.lineWidth = currentStrokeWidth * strokeScale;
               ctx.stroke();
               ctx.restore();
             }
@@ -200,7 +201,7 @@ export class FlatCanvasMedium extends Medium {
             ctx.save();
             ctx.globalAlpha = currentStrokeOpacity;
             ctx.strokeStyle = act.color || currentStrokeColor;
-            ctx.lineWidth = currentStrokeWidth;
+            ctx.lineWidth = currentStrokeWidth * strokeScale;
             ctx.stroke();
             ctx.restore();
             break;
@@ -233,7 +234,7 @@ export class FlatCanvasMedium extends Medium {
               ctx.save();
               ctx.globalAlpha = currentStrokeOpacity;
               ctx.strokeStyle = currentStrokeColor;
-              ctx.lineWidth = currentStrokeWidth;
+              ctx.lineWidth = currentStrokeWidth * strokeScale;
               ctx.stroke();
               ctx.restore();
             }
