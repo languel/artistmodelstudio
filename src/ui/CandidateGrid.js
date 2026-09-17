@@ -58,10 +58,15 @@ export class CandidateGrid {
       cardImg.style.display = 'block';
     }
 
-    // If currently viewing this candidate as hero, update hero preview too!
+    const candAtIdx = this.candidates[candidateIndex];
+    const activeCand = this.candidates.find(c => c.id === this.selectedId) || this.candidates[0];
+
+    // Only update hero main image if the hero is currently viewing this candidate
+    const isHeroShowingThis = candAtIdx && activeCand && (candAtIdx.id === activeCand.id);
+
     const heroImg = this.container?.querySelector('#hero-main-img');
     const heroBadge = this.container?.querySelector('#hero-ops-badge');
-    if (heroImg && (this.streamingIndex === candidateIndex || !this.selectedId)) {
+    if (heroImg && isHeroShowingThis) {
       heroImg.src = dataUrl;
       heroImg.style.display = 'block';
       if (heroBadge) {
@@ -213,6 +218,7 @@ export class CandidateGrid {
         if (e.target.classList.contains('star')) return;
         const id = card.dataset.id;
         this.selectedId = id;
+        this.render();
         this.onSelectCandidate?.(id);
       });
     });

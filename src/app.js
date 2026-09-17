@@ -30,6 +30,8 @@ export class StudioApp {
 
     this.abortController = null;
     this.rightPaneTab = 'editor'; // 'editor' | 'log'
+    this.activeCandidates = [];
+    this.selectedCandidateId = null;
 
     // Configure media canvas dimensions
     for (const m of this.mediaRegistry.getAll()) {
@@ -216,7 +218,10 @@ export class StudioApp {
       currentGenerationCandidates.push(tempCand);
     }
 
-    this.candidateGrid.update(currentGenerationCandidates, currentGenerationCandidates[0].id);
+    this.activeCandidates = currentGenerationCandidates;
+    this.selectedCandidateId = currentGenerationCandidates[0].id;
+
+    this.candidateGrid.update(this.activeCandidates, this.selectedCandidateId);
     this.candidateGrid.setStreaming(0, 'Initializing model connection...');
 
     let completedCandidates = [];
@@ -293,9 +298,12 @@ export class StudioApp {
 
           currentGenerationCandidates[candidateIndex] = fullCand;
           completedCandidates.push(fullCand);
+          this.activeCandidates = currentGenerationCandidates;
 
-          // Update grid live so Candidate A is visible while Candidate B streams!
-          this.candidateGrid.update(currentGenerationCandidates, currentGenerationCandidates[0].id);
+          // Preserve whatever candidate the user has selected! Never force back to 0!
+          const currentSelection = this.candidateGrid.selectedId || this.selectedCandidateId || currentGenerationCandidates[0].id;
+          this.selectedCandidateId = currentSelection;
+          this.candidateGrid.update(currentGenerationCandidates, currentSelection);
           this.candidateGrid.setStreaming(candidateIndex + 1 < count ? candidateIndex + 1 : null);
         }
       });
@@ -308,9 +316,14 @@ export class StudioApp {
           candidates: completedCandidates,
           parentId
         });
+        this.activeCandidates = completedCandidates;
 
-        const activeCand = completedCandidates[0];
-        this.candidateGrid.update(completedCandidates, activeCand.id);
+        const finalSelection = this.candidateGrid.selectedId || this.selectedCandidateId || completedCandidates[0].id;
+        this.selectedCandidateId = finalSelection;
+        this.sessionStore.selectCandidate(finalSelection);
+
+        const activeCand = completedCandidates.find(c => c.id === finalSelection) || completedCandidates[0];
+        this.candidateGrid.update(completedCandidates, finalSelection);
         this.programEditor.update(activeCand, medium.capabilities());
         this.rewardPanel.update(activeCand);
 
@@ -449,6 +462,8 @@ export class StudioApp {
 
   handleStartOver() {
     if (confirm('Start a new session? Current session history will be saved in archive.')) {
+      this.activeCandidates = [];
+      this.selectedCandidateId = null;
       this.sessionStore.clearSession();
       this.candidateGrid.update([]);
       this.programEditor.update(null);
@@ -459,20 +474,37 @@ export class StudioApp {
 
   handleRate(candidateId, rating) {
     this.sessionStore.rateCandidate(candidateId, rating);
-    const cands = this.sessionStore.getCurrentCandidates();
-    this.candidateGrid.update(cands, this.sessionStore.activeCandidateId);
+    const target = (this.activeCandidates || []).find(c => c.id === candidateId);
+    if (target) target.rating = rating;
+    const cands = (this.activeCandidates && this.activeCandidates.length > 0)
+      ? this.activeCandidates
+      : this.sessionStore.getCurrentCandidates();
+    this.candidateGrid.update(cands, this.candidateGrid.selectedId || this.selectedCandidateId);
   }
 
   async handleSelectCandidate(candidateId) {
-    this.sessionStore.selectCandidate(candidateId);
-    const cand = this.sessionStore.getActiveCandidate();
-    const medium = this.getActiveMedium();
+    this.selectedCandidateId = candidateId;
+    this.candidateGrid.selectedId = candidateId;
 
-    this.candidateGrid.update(this.sessionStore.getCurrentCandidates(), candidateId);
-    this.programEditor.update(cand, medium.capabilities());
-    this.rewardPanel.update(cand);
+    // Check active in-flight candidates first, fallback to sessionStore
+    const cand = (this.activeCandidates || []).find(c => c.id === candidateId)
+      || this.sessionStore.findCandidate(candidateId);
 
     if (cand) {
+      this.sessionStore.selectCandidate(cand.id);
+      const medium = this.getActiveMedium();
+
+      const displayCandidates = (this.activeCandidates && this.activeCandidates.length > 0)
+        ? this.activeCandidates
+        : this.sessionStore.getCurrentCandidates();
+
+      this.candidateGrid.update(displayCandidates, candidateId);
+
+      if (cand.renderedImage) {
+        this.programEditor.update(cand, medium.capabilities());
+        this.rewardPanel.update(cand);
+      }
+
       this.statusBanner.update({
         actionCount: cand.program?.actions?.length || 0,
         generationTimeMs: cand.renderMetadata?.executionTimeMs || 0,
@@ -483,7 +515,12 @@ export class StudioApp {
 
   async handleProgramEdit(candidateId, newProgram) {
     this.sessionStore.updateCandidateProgram(candidateId, newProgram);
-    const cand = this.sessionStore.findCandidate(candidateId);
+    let cand = (this.activeCandidates || []).find(c => c.id === candidateId)
+      || this.sessionStore.findCandidate(candidateId);
+
+    if (cand) {
+      cand.program = newProgram;
+    }
     const medium = this.getActiveMedium();
 
     const startRender = performance.now();
@@ -495,7 +532,11 @@ export class StudioApp {
       cand.renderMetadata.renderTimeMs = renderTime;
     }
 
-    this.candidateGrid.update(this.sessionStore.getCurrentCandidates(), candidateId);
+    const cands = (this.activeCandidates && this.activeCandidates.length > 0)
+      ? this.activeCandidates
+      : this.sessionStore.getCurrentCandidates();
+
+    this.candidateGrid.update(cands, candidateId);
     this.rewardPanel.update(cand);
 
     this.statusBanner.update({
@@ -590,6 +631,9 @@ export class StudioApp {
       prompt: example.name,
       candidates: [cand]
     });
+
+    this.activeCandidates = [cand];
+    this.selectedCandidateId = cand.id;
 
     this.candidateGrid.update([cand], cand.id);
     this.programEditor.update(cand, medium.capabilities());
