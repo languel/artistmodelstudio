@@ -62,4 +62,42 @@ describe('Media Layer', () => {
     // Other pixels remain background
     expect(pixel.grid[5 * 10 + 0]).toBe('#000000');
   });
+
+  it('renders vector programs with float coordinates in PixelMedium without hanging', async () => {
+    const pixel = new PixelMedium({ cols: 32, rows: 48, displayScale: 1 });
+    const vectorProgram = {
+      version: 1,
+      medium: 'watercolor',
+      actions: [
+        { op: 'background', color: '#faf7f2' },
+        { op: 'stroke', color: '#2c5432', width: 2 },
+        { op: 'line', x1: -0.6, y1: -0.1, x2: -0.4, y2: 0.7 },
+        { op: 'line', x1: -0.2, y1: -0.2, x2: -0.05, y2: 0.75 },
+        { op: 'fill', color: '#ce526d', opacity: 0.8 },
+        { op: 'circle', x: -0.6, y: -0.1, diameter: 0.32 },
+        { op: 'rect', x: 0.2, y: 0.2, width: 0.3, height: 0.3, color: '#f0b441' }
+      ]
+    };
+
+    const start = Date.now();
+    const result = await pixel.render(vectorProgram);
+    const duration = Date.now() - start;
+
+    // Must render virtually instantly without hanging
+    expect(duration).toBeLessThan(500);
+    expect(result.warnings.length).toBe(0);
+    expect(pixel.grid.some(cell => cell === '#2c5432')).toBe(true);
+    expect(pixel.grid.some(cell => cell === '#ce526d')).toBe(true);
+    expect(pixel.grid.some(cell => cell === '#f0b441')).toBe(true);
+  });
+
+  it('drawLine handles fractional coordinates and does not enter infinite loop', () => {
+    const pixel = new PixelMedium({ cols: 20, rows: 20 });
+    // fractional coordinates that previously triggered infinite loop
+    expect(() => {
+      pixel.drawLine(-0.45, -0.05, -0.45, 0.65, '#ff0000');
+      pixel.drawLine(0.123, 0.456, 18.789, 15.321, '#00ff00');
+      pixel.drawLine(NaN, Infinity, 5, 5, '#0000ff');
+    }).not.toThrow();
+  });
 });

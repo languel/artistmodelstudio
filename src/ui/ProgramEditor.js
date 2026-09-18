@@ -6,6 +6,7 @@
 import { programToText, textToProgram } from '../language/textFormat.js';
 import { validateProgram } from '../language/validate.js';
 import { normalizeProgram } from '../language/normalize.js';
+import { icon } from './icons.js';
 
 export class ProgramEditor {
   constructor({ onProgramChange, onRenderWithOtherMedium }) {
@@ -56,8 +57,8 @@ export class ProgramEditor {
             <button class="editor-tab-btn ${this.activeTab === 'text' ? 'active' : ''}" data-tab="text">Text DSL</button>
             <button class="editor-tab-btn ${this.activeTab === 'json' ? 'active' : ''}" data-tab="json">JSON</button>
           </div>
-          <button id="editor-rerender-btn" class="btn-primary" style="padding: 4px 10px; font-size: 0.78rem;">
-            ▶ Re-render
+          <button id="editor-rerender-btn" class="btn-primary" style="padding: 4px 10px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
+            ${icon('play', 'icon-sm')} <span>Re-render</span>
           </button>
         </div>
 
@@ -73,8 +74,8 @@ export class ProgramEditor {
             <span>${this.validation.valid ? '● Valid program' : '▲ Syntax error'}</span>
             ${this.validation.errors.length > 0 ? `<span style="font-size: 0.72rem;">(${this.validation.errors[0]})</span>` : ''}
           </div>
-          <button id="editor-swap-medium-btn" class="pill-btn" style="color: var(--text-secondary);">
-            ⇄ Render in another medium
+          <button id="editor-swap-medium-btn" class="pill-btn" style="color: var(--text-secondary); display: inline-flex; align-items: center; gap: 4px;">
+            ${icon('swatch', 'icon-sm')} <span>Swap Medium</span>
           </button>
         </div>
       </div>

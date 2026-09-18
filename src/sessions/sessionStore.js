@@ -155,16 +155,45 @@ export class SessionStore {
 
   saveToStorage() {
     if (typeof localStorage === 'undefined') return;
+
+    const sanitizeGenerations = (gens, maxGens = 10) => {
+      const slice = gens.slice(-maxGens);
+      return slice.map(g => ({
+        ...g,
+        candidates: (g.candidates || []).map(c => {
+          const { renderedImage, ...rest } = c;
+          return {
+            ...rest,
+            rawResponse: rest.rawResponse ? rest.rawResponse.slice(0, 1000) : ''
+          };
+        })
+      }));
+    };
+
     try {
       const data = {
         sessionId: this.sessionId,
-        generations: this.generations,
+        generations: sanitizeGenerations(this.generations, 10),
         currentGeneration: this.currentGeneration,
         activeCandidateId: this.activeCandidateId
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
-      console.warn('Could not save session to localStorage:', e);
+      if (e.name === 'QuotaExceededError' || e.code === 22) {
+        try {
+          const reducedData = {
+            sessionId: this.sessionId,
+            generations: sanitizeGenerations(this.generations, 3),
+            currentGeneration: this.currentGeneration,
+            activeCandidateId: this.activeCandidateId
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(reducedData));
+        } catch (e2) {
+          console.warn('localStorage quota full, skipping persistence:', e2.message);
+        }
+      } else {
+        console.warn('Could not save session to localStorage:', e);
+      }
     }
   }
 

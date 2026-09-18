@@ -1,3 +1,6 @@
+import { extractPartialActions } from './streaming.js';
+import { textToProgram } from './textFormat.js';
+
 /**
  * Normalizes drawing programs to canonical JSON format.
  * Handles minor syntax quirks and variations from language models.
@@ -176,3 +179,147 @@ export function normalizeAction(action) {
 
   return act;
 }
+
+/**
+ * Resilient multi-tier model output parser.
+ * Recovers drawing programs from:
+ * - Clean JSON
+ * - JSON wrapped in markdown code blocks
+ * - JSON with single-line (//) or multi-line (/* * /) comments
+ * - Truncated JSON (where generation stopped mid-stream / mid-token)
+ * - Raw streaming partial JSON
+ * - Text DSL format
+ * - Conversational text containing embedded JSON actions
+ *
+ * Guarantees that completed drawing actions are NEVER discarded as blank.
+ *
+ * @param {string} text - Raw string output from LLM
+ * @param {Array<string>} warnings - Collector for recovery and diagnostic warnings
+ * @returns {object} Canonical { version: 1, actions: [...] } drawing program
+ */
+export function parseModelOutput(text, warnings = []) {
+  if (!text || typeof text !== 'string') {
+    return { version: 1, actions: [] };
+  }
+
+  let clean = text.trim();
+
+  // 1. Strip markdown code block wrappers if any
+  const codeBlockMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  const candidateText = codeBlockMatch ? codeBlockMatch[1].trim() : clean;
+
+  // 2. Strip JS/C-style comments: // ... and /* ... */
+  const stripComments = (str) => {
+    return str
+      .replace(/\/\/.*$/gm, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+  };
+
+  const uncommented = stripComments(candidateText);
+
+  // 3. Try standard JSON.parse on full text
+  try {
+    const parsed = JSON.parse(uncommented);
+    const norm = normalizeProgram(parsed);
+    if (norm.actions.length > 0) return norm;
+  } catch (e) {}
+
+  // 4. Try finding outer { ... } boundary with trailing comma cleanup
+  const firstBrace = uncommented.indexOf('{');
+  const lastBrace = uncommented.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const sliced = uncommented.slice(firstBrace, lastBrace + 1);
+    try {
+      const parsed = JSON.parse(sliced);
+      const norm = normalizeProgram(parsed);
+      if (norm.actions.length > 0) return norm;
+    } catch (e) {
+      try {
+        const fixed = sliced.replace(/,\s*([}\]])/g, '$1');
+        const parsed = JSON.parse(fixed);
+        const norm = normalizeProgram(parsed);
+        if (norm.actions.length > 0) return norm;
+      } catch (e2) {}
+    }
+  }
+
+  // 5. Auto-repair truncated JSON:
+  // When an LLM hits max_new_tokens mid-stream inside the "actions": [ ... array,
+  // find the last completed action '}', strip unclosed trailing tokens, and close with ']\n}'
+  const actionsIdx = uncommented.indexOf('"actions"');
+  if (actionsIdx !== -1) {
+    const bracketIdx = uncommented.indexOf('[', actionsIdx);
+    if (bracketIdx !== -1) {
+      const lastActionEnd = uncommented.lastIndexOf('}');
+      if (lastActionEnd > bracketIdx) {
+        const repaired = uncommented.slice(0, lastActionEnd + 1).trim().replace(/,\s*$/, '') + '\n  ]\n}';
+        const startBrace = repaired.indexOf('{');
+        if (startBrace !== -1) {
+          const validRepaired = repaired.slice(startBrace);
+          try {
+            const parsed = JSON.parse(validRepaired);
+            const norm = normalizeProgram(parsed);
+            if (norm.actions.length > 0) {
+              warnings.push(`Auto-repaired truncated JSON (recovered ${norm.actions.length} action(s)).`);
+              return norm;
+            }
+          } catch (e) {
+            try {
+              const fixed = validRepaired.replace(/,\s*([}\]])/g, '$1');
+              const parsed = JSON.parse(fixed);
+              const norm = normalizeProgram(parsed);
+              if (norm.actions.length > 0) {
+                warnings.push(`Auto-repaired truncated JSON with comma fixes (recovered ${norm.actions.length} action(s)).`);
+                return norm;
+              }
+            } catch (e2) {}
+          }
+        }
+      }
+    }
+  }
+
+  // 6. Check if model generated pure Text DSL (contains no JSON braces)
+  if (!clean.includes('{')) {
+    const textProg = textToProgram(clean);
+    if (textProg.actions && textProg.actions.length > 0) {
+      warnings.push(`Parsed ${textProg.actions.length} action(s) from Text DSL format.`);
+      return normalizeProgram(textProg);
+    }
+  }
+
+  // 7. Resilient token-by-token action extractor (recovers all complete action objects)
+  const partialActions = extractPartialActions(clean);
+  if (partialActions && partialActions.length > 0) {
+    warnings.push(`Recovered ${partialActions.length} action(s) via partial buffer extraction.`);
+    return normalizeProgram({ version: 1, actions: partialActions });
+  }
+
+  // 8. Text DSL fallback for mixed text
+  const textProg = textToProgram(clean);
+  if (textProg.actions && textProg.actions.length > 0) {
+    warnings.push(`Parsed ${textProg.actions.length} action(s) from Text DSL format.`);
+    return normalizeProgram(textProg);
+  }
+
+  // 8. Final regex fallback: scan for individual {"op": ...} objects anywhere in text
+  const looseActionRegex = /\{\s*"(?:op|type|command)"\s*:\s*"[^"]+"[^}]*\}/g;
+  const looseMatches = clean.match(looseActionRegex);
+  if (looseMatches && looseMatches.length > 0) {
+    const recovered = [];
+    for (const m of looseMatches) {
+      try {
+        const act = JSON.parse(m.replace(/,\s*([}\]])/g, '$1'));
+        if (act && act.op) recovered.push(act);
+      } catch (e) {}
+    }
+    if (recovered.length > 0) {
+      warnings.push(`Recovered ${recovered.length} action(s) via pattern matching.`);
+      return normalizeProgram({ version: 1, actions: recovered });
+    }
+  }
+
+  warnings.push('Model response did not contain valid drawing actions.');
+  return { version: 1, actions: [] };
+}
+

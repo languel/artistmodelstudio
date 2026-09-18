@@ -68,6 +68,10 @@ export class FlatCanvasMedium extends Medium {
       this.canvas.width = this.width;
       this.canvas.height = this.height;
       this.ctx = this.canvas.getContext('2d');
+    } else if (this.canvas) {
+      if (this.canvas.width !== this.width) this.canvas.width = this.width;
+      if (this.canvas.height !== this.height) this.canvas.height = this.height;
+      this.ctx = this.canvas.getContext('2d');
     }
 
     if (!this.ctx) {

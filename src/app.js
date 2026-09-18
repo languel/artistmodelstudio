@@ -14,8 +14,12 @@ import { CompareModal } from './ui/CompareModal.js';
 import { RewardPanel } from './ui/RewardPanel.js';
 import { DatasetModal } from './ui/DatasetModal.js';
 import { SettingsModal } from './ui/SettingsModal.js';
+import { ModelExplorerModal } from './ui/ModelExplorerModal.js';
+import { HelpModal } from './ui/HelpModal.js';
 import { ProcessLog } from './ui/ProcessLog.js';
 import { EXAMPLES } from '../examples/index.js';
+import { initWebMCP } from './mcp/webmcp.js';
+import { icon } from './ui/icons.js';
 
 export class StudioApp {
   constructor() {
@@ -72,11 +76,37 @@ export class StudioApp {
       sessionStore: this.sessionStore
     });
 
+    const openrouterArtist = this.artistRegistry.get('openrouter');
+    this.modelExplorerModal = new ModelExplorerModal({
+      openrouterArtist,
+      onSelectModel: (modelId) => {
+        if (this.artistRegistry.activeId !== 'openrouter') {
+          this.artistRegistry.setActive('openrouter');
+          this.controls.activeArtist = 'openrouter';
+          const artistSelect = document.querySelector('#artist-select');
+          if (artistSelect) artistSelect.value = 'openrouter';
+        }
+        openrouterArtist.setModel(modelId);
+        this.controls.updateModels('openrouter');
+        const modelSelect = document.querySelector('#model-select');
+        if (modelSelect) modelSelect.value = modelId;
+        this.handleModelChange(modelId, 'openrouter');
+      },
+      onFavoritesChange: () => {
+        if (this.artistRegistry.activeId === 'openrouter') {
+          this.controls.updateModels('openrouter');
+        }
+      }
+    });
+
     this.settingsModal = new SettingsModal({
       artistRegistry: this.artistRegistry,
       mediaRegistry: this.mediaRegistry,
-      onSaveSettings: () => this.handleSettingsSaved()
+      onSaveSettings: () => this.handleSettingsSaved(),
+      onOpenModelExplorer: () => this.modelExplorerModal.open()
     });
+
+    this.helpModal = new HelpModal();
 
     this.controls = new Controls({
       artists: this.artistRegistry.list(),
@@ -86,7 +116,9 @@ export class StudioApp {
       activeMode: this.activeMode,
       canvasSize: this.canvasSize,
       variationLevel: this.variationLevel,
-      onArtistChange: (id) => this.handleArtistChange(id),
+      artistRegistry: this.artistRegistry,
+      onArtistChange: (id, modelId) => this.handleArtistChange(id, modelId),
+      onModelChange: (modelId, artistId) => this.handleModelChange(modelId, artistId),
       onMediumChange: (id) => this.handleMediumChange(id),
       onModeChange: (mode) => this.handleModeChange(mode),
       onCanvasSizeChange: (size) => this.handleCanvasSizeChange(size),
@@ -95,7 +127,9 @@ export class StudioApp {
       onInterrupt: () => this.handleInterrupt(),
       onLoadExample: (example) => this.handleLoadExample(example),
       onOpenSettings: () => this.settingsModal.open(),
-      onToggleLog: () => this.handleToggleLog()
+      onOpenHelp: (tab) => this.helpModal.open(tab),
+      onToggleLog: () => this.handleToggleLog(),
+      onOpenModelExplorer: () => this.modelExplorerModal.open()
     });
   }
 
@@ -110,8 +144,12 @@ export class StudioApp {
           
           <div id="right-column-container" class="studio-side-column">
             <div class="side-column-tabs">
-              <button class="side-tab-btn active" id="tab-btn-editor" data-tab="editor">Code Editor</button>
-              <button class="side-tab-btn" id="tab-btn-log" data-tab="log">Process Log & Debug</button>
+              <button class="side-tab-btn active" id="tab-btn-editor" data-tab="editor">
+                ${icon('codeBracket', 'icon-sm')} <span>Code Editor</span>
+              </button>
+              <button class="side-tab-btn" id="tab-btn-log" data-tab="log">
+                ${icon('terminal', 'icon-sm')} <span>Process Log</span>
+              </button>
             </div>
             <div id="side-pane-editor" class="side-pane active">
               <div id="program-editor-container"></div>
@@ -129,7 +167,38 @@ export class StudioApp {
     this.statusBanner.render(this.root.querySelector('#status-banner-container'));
     this.processLog.render(this.root.querySelector('#process-log-container'));
 
+    const initialArtist = this.getActiveArtist();
+    const initialModel = (typeof initialArtist.getModel === 'function') ? initialArtist.getModel() : '';
+    this.statusBanner.update({
+      provider: initialArtist.name,
+      model: initialModel || initialArtist.name,
+      medium: this.getActiveMedium().name
+    });
+
+    // Check Ollama models in background to refresh models list if running
+    const ollama = this.artistRegistry.get('ollama');
+    if (ollama && typeof ollama.fetchAvailableModels === 'function') {
+      ollama.fetchAvailableModels().then(models => {
+        if (models && models.length > 0 && this.artistRegistry.activeId === 'ollama') {
+          this.controls.updateModels('ollama');
+        }
+      }).catch(() => {});
+    }
+
+    // Fetch OpenRouter models catalog in background if online
+    const openrouter = this.artistRegistry.get('openrouter');
+    if (openrouter && typeof openrouter.fetchModels === 'function') {
+      openrouter.fetchModels().then(() => {
+        if (this.artistRegistry.activeId === 'openrouter') {
+          this.controls.updateModels('openrouter');
+        }
+      }).catch(() => {});
+    }
+
     this.attachSideTabEvents();
+
+    // Mount WebMCP & Agent programmatic bridge on window.ams
+    this.webmcp = initWebMCP(this);
 
     // Check if session has existing candidates
     const existing = this.sessionStore.getCurrentCandidates();
@@ -205,10 +274,12 @@ export class StudioApp {
 
     // Create preliminary placeholder candidates
     for (let i = 0; i < count; i++) {
+      const activeModelId = (typeof artist.getModel === 'function') ? artist.getModel() : artist.name;
       const tempCand = {
         id: `gen-${Date.now()}-${i}`,
         prompt,
-        model: artist.name,
+        model: activeModelId,
+        provider: artist.name,
         medium: medium.name,
         program: { version: 1, actions: [] },
         renderedImage: null,
@@ -242,7 +313,24 @@ export class StudioApp {
           if (p.type === 'start') {
             this.processLog.log(p.message, 'info');
             this.processLog.updateMetrics({ model: p.model, endpoint: p.endpoint });
+          } else if (p.type === 'loading_model') {
+            this.processLog.log(p.message, 'info');
+            this.candidateGrid.setDownloadProgress({ model: p.model, progress: 0, message: p.message });
+            this.statusBanner.setDownloadProgress({ model: p.model, progress: 0, message: p.message });
+          } else if (p.type === 'download_progress') {
+            this.candidateGrid.setDownloadProgress(p);
+            this.statusBanner.setDownloadProgress(p);
+            this.processLog.updateMetrics({
+              download: `${p.progress}%`,
+              shard: p.shardName || ''
+            });
+          } else if (p.type === 'model_ready') {
+            this.processLog.log(p.message, 'success');
+            this.candidateGrid.clearDownloadProgress();
+            this.statusBanner.clearDownloadProgress();
           } else if (p.type === 'candidate_start') {
+            this.candidateGrid.clearDownloadProgress();
+            this.statusBanner.clearDownloadProgress();
             this.candidateGrid.setStreaming(p.candidateIndex, p.message);
             this.processLog.log(p.message, 'info');
             this.processLog.updateMetrics({
@@ -279,9 +367,11 @@ export class StudioApp {
           const renderRes = await medium.render(candidate.program);
           const renderTime = Math.round(performance.now() - startRender);
 
+          const activeModelId = (typeof artist.getModel === 'function') ? artist.getModel() : artist.name;
           const fullCand = this.sessionStore.createCandidate({
             prompt,
-            model: artist.name,
+            model: activeModelId,
+            provider: artist.name,
             medium: medium.name,
             program: candidate.program,
             parentId,
@@ -327,8 +417,10 @@ export class StudioApp {
         this.programEditor.update(activeCand, medium.capabilities());
         this.rewardPanel.update(activeCand);
 
+        const activeModelId = (typeof artist.getModel === 'function') ? artist.getModel() : artist.name;
         this.statusBanner.update({
-          model: artist.name,
+          provider: artist.name,
+          model: activeModelId,
           medium: medium.name,
           actionCount: activeCand?.program?.actions?.length || 0,
           generationTimeMs: activeCand?.renderMetadata?.executionTimeMs || 0,
@@ -350,6 +442,8 @@ export class StudioApp {
       }
     } finally {
       this.candidateGrid.setStreaming(null);
+      this.candidateGrid.clearDownloadProgress();
+      this.statusBanner.clearDownloadProgress();
       this.controls.setGenerating(false);
       this.abortController = null;
     }
@@ -360,6 +454,8 @@ export class StudioApp {
       this.abortController.abort();
       this.controls.setGenerating(false);
       this.candidateGrid.setStreaming(null);
+      this.candidateGrid.clearDownloadProgress();
+      this.statusBanner.clearDownloadProgress();
       this.processLog.setStatus('interrupted');
       this.processLog.log('Interrupted! Aborted in-flight network requests and generation.', 'warning');
     }
@@ -567,8 +663,26 @@ export class StudioApp {
 
   handleArtistChange(artistId) {
     this.artistRegistry.setActive(artistId);
-    this.statusBanner.update({ model: this.getActiveArtist().name });
-    this.processLog.log(`Switched active artist to: ${this.getActiveArtist().name}`, 'info');
+    const artist = this.getActiveArtist();
+    const model = (typeof artist.getModel === 'function') ? artist.getModel() : '';
+    this.statusBanner.update({
+      provider: artist.name,
+      model: model || artist.name
+    });
+    this.controls.updateModels(artistId);
+    this.processLog.log(`Switched provider to: ${artist.name} [model: ${model}]`, 'info');
+  }
+
+  handleModelChange(modelId, artistId) {
+    const artist = this.getActiveArtist();
+    if (typeof artist.setModel === 'function') {
+      artist.setModel(modelId);
+    }
+    this.statusBanner.update({
+      provider: artist.name,
+      model: modelId
+    });
+    this.processLog.log(`Switched model for ${artist.name} to: ${modelId}`, 'info');
   }
 
   async handleMediumChange(mediumId) {
@@ -579,8 +693,14 @@ export class StudioApp {
 
     const cands = this.sessionStore.getCurrentCandidates();
     for (const c of cands) {
-      const res = await medium.render(c.program);
-      c.renderedImage = res.image;
+      try {
+        const res = await medium.render(c.program);
+        if (res && res.image) {
+          c.renderedImage = res.image;
+        }
+      } catch (err) {
+        console.error('Failed to render candidate in medium:', medium.name, err);
+      }
     }
     this.candidateGrid.update(cands, this.sessionStore.activeCandidateId);
     const active = this.sessionStore.getActiveCandidate();
@@ -663,8 +783,12 @@ export class StudioApp {
   }
 
   handleSettingsSaved() {
+    const artist = this.getActiveArtist();
+    const model = (typeof artist.getModel === 'function') ? artist.getModel() : '';
+    this.controls.updateModels();
     this.statusBanner.update({
-      model: this.getActiveArtist().name,
+      provider: artist.name,
+      model: model || artist.name,
       medium: this.getActiveMedium().name
     });
   }

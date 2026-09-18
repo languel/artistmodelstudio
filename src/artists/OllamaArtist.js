@@ -7,26 +7,64 @@
 
 import { Artist } from './Artist.js';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
-import { normalizeProgram } from '../language/normalize.js';
+import { normalizeProgram, parseModelOutput } from '../language/normalize.js';
 import { extractPartialActions } from '../language/streaming.js';
+
+export const OLLAMA_DEFAULT_PRESETS = [
+  { id: 'liquidai/lfm2.5-1.2b-instruct:latest', name: 'LiquidAI LFM 2.5 (1.2B)' },
+  { id: 'llama3.2:latest', name: 'Llama 3.2 (3B)' },
+  { id: 'qwen2.5:latest', name: 'Qwen 2.5 (7B / 1.5B)' },
+  { id: 'mistral:latest', name: 'Mistral (7B)' },
+  { id: 'deepseek-r1:latest', name: 'DeepSeek R1' }
+];
 
 export class OllamaArtist extends Artist {
   constructor(options = {}) {
-    super(options.id || 'ollama', options.name || 'Ollama Local Model', 'ollama');
-    this.endpoint = options.endpoint || 'http://localhost:11434';
-    this.model = options.model || 'liquidai/lfm2.5-1.2b-instruct:latest';
+    super(options.id || 'ollama', options.name || 'Ollama Local', 'ollama');
+    this.endpoint = options.endpoint || (typeof localStorage !== 'undefined' && localStorage.getItem('ams_ollama_endpoint')) || 'http://localhost:11434';
+    this.model = options.model || (typeof localStorage !== 'undefined' && localStorage.getItem('ams_ollama_model')) || 'liquidai/lfm2.5-1.2b-instruct:latest';
     this.temperature = options.temperature ?? 0.7;
     this.maxTokens = options.maxTokens ?? 1500;
+    this.discoveredModels = [];
+  }
+
+  getModel() {
+    return this.model;
+  }
+
+  setModel(modelId) {
+    if (!modelId) return;
+    this.model = modelId;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ams_ollama_model', modelId);
+    }
+  }
+
+  getAvailableModels() {
+    if (this.discoveredModels && this.discoveredModels.length > 0) {
+      return this.discoveredModels.map(m => ({ id: m, name: m }));
+    }
+    const presets = [...OLLAMA_DEFAULT_PRESETS];
+    if (this.model && !presets.some(p => p.id === this.model)) {
+      presets.unshift({ id: this.model, name: this.model });
+    }
+    return presets;
   }
 
   async fetchAvailableModels() {
     try {
-      const res = await fetch(`${this.endpoint}/api/tags`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1000);
+      const res = await fetch(`${this.endpoint}/api/tags`, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      return (data.models || []).map(m => m.name);
+      const list = (data.models || []).map(m => m.name);
+      if (list.length > 0) {
+        this.discoveredModels = list;
+      }
+      return list;
     } catch (err) {
-      console.warn('Failed to fetch Ollama models:', err.message);
       return [];
     }
   }
@@ -250,8 +288,7 @@ export class OllamaArtist extends Artist {
     }
 
     const generationTimeMs = Math.round(performance.now() - startTime);
-    const parsedJson = this.extractAndParseJSON(rawResponse, warnings);
-    const normalized = normalizeProgram(parsedJson);
+    const normalized = parseModelOutput(rawResponse, warnings);
 
     return {
       program: normalized,

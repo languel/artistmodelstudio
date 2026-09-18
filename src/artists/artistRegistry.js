@@ -7,6 +7,9 @@
 import { MockArtist } from './MockArtist.js';
 import { OllamaArtist } from './OllamaArtist.js';
 import { WebGPUTransformersArtist } from './WebGPUTransformersArtist.js';
+import { OpenRouterArtist } from './OpenRouterArtist.js';
+import { OpenAICompatibleArtist } from './OpenAICompatibleArtist.js';
+import { TrainedModelArtist } from './TrainedModelArtist.js';
 
 export class ArtistRegistry {
   constructor() {
@@ -15,10 +18,16 @@ export class ArtistRegistry {
     const mock = new MockArtist();
     const ollama = new OllamaArtist();
     const webgpu = new WebGPUTransformersArtist();
+    const openrouter = new OpenRouterArtist();
+    const openai = new OpenAICompatibleArtist();
+    const trained = new TrainedModelArtist();
 
     this.register(mock);
+    this.register(openrouter);
+    this.register(openai);
     this.register(ollama);
     this.register(webgpu);
+    this.register(trained);
 
     // Default to mock for instant reliability, user or settings can switch
     this.activeId = 'mock';

@@ -6,7 +6,8 @@
 export class StatusBanner {
   constructor() {
     this.metrics = {
-      model: 'None',
+      provider: 'Procedural',
+      model: 'procedural-master',
       medium: 'Watercolor',
       generationTimeMs: 0,
       renderTimeMs: 0,
@@ -14,6 +15,20 @@ export class StatusBanner {
       totalTimeMs: 0,
       generationIndex: 0
     };
+    this.downloadProgress = null;
+    this.isDownloading = false;
+  }
+
+  setDownloadProgress(progressData) {
+    this.isDownloading = Boolean(progressData && progressData.progress < 100);
+    this.downloadProgress = progressData;
+    this.render();
+  }
+
+  clearDownloadProgress() {
+    this.isDownloading = false;
+    this.downloadProgress = null;
+    this.render();
   }
 
   update(newMetrics) {
@@ -27,24 +42,40 @@ export class StatusBanner {
     const target = container || document.querySelector('#status-banner-container');
     if (!target) return;
 
+    const dp = this.downloadProgress;
+    const progressPct = dp ? Math.min(Math.max(dp.progress || 0, 0), 100) : 0;
+
     target.innerHTML = `
-      <div class="status-bar">
-        <div class="status-group">
-          <span class="metric">MODEL: <strong>${this.metrics.model}</strong></span>
-          <span style="margin: 0 8px; color: var(--border-color);">|</span>
-          <span class="metric">MEDIUM: <strong>${this.metrics.medium}</strong></span>
-          <span style="margin: 0 8px; color: var(--border-color);">|</span>
-          <span class="metric">GEN: <strong>${this.metrics.generationIndex}</strong></span>
-        </div>
-        <div class="status-group">
-          <span class="metric">GENERATION: <strong>${this.metrics.generationTimeMs} ms</strong></span>
-          <span style="margin: 0 8px; color: var(--border-color);">|</span>
-          <span class="metric">PROGRAM: <strong>${this.metrics.actionCount} actions</strong></span>
-          <span style="margin: 0 8px; color: var(--border-color);">|</span>
-          <span class="metric">RENDER: <strong>${this.metrics.renderTimeMs} ms</strong></span>
-          <span style="margin: 0 8px; color: var(--border-color);">|</span>
-          <span class="metric">TOTAL: <strong>${this.metrics.totalTimeMs} ms</strong></span>
-        </div>
+      <div class="status-bar ${dp ? 'status-bar-downloading' : ''}">
+        ${dp ? `
+          <div class="model-progress-strip">
+            <div class="model-progress-strip-bar" style="width: ${progressPct}%;"></div>
+          </div>
+          <div class="status-download-info">
+            <span class="pulse-dot"></span>
+            <span class="status-download-text">${dp.message || 'Loading model weights...'}</span>
+            <span class="status-download-badge">${progressPct}%</span>
+          </div>
+        ` : `
+          <div class="status-group">
+            <span class="metric">PROVIDER: <strong>${this.metrics.provider || 'Procedural'}</strong></span>
+            <span style="margin: 0 8px; color: var(--border-color);">|</span>
+            <span class="metric">MODEL: <strong style="color: var(--accent-success); font-family: monospace;">${this.metrics.model || 'procedural'}</strong></span>
+            <span style="margin: 0 8px; color: var(--border-color);">|</span>
+            <span class="metric">MEDIUM: <strong>${this.metrics.medium}</strong></span>
+            <span style="margin: 0 8px; color: var(--border-color);">|</span>
+            <span class="metric">GEN: <strong>${this.metrics.generationIndex}</strong></span>
+          </div>
+          <div class="status-group">
+            <span class="metric">GENERATION: <strong>${this.metrics.generationTimeMs} ms</strong></span>
+            <span style="margin: 0 8px; color: var(--border-color);">|</span>
+            <span class="metric">PROGRAM: <strong>${this.metrics.actionCount} actions</strong></span>
+            <span style="margin: 0 8px; color: var(--border-color);">|</span>
+            <span class="metric">RENDER: <strong>${this.metrics.renderTimeMs} ms</strong></span>
+            <span style="margin: 0 8px; color: var(--border-color);">|</span>
+            <span class="metric">TOTAL: <strong>${this.metrics.totalTimeMs} ms</strong></span>
+          </div>
+        `}
       </div>
     `;
   }

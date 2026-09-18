@@ -59,13 +59,20 @@ export class WatercolorMedium extends Medium {
       this.canvas.width = this.width;
       this.canvas.height = this.height;
     }
+    if (this.canvas2D) {
+      this.canvas2D.width = this.width;
+      this.canvas2D.height = this.height;
+    }
+    this.brushCanvas = null;
   }
 
   toX(x) {
+    // p5.brush uses WebGL mode where (0, 0) is the center of the canvas [-width/2, width/2]
     return x * (this.width * 0.5);
   }
 
   toY(y) {
+    // p5.brush uses WebGL mode where (0, 0) is the center of the canvas [-height/2, height/2]
     return y * (this.height * 0.5);
   }
 
@@ -84,7 +91,15 @@ export class WatercolorMedium extends Medium {
 
     if (brush && typeof document !== 'undefined') {
       try {
-        if (!this.brushCanvas) {
+        if (!this.brushCanvas || this.brushCanvas.width !== this.width || this.brushCanvas.height !== this.height) {
+          this.brushCanvas = document.createElement('canvas');
+          this.brushCanvas.width = this.width;
+          this.brushCanvas.height = this.height;
+        }
+
+        if (typeof brush.load === 'function') {
+          brush.load(this.brushCanvas);
+        } else if (typeof brush.createCanvas === 'function') {
           this.brushCanvas = brush.createCanvas(this.width, this.height);
         }
 
@@ -109,10 +124,21 @@ export class WatercolorMedium extends Medium {
         let hatchDist = 10;
         let hatchAngle = 45;
 
+        // Reset all previous brush state to avoid leakage across frames
+        if (typeof brush.noHatch === 'function') brush.noHatch();
+        if (typeof brush.noWash === 'function') brush.noWash();
+        if (typeof brush.noFill === 'function') brush.noFill();
+        if (typeof brush.noStroke === 'function') brush.noStroke();
+
+        // Initialize brush engine with a valid default brush
+        if (typeof brush.set === 'function') {
+          brush.set('HB', currentStrokeColor, currentStrokeWeight);
+          brush.noStroke(); // start without stroke until requested
+        }
+
         // Apply initial brush state
         if (typeof brush.fillBleed === 'function') brush.fillBleed(currentBleed);
         if (typeof brush.fillTexture === 'function') brush.fillTexture(currentTexture);
-        if (typeof brush.noHatch === 'function') brush.noHatch();
 
         for (const act of norm.actions) {
           switch (act.op) {
@@ -137,7 +163,16 @@ export class WatercolorMedium extends Medium {
               hasHatch = true;
               hatchDist = act.distance ?? 10;
               hatchAngle = act.angle ?? 45;
+              if (typeof brush.set === 'function') {
+                brush.set('HB', currentStrokeColor, currentStrokeWeight);
+                if (!hasStroke && typeof brush.noStroke === 'function') brush.noStroke();
+              }
               if (typeof brush.hatch === 'function') brush.hatch(hatchDist, hatchAngle);
+              break;
+
+            case 'brush.noHatch':
+              hasHatch = false;
+              if (typeof brush.noHatch === 'function') brush.noHatch();
               break;
 
             case 'brush.weight':
@@ -146,17 +181,21 @@ export class WatercolorMedium extends Medium {
               if (typeof brush.strokeWeight === 'function') brush.strokeWeight(currentStrokeWeight);
               break;
 
-            case 'fill':
+            case 'fill': {
               hasFill = true;
               currentFillColor = act.color || '#3a5a78';
               if (act.opacity !== undefined) currentFillOpacity = act.opacity;
+              const opacity255 = Math.round(currentFillOpacity <= 1.0 ? currentFillOpacity * 255 : currentFillOpacity);
+              if (typeof brush.noWash === 'function') brush.noWash();
               if (typeof brush.fill === 'function') {
-                brush.fill(currentFillColor, currentFillOpacity, currentBleed, currentTexture);
+                brush.fill(currentFillColor, opacity255);
               }
               break;
+            }
 
             case 'noFill':
               hasFill = false;
+              if (typeof brush.noWash === 'function') brush.noWash();
               if (typeof brush.noFill === 'function') brush.noFill();
               break;
 
@@ -164,7 +203,12 @@ export class WatercolorMedium extends Medium {
               hasStroke = true;
               currentStrokeColor = act.color || '#222222';
               if (act.width !== undefined) currentStrokeWeight = act.width;
-              if (typeof brush.stroke === 'function') brush.stroke(currentStrokeColor, currentStrokeWeight);
+              if (typeof brush.set === 'function') {
+                brush.set('HB', currentStrokeColor, currentStrokeWeight);
+              } else {
+                if (typeof brush.stroke === 'function') brush.stroke(currentStrokeColor);
+                if (typeof brush.strokeWeight === 'function') brush.strokeWeight(currentStrokeWeight);
+              }
               break;
 
             case 'noStroke':
@@ -175,9 +219,23 @@ export class WatercolorMedium extends Medium {
             case 'circle': {
               const cx = this.toX(act.x);
               const cy = this.toY(act.y);
-              const d = Math.max(1, this.toSize(act.diameter));
-              if (typeof brush.circle === 'function') {
-                brush.circle(cx, cy, d);
+              const r = Math.max(0.5, this.toSize(act.diameter) * 0.5);
+
+              // Generate smooth circular perimeter with subtle organic watercolor wobble
+              const numPoints = Math.max(20, Math.min(64, Math.round(r * 0.8)));
+              const pts = [];
+              const wobbleAmount = 0.035; // gentle organic hand-painted wobble
+              for (let i = 0; i < numPoints; i++) {
+                const angle = (i / numPoints) * Math.PI * 2;
+                const wobble = 1 + (Math.sin(angle * 3 + cx) * 0.5 + Math.cos(angle * 5 + cy) * 0.5) * wobbleAmount;
+                const pr = r * wobble;
+                pts.push([cx + Math.cos(angle) * pr, cy + Math.sin(angle) * pr]);
+              }
+
+              if (typeof brush.polygon === 'function') {
+                brush.polygon(pts);
+              } else if (typeof brush.circle === 'function') {
+                brush.circle(cx, cy, r, 0.4);
               }
               break;
             }
@@ -224,6 +282,12 @@ export class WatercolorMedium extends Medium {
         if (typeof brush.render === 'function') {
           brush.render();
         }
+
+        // Clear transient states so they don't persist into the next frame
+        if (typeof brush.noHatch === 'function') brush.noHatch();
+        if (typeof brush.noWash === 'function') brush.noWash();
+        if (typeof brush.noFill === 'function') brush.noFill();
+        if (typeof brush.noStroke === 'function') brush.noStroke();
 
         this.canvas = this.brushCanvas;
         renderedWithBrush = true;

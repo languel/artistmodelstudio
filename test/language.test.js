@@ -59,4 +59,67 @@ describe('Language Specification', () => {
     };
     expect(validateProgram(bad).valid).toBe(false);
   });
+
+  it('parseModelOutput recovers actions from truncated JSON mid-generation', async () => {
+    const { parseModelOutput } = await import('../src/language/normalize.js');
+    const truncated = `\`\`\`json
+{
+  "version": 1,
+  "actions": [
+    {"op": "background", "color": "#faf7f2"},
+    {"op": "circle", "x": 0.0, "y": -0.2, "diameter": 0.35},
+    {"op": "brush.bleed", "amount": 0.35},
+    {"op": "line", "x1": 0.0, "y1": -0.2, "x2": 0.0, "y2": 0.6},
+    {"op": "brush.texture", "amount": 0.45},
+    {"op": "fill", "color": "#ce526d", "opacity": 0.8},
+    {"op": "polygon", "points": [[-0.2, -0.2], [0.2, -0.2], [0, 0.2]]},
+    {"op": "stroke", "color": "#2d4a34", "width": 2.5},
+    {"op": "polygon", "points": [[-0.4, -0.4], [0.4, -0.4], [0.4, 
+`;
+    const warnings = [];
+    const prog = parseModelOutput(truncated, warnings);
+    expect(prog.version).toBe(1);
+    expect(prog.actions.length).toBe(8);
+    expect(prog.actions[0].op).toBe('background');
+    expect(prog.actions[1].op).toBe('circle');
+    expect(prog.actions[7].op).toBe('stroke');
+    expect(warnings.length).toBeGreaterThan(0);
+  });
+
+  it('parseModelOutput strips comments and repairs trailing commas', async () => {
+    const { parseModelOutput } = await import('../src/language/normalize.js');
+    const commented = `
+    // Creative artwork definition
+    {
+      "version": 1,
+      "actions": [
+        {"op": "background", "color": "#f5f5dc"}, // Soft paper wash
+        {"op": "circle", "x": 0.7, "y": -0.2, "radius": 0.15,},
+      ]
+    }
+    `;
+    const warnings = [];
+    const prog = parseModelOutput(commented, warnings);
+    expect(prog.actions.length).toBe(2);
+    expect(prog.actions[0].op).toBe('background');
+    expect(prog.actions[1].op).toBe('circle');
+  });
+
+  it('parseModelOutput recovers actions from Text DSL format', async () => {
+    const { parseModelOutput } = await import('../src/language/normalize.js');
+    const dslText = `
+background #faf7f2
+fill #ce526d 0.8
+stroke #2d4a34 2.5
+circle 0 -0.2 0.35
+line 0 -0.2 0 0.6
+rect -0.2 -0.2 0.4 0.4
+    `;
+    const warnings = [];
+    const prog = parseModelOutput(dslText, warnings);
+    expect(prog.actions.length).toBe(6);
+    expect(prog.actions[0].op).toBe('background');
+    expect(prog.actions[3].op).toBe('circle');
+  });
 });
+
