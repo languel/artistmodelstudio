@@ -338,7 +338,20 @@ export class StudioApp {
     if (ref.kind === 'webcam') source = { kind: 'webcam' };
     else if (ref.live && ref.file) source = { kind: ref.kind, type: ref.file.type, bytes: new Uint8Array(await ref.file.arrayBuffer()) };
     this._refOverlayKey = null; // live frames change: take a fresh overlay snapshot
-    const zip = await buildContinuousZip(target, { ...params, contentRect: target.contentRect, seed: 1 }, { title, source: 'Reference Fitter, continuous', refDataUrl: this.refOverlaySrc(), media: source });
+    // Still references travel uncropped, so the export can change aspect and fit.
+    let originalUrl = '';
+    if (!source) {
+      const img = ref.image;
+      const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+      const k = Math.min(1, 1024 / Math.max(iw, ih));
+      const c = document.createElement('canvas');
+      c.width = Math.round(iw * k);
+      c.height = Math.round(ih * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      originalUrl = c.toDataURL('image/jpeg', 0.9);
+    }
+    const zip = await buildContinuousZip(target, { ...params, contentRect: target.contentRect, aspect: 'export', source: 'exported', seed: 1 },
+      { title, source: 'Reference Fitter, continuous', refDataUrl: this.refOverlaySrc(), media: source, originalUrl });
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'ams-continuous';
     downloadBytes(zip, `${slug}-continuous-p5.zip`, 'application/zip');
   }

@@ -70,4 +70,5 @@ Notes:
 - Invalid colours are skipped rather than stopping the sketch.
 - `brush.js` defines globals `t` and `e`, and p5 defines globals such as `set`, so sketch code avoids those names at top level (tests guard this).
 - Continuous exports embed the reference at the canvas aspect for the overlay, and start with the studio's settings at export time.
+- Every continuous export has **Source** (Exported / Webcam / Upload…), **Aspect** (as exported, Source, or a ratio) and **Fit** in its panel, so the viewer can point it at their own camera or files; a new aspect starts the painting over. Still exports pack the original reference uncropped so aspect and fit can change; nothing else is packed unless it was the exported source.
 - Live sources travel with continuous exports: a webcam export asks for the camera when opened (falling back to the frame captured at export); an uploaded video or animation is embedded in `sketch.js` as base64, because a media file loaded from disk would make the canvas unreadable to the fitter. The panel adds Sampling, Interval and Rate, and **H** toggles Hold.

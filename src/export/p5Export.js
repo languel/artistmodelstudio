@@ -306,7 +306,7 @@ export function buildIndexHtml(title, { brush = true } = {}) {
     canvas { display: block; }
     #ams-panel { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center;
       padding: 8px; border-radius: 8px; background: rgba(20, 20, 24, 0.86); font: 13px system-ui, sans-serif; color: #b8bac0; }
-    #ams-panel[hidden] { display: none; }
+    #ams-panel[hidden], #ams-panel [hidden] { display: none !important; }
     #ams-panel button { font: inherit; padding: 5px 10px; border: 1px solid #3a3c44; border-radius: 5px; background: #24262d; color: #e4e5e8; cursor: pointer; }
     #ams-panel button:hover { background: #2f323a; }
     #ams-panel button:disabled { opacity: 0.4; cursor: default; }
@@ -403,14 +403,17 @@ function rgbToBase64(rgb) {
 
 const CONTINUOUS_RUNTIME = String.raw`
 // ---------------------------------------------------------------------------
-// Player. The panel mirrors the studio's continuous controls.
+// Player. The panel mirrors the studio's continuous controls, plus Source
+// (exported / webcam / upload) and Aspect.
 // Keys: U panel · Space pause · C clear · H hold/resume sampling · W render (flat / watercolor / layered)
 //       M style · [ ] density · , . cycle · O overlay · F fit/fill · S save PNG
 // Names avoid single letters (brush.js defines globals t and e) and p5 globals such as set().
 // ---------------------------------------------------------------------------
 let cf, simTime = 0, lastMillis = 0, paused = false, fitMode = true, panel = null;
 let sprites = null, layer = null, refImg = null, liveSource = null, sampler = null;
-const state = Object.assign({ fit: 'cover', ground: 'transparent', groundTime: 5, render: 'flat', overlay: 'off', refOpacity: 0.5, opacity: 1, pigment: 0.6, sampling: 'continuous', interval: 2, rate: 1 }, PARAMS);
+let stillImage = null;           // current still reference (exported original or an upload)
+let tW = TARGET_W, tH = TARGET_H; // fitting target size (long side 128)
+const state = Object.assign({ fit: 'cover', ground: 'transparent', groundTime: 5, render: 'flat', overlay: 'off', refOpacity: 0.5, opacity: 1, pigment: 0.6, sampling: 'continuous', interval: 2, rate: 1, aspect: 'export', source: 'exported' }, PARAMS);
 if (typeof brush === 'undefined' && state.render !== 'flat') state.render = 'flat';
 
 function decodeTarget() {
@@ -422,40 +425,152 @@ function decodeTarget() {
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  cf = new ContinuousFitter(decodeTarget(), TARGET_W, TARGET_H, state);
+  // Start instantly from the target captured at export; the source takes over when loaded.
+  cf = new ContinuousFitter(decodeTarget(), tW, tH, Object.assign({}, state, { shapes: shapeList() }));
   cf.setParams({ opacity: state.opacity });
   cf.setContent(PARAMS.contentRect || null);
   refImg = new Image();
   refImg.src = REF_DATA_URL;
   lastMillis = millis();
   buildPanel();
-  if (MEDIA_KIND) startSource();
+  useExportedSource();
 }
 
-// Webcam asks for the camera; embedded video/animation is decoded from the sketch.
-async function startSource() {
+// ---- sources --------------------------------------------------------------
+function stopLive() {
+  if (liveSource) liveSource.stop();
+  liveSource = null;
+  sampler = null;
+}
+
+function mediaBlob() {
+  const bin = atob(MEDIA_B64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: MEDIA_TYPE });
+}
+
+function loadStill(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Could not load the image'));
+    img.src = url;
+  });
+}
+
+async function startLive(make) {
+  const src = await make();
+  if (!src) return false;
+  stopLive();
+  stillImage = null;
+  liveSource = src;
+  liveSource.setRate(state.rate);
+  liveSource.tick(0);
+  sampler = new SourceSampler({ mode: state.sampling, interval: state.interval });
+  retarget(true);
+  return true;
+}
+
+/** What the sketch was exported with: webcam, embedded media, or the original still. */
+async function useExportedSource() {
+  state.source = 'exported';
   try {
-    if (MEDIA_KIND === 'webcam') {
-      liveSource = await LiveSource.webcam();
-    } else {
-      const bin = atob(MEDIA_B64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      const blob = new Blob([bytes], { type: MEDIA_TYPE });
-      liveSource = MEDIA_KIND === 'video' ? await LiveSource.video(URL.createObjectURL(blob)) : await LiveSource.animated(blob);
+    if (MEDIA_KIND === 'webcam') await startLive(() => LiveSource.webcam());
+    else if (MEDIA_KIND === 'video') await startLive(() => LiveSource.video(URL.createObjectURL(mediaBlob())));
+    else if (MEDIA_KIND === 'animated') await startLive(() => LiveSource.animated(mediaBlob()));
+    else if (ORIGINAL_URL) {
+      stopLive();
+      stillImage = await loadStill(ORIGINAL_URL);
+      if (state.aspect !== 'export') retarget(true);
     }
-    if (!liveSource) return;
-    liveSource.setRate(state.rate);
-    sampler = new SourceSampler({ mode: state.sampling, interval: state.interval });
   } catch (err) {
-    console.warn('Live source unavailable, keeping the still reference:', err);
+    console.warn('Exported source unavailable, keeping the captured frame:', err);
   }
+  syncPanel();
+}
+
+async function useWebcam() {
+  try {
+    await startLive(() => LiveSource.webcam());
+    state.source = 'webcam';
+  } catch (err) {
+    console.warn('Webcam unavailable:', err);
+  }
+  syncPanel();
+}
+
+async function useUpload(file) {
+  try {
+    if (file.type.startsWith('video/')) {
+      await startLive(() => LiveSource.video(URL.createObjectURL(file)));
+    } else {
+      const animated = /^image\/(gif|webp|png|apng|avif)$/.test(file.type) ? await LiveSource.animated(file).catch(() => null) : null;
+      if (animated) await startLive(async () => animated);
+      else {
+        stopLive();
+        stillImage = await loadStill(URL.createObjectURL(file));
+        retarget(true);
+      }
+    }
+    state.source = 'upload';
+  } catch (err) {
+    console.warn('Could not use that file:', err);
+  }
+  syncPanel();
+}
+
+function frameImage() {
+  return liveSource ? liveSource.canvas : stillImage;
+}
+
+/** Canvas aspect (width / height) for the current choice. */
+function aspectValue() {
+  if (state.aspect === 'export') return TARGET_W / TARGET_H;
+  if (state.aspect === 'source') {
+    const f = frameImage();
+    const w = f && (f.naturalWidth || f.width), h = f && (f.naturalHeight || f.height);
+    return w && h ? w / h : TARGET_W / TARGET_H;
+  }
+  const parts = String(state.aspect).split(':').map(Number);
+  return parts[0] > 0 && parts[1] > 0 ? parts[0] / parts[1] : 1;
+}
+
+/**
+ * Re-place the current frame at the chosen aspect and fit. A new aspect
+ * rebuilds the fitter (the painting starts over); otherwise only the target
+ * is swapped, so the painting keeps evolving.
+ */
+function retarget(force) {
+  const frame = frameImage();
+  if (!frame || !(frame.naturalWidth || frame.width)) return;
+  const a = aspectValue();
+  const nw = a >= 1 ? 128 : Math.max(8, Math.round(128 * a));
+  const nh = a >= 1 ? Math.max(8, Math.round(128 / a)) : 128;
+  const placed = letterbox(frame, nw, nh, state.fit);
+  if (nw !== tW || nh !== tH) {
+    tW = nw;
+    tH = nh;
+    cf = new ContinuousFitter(rgbOf(placed), tW, tH, Object.assign({}, state, { shapes: shapeList() }));
+    cf.setParams({ opacity: state.opacity });
+    sprites = null;
+    layer = null;
+  } else if (force || liveSource) {
+    cf.setTarget(rgbOf(placed));
+  }
+  cf.setContent(placed.contentRect);
+  const d = rendererDims();
+  refImg = letterbox(frame, d.width, d.height, state.fit);
+}
+
+function shapeList() {
+  return state.shapes === 'mixed' || !state.shapes ? ['rect', 'triangle', 'circle'] : Array.isArray(state.shapes) ? state.shapes : [state.shapes];
 }
 
 function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 
 function rendererDims() {
-  const aspect = TARGET_W / TARGET_H;
+  const aspect = tW / tH;
   return aspect >= 1 ? { width: 1024, height: Math.round(1024 / aspect) } : { width: Math.round(1024 * aspect), height: 1024 };
 }
 
@@ -465,13 +580,7 @@ function draw() {
   lastMillis = now;
   if (liveSource) {
     liveSource.tick(dt);
-    if (!paused && sampler && sampler.due(liveSource, dt) && liveSource.canvas.width) {
-      const placed = letterbox(liveSource.canvas, TARGET_W, TARGET_H, state.fit);
-      cf.setTarget(rgbOf(placed));
-      cf.setContent(placed.contentRect);
-      const d = rendererDims();
-      refImg = letterbox(liveSource.canvas, d.width, d.height, state.fit);
-    }
+    if (!paused && sampler && sampler.due(liveSource, dt) && liveSource.canvas.width) retarget(false);
   }
   if (!paused) {
     simTime += dt;
@@ -490,7 +599,7 @@ function draw() {
     if (!paused) layer.update(cf, simTime, dt, retentionFor(state.fadeOut));
   }
   background('#111111');
-  const aspect = TARGET_W / TARGET_H;
+  const aspect = tW / tH;
   let x = 0, y = 0, w = width, h = height;
   if (fitMode) {
     w = Math.min(width, height * aspect);
@@ -520,6 +629,7 @@ function setParam(key, value) {
   if (key === 'sampling' && sampler) sampler.mode = value;
   if (key === 'interval' && sampler) sampler.interval = value;
   if (key === 'rate' && liveSource) liveSource.setRate(value);
+  if (key === 'fit' || key === 'aspect') retarget(true);
   if (key === 'shapes') cf.setParams({ shapes: value === 'mixed' ? ['rect', 'triangle', 'circle'] : [value] });
   else if (['mode', 'density', 'lifetime', 'fadeIn', 'fadeOut', 'ground', 'groundTime'].includes(key)) cf.setParams({ [key]: value });
   syncPanel();
@@ -537,7 +647,7 @@ function keyPressed() {
   if (k === 'u') panel.hidden = !panel.hidden;
   else if (k === ' ') togglePause();
   else if (k === 'c') clearCanvas();
-  else if (k === 'h' && MEDIA_KIND) setParam('sampling', state.sampling === 'hold' ? 'continuous' : 'hold');
+  else if (k === 'h' && liveSource) setParam('sampling', state.sampling === 'hold' ? 'continuous' : 'hold');
   else if (k === 'w' && typeof brush !== 'undefined') cycleParam(RENDERS, 'render');
   else if (k === 'm') setParam('mode', state.mode === 'strokes' ? 'fade' : 'strokes');
   else if (k === '[') setParam('density', Math.max(1, Math.round(state.density * 0.8)));
@@ -565,12 +675,15 @@ const CONTROLS = [
   ['overlay', 'Overlay', 'select', [['off', 'Off'], ['under', 'Under'], ['over', 'Over'], ['solo', 'Solo']], 'Reference (O)'],
   ['refOpacity', 'Ref opacity', 'range', [0, 1, 0.05, 0, 1], 'Reference opacity for Under and Over']
 ];
-if (MEDIA_KIND) {
-  CONTROLS.push(['fit', 'Fit', 'select', [['cover', 'Cover'], ['contain', 'Contain'], ['stretch', 'Stretch']], 'How the live source is placed when aspects differ']);
-  CONTROLS.push(['sampling', 'Sampling', 'select', [['continuous', 'Continuous'], ['interval', 'Interval'], ['hold', 'Hold']], 'How often the painting follows the live source (H holds)']);
-  CONTROLS.push(['interval', 'Interval s', 'range', [0.2, 20, 0.2, 0.05, Infinity], 'Seconds between samples (Interval)']);
-  if (MEDIA_KIND !== 'webcam') CONTROLS.push(['rate', 'Rate', 'range', [0, 4, 0.05, 0, 16], 'Playback speed, independent of sampling (0 pauses)']);
-}
+CONTROLS.unshift(
+  ['source', 'Source', 'select', [['exported', 'Exported'], ['webcam', 'Webcam'], ['upload', 'Upload…']], 'Exported: what this sketch was exported with. Webcam: this computer\'s camera. Upload: an image, animated GIF/WebP or video from this computer (stays in the browser)'],
+  ['aspect', 'Aspect', 'select', [['export', 'As exported'], ['source', 'Source'], ['1:1', '1:1'], ['4:3', '4:3'], ['3:4', '3:4'], ['3:2', '3:2'], ['2:3', '2:3'], ['16:9', '16:9'], ['9:16', '9:16']], 'Canvas aspect; a new aspect starts the painting over'],
+  ['fit', 'Fit', 'select', [['cover', 'Cover'], ['contain', 'Contain'], ['stretch', 'Stretch']], 'How the source is placed when aspects differ']
+);
+CONTROLS.push(['sampling', 'Sampling', 'select', [['continuous', 'Continuous'], ['interval', 'Interval'], ['hold', 'Hold']], 'How often the painting follows a moving source (H holds)']);
+CONTROLS.push(['interval', 'Interval s', 'range', [0.2, 20, 0.2, 0.05, Infinity], 'Seconds between samples (Interval)']);
+CONTROLS.push(['rate', 'Rate', 'range', [0, 4, 0.05, 0, 16], 'Playback speed of a video or animation, independent of sampling (0 pauses)']);
+const LIVE_ONLY = ['sampling', 'interval', 'rate'];
 
 function buildPanel() {
   if (!state.shapes || Array.isArray(state.shapes)) {
@@ -595,6 +708,7 @@ function buildPanel() {
   for (const [key, label, kind, opts, tip] of CONTROLS) {
     const row = document.createElement('label');
     row.className = 'ams-control';
+    row.dataset.row = key;
     row.title = tip;
     const name = document.createElement('span');
     name.textContent = label;
@@ -604,7 +718,24 @@ function buildPanel() {
       sel.dataset.key = key;
       for (const [value, text] of opts) sel.add(new Option(text, value));
       if (key === 'render' && typeof brush === 'undefined') sel.disabled = true;
-      sel.addEventListener('change', () => { setParam(key, sel.value); sel.blur(); });
+      if (key === 'source') {
+        const file = document.createElement('input');
+        file.type = 'file';
+        file.accept = 'image/*,video/*';
+        file.hidden = true;
+        file.addEventListener('change', () => { if (file.files[0]) useUpload(file.files[0]); file.value = ''; });
+        row.appendChild(file);
+        sel.addEventListener('change', () => {
+          const v = sel.value;
+          sel.value = state.source;
+          if (v === 'upload') file.click();
+          else if (v === 'webcam') useWebcam();
+          else useExportedSource();
+          sel.blur();
+        });
+      } else {
+        sel.addEventListener('change', () => { setParam(key, sel.value); sel.blur(); });
+      }
       row.appendChild(sel);
     } else {
       const [min, max, step, tmin, tmax] = opts;
@@ -644,6 +775,11 @@ function syncPanel() {
   if (!panel) return;
   panel.querySelector('[data-id="pause"]').textContent = paused ? 'Play' : 'Pause';
   panel.querySelector('[data-id="fit"]').textContent = fitMode ? 'Fit' : 'Fill';
+  for (const row of panel.querySelectorAll('[data-row]')) {
+    const key = row.dataset.row;
+    row.hidden = (LIVE_ONLY.includes(key) && !liveSource) || (key === 'rate' && liveSource && liveSource.kind === 'webcam')
+      || (key === 'groundTime' && state.ground !== 'drift');
+  }
   for (const el of panel.querySelectorAll('[data-key]')) {
     const v = state[el.dataset.key];
     if (document.activeElement !== el) el.value = v;
@@ -655,7 +791,7 @@ function syncPanel() {
  * @param {{rgb: Float32Array, width: number, height: number}} target RGB target at the canvas aspect
  * @param {{mode?:string, density:number, lifetime:number, fadeIn?:number, fadeOut?:number, fade?:number, shapes:string[], seed:number}} params
  */
-export function buildContinuousSketch(target, params, { title = 'AMS continuous', source = '', refDataUrl = '', media = null } = {}) {
+export function buildContinuousSketch(target, params, { title = 'AMS continuous', source = '', refDataUrl = '', media = null, originalUrl = '' } = {}) {
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ams-continuous';
   const header = [
     `// ${title}: continuous Reference Fitter`,
@@ -670,6 +806,7 @@ const TARGET_H = ${target.height};
 const PARAMS = ${JSON.stringify(params)};
 const TARGET_B64 = "${rgbToBase64(target.rgb)}";
 const REF_DATA_URL = ${JSON.stringify(refDataUrl)};
+const ORIGINAL_URL = ${JSON.stringify(media ? '' : originalUrl)};
 const MEDIA_KIND = ${JSON.stringify(media?.kind || '')};
 const MEDIA_TYPE = ${JSON.stringify(media?.type || '')};
 const MEDIA_B64 = "${media?.bytes ? bytesToBase64(media.bytes) : ''}";
@@ -703,8 +840,9 @@ replaced by a new shape fitted to what is left.
 
 Open \`index.html\` in a browser (no server needed). Press **U** for controls:
 the same controls as the studio's Reference tab (render, style, density, cycle,
-fades, opacity, pigment, shapes, reference overlay, and sampling / interval /
-rate for live sources). Keys: Space pause, C clear, H hold sampling,
+fades, opacity, pigment, shapes, reference overlay), plus Source (the exported
+reference, this computer's webcam, or an uploaded image, animation or video),
+Aspect and Fit, and sampling / interval / rate for moving sources. Keys: Space pause, C clear, H hold sampling,
 W render, M style, [ ] density, , . cycle, O overlay, F fit or fill, S save PNG.
 
 Watercolor paints each stroke with p5.brush as its own translucent sprite that
