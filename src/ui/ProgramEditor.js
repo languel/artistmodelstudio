@@ -7,11 +7,13 @@ import { programToText, textToProgram } from '../language/textFormat.js';
 import { validateProgram } from '../language/validate.js';
 import { normalizeProgram } from '../language/normalize.js';
 import { icon } from './icons.js';
+import { buildP5Sketch, buildP5ProjectZip, downloadBytes } from '../export/p5Export.js';
 
 export class ProgramEditor {
-  constructor({ onProgramChange, onRenderWithOtherMedium }) {
+  constructor({ onProgramChange, onRenderWithOtherMedium, getExportContext }) {
     this.candidate = null;
-    this.activeTab = 'text'; // 'text' | 'json'
+    this.activeTab = 'text'; // 'text' | 'json' | 'p5' (p5 is generated, read-only)
+    this.getExportContext = getExportContext;
     this.currentText = '';
     this.currentJson = '';
     this.validation = { valid: true, errors: [], warnings: [] };
@@ -56,10 +58,17 @@ export class ProgramEditor {
           <div class="editor-tabs">
             <button class="editor-tab-btn ${this.activeTab === 'text' ? 'active' : ''}" data-tab="text">Text DSL</button>
             <button class="editor-tab-btn ${this.activeTab === 'json' ? 'active' : ''}" data-tab="json">JSON</button>
+            <button class="editor-tab-btn ${this.activeTab === 'p5' ? 'active' : ''}" data-tab="p5">p5.js</button>
           </div>
-          <button id="editor-rerender-btn" class="btn-primary" style="padding: 4px 10px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
-            ${icon('play', 'icon-sm')} <span>Re-render</span>
-          </button>
+          <div class="editor-actions">
+            <button id="editor-copy-btn" class="btn-micro" title="Copy this tab's code">Copy</button>
+            <button id="editor-export-btn" class="btn-micro" title="Text DSL: .txt · JSON: .json · p5.js: project .zip">
+              ${icon('arrowDownTray', 'icon-sm')} <span>Export</span>
+            </button>
+            <button id="editor-rerender-btn" class="btn-primary" style="padding: 4px 10px; font-size: 0.78rem; display: ${this.activeTab === 'p5' ? 'none' : 'inline-flex'}; align-items: center; gap: 4px;">
+              ${icon('play', 'icon-sm')} <span>Re-render</span>
+            </button>
+          </div>
         </div>
 
         <textarea
@@ -67,7 +76,8 @@ export class ProgramEditor {
           class="editor-textarea"
           spellcheck="false"
           placeholder="Program code..."
-        >${this.activeTab === 'text' ? this.currentText : this.currentJson}</textarea>
+          ${this.activeTab === 'p5' ? 'readonly' : ''}
+        >${this.activeTab === 'text' ? this.currentText : this.activeTab === 'json' ? this.currentJson : ''}</textarea>
 
         <div class="editor-footer">
           <div class="validation-tag ${this.validation.valid ? 'valid' : 'error'}">
@@ -92,16 +102,27 @@ export class ProgramEditor {
       btn.addEventListener('click', () => {
         const nextTab = btn.dataset.tab;
         if (nextTab === this.activeTab) return;
-
-        // Sync contents before switching
-        this.syncFromTextarea(textarea.value);
+        if (this.activeTab !== 'p5') this.syncFromTextarea(textarea.value);
         this.activeTab = nextTab;
-        tabs.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        textarea.value = this.activeTab === 'text' ? this.currentText : this.currentJson;
+        this.render();
       });
     });
+
+    if (this.activeTab === 'p5') this.fillP5(textarea);
+
+    target.querySelector('#editor-copy-btn')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        btn.textContent = 'Copied';
+      } catch {
+        textarea.select();
+        btn.textContent = 'Press ⌘C';
+      }
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    });
+
+    target.querySelector('#editor-export-btn')?.addEventListener('click', () => this.handleExport(textarea));
 
     target.querySelector('#editor-rerender-btn')?.addEventListener('click', () => {
       this.handleRerender(textarea.value);
@@ -121,6 +142,48 @@ export class ProgramEditor {
         this.handleRerender(textarea.value);
       }
     });
+  }
+
+  exportTitle() {
+    const c = this.candidate;
+    return (c?.prompt || 'AMS sketch').slice(0, 60);
+  }
+
+  exportSlug() {
+    return this.exportTitle().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'ams-sketch';
+  }
+
+  currentProgram() {
+    try {
+      return normalizeProgram(JSON.parse(this.currentJson));
+    } catch {
+      return this.candidate?.program;
+    }
+  }
+
+  async fillP5(textarea) {
+    textarea.value = '// Generating p5.js sketch…';
+    const ctx = this.getExportContext?.() || {};
+    const sketch = await buildP5Sketch(this.currentProgram(), { ...ctx, title: this.exportTitle(), source: this.candidate?.provider || '' });
+    if (this.activeTab === 'p5') textarea.value = sketch;
+  }
+
+  async handleExport(textarea) {
+    const slug = this.exportSlug();
+    if (this.activeTab === 'text') {
+      this.syncFromTextarea(textarea.value);
+      downloadBytes(this.currentText, `${slug}.ams.txt`, 'text/plain');
+    } else if (this.activeTab === 'json') {
+      this.syncFromTextarea(textarea.value);
+      downloadBytes(this.currentJson, `${slug}.json`, 'application/json');
+    } else {
+      const btn = document.querySelector('#editor-export-btn span');
+      if (btn) btn.textContent = 'Zipping…';
+      const ctx = this.getExportContext?.() || {};
+      const zip = await buildP5ProjectZip(this.currentProgram(), { ...ctx, title: this.exportTitle(), source: this.candidate?.provider || '' });
+      downloadBytes(zip, `${slug}-p5.zip`, 'application/zip');
+      if (btn) btn.textContent = 'Export';
+    }
   }
 
   syncFromTextarea(value) {

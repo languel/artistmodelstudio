@@ -1599,3 +1599,216 @@ main.studio-main {
   color: var(--text-muted);
   margin: 0;
 }
+
+/* ------------------------------------------------------------------
+   One-screen studio layout
+   The app fills the viewport: preview on the left at full height; the
+   right column stacks thumbnails, actions, then the editor/log/reference
+   tabs (which scroll internally). Wrappers use display: contents so the
+   candidate grid's children join the studio grid directly.
+   ------------------------------------------------------------------ */
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+main.studio-main {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 16px;
+  overflow: auto; /* Reward Lab and Datasets views can be taller than the screen */
+}
+
+.studio-hero-layout {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) clamp(340px, 30vw, 480px);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "hero tabs"
+    "hero side"
+    "hero actions";
+  gap: 10px 16px;
+  align-items: stretch;
+}
+
+.studio-hero-layout .studio-main-column,
+.studio-hero-layout .candidate-grid-section.hero-layout,
+.studio-hero-layout .studio-side-column {
+  display: contents;
+}
+
+.studio-hero-layout .hero-preview-card,
+.studio-hero-layout .candidate-grid-section.empty-state {
+  grid-area: hero;
+  min-height: 0;
+}
+
+.studio-hero-layout .side-column-tabs { grid-area: tabs; }
+.studio-hero-layout .side-pane.active { grid-area: side; min-height: 0; overflow: auto; }
+.studio-hero-layout #side-pane-variations { display: none; }
+.studio-hero-layout .variants-strip-section { grid-area: side; min-height: 0; overflow: auto; }
+.studio-hero-layout:not([data-side-tab="variations"]) .variants-strip-section { display: none; }
+.studio-hero-layout .action-toolbar { grid-area: actions; padding: 8px 10px; gap: 6px; }
+.studio-hero-layout .action-toolbar .btn-action { padding: 6px 10px; font-size: 0.8rem; }
+
+/* Expanded preview: hide the right column */
+.studio-hero-layout.preview-expanded { grid-template-columns: minmax(0, 1fr) 0; column-gap: 0; }
+.studio-hero-layout.preview-expanded > *:not(.studio-main-column),
+.studio-hero-layout.preview-expanded .variants-strip-section,
+.studio-hero-layout.preview-expanded .action-toolbar,
+.studio-hero-layout.preview-expanded .side-column-tabs,
+.studio-hero-layout.preview-expanded .side-pane { display: none !important; }
+
+.studio-hero-layout .hero-canvas-container,
+.studio-hero-layout .hero-canvas-container.full-zoom {
+  flex: 1;
+  min-height: 0;
+  aspect-ratio: auto;
+  max-height: none;
+}
+
+.studio-hero-layout .variants-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.studio-hero-layout .variant-card-header,
+.studio-hero-layout .variant-card-footer {
+  padding: 3px 8px;
+}
+
+.preset-select {
+  max-width: 220px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+
+.prompt-container {
+  padding: 8px 16px;
+}
+
+@media (max-width: 1100px) {
+  #app { height: auto; overflow: visible; }
+  .studio-hero-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas: "hero" "tabs" "side" "actions";
+  }
+  .studio-hero-layout .hero-canvas-container { aspect-ratio: 1 / 1; }
+  .studio-hero-layout .variants-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.studio-hero-layout .side-tab-btn {
+  white-space: nowrap;
+  padding: 7px 6px;
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* Loading/streaming status floats over the canvas so it never shifts the image */
+.hero-canvas-container .hero-loading-overlay {
+  position: absolute;
+  pointer-events: none;
+}
+.hero-canvas-container .hero-loading-overlay.centered {
+  inset: 0;
+  justify-content: center;
+}
+.hero-canvas-container .hero-loading-overlay.floating {
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  flex-direction: row;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(14, 15, 18, 0.78);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.hero-canvas-container .hero-loading-overlay.floating .spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+/* Thumbnail footer: model label left, stars right (mirrors letter / ops above) */
+.variant-card-footer {
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.variant-card-footer > span:first-child {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Action toolbar belongs to the Variations tab */
+.studio-hero-layout:not([data-side-tab="variations"]) .action-toolbar { display: none; }
+
+/* Code editor fills the sidebar */
+.studio-hero-layout #side-pane-editor.active {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.studio-hero-layout #program-editor-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.studio-hero-layout .program-editor-panel {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+.studio-hero-layout .editor-textarea { min-height: 0; }
+
+/* Continuous mode */
+.live-painter-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.live-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+.live-row { display: flex; gap: 8px; align-items: center; }
+.live-toggle { padding: 6px 12px; font-size: 0.82rem; }
+.live-slider {
+  display: grid;
+  grid-template-columns: 64px 1fr 56px;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.live-slider output { font-family: var(--font-mono); font-size: 0.76rem; text-align: right; color: var(--text-primary); }
+.live-slider select { grid-column: 2 / 4; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 4px 6px; }

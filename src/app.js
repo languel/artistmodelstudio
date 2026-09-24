@@ -18,6 +18,8 @@ import { ModelExplorerModal } from './ui/ModelExplorerModal.js';
 import { HelpModal } from './ui/HelpModal.js';
 import { ProcessLog } from './ui/ProcessLog.js';
 import { ReferencePanel } from './ui/ReferencePanel.js';
+import { LivePainter, LIVE_FIT_SIZE } from './ui/LivePainter.js';
+import { buildContinuousZip, downloadBytes } from './export/p5Export.js';
 import { EXAMPLES } from '../examples/index.js';
 import { initWebMCP } from './mcp/webmcp.js';
 import { icon } from './ui/icons.js';
@@ -61,7 +63,11 @@ export class StudioApp {
 
     this.programEditor = new ProgramEditor({
       onProgramChange: (candId, newProgram) => this.handleProgramEdit(candId, newProgram),
-      onRenderWithOtherMedium: (cand) => this.handleSwapMedium(cand)
+      onRenderWithOtherMedium: (cand) => this.handleSwapMedium(cand),
+      getExportContext: () => {
+        const medium = this.getActiveMedium();
+        return { mediumId: medium.id, medium };
+      }
     });
 
     this.rewardPanel = new RewardPanel({
@@ -109,11 +115,20 @@ export class StudioApp {
 
     this.helpModal = new HelpModal();
 
+    this.livePainter = new LivePainter();
+    if (import.meta.env?.DEV) window.__amsApp = this; // dev-only handle for debugging
     this.referencePanel = new ReferencePanel({
       onReferenceChange: (ref) => {
         this.artistRegistry.get('fitter')?.setReference(ref);
         if (ref && this.processLog) this.processLog.log(`Reference set: ${ref.name}`, 'info');
-      }
+        if (this.livePainter.running) {
+          if (ref?.image) this.livePainter.start(ref.image, this.referencePanel.liveParams());
+          else this.stopLive();
+        }
+      },
+      onLiveToggle: (on, params) => (on ? this.startLive(params) : this.stopLive()),
+      onLiveParams: (params) => this.livePainter.setParams(params),
+      onExportContinuous: (params) => this.exportContinuous(params)
     });
 
     this.controls = new Controls({
@@ -145,14 +160,16 @@ export class StudioApp {
     this.root = rootElement;
     this.root.innerHTML = `
       <div id="controls-container"></div>
-      <div id="status-banner-container"></div>
       <main class="studio-main">
-        <div id="studio-view" class="studio-hero-layout">
+        <div id="studio-view" class="studio-hero-layout" data-side-tab="variations">
           <div id="candidate-grid-container" class="studio-main-column"></div>
           
           <div id="right-column-container" class="studio-side-column">
             <div class="side-column-tabs">
-              <button class="side-tab-btn active" id="tab-btn-editor" data-tab="editor">
+              <button class="side-tab-btn active" id="tab-btn-variations" data-tab="variations">
+                ${icon('squaresPlus', 'icon-sm')} <span>Variations</span>
+              </button>
+              <button class="side-tab-btn" id="tab-btn-editor" data-tab="editor">
                 ${icon('codeBracket', 'icon-sm')} <span>Code Editor</span>
               </button>
               <button class="side-tab-btn" id="tab-btn-log" data-tab="log">
@@ -162,7 +179,8 @@ export class StudioApp {
                 ${icon('photo', 'icon-sm')} <span>Reference</span>
               </button>
             </div>
-            <div id="side-pane-editor" class="side-pane active">
+            <div id="side-pane-variations" class="side-pane active"></div>
+            <div id="side-pane-editor" class="side-pane">
               <div id="program-editor-container"></div>
             </div>
             <div id="side-pane-log" class="side-pane">
@@ -175,6 +193,7 @@ export class StudioApp {
         </div>
         <div id="reward-lab-container" style="display: none;"></div>
       </main>
+      <div id="status-banner-container"></div>
     `;
 
     this.controls.render(this.root.querySelector('#controls-container'));
@@ -211,6 +230,9 @@ export class StudioApp {
     }
 
     this.attachSideTabEvents();
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.animationRun) this.stopAnimation();
+    });
 
     // Mount WebMCP & Agent programmatic bridge on window.ams
     this.webmcp = initWebMCP(this);
@@ -237,6 +259,7 @@ export class StudioApp {
       btn.addEventListener('click', () => {
         const tab = btn.dataset.tab;
         this.rightPaneTab = tab;
+        this.root.querySelector('#studio-view')?.setAttribute('data-side-tab', tab);
         for (const other of buttons) {
           const active = other === btn;
           other.classList.toggle('active', active);
@@ -245,6 +268,29 @@ export class StudioApp {
         if (tab === 'log') this.processLog.render();
       });
     }
+  }
+
+  startLive(params) {
+    const ref = this.referencePanel.current;
+    if (!ref?.image) return;
+    this.livePainter.start(ref.image, params);
+    this.referencePanel.setLiveRunning(true);
+    this.processLog.log(`Continuous mode on "${ref.name}": ${params.density} shapes, ${params.lifetime} s lifetime.`, 'info');
+  }
+
+  stopLive() {
+    this.livePainter.stop();
+    this.referencePanel.setLiveRunning(false);
+  }
+
+  async exportContinuous(params) {
+    const ref = this.referencePanel.current;
+    if (!ref?.image) return;
+    const target = LivePainter.targetFor(ref.image);
+    const title = ref.name.replace(/\s*\(.*\)\s*$/, '') || 'AMS continuous';
+    const zip = await buildContinuousZip(target, LIVE_FIT_SIZE, { ...params, seed: 1 }, { title, source: 'Reference Fitter, continuous' });
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'ams-continuous';
+    downloadBytes(zip, `${slug}-continuous-p5.zip`, 'application/zip');
   }
 
   handleToggleLog() {
@@ -501,31 +547,61 @@ export class StudioApp {
     this.processLog.log(`Candidate variation level set to "${newLevel}".`, 'info');
   }
 
+  /** Stop a running stroke replay (Animate button again, or Escape). */
+  stopAnimation() {
+    this.animationRun = null;
+  }
+
+  setAnimatingUI(on) {
+    this.candidateGrid.isAnimating = on;
+    const btn = this.root.querySelector('#animate-strokes-btn');
+    if (btn) {
+      btn.innerHTML = on ? `${icon('stop', 'icon-sm')} <span>Stop</span>` : `${icon('play', 'icon-sm')} <span>Animate</span>`;
+      btn.title = on ? 'Stop animation (Esc)' : 'Watch strokes paint step-by-step';
+    }
+  }
+
   async handleAnimateStrokes(candidate) {
+    // The button toggles: a click while running stops the replay.
+    if (this.animationRun) {
+      this.stopAnimation();
+      return;
+    }
     if (!candidate?.program?.actions) return;
     const actions = candidate.program.actions;
     const medium = this.getActiveMedium();
+    const run = {};
+    this.animationRun = run;
+    this.setAnimatingUI(true);
 
-    this.processLog.log(`Replaying ${actions.length} strokes progressively on Hero Preview...`, 'info');
+    // Cap at ~150 frames so long programs (e.g. 800-shape fits) replay in seconds.
+    const step = Math.max(1, Math.ceil(actions.length / 150));
+    this.processLog.log(`Replaying ${actions.length} strokes (${step} per frame). Press Esc or Stop to interrupt.`, 'info');
 
-    for (let i = 1; i <= actions.length; i++) {
-      const partial = { version: 1, actions: actions.slice(0, i) };
-      try {
-        const res = await medium.render(partial);
-        const heroImg = this.root.querySelector('#hero-main-img');
-        const heroBadge = this.root.querySelector('#hero-ops-badge');
-        if (heroImg) heroImg.src = res.image;
-        if (heroBadge) heroBadge.textContent = `Animating: stroke ${i}/${actions.length}...`;
-      } catch (e) {}
-      await new Promise(r => setTimeout(r, 45));
-    }
+    const show = (image, text) => {
+      const heroImg = this.root.querySelector('#hero-main-img');
+      const heroBadge = this.root.querySelector('#hero-ops-badge');
+      if (heroImg && image) heroImg.src = image;
+      if (heroBadge) heroBadge.textContent = text;
+    };
 
-    const finalRes = await medium.render(candidate.program);
-    const heroImg = this.root.querySelector('#hero-main-img');
-    const heroBadge = this.root.querySelector('#hero-ops-badge');
-    if (heroImg) heroImg.src = finalRes.image;
-    if (heroBadge) {
-      heroBadge.textContent = `${actions.length} ops · ${candidate.renderMetadata?.renderTimeMs || 0}ms`;
+    try {
+      for (let i = step; i < actions.length + step && this.animationRun === run; i += step) {
+        const n = Math.min(i, actions.length);
+        try {
+          const res = await medium.render({ version: 1, actions: actions.slice(0, n) });
+          if (this.animationRun !== run) break;
+          show(res.image, `Animating: stroke ${n}/${actions.length}...`);
+        } catch (e) {}
+        await new Promise(r => setTimeout(r, 45));
+      }
+    } finally {
+      const stoppedEarly = this.animationRun !== run;
+      if (this.animationRun === run) this.animationRun = null;
+      if (!this.animationRun) this.setAnimatingUI(false);
+      const finalRes = await medium.render(candidate.program);
+      show(finalRes.image, `${actions.length} ops · ${candidate.renderMetadata?.renderTimeMs || 0}ms`);
+      if (stoppedEarly) this.processLog.log('Animation stopped.', 'info');
     }
   }
 

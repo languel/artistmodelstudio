@@ -1,100 +1,54 @@
 # Artist–Model Studio (AMS)
 
-> **A human-in-the-loop creative coding studio for fine-tuning, evaluating, and running generative art models on local Apple Silicon & WebGPU.**
-
-[![Vite](https://img.shields.io/badge/Vite-6.x-646CFF.svg)](https://vitejs.dev/)
-[![Apple Silicon](https://img.shields.io/badge/Hardware-Apple%20M5%20Max%20128GB-black.svg)]()
-[![LoRA](https://img.shields.io/badge/Training-In--Browser%20LoRA-brightgreen.svg)]()
-[![WebMCP](https://img.shields.io/badge/Agent%20API-WebMCP-blueviolet.svg)]()
+A human-in-the-loop creative coding studio. Models (or procedures) write small drawing programs, the studio renders them in different media, and you judge, edit, animate and export the results. It is built for teaching and for exploring how small models can learn a visual style.
 
 ---
 
-## 🎨 Key Capabilities
+## What it does
 
-1. **Parallel 4-Candidate Art Generation**:
-   - Generates 4 distinct variations per prompt with configurable variation temperature (Low, Medium, High, Wild).
-   - Generates typed, sandboxed JSON visual programs rather than raw pixels.
-2. **Multi-Media Visual Simulation**:
-   - **Watercolor**: Organic pigment bleed, granulation, paper textures, and wet-on-wet blending via `p5.brush`.
-   - **Pixel Art**: True 32×32 / 64×64 integer coordinate grid with indexed color palettes and symmetry modes.
-   - **Flat 2D / Bauhaus**: Clean geometric primitives, circles, and primary color compositions.
-3. **Interactive Visual Rating & Human Preference Collection**:
-   - 1-to-5 star candidate ratings.
-   - 1-click active candidate selection for DPO (Direct Preference Optimization) pair recording (`chosen` vs `rejected`).
-4. **Reward Lab & Automated Critique**:
-   - Deterministic rule-based evaluation scores: Color Harmony, Stroke Economy, Dynamic Range, and Composition Hierarchy.
-5. **In-Browser LoRA Fine-Tuning**:
-   - Train lightweight adapter matrices ($r=4..32$) directly in JavaScript without sending data to external servers.
-   - 100 epochs complete in **~13.4 ms/epoch (74.5 epochs/sec)** on Apple M5 Max.
-6. **Portable Model Format (`.ams-model.json`)**:
-   - Export and import trained models and adapters seamlessly across browser sessions or machines.
-7. **Apple Silicon M5 Max Hardware Estimator**:
-   - In-app interactive calculator estimating memory footprint, tokens/second, and duration across 8 models (135M to 70B) for Apple Silicon (M5 Max, M4 Max, M3/M2 Pro, M1) and WebGPU.
-8. **WebMCP & Agent Programmatic API**:
-   - Full JSON-RPC 2.0 tool interface exposed on `window.ams` and `window.webmcp` for autonomous AI agents.
+- **Four candidates per prompt** from a choice of engines, rendered as flat shapes, watercolor (`p5.brush`) or pixel art. Programs are plain JSON / text DSL you can read and edit.
+- **Reference Fitter**: approximates a reference image with a budget of shapes (12 to 800) by greedy search, with no model involved. Candidates A–D use mixed, rectangle, circle and triangle shapes, so one round shows how the shape vocabulary changes the look. See [docs/reference-fitter.md](docs/reference-fitter.md).
+- **Continuous mode**: the fitter as an endless painting. Shapes land one at a time (or fade in and out together), live for a cycle and are replaced by new fits, repainting the reference forever, flat or in watercolor.
+- **Exports**: Text DSL, JSON, or a self-contained **p5.js project** (zip with `index.html`, `sketch.js`, vendored `p5.min.js` and `p5.brush`). Static exports can animate, loop, fit or fill the window and switch watercolor/flat; continuous exports run forever with live density, pacing and style controls.
+- **Distilled models**: a pipeline that trains small models (LFM2.5-350M, Qwen3-0.6B) with LoRA on Reference Fitter programs of public-domain Paul Klee paintings, served locally for the *Distilled Klee* engine. See [training/klee/README.md](training/klee/README.md).
+- **References**: bundled public-domain works with sources and rights recorded ([fixtures/README.md](fixtures/README.md)), or your own uploads, which stay in the browser.
 
----
-
-## 🚀 Quick Start
-
-### 1. Install & Run Locally
+## Quick start
 
 ```bash
-# Clone repository
-git clone https://github.com/liuboto/artistmodelstudio.git
-cd artistmodelstudio
-
-# Install dependencies
 npm install
-
-# Start Vite development server
-npm run dev
-```
-
-Open your browser at `http://localhost:3000`.
-
-### 2. Run Tests
-
-```bash
+npm run dev          # http://localhost:3000 (use --port to pick another)
 npm test
 ```
 
----
+Pick **Reference Fitter** as the engine, choose a reference in the **Reference** tab, and press **Generate 4**. For the endless painting, use **Play continuous** in the Reference tab.
 
-## 🤖 Supported Inference Engines
+## Engines
 
-- **Mock / Procedural Engine**: Offline, zero-dependency procedural generator covering avian, mountain landscapes, Bauhaus abstract, creatures, and floral scenes.
-- **In-Browser WebGPU**: Runs quantized models client-side with hardware acceleration via `@huggingface/transformers` (e.g. SmolLM2-135M, Liquid LFM2.5-1.2B, Qwen2.5-0.5B, Gemma-2-2B).
-- **Local Ollama**: Connects to `http://localhost:11434` with auto-detected local LLMs.
-- **OpenRouter**: Access to 400+ cloud models (Claude 3.5 Sonnet, GPT-4o, Gemini 1.5 Pro) with in-app model explorer.
-- **Trained Model Engine**: Runs locally fine-tuned LoRA models stored in browser memory or imported `.ams-model.json` files.
+| Engine | What it is |
+| --- | --- |
+| Procedural | Offline rule-based generator; instant, no model. |
+| Reference Fitter | Greedy shape fitting to the reference image; the "model" menu is the shape budget. |
+| Distilled Klee (local MLX) | A small model fine-tuned on fitter programs, served by `training/klee/serve.sh`. |
+| Ollama / OpenAI-compatible / OpenRouter | Prompted language models writing the drawing DSL. |
+| WebGPU (browser) | Small ONNX models running client-side via `@huggingface/transformers`. |
+| Fine-Tuned Adapter | Teaching demo, see below. |
 
----
+## Honest notes
 
-## 📚 Documentation
+- **Fine-Tuned Adapter / "in-browser LoRA"** is a teaching demo: it trains a small standalone matrix on hashed prompt features and replays an exemplar program with jitter. It does not fine-tune a language model. Real LoRA training lives in `training/klee/` (mlx-lm on Apple Silicon).
+- **Hardware estimator** figures in the Help panel are estimates from hardware presets, not measurements.
+- Measured so far: LoRA on 3,264 examples takes about 30 min (LFM2.5-350M) and 60 min (Qwen3-0.6B) on an M5 Max; results are in [training/klee/README.md](training/klee/README.md).
+- The **preference export** currently treats a viewed/selected candidate as chosen and the others as rejected; explicit Keep/Reject judgments are planned before using it for training.
 
-- [Training, Fine-Tuning & M5 Max Hardware Guide](docs/TRAINING.md)
-- [System Architecture & Drawing Language](docs/architecture.md)
-- [Experiments & Benchmark Log](docs/experiments.md)
-- [Classroom Demo Walkthrough](docs/classroom-demo.md)
+## Documentation
 
----
+- [Reference Fitter, continuous mode and p5 export](docs/reference-fitter.md)
+- [Klee distillation pipeline and results](training/klee/README.md)
+- [References and rights](fixtures/README.md)
+- [System architecture and drawing language](docs/architecture.md)
+- [Training scaffolding](docs/TRAINING.md) · [Experiments log](docs/experiments.md) · [Classroom demo](docs/classroom-demo.md)
 
-## 💻 Apple Silicon M5 Max Benchmarks
+## Licenses
 
-| Model | Parameters | LoRA Config | RAM Footprint (4-bit) | M5 Max Speed | 50 Samples (6 Epochs) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **SmolLM2-135M** | 135M | $r=4, \alpha=8$ | ~0.25 GB (< 0.2%) | 16,500 tok/s | **~0.3s** |
-| **Qwen2.5-0.5B** | 500M | $r=8, \alpha=16$ | ~0.55 GB (~0.4%) | 8,800 tok/s | **~1.1s** |
-| **Liquid LFM2.5-1.2B** | 1.2B | $r=16, \alpha=32$ | ~1.15 GB (~0.9%) | 4,200 tok/s | **~2.4s** |
-| **Gemma-4-12B (MLX)** | 12B | $r=32, \alpha=64$ | ~8.20 GB (~6.4%) | 1,400 tok/s | **~18s** |
-| **Qwen2.5-32B (MLX)** | 32B | $r=32, \alpha=64$ | ~21.5 GB (~16.8%) | 650 tok/s | **~45s** |
-| **Llama-3.3-70B (QLoRA)**| 70B | $r=32, \alpha=64$ | ~44.0 GB (~34.4%) | 320 tok/s | **~1.5m** |
-
-*Measured on Apple M5 Max with 128 GB Unified Memory.*
-
----
-
-## 📄 License
-
-MIT License © 2026 Artist–Model Studio contributors.
+MIT © 2026 Artist–Model Studio contributors. Exported sketches vendor p5.js (LGPL-2.1) and p5.brush (MIT) unmodified; bundled reference images are public domain (see `fixtures/references/*/sources.json`).

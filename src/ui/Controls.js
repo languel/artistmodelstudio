@@ -176,21 +176,21 @@ export class Controls {
             ${this.isGenerating ? '<span class="spinner-small"></span><span>Generating...</span>' : icon('sparkles', 'icon-sm') + '<span>Generate 4</span>'}
           </button>
 
+          <select id="preset-select" class="preset-select" title="Load a preset prompt or an example drawing">
+            <option value="">Presets &amp; examples…</option>
+            <optgroup label="Prompts">
+              ${this.promptPresets.map(p => `<option value="prompt:${p}">${p}</option>`).join('')}
+            </optgroup>
+            <optgroup label="Example drawings">
+              ${EXAMPLES.map(e => `<option value="example:${e.id}">${e.name}</option>`).join('')}
+            </optgroup>
+          </select>
+
           <button id="interrupt-btn" class="btn-danger" style="${this.isGenerating ? 'display: inline-flex;' : 'display: none;'}" title="Stop generation (Esc)">
             ${icon('stop', 'icon-sm')} <span>Stop</span>
           </button>
         </div>
 
-        <div class="preset-pills">
-          <span class="pills-label">Presets:</span>
-          ${this.promptPresets
-            .map(p => `<button class="pill-btn preset-pill" data-prompt="${p}">${p}</button>`)
-            .join('')}
-          <span class="pills-label" style="margin-left: 8px;">Examples:</span>
-          ${EXAMPLES
-            .map(e => `<button class="pill-btn example-pill" data-example="${e.id}">${e.name.split('—')[0]}</button>`)
-            .join('')}
-        </div>
       </div>
     `;
 
@@ -368,17 +368,15 @@ export class Controls {
       }
     });
 
-    container.querySelectorAll('.preset-pill').forEach(pill => {
-      pill.addEventListener('click', () => {
-        if (promptInput) promptInput.value = pill.dataset.prompt;
-      });
-    });
-
-    container.querySelectorAll('.example-pill').forEach(pill => {
-      pill.addEventListener('click', () => {
-        const ex = EXAMPLES.find(e => e.id === pill.dataset.example);
+    container.querySelector('#preset-select')?.addEventListener('change', (e) => {
+      const value = e.target.value;
+      e.target.value = '';
+      if (value.startsWith('prompt:')) {
+        if (promptInput) promptInput.value = value.slice(7);
+      } else if (value.startsWith('example:')) {
+        const ex = EXAMPLES.find(x => x.id === value.slice(8));
         if (ex) this.onLoadExample?.(ex);
-      });
+      }
     });
 
     container.querySelector('#settings-btn')?.addEventListener('click', () => {

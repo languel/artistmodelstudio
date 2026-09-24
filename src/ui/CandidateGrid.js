@@ -56,6 +56,13 @@ export class CandidateGrid {
   }
 
   setStreaming(candidateIndex, statusText = null) {
+    if (candidateIndex === 0) {
+      this.userPickedDuringStream = false;
+      this.streamingImages = {};
+    }
+    if (candidateIndex !== null && !this.userPickedDuringStream && this.candidates[candidateIndex]) {
+      this.selectedId = this.candidates[candidateIndex].id;
+    }
     this.streamingIndex = candidateIndex;
     this.streamingStatusText = statusText;
     this.render();
@@ -72,6 +79,7 @@ export class CandidateGrid {
   }
 
   updateStreamingImage(candidateIndex, dataUrl, actionCount) {
+    (this.streamingImages ||= {})[candidateIndex] = dataUrl;
     // Update thumbnail in card
     const cardImg = this.container?.querySelector(`#variant-img-${candidateIndex}`);
     if (cardImg) {
@@ -90,6 +98,8 @@ export class CandidateGrid {
     if (heroImg && isHeroShowingThis) {
       heroImg.src = dataUrl;
       heroImg.style.display = 'block';
+      const overlay = this.container?.querySelector('.hero-loading-overlay.centered');
+      if (overlay && !this.downloadProgress) overlay.classList.replace('centered', 'floating');
       if (heroBadge) {
         heroBadge.textContent = `Streaming: ${actionCount} ops parsed...`;
       }
@@ -139,7 +149,7 @@ export class CandidateGrid {
         this.container.innerHTML = `
           <div class="candidate-grid-section hero-layout">
             <div class="hero-preview-card">
-              <div class="hero-canvas-stage">
+              <div class="hero-canvas-container">
                 <div class="hero-loading-overlay">
                   ${this.renderDownloadCard()}
                 </div>
@@ -164,6 +174,10 @@ export class CandidateGrid {
     const activeCand = this.candidates.find(c => c.id === this.selectedId) || this.candidates[0];
     const activeIdx = this.candidates.indexOf(activeCand);
     const activeLetter = letters[activeIdx] || 'A';
+    // While streaming, the hero image may already show a partial render.
+    const imageFor = (cand, idx) => cand?.renderedImage || this.streamingImages?.[idx] || '';
+    const heroSrc = imageFor(activeCand, activeIdx);
+    const heroHasImage = Boolean(heroSrc);
 
     this.container.innerHTML = `
       <div class="candidate-grid-section hero-layout">
@@ -194,30 +208,24 @@ export class CandidateGrid {
                 <button id="zoom-reset-btn" class="btn-micro btn-icon-only" title="Reset Zoom">
                   ${icon('arrowPath', 'icon-sm')}
                 </button>
-                <button id="zoom-fit-btn" class="btn-micro btn-icon-only" title="Fit to Viewport">
-                  ${icon('arrowsPointingOut', 'icon-sm')}
-                </button>
               </div>
-              <button id="toggle-zoom-btn" class="btn-micro btn-icon-only" title="${this.isFullSize ? 'Fit View' : 'Expand View'}">
+              <button id="toggle-zoom-btn" class="btn-micro btn-icon-only" title="${this.isFullSize ? 'Show side panel' : 'Expand preview'}">
                 ${this.isFullSize ? icon('collapse', 'icon-sm') : icon('expand', 'icon-sm')}
               </button>
             </div>
           </div>
 
-          <div class="hero-canvas-stage ${this.isFullSize ? 'full-zoom' : ''}" id="hero-stage-container" style="user-select: none; touch-action: none;" title="Shift + Drag to Pan · Two-Finger Scroll to Pan · Wheel to Zoom · Double-Click to Reset">
+          <div class="hero-canvas-container ${this.isFullSize ? 'full-zoom' : ''}" id="hero-canvas-wrap" style="user-select: none; touch-action: none;" title="Shift + Drag to Pan · Two-Finger Scroll to Pan · Wheel to Zoom · Double-Click to Reset">
             <img
               id="hero-main-img"
-              class="hero-canvas-image"
+              class="hero-image"
               draggable="false"
-              src="${activeCand?.renderedImage || ''}"
+              src="${heroSrc}"
               alt="Candidate ${activeLetter} Large Preview"
-              style="${activeCand?.renderedImage ? 'display: block;' : 'display: none;'}"
+              style="${heroHasImage ? 'display: block;' : 'display: none;'}"
             />
-            <div class="canvas-pan-indicator" id="pan-hint-pill">
-              ${icon('hand', 'icon-sm')} <span>Shift + Drag to Pan</span>
-            </div>
             ${(!activeCand?.renderedImage || this.downloadProgress) ? `
-              <div class="hero-loading-overlay">
+              <div class="hero-loading-overlay ${this.downloadProgress || !heroHasImage ? 'centered' : 'floating'}">
                 ${this.downloadProgress ? this.renderDownloadCard() : `
                   <span class="spinner"></span>
                   <span>${this.streamingStatusText || 'Rendering high-resolution canvas...'}</span>
@@ -228,9 +236,8 @@ export class CandidateGrid {
         </div>
 
         <!-- Prominent Variants Strip -->
-        <div class="variants-strip-section">
+        <div class="variants-strip-section" title="Click a candidate to show it in the preview">
           <div class="variants-strip-header">
-            <span class="variants-label">4 Variations (Click to view in Main Canvas):</span>
             ${this.streamingIndex !== null ? `
               <span class="streaming-live-badge">⏳ Streaming Candidate ${letters[this.streamingIndex]}...</span>
             ` : ''}
@@ -254,11 +261,11 @@ export class CandidateGrid {
                       <img
                         id="variant-img-${idx}"
                         class="variant-thumb"
-                        src="${cand.renderedImage || ''}"
+                        src="${imageFor(cand, idx)}"
                         alt="Candidate ${letter}"
-                        style="${cand.renderedImage ? 'display: block;' : 'display: none;'}"
+                        style="${imageFor(cand, idx) ? 'display: block;' : 'display: none;'}"
                       />
-                      ${!cand.renderedImage ? `
+                      ${!imageFor(cand, idx) ? `
                         <div class="thumb-placeholder">
                           ${isStreamingThis ? '<span class="spinner-small"></span>' : 'Queued'}
                         </div>
@@ -309,6 +316,7 @@ export class CandidateGrid {
       card.addEventListener('click', (e) => {
         if (e.target.classList.contains('star')) return;
         const id = card.dataset.id;
+        if (this.streamingIndex !== null) this.userPickedDuringStream = true;
         this.selectedId = id;
         this.render();
         this.onSelectCandidate?.(id);
@@ -324,16 +332,18 @@ export class CandidateGrid {
       });
     });
 
-    target.querySelector('#toggle-zoom-btn')?.addEventListener('click', () => {
+    // Expand: give the preview the full width by hiding the right column.
+    const toggleBtn = target.querySelector('#toggle-zoom-btn');
+    if (toggleBtn) toggleBtn.onclick = () => {
       this.isFullSize = !this.isFullSize;
-      const wrap = target.querySelector('#hero-canvas-wrap');
+      this.applyExpanded();
       const btn = target.querySelector('#toggle-zoom-btn');
-      if (wrap) wrap.classList.toggle('full-zoom', this.isFullSize);
       if (btn) {
         btn.innerHTML = this.isFullSize ? icon('collapse', 'icon-sm') : icon('expand', 'icon-sm');
-        btn.title = this.isFullSize ? 'Fit View' : 'Expand View';
+        btn.title = this.isFullSize ? 'Show side panel' : 'Expand preview';
       }
-    });
+    };
+    this.applyExpanded();
 
     // Pan & Zoom on hero canvas container
     const wrap = target.querySelector('#hero-canvas-wrap');
@@ -353,8 +363,7 @@ export class CandidateGrid {
           panHintPill?.classList.remove('active');
         }
       };
-      window.addEventListener('keydown', handleKeyShift);
-      window.addEventListener('keyup', handleKeyShift);
+      this.windowHandlers?.forEach(([type, fn]) => window.removeEventListener(type, fn));
 
       // Trackpad two-finger gestures and wheel
       wrap.addEventListener('wheel', (e) => {
@@ -435,8 +444,8 @@ export class CandidateGrid {
         }
       };
 
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
+      this.windowHandlers = [['keydown', handleKeyShift], ['keyup', handleKeyShift], ['mousemove', onMouseMove], ['mouseup', onMouseUp]];
+      this.windowHandlers.forEach(([type, fn]) => window.addEventListener(type, fn));
 
       // Touch / Trackpad gesture support
       let touchStartX = 0, touchStartY = 0, initialDistance = 0, initialScale = 1;
@@ -518,6 +527,13 @@ export class CandidateGrid {
       this.applyTransform();
     });
 
+    target.querySelector('#zoom-fit-btn')?.addEventListener('click', () => {
+      this.zoomScale = 1;
+      this.panX = 0;
+      this.panY = 0;
+      this.applyTransform();
+    });
+
     target.querySelector('#reset-pan-btn')?.addEventListener('click', () => {
       this.zoomScale = 1;
       this.panX = 0;
@@ -553,10 +569,13 @@ export class CandidateGrid {
     });
   }
 
+  applyExpanded() {
+    this.container?.closest('.studio-hero-layout')?.classList.toggle('preview-expanded', Boolean(this.isFullSize));
+  }
+
   applyTransform() {
     const img = this.container?.querySelector('#hero-main-img');
     const wrap = this.container?.querySelector('#hero-canvas-wrap');
-    const zoomResetBtn = this.container?.querySelector('#zoom-reset-btn');
     if (!img) return;
 
     if (this.zoomScale === 1 && this.panX === 0 && this.panY === 0) {
@@ -568,8 +587,7 @@ export class CandidateGrid {
       if (wrap) wrap.style.cursor = this.isDragging ? 'grabbing' : 'grab';
     }
 
-    if (zoomResetBtn) {
-      zoomResetBtn.textContent = `${Math.round(this.zoomScale * 100)}%`;
-    }
+    const zoomLabel = this.container?.querySelector('#zoom-level-indicator');
+    if (zoomLabel) zoomLabel.textContent = `${Math.round(this.zoomScale * 100)}%`;
   }
 }

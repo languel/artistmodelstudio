@@ -1,0 +1,78 @@
+import { describe, it, expect } from 'vitest';
+import { crc32, createZip } from '../src/export/zip.js';
+import { buildP5Sketch, buildIndexHtml, frameSteps, buildContinuousSketch } from '../src/export/p5Export.js';
+
+const program = {
+  version: 1,
+  actions: [
+    { op: 'background', color: '#7a3b2e' },
+    { op: 'noStroke' },
+    { op: 'fill', color: '#d4a017', opacity: 1 },
+    { op: 'rect', x: 0.1, y: -0.5, width: 0.3, height: 0.25 },
+    { op: 'circle', x: 0, y: 0.2, diameter: 0.4 }
+  ]
+};
+
+describe('zip writer', () => {
+  it('computes standard CRC-32', () => {
+    expect(crc32(new TextEncoder().encode('hello'))).toBe(0x3610a686);
+  });
+
+  it('writes a stored archive with a matching central directory', () => {
+    const bytes = createZip([{ name: 'a.txt', data: 'hi' }, { name: 'b/c.js', data: 'x=1' }]);
+    const view = new DataView(bytes.buffer);
+    expect(view.getUint32(0, true)).toBe(0x04034b50);
+    const eocd = bytes.length - 22;
+    expect(view.getUint32(eocd, true)).toBe(0x06054b50);
+    expect(view.getUint16(eocd + 10, true)).toBe(2);
+  });
+});
+
+describe('p5 export', () => {
+  it('embeds the program and the U-key controls', async () => {
+    const sketch = await buildP5Sketch(program, { mediumId: 'flat', title: 'Castle study' });
+    expect(sketch).toContain('const PROGRAM = {');
+    expect(sketch).toContain('"op": "rect"');
+    expect(sketch).toContain('const PIXEL = null;');
+    expect(sketch).toContain("k === 'u'");
+    expect(sketch).toContain('const TITLE_SLUG = "castle-study"');
+    expect(() => new Function(sketch)).not.toThrow();
+  });
+
+  it('embeds the studio watercolor routine and a renderer toggle', async () => {
+    const sketch = await buildP5Sketch(program, { mediumId: 'watercolor' });
+    expect(sketch).toContain('const MEDIUM = "watercolor"');
+    expect(sketch).toContain('function paintWatercolor(brush, canvas, actions');
+    expect(sketch).not.toMatch(/^export /m);
+    expect(sketch).toContain("k === 'w'");
+    expect(() => new Function(sketch)).not.toThrow();
+  });
+
+  it('builds an index page that loads vendored p5 before the sketch', () => {
+    const html = buildIndexHtml('A <b> title');
+    expect(html.indexOf('p5.min.js')).toBeLessThan(html.indexOf('brush.js'));
+    expect(html.indexOf('brush.js')).toBeLessThan(html.indexOf('sketch.js'));
+    expect(html).toContain('A &lt;b&gt; title');
+  });
+
+  it('caps animation frames', () => {
+    expect(frameSteps(1602).length).toBeLessThanOrEqual(150);
+    expect(frameSteps(1602).at(-1)).toBe(1602);
+    expect(frameSteps(5)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('builds a self-contained continuous sketch', () => {
+    const target = new Float32Array(8 * 8 * 3).fill(128);
+    const sketch = buildContinuousSketch(target, 8, { density: 50, lifetime: 5, fade: 0.3, shapes: ['rect'], seed: 1 }, { title: 'Test' });
+    expect(sketch).toContain('class ReferenceFitter');
+    expect(sketch).toContain('class ContinuousFitter');
+    expect(sketch).not.toMatch(/^(import|export) /m);
+    expect(sketch).toContain('const SIZE = 8;');
+    expect(() => new Function(sketch)).not.toThrow();
+    expect(sketch).toContain('class WatercolorLayer');
+    // brush.js declares globals t and e; a top-level let/const with those names breaks the page.
+    expect(sketch).not.toMatch(/^(let|const|var)\s+(t|e)\b|^let [^;]*\b(t|e)\s*=/m);
+    expect(sketch).toContain("k === 'w'");
+    expect(buildIndexHtml('x', { brush: false })).not.toContain('brush.js');
+  });
+});

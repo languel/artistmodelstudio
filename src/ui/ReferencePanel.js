@@ -47,8 +47,13 @@ function cropImage(img, crop) {
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
 export class ReferencePanel {
-  constructor({ onReferenceChange } = {}) {
+  constructor({ onReferenceChange, onLiveToggle, onLiveParams, onExportContinuous } = {}) {
     this.onReferenceChange = onReferenceChange;
+    this.onLiveToggle = onLiveToggle;
+    this.onLiveParams = onLiveParams;
+    this.onExportContinuous = onExportContinuous;
+    this.live = { render: 'flat', mode: 'strokes', density: 150, lifetime: 10, fadeIn: 0.05, fadeOut: 0.15, shapes: 'mixed' };
+    this.liveRunning = false;
     this.references = bundledReferences();
     this.current = null; // { id, name, image, displayUrl, source, rights, uploaded }
   }
@@ -57,7 +62,7 @@ export class ReferencePanel {
     this.container = container;
     const options = this.references.map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.title)}, ${r.year}</option>`).join('');
     container.innerHTML = `
-      <div class="reference-panel">
+      <div class="reference-panel" title="Used by the Reference Fitter engine. The model menu sets the shape budget; candidates A–D use mixed, rectangle, circle and triangle shapes.">
         <div class="reference-controls">
           <select id="reference-select" title="Bundled public-domain references">
             <option value="">No reference</option>
@@ -67,7 +72,55 @@ export class ReferencePanel {
           <input type="file" id="reference-upload" accept="image/*" hidden />
         </div>
         <div id="reference-view" class="reference-view"></div>
-        <p class="reference-hint">Used by the <strong>Reference Fitter</strong> engine. Choose its shape budget in the model menu; candidates A–D use mixed, rectangle, circle and triangle shapes.</p>
+        <div class="live-controls" title="Continuous mode: shapes fade in, live for a while, fade out, and are replaced by new fits, repainting the reference forever.">
+          <div class="live-row">
+            <button id="live-toggle" class="btn-primary live-toggle">Play continuous</button>
+            <button id="live-export" class="btn-micro" title="Export an endless p5.js sketch (zip) with these settings">Export p5</button>
+          </div>
+          <label class="live-slider" title="Watercolor paints each stroke with p5.brush as it lands; old paint fades under washes (Fade out sets how slowly)">
+            <span>Render</span>
+            <select id="live-render">
+              <option value="flat">Flat</option>
+              <option value="watercolor">Watercolor</option>
+            </select>
+          </label>
+          <label class="live-slider" title="Strokes: one shape at a time, the oldest leaves as the newest arrives. Fade: many shapes fading at once.">
+            <span>Style</span>
+            <select id="live-mode">
+              <option value="strokes">Strokes</option>
+              <option value="fade">Fade</option>
+            </select>
+          </label>
+          <label class="live-slider" title="Shapes alive at once: more shapes, more detail">
+            <span>Density</span>
+            <input type="range" id="live-density" min="10" max="800" step="10" value="${this.live.density}" />
+            <output id="live-density-out">${this.live.density}</output>
+          </label>
+          <label class="live-slider" title="Seconds for the whole painting to turn over: sets the pacing">
+            <span>Cycle</span>
+            <input type="range" id="live-lifetime" min="1" max="60" step="0.5" value="${this.live.lifetime}" />
+            <output id="live-lifetime-out">${this.live.lifetime} s</output>
+          </label>
+          <label class="live-slider" title="How gradually each shape appears">
+            <span>Fade in</span>
+            <input type="range" id="live-fadein" min="0" max="0.5" step="0.05" value="${this.live.fadeIn}" />
+            <output id="live-fadein-out">${this.live.fadeIn}</output>
+          </label>
+          <label class="live-slider" title="How gradually each shape disappears">
+            <span>Fade out</span>
+            <input type="range" id="live-fadeout" min="0" max="0.5" step="0.05" value="${this.live.fadeOut}" />
+            <output id="live-fadeout-out">${this.live.fadeOut}</output>
+          </label>
+          <label class="live-slider" title="Shape vocabulary for new shapes">
+            <span>Shapes</span>
+            <select id="live-shapes">
+              <option value="mixed">Mixed</option>
+              <option value="rect">Rectangles</option>
+              <option value="circle">Circles</option>
+              <option value="triangle">Triangles</option>
+            </select>
+          </label>
+        </div>
       </div>`;
 
     const select = container.querySelector('#reference-select');
@@ -85,6 +138,47 @@ export class ReferencePanel {
       if (file) this.selectUpload(file);
       upload.value = '';
     });
+
+    const liveParams = () => ({
+      render: this.live.render,
+      mode: this.live.mode,
+      density: this.live.density,
+      lifetime: this.live.lifetime,
+      fadeIn: this.live.fadeIn,
+      fadeOut: this.live.fadeOut,
+      shapes: this.live.shapes === 'mixed' ? ['rect', 'triangle', 'circle'] : [this.live.shapes]
+    });
+    this.liveParams = liveParams;
+    const bindSlider = (id, key, fmt) => {
+      const input = container.querySelector(`#live-${id}`);
+      const out = container.querySelector(`#live-${id}-out`);
+      input?.addEventListener('input', () => {
+        this.live[key] = Number(input.value);
+        if (out) out.textContent = fmt(this.live[key]);
+        this.onLiveParams?.(liveParams());
+      });
+    };
+    bindSlider('density', 'density', v => String(v));
+    bindSlider('lifetime', 'lifetime', v => `${v} s`);
+    bindSlider('fadein', 'fadeIn', v => String(v));
+    bindSlider('fadeout', 'fadeOut', v => String(v));
+    container.querySelector('#live-render')?.addEventListener('change', (e) => {
+      this.live.render = e.target.value;
+      this.onLiveParams?.(liveParams());
+    });
+    container.querySelector('#live-mode')?.addEventListener('change', (e) => {
+      this.live.mode = e.target.value;
+      this.onLiveParams?.(liveParams());
+    });
+    container.querySelector('#live-shapes')?.addEventListener('change', (e) => {
+      this.live.shapes = e.target.value;
+      this.onLiveParams?.(liveParams());
+    });
+    container.querySelector('#live-toggle')?.addEventListener('click', () => {
+      if (!this.current?.image && !this.liveRunning) return;
+      this.onLiveToggle?.(!this.liveRunning, liveParams());
+    });
+    container.querySelector('#live-export')?.addEventListener('click', () => this.onExportContinuous?.(liveParams()));
 
     let saved = '';
     try { saved = localStorage.getItem(STORAGE_KEY) || ''; } catch { /* storage unavailable */ }
@@ -126,6 +220,12 @@ export class ReferencePanel {
       opt.textContent = `Uploaded: ${file.name}`;
       select.value = opt.value;
     }
+  }
+
+  setLiveRunning(on) {
+    this.liveRunning = on;
+    const btn = this.container?.querySelector('#live-toggle');
+    if (btn) btn.textContent = on ? 'Stop' : 'Play continuous';
   }
 
   setCurrent(ref) {
