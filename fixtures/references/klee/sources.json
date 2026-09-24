@@ -1,0 +1,131 @@
+{
+  "collection": "Paul Klee — AMS reference set, phase 1",
+  "use": "Internal research; rights checked for possible later publication.",
+  "references": [
+    {
+      "id": "klee-1928-castle-and-sun",
+      "file": "klee-1928-castle-and-sun.jpg",
+      "title": "Castle and Sun (Burg und Sonne)",
+      "artist": "Paul Klee (1879–1940)",
+      "year": 1928,
+      "difficulty": "easy: flat rectangles, triangles, one circle",
+      "local": {
+        "width": 1000,
+        "height": 820,
+        "bytes": 452184,
+        "sha256": "0868449ef40102bb73f86114fcec05deaad36814040d7162cabbe7a936c8a8bd"
+      },
+      "source": {
+        "commonsPage": "https://commons.wikimedia.org/wiki/File:Burg_und_Sonne_-_Klee.jpg",
+        "downloadedFrom": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bf/Burg_und_Sonne_-_Klee.jpg/1280px-Burg_und_Sonne_-_Klee.jpg",
+        "original": {
+          "url": "https://upload.wikimedia.org/wikipedia/commons/b/bf/Burg_und_Sonne_-_Klee.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+          "width": 8070,
+          "height": 6621,
+          "sha1": "98471b887c9f6cd975fb731b6a90de8919acb0c7"
+        },
+        "commonsCredit": "Scan of Print",
+        "upstreamUrls": [],
+        "description": "Burg und Sonne Sammlung George David Thompson, Pittsburg USA, 54x62 cm."
+      },
+      "rights": {
+        "commonsLicense": "Public domain",
+        "commonsTemplates": [
+          "PD-Art (PD-old-auto-expired)",
+          "PD-old-80-expired"
+        ],
+        "basis": "Artist died 1940: public domain in life+70 (and life+80) jurisdictions since 2011. Work first published 1922/1928, before 1931, so public domain in the US.",
+        "reproductionNote": "The file is a photograph/scan of a 2D work, tagged PD-Art on Commons. Faithful reproductions are not copyrightable in the US (Bridgeman v. Corel) and in the EU (DSM Directive Art. 14); check the local rules before publishing elsewhere."
+      },
+      "retrievedAt": "2026-09-24",
+      "sourceQualityNote": "Commons credit is 'Scan of Print': a scan of a printed reproduction, so colour may differ from the painting. Replace with a museum photograph before publishing results."
+    },
+    {
+      "id": "klee-1922-senecio",
+      "file": "klee-1922-senecio.jpg",
+      "title": "Senecio (Baldgreis)",
+      "artist": "Paul Klee (1879–1940)",
+      "year": 1922,
+      "difficulty": "medium: circles, soft color fields, a face",
+      "local": {
+        "width": 1000,
+        "height": 1090,
+        "bytes": 534898,
+        "sha256": "ef3e7317b36c2141115893c9b35dae7087180d0f41fe0d1904ee724ee8921d4f"
+      },
+      "source": {
+        "commonsPage": "https://commons.wikimedia.org/wiki/File:Paul_Klee,_1922,_Senecio,_oil_on_gauze,_40.3_%C3%97_37.4_cm,_Kunstmuseum_Basel.jpg",
+        "downloadedFrom": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3f/Paul_Klee%2C_1922%2C_Senecio%2C_oil_on_gauze%2C_40.3_%C3%97_37.4_cm%2C_Kunstmuseum_Basel.jpg/1280px-Paul_Klee%2C_1922%2C_Senecio%2C_oil_on_gauze%2C_40.3_%C3%97_37.4_cm%2C_Kunstmuseum_Basel.jpg",
+        "original": {
+          "url": "https://upload.wikimedia.org/wikipedia/commons/3/3f/Paul_Klee%2C_1922%2C_Senecio%2C_oil_on_gauze%2C_40.3_%C3%97_37.4_cm%2C_Kunstmuseum_Basel.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+          "width": 3712,
+          "height": 4046,
+          "sha1": "9ac4f37a78adb67ffd02e97a45c00d4be4d7ebb2"
+        },
+        "commonsCredit": "Kunstmuseum Basel",
+        "upstreamUrls": [
+          "https://sammlungonline.kunstmuseumbasel.ch/eMP/eMuseumPlus?service=ExternalInterface&module=collection&objectId=1207"
+        ],
+        "description": ""
+      },
+      "rights": {
+        "commonsLicense": "Public domain",
+        "commonsTemplates": [
+          "PD-Art (PD-old-auto-expired)",
+          "PD-old-80-expired"
+        ],
+        "basis": "Artist died 1940: public domain in life+70 (and life+80) jurisdictions since 2011. Work first published 1922/1928, before 1931, so public domain in the US.",
+        "reproductionNote": "The file is a photograph/scan of a 2D work, tagged PD-Art on Commons. Faithful reproductions are not copyrightable in the US (Bridgeman v. Corel) and in the EU (DSM Directive Art. 14); check the local rules before publishing elsewhere."
+      },
+      "retrievedAt": "2026-09-24"
+    },
+    {
+      "id": "klee-1922-twittering-machine",
+      "file": "klee-1922-twittering-machine.jpg",
+      "title": "Twittering Machine (Die Zwitscher-Maschine)",
+      "artist": "Paul Klee (1879–1940)",
+      "year": 1922,
+      "difficulty": "hard: thin wandering lines over a wash",
+      "local": {
+        "width": 1000,
+        "height": 1324,
+        "bytes": 403318,
+        "sha256": "53048b919fefe3d78742f4e2baa5b2aed03e5acf25dddfc87315594d1820404c"
+      },
+      "source": {
+        "commonsPage": "https://commons.wikimedia.org/wiki/File:Paul_Klee,_Die_Zwitscher-Maschine%27.jpg",
+        "downloadedFrom": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/Paul_Klee%2C_Die_Zwitscher-Maschine%27.jpg/1280px-Paul_Klee%2C_Die_Zwitscher-Maschine%27.jpg",
+        "original": {
+          "url": "https://upload.wikimedia.org/wikipedia/commons/0/0f/Paul_Klee%2C_Die_Zwitscher-Maschine%27.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+          "width": 1511,
+          "height": 2000,
+          "sha1": "043f24499bc7503e5354f93aca6f0da0c9c23e3b"
+        },
+        "commonsCredit": "[1]",
+        "upstreamUrls": [
+          "http://www.moma.org/collection/object.php?object_id=37347"
+        ],
+        "description": "Die Zwitscher-Maschine"
+      },
+      "rights": {
+        "commonsLicense": "Public domain",
+        "commonsTemplates": [
+          "PD-Art (PD-old-auto-expired)",
+          "PD-old-80-expired",
+          "PD-Art missing SDC copyright status",
+          "PD-old missing SDC copyright status"
+        ],
+        "basis": "Artist died 1940: public domain in life+70 (and life+80) jurisdictions since 2011. Work first published 1922/1928, before 1931, so public domain in the US.",
+        "reproductionNote": "The file is a photograph/scan of a 2D work, tagged PD-Art on Commons. Faithful reproductions are not copyrightable in the US (Bridgeman v. Corel) and in the EU (DSM Directive Art. 14); check the local rules before publishing elsewhere."
+      },
+      "retrievedAt": "2026-09-24",
+      "crop": {
+        "x": 0.199,
+        "y": 0.156,
+        "w": 0.631,
+        "h": 0.638,
+        "note": "Fractional box around the painted sheet including its grey border; excludes Klee's mount and handwritten caption. Estimated by eye."
+      }
+    }
+  ]
+}

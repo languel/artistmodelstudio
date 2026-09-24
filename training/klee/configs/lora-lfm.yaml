@@ -1,0 +1,22 @@
+# LFM2.5-350M variant: lower LR and LoRA scale after a loss spike at iter 340 with lr 1e-4 / scale 20.
+fine_tune_type: lora
+train: true
+mask_prompt: true          # learn the program, not the prompt
+num_layers: -1             # adapt every layer
+batch_size: 4
+learning_rate: 4.0e-5
+lr_schedule:
+  name: cosine_decay
+  warmup: 50
+  arguments: [4.0e-5, 1200, 1.0e-6]
+max_seq_length: 1800
+grad_checkpoint: true
+steps_per_report: 20
+steps_per_eval: 200
+val_batches: 25
+save_every: 200
+seed: 7
+lora_parameters:
+  rank: 16
+  scale: 10.0
+  dropout: 0.05

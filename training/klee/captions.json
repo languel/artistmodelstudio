@@ -1,0 +1,1747 @@
+{
+ "model": "gemma4:12b-mlx",
+ "prompt": "Describe this painting as a short prompt someone might type to request a similar picture: the subject, the main shapes and layout, and the palette. One sentence, at most 25 words. Do not name the artist, and do not mention paper, frame, mount, signature, inscription or texture. For context only, the work is titled \"{title}\".",
+ "reviewed": false,
+ "captions": {
+  "klee-1912-junge-frau-im-fauteuil-1912-paul-klee": {
+   "text": "A whimsical watercolor of a woman in a long dress lounging in a large armchair, featuring loose lines and a pink, yellow, and red palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1912-klee-kakteen-pa291152": {
+   "text": "An impressionistic oil painting of three cacti in pots, featuring expressive brushstrokes, organic rounded shapes, and a muted palette of green, terracotta, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1912-paul-klee-blick-auf-einen-platz-1912": {
+   "text": "An impressionistic cityscape of a town square with gabled buildings under a vast, atmospheric sky in a palette of blue, yellow, and white.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1913-interieur-mit-der-uhr-interior-with-the-clock-1913-by-paul-klee-the-ar": {
+   "text": "An abstract interior scene featuring geometric shapes, a stylized clock, and a muted palette of ochre, dusty rose, and muted blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1913-paul-klee-das-hotel": {
+   "text": "An abstract geometric painting of a building composed of overlapping triangular and polygonal shapes in a muted palette of brown, grey, and ochre.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1913-paul-klee-der-hof-sonne-im-hof-1913": {
+   "text": "An abstract, expressive painting of a courtyard scene featuring vertical architectural forms and gestural brushstrokes in a palette of blue, ochre, and violet.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-ber-ein-motiv-aus-hammamet-paul-klee-1914": {
+   "text": "An abstract grid of rectangular blocks in shades of deep purple, indigo, and grey with a small red accent at the bottom.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-fenster-u-palmen-1914": {
+   "text": "An abstract composition of overlapping geometric planes and organic shapes featuring a palette of earthy browns, deep blues, and muted greens.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-garden-in-st-germain-the-european-quarter-near-tunis-1914-paul-klee-me": {
+   "text": "A watercolor painting of a garden in a city, featuring abstract geometric shapes and a soft palette of blue, violet, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-ge-ffneter-berg-1914-paul-klee": {
+   "text": "An abstract geometric composition of overlapping cylinders, cones, and triangles in a muted palette of earthy browns, dusty blues, and olive greens.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-hammamet-with-its-mosque-1914-paul-klee-met-dp-815-001": {
+   "text": "An abstract watercolor of a mosque and courtyard in Hammamet, featuring geometric shapes, architectural silhouettes, and a palette of terracotta, dusty rose, and violet.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-kairuan-vor-dem-thor-paul-klee-1914": {
+   "text": "An abstract watercolor of a city gate featuring geometric blocks, sweeping curved shapes, and a warm palette of ochre, terracotta, and dusty rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-motiv-aus-hammamet-1914-paul-klee": {
+   "text": "An abstract geometric composition of overlapping rectangular and triangular color blocks in a palette of muted rose, ochre, sage, and deep burgundy.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-ohne-titel-paul-klee-1914-18": {
+   "text": "An abstract composition of overlapping geometric blocks and linear scribbles featuring a rich palette of deep burgundy, teal, mustard yellow, and earthy browns.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-paul-klee-after-a-sketch-from-zurich-nach-einer-scizze-aus-z-rich-1914": {
+   "text": "An abstract geometric composition of overlapping circles and angular planes in a palette of blue, gold, muted pink, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-paul-klee-kairuan-1914-42": {
+   "text": "An abstract watercolor of a cityscape with arched buildings, featuring a vertical composition of earthy browns, deep purples, and muted yellows.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-paul-klee-view-of-saint-germain-1914": {
+   "text": "An abstract, geometric village scene with simplified houses and hills under a blue sky, rendered in a warm palette of ochre, red, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-rote-und-wei-e-kuppeln-paul-klee-1914": {
+   "text": "An abstract grid of rectangular blocks featuring architectural dome shapes in a rich palette of deep red, ochre, violet, and white.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-st-germain-b-tunis-landeinw-rts-paul-klee-1914": {
+   "text": "An abstract landscape of a town with geometric shapes and blocks of color in a palette of dusty rose, lavender, and muted blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-stadt-mit-den-drei-kuppeln-paul-klee-1914": {
+   "text": "An abstract geometric cityscape of three domes composed of overlapping triangles and rectangles in a palette of earthy ochre, deep purple, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-untitled-1914-paul-klee-met-dt7775": {
+   "text": "An abstract geometric composition of overlapping triangles, circles, and angular shapes in a muted palette of dusty rose, sage green, and earthy ochre.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-untitled-1914-paul-klee-met-dt7776": {
+   "text": "An abstract grid of overlapping, translucent watercolor squares in a warm palette of ochre, terracotta, muted green, and dusty rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1914-untitled-1914-paul-klee-slg-sprengel-i-105": {
+   "text": "An abstract geometric composition of overlapping rectangular and triangular blocks in a warm palette of terracotta, plum, ochre, and charcoal grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-artisten-1915-paul-klee": {
+   "text": "Abstract, minimalist line drawings of stylized figures and geometric shapes in a balanced composition with a warm palette of yellow, orange, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-before-the-town-1915-paul-klee-met-dt7777": {
+   "text": "An abstract composition of vertical rectangular blocks and geometric shapes in a rich palette of earthy browns, deep blues, and muted purples.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-composition-with-figures-1915-paul-klee": {
+   "text": "An abstract collage of large rectangular color blocks featuring minimalist line drawings of figures in a palette of ochre, pink, burgundy, and lime green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-deep-pathos-1915-paul-klee-met-dt7778": {
+   "text": "An abstract patchwork of colorful rectangular blocks and dark, irregular shapes featuring a vibrant palette of blue, red, yellow, and green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-der-niesen-paul-klee-1915": {
+   "text": "A stylized, geometric landscape of a mountain and village under a starry night sky, featuring a colorful mosaic of rectangular blocks and a blue peak.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-landschaft-mit-fahnen-h-user-mit-fahnen-1915-paul-klee": {
+   "text": "An abstract landscape of geometric houses and flags featuring sharp angular shapes, curved forms, and a rich palette of ochre, deep blue, and earthy reds.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-moonrise-over-st-germain-1915-paul-klee": {
+   "text": "An abstract, geometric landscape of colorful blocks and shapes under a large white moon in a palette of blue, pink, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-movement-of-vaulted-chambers-1915-paul-klee-met-dt7740": {
+   "text": "An abstract composition of organic, interlocking curved shapes and vertical columns in a warm palette of rose, gold, ochre, and dusty blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-ohne-titel-1915-paul-klee": {
+   "text": "An abstract composition of interlocking geometric shapes and organic curves in a vibrant palette of blue, yellow, purple, and red.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-paul-klee-stickerei-1915": {
+   "text": "An abstract grid of colorful, textured rectangles featuring dense patterns of dots, dashes, and intersecting lines in a palette of earthy tones and blues.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-translucencies-orange-blue-1915-paul-klee": {
+   "text": "An abstract geometric composition of overlapping triangles, circles, and rectangles in a palette of burnt orange, deep blue, and muted grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1915-woman-knitting-1915-paul-klee": {
+   "text": "A cubist painting of a woman knitting at a table, featuring geometric shapes, a vertical composition, and a monochromatic palette of black, grey, and white.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1916-miniatur-mit-dem-e-emma-1918-paul-klee": {
+   "text": "An abstract composition of interlocking organic and geometric shapes in a muted palette of olive, ochre, dusty rose, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1916-paul-klee-kairuan-1916": {
+   "text": "An abstract architectural landscape featuring geometric shapes, rounded domes, and a muted palette of dusty rose, ochre, and violet under a dark blue sky.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1916-paul-klee-miniat-re-1916": {
+   "text": "An abstract landscape of rolling hills and stylized stars in a palette of earthy browns, muted oranges, and dusty blues with geometric, organic shapes.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1916-vorf-hrung-des-wunders-paul-klee-1916": {
+   "text": "A geometric, cubist-style painting of stylized figures in a fragmented interior, featuring sharp triangular shapes and a palette of earthy reds, yellows, and greens.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1916-weibl-erscheinungsscizze-naturalistic-sketch-of-a-young-girl-by-paul-k": {
+   "text": "A ghostly, impressionistic portrait of a young girl with soft features, centered in a vertical composition using a muted palette of grey, mauve, and ochre.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1917-ber-bergesh-he-by-paul-klee-1917": {
+   "text": "A mystical celestial landscape featuring a mountain peak, celestial bodies, and geometric stars within a jagged, multicolored triangular border in a muted, earthy palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1917-colorful-architecture-1917-paul-klee-met-dt7780": {
+   "text": "An abstract geometric composition of interlocking rectangles and triangles in a palette of blue, pink, yellow, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1917-im-reich-der-luft-1917-paul-klee": {
+   "text": "An abstract, ethereal composition of floating geometric spheres, floating structures, and linear webs in a palette of muted blue, gold, and violet.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1917-klee-hafenbild-nachts": {
+   "text": "An abstract night harbor scene featuring geometric shapes, sharp triangles, and a dark, moody palette of deep blue, black, and muted teal.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1917-libido-of-the-forest-1917-paul-klee-met-dt7781": {
+   "text": "An abstract composition of overlapping, radiating brushstrokes in a palette of earthy browns, deep reds, and muted greens, creating a dense, organic forest-like pattern.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1917-municipal-jewel-1917-paul-klee-met-dt7782": {
+   "text": "An abstract geometric composition of interlocking triangles and rectangles in a rich palette of deep blue, burgundy, magenta, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1917-paul-klee-die-kapelle-1917": {
+   "text": "An abstract, geometric chapel composed of overlapping triangles and polygons in a muted palette of dusty rose, grey, and ochre with a central blue circle.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1917-paul-klee-strenge-landschaft-in-blau-1917": {
+   "text": "An abstract geometric landscape featuring overlapping blocks, triangles, and arcs in a palette of blue, violet, ochre, and terracotta.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1917-paul-klee-with-the-rainbow-1917": {
+   "text": "An abstract geometric composition of interlocking colorful polygons and sharp angular shapes featuring a central rainbow arch and a dark circular form.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1917-stadtartiger-aufbau-1917-paul-klee": {
+   "text": "An abstract geometric composition of interlocking triangles and rectangles in a warm palette of earthy reds, greens, and blues.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-an-den-wassern-zu-babel-1918": {
+   "text": "An abstract mixed-media composition featuring layered geometric shapes, whimsical line drawings, and a muted palette of rust, dusty blue, and earthy ochre.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-blumenmythos-1918-paul-klee": {
+   "text": "A stylized, symmetrical floral composition featuring a central flower and celestial motifs in a vibrant red, blue, and gold palette with forest silhouettes.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-blumenmythos-1918-paul-klee-2": {
+   "text": "A mystical, symmetrical floral composition featuring a central flower and celestial symbols on a vibrant orange background with a warm, earthy color palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-composition-with-the-yellow-half-moon-and-the-y-1918-paul-klee-met-dt7": {
+   "text": "An abstract cubist composition of geometric shapes, including a yellow crescent and circular forms, in a muted palette of blue, grey, and earth tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-der-mensch-ist-der-mund-des-herrn-1918-paul-klee": {
+   "text": "A minimalist, abstract portrait of a stylized human figure with a large oval head, featuring geometric shapes and a warm palette of ochre and brown.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-dittlsam-1918-paul-klee": {
+   "text": "A surreal, abstract composition of stylized figures and geometric shapes in a muted palette of grey, beige, and dusty rose with sketchy line work.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-einst-dem-grau-der-nacht-enttaucht-paul-klee-1918": {
+   "text": "A grid of colorful mosaic tiles forming abstract geometric shapes and letters, divided into two sections by a horizontal grey band, with German text above.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-hermitage-1918-paul-klee": {
+   "text": "A mystical, purple-toned landscape featuring stylized trees, a central cross, and celestial symbols in a whimsical, folk-art style with a vibrant violet palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-irma-rossa-die-b-ndigerin-1918-paul-klee": {
+   "text": "A surrealist portrait of a woman with orange hair and a cat, featuring geometric lines, abstract shapes, and a muted, earthy color palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-mit-der-treppe-1918-paul-klee": {
+   "text": "An abstract geometric composition featuring a staircase, circular forms, and linear structures in a muted palette of grey, beige, and dusty rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-paul-klee-angelus-descendens-1918": {
+   "text": "A whimsical, minimalist illustration of a celestial, crescent-shaped angel descending from a bird and stars in a muted palette of gold, grey, and rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-ruinen-mit-styliten-ruins-with-stylites-1918-paul-klee": {
+   "text": "An abstract, colorful composition of geometric shapes, stylized figures, and letters featuring a palette of yellow, purple, blue, and pink.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-unter-schwarzem-stern-1918-paul-klee": {
+   "text": "A mixed-media collage featuring a central black star surrounded by abstract geometric shapes and small figures in a muted palette of grey, pink, and green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1918-zwei-lustschl-sschen-1918-paul-klee": {
+   "text": "An abstract, geometric composition of overlapping pastel-colored rectangles and squares featuring delicate, linear architectural sketches in a soft palette of pink, blue, and green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-birds-swooping-down-and-arrows-1919-paul-klee-met-dt7784": {
+   "text": "Abstract geometric composition featuring stylized birds and downward-pointing arrows in a muted palette of gold, blue, and green with sketchy black outlines.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-black-columns-in-a-landscape-1919-paul-klee-met-dt1765": {
+   "text": "An abstract landscape of geometric shapes and architectural forms featuring black columns, arches, and stylized trees in a palette of purple, yellow, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-burggarten-1919-paul-klee": {
+   "text": "A geometric, abstract composition of interlocking polygons and architectural forms in a palette of deep blue, violet, and dusty rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-das-haus-zur-distelbl-te-1919-paul-klee": {
+   "text": "A surreal, circular painting of a whimsical house nestled among stylized trees and a large thistle flower in a dark, moody palette of red, gold, and white.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-falling-bird-1919-paul-klee-met-dt7741": {
+   "text": "A stylized, geometric bird figure with patterned wings and a numbered chest, falling toward a landscape in a warm yellow and orange palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-fas-sade-braun-gr-n-1919-paul-klee": {
+   "text": "An abstract architectural composition of geometric, interlocking house-like shapes in a palette of earthy browns, muted greens, and golden yellows.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-kosmische-composition-1919-paul-klee": {
+   "text": "An abstract cosmic composition of celestial symbols and geometric lines in a warm palette of deep red, gold, and black.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-lady-inclining-her-head-1919-paul-klee-met-dt7786": {
+   "text": "A minimalist, orange-toned drawing of a woman with a tilted head and butterfly-like features, featuring simple black outlines and a warm, earthy palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-landscape-with-bluebirds-1919-paul-klee": {
+   "text": "An abstract landscape featuring stylized birds and palm trees in a grid of earthy browns, pinks, and blues with a textured, layered composition.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-landschaft-mit-dem-galgen-1919-paul-klee": {
+   "text": "An abstract landscape featuring geometric shapes, stylized trees, and symbolic figures in a textured palette of deep red, blue, and earthy gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-mit-der-rotierenden-schwarzen-sonne-und-dem-pfeile-paul-klee-1919": {
+   "text": "An abstract geometric composition of colorful rectangles and lines featuring a central black circular figure with radiating lines and a single black arrow.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-mit-zwei-dromedaren-und-ein-esel-1919-paul-klee": {
+   "text": "An abstract, geometric painting featuring two camels and a donkey amidst colorful blocks of yellow, orange, and blue with expressive brushstrokes.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-paul-klee-asiatische-gaukler-1919": {
+   "text": "An abstract geometric composition featuring overlapping triangles, crescents, and linear patterns in a palette of muted gold, dusty rose, sage green, and deep blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-paul-klee-full-moon": {
+   "text": "An abstract, geometric landscape featuring a full moon over a village, composed of angular blocks and circles in a palette of deep grays, oranges, and yellows.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-paul-klee-mondauf-sonnenuntergang-mb-0070-kunsthaus-z-rich": {
+   "text": "A surreal, nocturnal cityscape featuring a yellow moon, a red sun, and geometric architectural structures in a dark palette of blue, black, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-southern-gardens-1919-paul-klee-met-dt7739": {
+   "text": "An abstract mosaic of colorful rectangular blocks and organic shapes in a vibrant palette of red, yellow, blue, and purple.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-sumpflegende-1919-paul-klee": {
+   "text": "An abstract, geometric composition of overlapping architectural and organic shapes in a moody palette of deep burgundy, moss green, and charcoal grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-tomcat-s-turf-1919-paul-klee-met-dt7785": {
+   "text": "Abstract, split-composition painting featuring stylized cats and geometric shapes in a palette of muted green, blue, pink, and orange.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-villa-r-1919-paul-klee": {
+   "text": "A cubist landscape featuring a geometric villa and a large letter \"R\" set against a night sky with a yellow moon in a dark palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1919-wald-bau-1919-paul-klee": {
+   "text": "An abstract geometric landscape of stylized trees and mountains composed of interlocking triangles and polygons in a palette of green, rust, and deep blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-angelus-novus-1920-paul-klee": {
+   "text": "A stylized, symmetrical humanoid figure with curly hair and geometric features, rendered in a minimalist line drawing style with a warm, earthy sepia palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-arctic-dew-1920-paul-klee": {
+   "text": "An abstract composition of sweeping curved lines, geometric triangles, and circular forms in a palette of deep magenta, gold, and muted violet.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-baum-und-architektur-rhythmen-1920-paul-klee-nga-2004-140-41-a": {
+   "text": "An abstract architectural scene featuring stylized buildings and trees in a rhythmic, geometric composition using a warm palette of gold, red, and green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-baum-und-architektur-rhythmen-1920-paul-klee-nga-2004-140-41-b": {
+   "text": "An abstract, colorful composition of stylized trees and buildings featuring geometric shapes, organic curves, and a soft palette of pink, blue, and yellow.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-episode-at-kairouan-1920-paul-klee-met-dt7787": {
+   "text": "A minimalist, sketch-like illustration of a figure and a group of people near a stylized cityscape, featuring a muted palette of ochre, red, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-kinder-und-hund-children-and-dog-1920-paul-klee": {
+   "text": "A primitive, stylized painting of children and a dog in a warm palette of ochre, rust, and gold with simple, linear forms.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-klee-paul-rose-garden-google-art-project": {
+   "text": "An abstract geometric composition of stylized roses and architectural shapes in a rich palette of burgundy, deep red, and dusty rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-klee-rosengarten-1290085": {
+   "text": "An abstract, geometric rose garden featuring stylized floral shapes and architectural forms in a palette of deep burgundy, dusty rose, and muted grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-lovers-1920-paul-klee-met-dt5833": {
+   "text": "An abstract, stylized portrait of two intertwined figures composed of geometric shapes and interlocking curves in a palette of deep red, ochre, and black.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-m-nchen-lenbachhaus-20130628-44": {
+   "text": "An abstract geometric composition of interlocking architectural shapes and circular motifs in a warm palette of red, pink, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-miraculous-landing-or-the-112-1920-paul-klee-met-dt1766": {
+   "text": "A stylized, geometric illustration of a ship docking at a numbered tower, featuring a warm palette of ochre, gold, and muted grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-park-1920-by-paul-klee-the-art-institute-of-chicago": {
+   "text": "A stylized, geometric park scene featuring stylized trees and paths in a palette of deep forest green, mustard yellow, and earthy browns.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-paul-klee-engel-bringt-das-gew-nschte-1920": {
+   "text": "A minimalist, abstract line drawing of a stylized figure with flowing lines, set against a wash of yellow, pink, and blue watercolor.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-paul-klee-kleine-schweizerlandschaft-1920": {
+   "text": "A stylized, geometric Swiss landscape featuring rolling hills, a small tower, and mountains in a palette of pink, yellow, green, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-paul-klee-landschaft-mit-gelbem-kirchturm-14456-bavarian-state-paintin": {
+   "text": "An abstract landscape of geometric blocks and organic shapes featuring stylized trees and a tower in a palette of green, gold, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-paul-klee-rose-garden": {
+   "text": "An abstract, geometric composition of stylized roses and architectural shapes in a warm palette of red, pink, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-paul-klee-schulhaus-1920": {
+   "text": "A surreal, dark folk-art painting featuring a stylized schoolhouse, a skeletal figure in a hat, and a large flower amidst jagged mountain peaks.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-paul-klee-the-lamb-google-art-project": {
+   "text": "A stylized, abstract lamb with a cross on its head, composed of sweeping horizontal bands of yellow, green, and blue with a red drop.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-paul-klee-veil-dance-1920": {
+   "text": "A whimsical, abstract drawing of a floating, winged creature with flowing lines and layered shapes in a soft palette of pink, yellow, and green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-phantom-perspective-1920-paul-klee-met-dt7792": {
+   "text": "A surreal, architectural interior with geometric lines, floating shapes, and eyes, rendered in a muted palette of pale pink, green, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-redgreen-and-violet-yellow-rhythms-1920-paul-klee-met-dp-816-001": {
+   "text": "An abstract geometric composition of interlocking rectangles and squares in a palette of deep red, forest green, violet, and mustard yellow featuring stylized pine trees.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-schlechte-musik-kapelle-1920-paul-klee": {
+   "text": "A whimsical, surreal illustration of stylized figures and abstract shapes in a dreamlike landscape, featuring a muted palette of dusty rose, gold, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-temple-gardens-1920-paul-klee-met-dt1372": {
+   "text": "An abstract geometric landscape of stylized architectural forms and arched structures in a palette of ochre, deep blue, and earthy terracotta.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-temple-gardens-1920-paul-klee-met-ma1987-455-2-r": {
+   "text": "An abstract, geometric triptych of stylized temple architecture and gardens featuring sharp angular shapes, arched windows, and a warm palette of orange, red, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-terrassierter-garten-1920-paul-klee": {
+   "text": "An abstract geometric composition of overlapping rectangular blocks and organic shapes in a deep palette of teal, emerald, and navy blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-theater-mountain-construction-1920-paul-klee-met-dt5834": {
+   "text": "An abstract geometric construction of interlocking crystalline shapes and jagged peaks in a palette of pastel pink, yellow, green, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-they-re-biting-1920-paul-klee": {
+   "text": "A surreal, abstract composition featuring fish, a sun, and geometric lines in a muted palette of ochre, teal, and charcoal.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1920-wohin-1920-paul-klee": {
+   "text": "An abstract landscape of stylized green and yellow trees in a geometric, grid-like composition with a warm palette of gold, green, and earthy red.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-1921-klee-die-heilige-vom-innern-licht-anagoria": {
+   "text": "A stylized, minimalist portrait of a woman with heavy lines and geometric shapes in a muted palette of mauve, ochre, and black.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-32-casa-giratoria": {
+   "text": "An abstract geometric composition of interlocking house-like shapes and lines in a palette of gold, pink, and earthy red on a yellow background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-adam-and-little-eve-1921-paul-klee-met-dt1767": {
+   "text": "A stylized, minimalist portrait of a man and a small girl in a blue and orange palette, featuring geometric shapes and simple line work.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-all-souls-picture-1921-paul-klee-met-dt5835": {
+   "text": "A horizontal composition featuring a central, linear arrangement of abstract, symbolic icons and geometric shapes in a muted palette of gold, purple, and black.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-ankunft-des-luftdampfers-1921-paul-klee": {
+   "text": "An abstract, geometric cityscape of futuristic buildings and an air steamer in a muted palette of ochre, grey, and gold with linear details.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-aus-dem-hohen-lied-ii-fassung-1921-paul-klee": {
+   "text": "A grid-based abstract composition featuring German lyrical text, overlapping geometric shapes, and a muted palette of ochre, deep blue, and earthy red tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-cold-city-1921-paul-klee-met-dp-818-001": {
+   "text": "A geometric, stylized cityscape of angular buildings and celestial bodies in a muted palette of gold, grey, and black against a dark background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-das-urweltpaar-1921-paul-klee": {
+   "text": "A surreal, abstract pair of elongated, stylized figures with mask-like faces in a dark, atmospheric landscape of gold, black, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-der-orden-vom-hohen-c-1921-paul-klee": {
+   "text": "A stylized, geometric face composed of colorful, patterned circles and triangles set against a dark, multi-faceted background in a muted earthy palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-die-heilige-vom-inneren-licht-1921-paul-klee": {
+   "text": "A stylized, cubist-inspired portrait of a woman with an elongated face and torso, rendered in a minimalist black and earthy terracotta palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-die-heilige-vom-inneren-licht-1921-paul-klee-cropped": {
+   "text": "A stylized, minimalist portrait of a woman with a large head and slender body, rendered in black lines and orange tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-goldfish-wife-1921-paul-klee": {
+   "text": "A stylized, abstract depiction of a fish-like figure with large eyes, featuring geometric shapes and a warm palette of deep red, orange, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-in-the-spirit-of-hoffmann-1921-paul-klee": {
+   "text": "A surrealist, abstract composition of whimsical, architectural figures and botanical shapes in a grid of muted pink, yellow, and terracotta tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-kom-die-1921-paul-klee": {
+   "text": "A whimsical, stylized scene of abstract, elongated figures and geometric shapes in a muted palette of gold, black, and grey on a horizontal plane.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-kristall-stufung-1921-paul-klee": {
+   "text": "An abstract geometric composition of overlapping crystalline shards and layered triangular planes in a muted palette of grey, dusty rose, and pale blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-kristall-stufung-paul-klee-1921": {
+   "text": "A cubist abstract composition of interlocking geometric facets and crystalline layers in a muted palette of grey, beige, and charcoal.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-l-ufer-am-ziel-paul-klee-1921": {
+   "text": "A stylized, geometric runner with a circular head and outstretched arms, composed of sharp angular shapes in a muted palette of grey, beige, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-night-feast-1921-paul-klee": {
+   "text": "A whimsical, mystical night scene featuring stylized geometric buildings and trees under a starry sky in a dark, earthy palette of gold, red, and green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-paul-klee-architektur-1921": {
+   "text": "An abstract architectural composition of interlocking geometric lines and cubic forms in a warm palette of rust, ochre, and earthy browns.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-paul-klee-das-urweltpaar-gv-8-bavarian-state-painting-collections": {
+   "text": "A surreal, minimalist painting of two abstract, elongated figures in a golden and ochre landscape, featuring simple line work and a muted, earthy palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-paul-klee-er-k-sse-mich-mit-seines-mundes-kuss-1921": {
+   "text": "A horizontal abstract painting featuring German text layered over a textured, rectangular composition of gray and gold blocks with a muted, earthy color palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-paul-klee-feuer-clown-i-fire-clown-1921-nga-130834": {
+   "text": "An abstract, expressive composition of jagged, fiery red and black geometric shapes and lines set against a dark, textured green and gold background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-paul-klee-the-beginnings-of-a-smile-google-art-project": {
+   "text": "A whimsical, abstract portrait of a face inside a large circular head, featuring organic, linear shapes and a muted palette of gold, blue, and pink.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-paul-klee-tropische-d-mmerung": {
+   "text": "A tropical twilight scene featuring stylized, feathery foliage and geometric structures under a dark, moody sky in a palette of deep red, blue, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-pflanzenwachstum-1921-paul-klee": {
+   "text": "An abstract composition of geometric, overlapping shapes and organic forms in a dark, moody palette of deep red, gold, and forest green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-portrait-of-a-yellow-man-1921-paul-klee-met-dt7793": {
+   "text": "A minimalist, stylized portrait of a man with yellow hair and a yellow garment, featuring simple line work and a muted grey and gold palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-room-perspective-red-green-1921-paul-klee": {
+   "text": "An abstract cubist interior featuring geometric architectural forms, overlapping planes, and a muted palette of olive green, ochre, and deep blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-suspended-fruit-1921-paul-klee-met-dt7795": {
+   "text": "An abstract geometric composition of overlapping triangles and circles representing suspended fruit in a muted palette of dusty rose, charcoal, and deep teal.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-tale-la-hoffmann-1921-paul-klee-met-dt1768": {
+   "text": "A whimsical, abstract illustration of stylized figures and architectural shapes in a grid of yellow, pink, and grey with delicate black line work.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-the-man-under-the-pear-tree-1921-paul-klee-met-dt5837": {
+   "text": "A cubist-style painting of a man reclining beneath a large, geometric pear tree in a warm palette of ochre, burnt orange, and brown.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-the-pathos-of-fertility-1921-paul-klee-met-dt7796": {
+   "text": "A sepia-toned sketch of a reclining, rounded figure with floral patterns on the belly, featuring expressive, gestural lines and a muted earthy palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-three-house-pictures-1921-paul-klee": {
+   "text": "A triptych of abstract, geometric houses under a dark night sky with a palette of deep black, red, yellow, and purple.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-trocken-k-hler-garten-1921-paul-klee": {
+   "text": "An abstract, geometric garden scene featuring stylized floral and architectural shapes in a muted palette of charcoal, dusty rose, and earthy grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-tropische-d-mmerung-mit-der-eule-1921-paul-klee": {
+   "text": "An owl stands before a small house in a dense, stylized tropical forest, rendered in a dark palette of deep red, black, and white.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-winter-journey-1921-paul-klee-met-dp-819-001": {
+   "text": "A minimalist, stylized figure and a tall, rectangular object stand in a sparse landscape with a single tree, rendered in a sepia and ochre palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-women-s-pavilion-1921-paul-klee": {
+   "text": "A dark, abstract composition of geometric shapes and circular forms arranged symmetrically, featuring a moody palette of black, deep green, and muted gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-yellow-harbor-1921-paul-klee-met-dt7794": {
+   "text": "A surrealist composition of whimsical, ship-like structures and abstract shapes on a receding plane under a hazy, atmospheric sky in a muted, earthy palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1921-zimmerperspective-mit-einwohnern-paul-klee-1921-24": {
+   "text": "A linear, architectural interior scene featuring stylized figures and geometric shapes in a monochromatic burnt orange and black palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-a-young-lady-s-adventure-1922-paul-klee": {
+   "text": "A stylized, cubist portrait of a woman amidst geometric shapes and flowing lines in a muted palette of olive, gold, and charcoal.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-alter-dampfer-old-steamboat-1922-paul-klee": {
+   "text": "A whimsical, sketch-like illustration of a fantastical, multi-wheeled steam boat with large curved bows and spherical towers on a soft blue and pink watercolor background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-anal-se-verschiedener-perversit-ten-paul-klee-1922": {
+   "text": "A surrealist composition of geometric shapes, mechanical gears, and abstract figures in a palette of deep purple, pink, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-begr-ssung-by-paul-klee-1922": {
+   "text": "A minimalist abstract painting featuring a large blue downward arrow and two smaller red upward arrows over horizontal bands of orange, yellow, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-blumenfamilie-v-1922-paul-klee": {
+   "text": "An abstract, stylized family of three figures in a dark, earthy orange and brown palette, featuring geometric shapes and a minimalist, flat composition.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-garten-plan-paul-klee-1922": {
+   "text": "An abstract geometric garden plan featuring stylized trees and interlocking shapes in a muted palette of grey, earthy pink, and forest green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-kleines-tannenbild-1922-paul-klee": {
+   "text": "An abstract geometric composition featuring a stylized fir tree amidst overlapping rectangles and squares in a muted palette of grey, ochre, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-kn-der-schmied-paul-klee-1922": {
+   "text": "A cubist painting of a blacksmith and anvil, featuring geometric shapes, angular figures, and a warm palette of red, orange, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-main-scene-from-the-ballet-the-false-oath-by-paul-klee-1922": {
+   "text": "A surrealist illustration of two stylized figures and a large exclamation point in a pink and blue gradient landscape with a pale moon.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-mauerpflanze-1922-paul-klee-cropped": {
+   "text": "A geometric, abstract landscape featuring stylized floral and architectural forms in a palette of dusty pink, muted blue, and charcoal grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-mural-from-the-temple-of-longing-thither-1922-paul-klee-met-dp-823-001": {
+   "text": "An abstract geometric mural featuring sharp, upward-pointing arrows and linear structures in a muted palette of dusty rose, blue, and gray.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-paul-klee-1922-red-balloon-oil-on-chalk-primed-gauze-mounted-on-board-": {
+   "text": "An abstract, textured painting of a red balloon floating above geometric, colorful blocks in a muted, atmospheric landscape of yellows, blues, and greens.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-paul-klee-1922-senecio-oil-on-gauze-40-3-37-4-cm-kunstmuseum-basel": {
+   "text": "A stylized, circular face with geometric features and large red eyes, composed of colorful blocks in a warm palette of yellow, pink, and orange.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-paul-klee-autumn-flower-1941-534-yale-university-art-gallery": {
+   "text": "A stylized still life of flowers in a vase on a table, featuring bold geometric shapes and a rich palette of red, purple, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-paul-klee-die-zwitscher-maschine": {
+   "text": "A whimsical, abstract illustration of three spindly, stylized figures with large eyes standing on a platform against a hazy blue and pink background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-paul-klee-gespenst-eines-genies-ghost-of-a-genius-google-art-project": {
+   "text": "A stylized, whimsical figure with a large, tilted head and simple clothing, rendered in a minimalist, linear style with a muted gold and ochre palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-paul-klee-laternenfest-bauhaus-1922": {
+   "text": "A whimsical, stylized illustration of figures and lanterns in a Bauhaus-inspired style, featuring geometric shapes, bold black outlines, and a red, yellow, and grey palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-phantastische-flora-1922-paul-klee": {
+   "text": "An abstract, vertical composition of stylized floral and organic shapes in a vibrant palette of green, yellow, and magenta with a layered, rhythmic layout.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-popular-wall-painting-1922-paul-klee-met-dt7801": {
+   "text": "A stylized, geometric female figure with a large oval face and rounded body, rendered in a muted palette of ochre, grey, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-red-and-green-architecture-1922-by-paul-klee-yale-university-art-galle": {
+   "text": "An abstract architectural composition of geometric blocks and arches in a palette of deep red, forest green, and muted violet.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-scheidung-abends-paul-klee-1922": {
+   "text": "An abstract composition of horizontal bands in a muted palette of plum, mauve, and ochre, featuring two opposing arrows pointing toward a central gap.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-schicksalstunde-um-dreiviertel-zw-lf-1922-paul-klee": {
+   "text": "An abstract, geometric cityscape of stylized buildings and celestial shapes in a warm palette of ochre, rust, and muted green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-senecio2": {
+   "text": "A stylized, circular male face composed of geometric blocks and heavy lines in a vibrant palette of yellow, pink, and red.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-the-harbinger-of-autumn-1922-by-paul-klee-yale-university-art-gallery": {
+   "text": "An abstract geometric composition featuring a stylized orange tree and a crescent moon amidst a grid of blue and purple rectangular blocks.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-tower-in-orange-and-green-1922-paul-klee-met-dt7800": {
+   "text": "An abstract geometric composition of overlapping vertical rectangles in a palette of forest green, olive, and muted orange.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-villas-for-marionettes-1922-paul-klee": {
+   "text": "An abstract geometric composition of colorful blocks and curved shapes featuring a dark, moody palette of deep red, blue, and purple.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-window-display-for-lingerie-1922-paul-klee-met-dt7798": {
+   "text": "A stylized, flat-patterned storefront display featuring geometric figures in dresses, elegant typography, and a muted palette of sage green, beige, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1922-winter-day-shortly-before-noon-1922-paul-klee": {
+   "text": "An abstract, whimsical cityscape featuring stylized buildings and a large clock face under a hazy yellow sky with a red sun, in muted earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-1923-klee-seilt-nzer": {
+   "text": "A minimalist, abstract line drawing of a tightrope walker and complex geometric structures on a textured, warm orange and earthy brown background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-abstract-trio-1923-paul-klee-met-dt1769": {
+   "text": "An abstract composition of three linear, geometric figures and arrows set against a golden-yellow oval surrounded by a muted green and blue border.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-architektur-1923-paul-klee": {
+   "text": "An abstract, geometric composition of rectangular blocks and triangles suggesting urban architecture in a muted palette of grey, purple, and mustard yellow.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-captive-pierrot-1923-paul-klee": {
+   "text": "An abstract, geometric representation of a captive figure composed of blocky shapes and curved lines in a palette of ochre, black, and white.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-christmas-picture-1923-paul-klee": {
+   "text": "An abstract geometric composition featuring overlapping circles, lines, and letters in a muted palette of grey, beige, and red with a central red figure.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-classical-grotesque-1923-paul-klee-met-dt7804": {
+   "text": "A stylized, linear figure with curly hair and a wide triangular dress stands beside a floating eye in a muted sepia and charcoal palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-diavolo-player-1923-paul-klee": {
+   "text": "A stylized, headless figure in a colorful tunic stands centered against a textured, atmospheric background of deep reds and muted blues.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-episode-before-an-arab-town-1923-paul-klee-met-dt5841": {
+   "text": "A whimsical, minimalist illustration of stylized figures and a castle silhouette against a textured, hazy background of dusty rose, mauve, and ochre.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-flowers-in-pots-1923-paul-klee": {
+   "text": "Abstract, stylized flowers in pots with organic, interlocking shapes and vibrant primary colors against a dark, textured background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-garden-on-debris-1923-paul-klee": {
+   "text": "An abstract, whimsical architectural structure of geometric shapes and colorful patterns set against a textured blue background in a pastel and primary palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-kampfscene-aus-der-komisch-phantastischen-oper-der-seefahrer-1923-paul": {
+   "text": "A stylized, geometric illustration of a hunter on a boat facing large, patterned fish in a deep blue and teal grid-like underwater scene.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-landscape-with-yellow-birds-1923-paul-klee": {
+   "text": "A whimsical, stylized landscape featuring yellow birds among stylized trees and flora under a moonlit sky, using a palette of black, gold, and deep reds.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-open-air-sport-1923-paul-klee": {
+   "text": "A surrealist composition of stylized, elongated figures in a layered, linear space, featuring a muted palette of teal, ochre, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-paul-klee-dance-of-moth-1923": {
+   "text": "A central, abstract moth-like figure composed of geometric lines and arrows, set against a grid of blue and pale pink rectangles.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-paul-klee-der-l-platz-im-bau-1923-11-aquarell-und-bleistift-auf-kreide": {
+   "text": "An abstract architectural composition featuring geometric buildings, curved lines, and overlapping blocks of yellow, blue, and green with bold black lettering.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-paul-klee-feste-stadt": {
+   "text": "An abstract geometric composition of vertical rectangular blocks in a palette of deep blue, pink, yellow, and green, arranged in a grid-like layout.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-paul-klee-im-alten-stadtteil-numero-drei-und-dreissig-ng-mb-120-2000-m": {
+   "text": "An expressionist night scene of a dense, multi-storied urban neighborhood with glowing windows, a full moon, and a muted palette of browns, grays, and blacks.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-paul-klee-moon-play-1923": {
+   "text": "An abstract geometric composition featuring a circular moon-like shape and linear architectural forms in a muted palette of sepia, brown, and cream.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-paul-klee-vor-dem-blitz": {
+   "text": "A symmetrical abstract composition featuring a purple circle and two opposing arrows centered within a vertical, striped field of green and yellow.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-puppentheater-1923-paul-klee": {
+   "text": "A whimsical, folk-art style puppet theater scene featuring a central heart-shaped figure, colorful striped shapes, and stylized characters on a dark, textured background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-rotation-1923-paul-klee": {
+   "text": "An abstract composition featuring geometric shapes, swirling lines, and the word \"Rot\" in a warm palette of orange, red, and black.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-siebzehn-by-paul-klee-1923-kunstmuseum-basel": {
+   "text": "An abstract composition featuring floating geometric shapes, arrows, and stylized eyes in a muted palette of rust, black, and cream.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-static-dynamic-gradation-1923-paul-klee-met-dp-817-001": {
+   "text": "An abstract grid of rectangular blocks in a warm palette of earthy browns, oranges, and reds with a vibrant central cluster of primary colors.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-still-life-with-dice-1923-paul-klee": {
+   "text": "A whimsical still life of a large striped bowl and geometric shapes on a dark background with a vibrant palette of blue, pink, and yellow.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-still-life-with-dice-1923-paul-klee-2": {
+   "text": "A whimsical still life of a striped pot, hanging ornaments, and a die against a dark, latticed background in a vibrant, multicolored palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-the-barbed-noose-with-the-mice-1923-paul-klee-met-dt5840": {
+   "text": "An abstract composition of interlocking curved ribbons and geometric shapes featuring stylized mice, rendered in a palette of muted teal, earthy brown, and peach.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-the-man-in-love-1923-paul-klee": {
+   "text": "A surrealist, circular portrait of a man with a stylized face and intertwined figures, rendered in a textured pink, black, and white palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-tomb-in-three-parts-1923-paul-klee": {
+   "text": "A symmetrical, geometric composition of three arched niches in shades of deep blue and teal, featuring central white crosses and a grid-like pattern.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-versunkene-insel-paul-klee-1923": {
+   "text": "A surreal, blue-toned underwater scene featuring a fragmented, geometric human figure surrounded by floating celestial shapes and fish in a grid-like composition.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1923-winterlandschaft-1923-paul-klee": {
+   "text": "A whimsical, stylized winter village with a clock tower and snowy hills under a dark night sky, rendered in a palette of purple, pink, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-1924-klee-bebende-kapelle-anagoria": {
+   "text": "A surreal, mixed-media illustration of a stylized figure and a chapel in a dreamlike landscape, featuring a warm palette of gold, rust, and charcoal.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-a-pride-of-lions-take-note-1924-paul-klee-met-dt7807": {
+   "text": "A minimalist line drawing of a pride of lions and a sun on a yellow-washed background with simple, expressive black outlines and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-actor-s-mask-1924-paul-klee": {
+   "text": "A stylized, symmetrical face with closed eyes and a striped body, set against a dark gray background with vibrant orange and green accents.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-ara-k-hlung-in-einem-garten-der-heissen-zone-1924-paul-klee": {
+   "text": "A vertical, linear composition of repeating abstract symbols and organic shapes in a monochromatic black and sepia palette with muted yellow accents.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-astrological-fantasy-portrait-1924-paul-klee-met-dt7806": {
+   "text": "A surreal, celestial portrait of a figure in a large hat surrounded by planets and geometric shapes in a dark, mystical palette of blue, red, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-bildnis-eines-asiaten-portrait-of-an-oriental-1924-by-paul-klee-yale-u": {
+   "text": "A stylized, geometric portrait of a man in a hat, composed of overlapping linear patterns and translucent shapes on a deep blue background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-carnival-in-the-mountains": {
+   "text": "A surreal, cubist-inspired scene of stylized figures and geometric shapes in a mountainous landscape, featuring a dark, earthy palette of browns and greens.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-coup-de-foudre-paul-klee-1924": {
+   "text": "A mixed-media abstract painting of stylized figures and geometric shapes, featuring a textured, dark palette of gold, deep blue, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-medicinal-flora-1924-paul-klee-met-dt5842": {
+   "text": "A botanical illustration of stylized medicinal flowers and plants in a horizontal arrangement, featuring a muted palette of dusty rose, violet, and earthy browns.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-narr-1924-paul-klee": {
+   "text": "A cubist portrait of a woman with stylized features, geometric shapes, and a muted palette of gray, beige, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-new-house-in-the-suburbs-1924-paul-klee": {
+   "text": "An abstract, minimalist painting of a suburban house with geometric shapes and a muted palette of dusty rose, beige, and soft grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-paul-klee-flussbaulandschaft-2361-staatliche-kunsthalle-karlsruhe": {
+   "text": "An abstract landscape of geometric, architectural structures and trees rendered in a deep palette of violet, indigo, and charcoal with white linear details.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-paul-klee-klang-aus-sizilien-1924": {
+   "text": "An abstract landscape of a textured, multicolored mosaic landscape beneath a blue sky, framed by dark horizontal bands in a warm, earthy palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-paul-klee-pierrot-lunaire-watercolor-1924": {
+   "text": "A stylized, circular-faced figure with large eyes and a small mouth, centered in a grainy, atmospheric composition of muted gold, ochre, and deep reds.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-paul-klee-structural-ii-1924": {
+   "text": "An abstract geometric composition of overlapping rectangular grids and linear patterns in a muted palette of earthy browns, deep reds, and dusty blues.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-sicilian-landscape-1924-paul-klee": {
+   "text": "A mosaic-style Sicilian landscape featuring stylized houses and trees composed of colorful rectangular blocks in a palette of lavender, gold, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-stilleben-1924-paul-klee": {
+   "text": "An oil painting of a still life featuring a clock, a vase, and a ball in a dark, expressive style with a moody blue and gold palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-structural-i-1924-paul-klee-met-dt7805": {
+   "text": "An abstract vertical composition of dense, overlapping geometric patterns and linear markings in a muted palette of charcoal, forest green, rust, and white.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1924-vorhang-1924-paul-klee": {
+   "text": "A vertical abstract composition of geometric patterns and interlocking rectangles in a palette of deep burgundy, gold, and muted purple.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-1925-klee-der-goldfisch-anagoria": {
+   "text": "A whimsical underwater scene featuring a large golden fish centered among smaller red and purple fish, set against a dark blue textured background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-alter-klang-1925-paul-klee": {
+   "text": "An abstract grid of muted, earthy-toned squares in a dark, moody palette of deep browns, ochres, and dusty pinks.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-bird-landscape-1925-paul-klee-met-dt7813": {
+   "text": "An abstract, minimalist landscape featuring a central cluster of delicate, linear black marks and bird-like shapes set against a soft, hazy pink wash.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-das-andere-geisterzimmer-neue-fassung-paul-klee-1925-109": {
+   "text": "A surreal, architectural interior featuring abstract geometric lines, ethereal figures, and floating shapes in a monochromatic sepia and burnt orange palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-der-goldfisch-1925-paul-klee": {
+   "text": "A large yellow fish centered in a dark blue underwater scene with smaller red and purple fish, stylized wavy lines, and aquatic plants.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-die-flora-der-heide-1925-paul-klee": {
+   "text": "An abstract landscape of a heath featuring a mosaic of geometric shapes, floral patterns, and organic forms in a muted palette of sage, ochre, and dusty rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-die-maske-mit-dem-f-hnchen-1925-paul-klee": {
+   "text": "A stylized, geometric portrait of a face with multiple eyes and a flag, featuring soft circular shapes and a warm red and beige palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-ghost-chamber-with-the-tall-door-new-version-1925-paul-klee-met-dp-826": {
+   "text": "A surreal, architectural interior featuring a tall central door and geometric, skeletal structures in a monochromatic palette of sepia, ochre, and charcoal.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-horizont-gipfelpunkt-und-atmosph-re-1925-paul-klee": {
+   "text": "A minimalist abstract composition featuring a large circular arc and radiating geometric rays in a muted palette of dusty rose, beige, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-in-the-manner-of-a-leather-tapestry-1925-paul-klee-met-dt8740": {
+   "text": "An abstract composition of geometric patterns, including triangles, checkers, and lines, in a monochromatic palette of earthy browns and muted tans.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-junger-wald-1925-paul-klee": {
+   "text": "A wide, horizontal abstract landscape of a dense forest composed of repetitive, linear tree symbols in a soft palette of yellow, pink, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-may-picture-1925-paul-klee-met-dp-824-001": {
+   "text": "A grid of multicolored rectangular blocks forming a stylized, abstract face with a prominent eye, in a palette of muted earth tones and jewel tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-oriental-pleasure-garden-1925-paul-klee-met-1984-315-41": {
+   "text": "An impressionistic, abstract landscape of a tiered oriental garden with domed buildings and arched gateways in a palette of gold, pink, and violet.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-orientalischer-lustgarten-1925-paul-klee-anagoria": {
+   "text": "An impressionistic painting of a tiered, village-like structure with domed roofs and small windows, set against a vibrant yellow and purple palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-paul-klee-blaugefl-gelte-v-gel-1925-b5": {
+   "text": "A weathered, textured painting of stylized birds with blue wings arranged in a circular pattern on a muted pink and grey background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-paul-klee-kleine-landschaft-mit-der-dorfkirche-1925": {
+   "text": "An abstract village landscape featuring simplified houses and trees in a textured, expressive style with a palette of red, blue, green, and yellow.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-paul-klee-kollidierende-v-gel-spritztechnik": {
+   "text": "A geometric, abstract composition of sharp, angular shapes and stylized bird-like forms in a monochromatic sepia and charcoal palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-paul-klee-portr-t-eines-mannes-1925-b5-verso": {
+   "text": "An expressive, impasto portrait of a man in profile, featuring heavy brushstrokes and a dark, moody palette of black, deep red, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-paul-klee-swiss-fish-magic-google-art-project": {
+   "text": "A whimsical, mystical underwater scene featuring stylized fish, flowers, and a small figure amidst floating geometric shapes in a dark, textured palette of gold and deep blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-small-portrait-of-a-girl-in-yellow-1925-paul-klee-met-dt7810": {
+   "text": "A stylized portrait of a girl with a red bow, featuring simple geometric shapes and a warm palette of yellow, gold, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-small-portrait-of-a-girl-in-yellow-1925-paul-klee-met-dt7811-back": {
+   "text": "An abstract, geometric portrait of a girl composed of overlapping rectangles and arches in a deep palette of burgundy, violet, and crimson.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1925-small-village-in-the-autumn-sun-by-paul-klee-1925-lacma": {
+   "text": "A geometric, abstract village with tiered towers and stairs, rendered in a muted palette of ochre, gold, and deep browns under a hazy autumn sun.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-animal-terror-1926-paul-klee": {
+   "text": "A surrealist, cubist-style painting of a crowned figure and a horned beast in a fragmented urban landscape, featuring a palette of pink, grey, and green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-bird-wandering-off-1926-paul-klee-met-dt5843": {
+   "text": "A stylized bird stands before a geometric, mountainous landscape featuring a single tree and a pale moon in a muted blue, grey, and rust palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-briefbild-z-5-dezember-1927-paul-klee-1926": {
+   "text": "An abstract composition of overlapping translucent geometric planes and a single red circle on a muted, dusty rose and grey background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-collection-of-figurines-1926-paul-klee-met-dt7814": {
+   "text": "A cubist composition of stylized faces and geometric figures featuring sharp angles, overlapping shapes, and a rich palette of gold, deep red, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-demon-as-pirate-1926-paul-klee": {
+   "text": "A surrealist, dark blue seascape featuring a ghostly pirate ship and a demonic figure, rendered in a minimalist style with a red and gold palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-der-luftballon-by-paul-klee-1926": {
+   "text": "A whimsical hot air balloon floats over a stylized village at night, featuring a textured, folk-art style with a palette of deep blues, oranges, and greens.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-ein-garten-f-r-orpheus-paul-klee-1926": {
+   "text": "A monochromatic, intricate geometric drawing featuring dense, overlapping star-like patterns and linear arrangements in a sepia-toned, architectural composition.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-erstes-haus-einer-siedelung-1926-paul-klee": {
+   "text": "An abstract geometric composition of overlapping rectangular blocks in a muted palette of sage green, dusty blue, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-eulen-kom-die-1926-paul-klee": {
+   "text": "A mystical, atmospheric scene featuring three stylized, linear owl figures in a hazy, earthy palette of burnt orange, deep brown, and charcoal grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-florentinisches-villen-viertel-1926-paul-klee": {
+   "text": "A dense, grid-like collage of overlapping architectural sketches and geometric patterns in a warm palette of gold, terracotta, and dusty rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-gate-in-the-garden-1926-paul-klee-kunstmuseum-bern": {
+   "text": "An abstract composition of geometric shapes and stylized floral motifs in a dark, moody palette of deep red, purple, and gold on black.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-gelehrter-im-umgang-mit-gestirnen-1926-paul-klee": {
+   "text": "A mystical scholar interacts with celestial bodies and a large tree in a dark, ethereal landscape featuring a deep blue, black, and orange palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-glance-of-a-landscape-1926-paul-klee": {
+   "text": "A geometric, stylized landscape featuring stylized trees and a red sun within a triangular mountain range, rendered in a muted, atmospheric palette of grey and red.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-inschrift-1926-paul-klee": {
+   "text": "A vertical, symmetrical composition of abstract geometric patterns and linear inscriptions in a monochromatic sepia and brown palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-klee-place-signs-1926": {
+   "text": "An abstract composition of geometric shapes, symbols, and stylized trees in a soft palette of pink, blue, and green on a grid-like background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-reconstructing-1926-paul-klee": {
+   "text": "An abstract, ethereal landscape featuring geometric architectural forms and a celestial circle in a hazy palette of yellow, gold, and soft red.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-rote-erde-red-earth-1926-paul-klee": {
+   "text": "An abstract composition of overlapping rectangular blocks and curved shapes in a palette of dusty rose, muted teal, and sandy beige.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-seven-blossoms-by-paul-klee-1926-watercolor-and-ink": {
+   "text": "An ethereal, abstract architectural landscape featuring geometric shapes and soft floral motifs in a muted palette of dusty rose, pale blue, and beige.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-village-carnival-1926-paul-klee": {
+   "text": "A stylized, folk-art village scene featuring figures and houses under a crescent moon, rendered in a rich palette of deep red, black, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-vorstadt-idyll-gartenstadtidyll-1926-paul-klee": {
+   "text": "An abstract, grid-like composition of overlapping geometric shapes and delicate line drawings in a warm palette of ochre, gold, and dusty rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1926-zaubergarten-1926-paul-klee": {
+   "text": "A whimsical, mixed-media composition of mystical figures and architectural shapes in a textured, earthy palette of gold, deep blue, and muted reds.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-34-omega-5-objetos-de-imitaci-n": {
+   "text": "A dark red abstract composition featuring three stylized, hanging vessel-like shapes and geometric patterns in a warm palette of burgundy, gold, and cream.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-abenteuer-schiff-1927-paul-klee": {
+   "text": "A whimsical, stylized ship floating in a deep blue void, featuring geometric shapes, colorful sails, and intricate line work in a primary-toned palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-abenteuer-schiff-1927-paul-klee-cropped": {
+   "text": "A whimsical, stylized ship floating on a deep blue sea, featuring geometric shapes, colorful flags, and intricate line work in a vibrant primary palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-beflaggte-seestadt-1927-paul-klee": {
+   "text": "An abstract, nocturnal seascape of geometric, wireframe structures and colorful flags against a deep blue and red atmospheric background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-beflaggter-pavillon-1927-paul-klee": {
+   "text": "A stylized, linear pavilion and abstract trees under a moonlit night sky, featuring a dark palette with gold, red, and orange accents.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-chosen-site-1927-paul-klee": {
+   "text": "A stylized, geometric cityscape under a large, patterned moon and a red sky, featuring a teal background and a palette of pink, yellow, and brown.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-chosen-site-1927-paul-klee-with-frame": {
+   "text": "An abstract cityscape under a moon and red sky, featuring geometric, overlapping rectangular shapes in a palette of teal, deep red, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-drohender-schneesturm-no-291-1927-paul-klee": {
+   "text": "An abstract, atmospheric composition of a threatening snowstorm featuring geometric, interlocking black lines over a hazy, textured gradient of grey and muted rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-explosion-1927-paul-klee": {
+   "text": "An abstract, celestial explosion of radial lines and geometric architectural forms set against a dusty, reddish-brown and sepia-toned atmospheric background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-grenzen-des-verstandes-paul-klee": {
+   "text": "An abstract, geometric composition featuring a large circle above a complex, linear structure of intersecting lines and shapes in a muted, earthy palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-historical-site-1927-paul-klee": {
+   "text": "An abstract composition of geometric, architectural line drawings and a single large black drop on a textured, earthy reddish-brown and gold background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-journey-in-corsica-1927-paul-klee": {
+   "text": "An abstract landscape of a rugged coastline and mountains rendered in intricate, overlapping line work with a palette of earthy browns and muted reds.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-klee-city-of-towers": {
+   "text": "An abstract geometric cityscape of stylized towers and buildings composed of interlocking triangles and rectangles in a palette of ochre, forest green, and charcoal.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-klee-heavenly-and-earthly-time": {
+   "text": "An abstract, celestial landscape of geometric lines, architectural shapes, and celestial bodies in a muted palette of gold, ochre, and charcoal grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-paul-klee-heldenmutter-1927": {
+   "text": "A stylized, linear figure of a mother and child in flowing robes, rendered in a minimalist line drawing style against a warm, earthy terracotta background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-paul-klee-narr-der-tiefe-2002-0025-kunsthaus-z-rich": {
+   "text": "A mystical, symmetrical face with geometric lines and symbols, centered in a dark, textured composition of deep reds, blacks, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-prestidigitator-conjuring-trick-1927-paul-klee": {
+   "text": "A surrealist composition featuring stylized figures and geometric shapes, including a staircase and a grid, set against a vibrant red and pink textured background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-ruehende-schiffe-by-paul-klee-1927": {
+   "text": "A geometric, abstract painting of resting ships and a red sun, featuring sharp angular shapes and a palette of blue, red, and ochre.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-s-dfranz-sisches-seebad-1927-paul-klee": {
+   "text": "An abstract, geometric seaside resort scene featuring colorful rectangular blocks, repeating patterns, and a horizontal blue band in a pastel palette of purple, blue, and yellow.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-s-ngerin-der-komischen-oper-1927-paul-klee": {
+   "text": "A stylized, symmetrical female figure with a large head and elongated body, rendered in white line work against a dark, moody, earthy-toned background.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-segelschiffe-1927-paul-klee": {
+   "text": "Abstract geometric composition of stylized sailing ships made of overlapping triangles and curved shapes in a palette of blue, purple, and pink.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-ships-in-the-dark-1927-paul-klee": {
+   "text": "An abstract, geometric composition of stylized ships and a blue moon on a black background using a palette of red, gold, and purple.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-tripelmarionette-paul-klee-1927": {
+   "text": "A surreal, stylized face with red accents and circular motifs, centered in a dark, textured composition with a muted green and black palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1927-variations-progressive-motif-1927-paul-klee-met-dp-825-001": {
+   "text": "A geometric abstract composition of interlocking rectangles and diagonal lines forming a complex architectural grid in a muted palette of blue, beige, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-alte-stadt-berblick-1928-paul-klee": {
+   "text": "An abstract, horizontal composition of stacked bands featuring geometric patterns like triangles and lines in a palette of blue, yellow, pink, and purple.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-alte-stadt-und-br-cke-paul-klee-1928": {
+   "text": "A panoramic, stylized cityscape featuring a bridge and geometric buildings in a muted palette of blue, grey, and white.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-bunte-landschaft-1928-paul-klee": {
+   "text": "A colorful, abstract landscape of geometric blocks and patterns in a vibrant palette of yellow, pink, green, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-burg-und-sonne-klee": {
+   "text": "A geometric abstract cityscape of colorful rectangular and triangular blocks under a large orange sun, featuring a rich palette of red, gold, and blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-ein-blatt-aus-dem-st-dtebuch-1928-paul-klee": {
+   "text": "A vertical composition featuring a grid of stylized, colorful houses and geometric symbols on a white background, surrounded by a textured yellow border.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-gel-ute-1928-paul-klee": {
+   "text": "An abstract geometric composition featuring overlapping triangles, a red arrow, and soft watercolor washes in a muted palette of grey, blue, and dusty rose.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-marjamshausen-1928-paul-klee": {
+   "text": "A geometric, colorful cityscape of stylized houses under a blue sky, featuring a mosaic of triangular and rectangular shapes in a vibrant primary palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-paul-klee-fast-getroffen-1928": {
+   "text": "A minimalist, abstract face with large eyes and a geometric body, centered in a radiant orange and pink aura with a black arrow.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-paul-klee-frau-im-sonntagsstaat-1928": {
+   "text": "An abstract, expressive painting of a mysterious figure in a dark, moody palette of deep greens, blacks, and vibrant reds and whites.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-paul-klee-grosses-tier-1928": {
+   "text": "A stylized, linear profile of a large beast with flowing lines, set against a textured, atmospheric background of muted purple, grey, and gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-paul-klee-howling-dog-56-42-minneapolis-institute-of-arts": {
+   "text": "An abstract, expressive painting of a howling dog with fluid, gestural lines and a muted palette of grey, ochre, and green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-paul-klee-west-stliche-bauten-1928": {
+   "text": "A whimsical, geometric cityscape of colorful, blocky buildings under a blue sky, featuring a vibrant palette of red, blue, and pink.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-rote-s-ulen-vorbeiziehend-1928-paul-klee": {
+   "text": "An abstract landscape featuring a moon, a black arrow, and geometric shapes like red pillars and a yellow rectangle in a muted blue and grey palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-sie-br-llt-wir-spielen-paul-klee-1928": {
+   "text": "A textured painting of two stylized, linear fox figures in a hazy, atmospheric landscape of deep magenta, dusty rose, and muted grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-small-houses-in-the-garden-city-1928-paul-klee": {
+   "text": "A whimsical garden scene featuring small geometric houses nestled among stylized trees and flowers in a dreamy palette of blue, green, and pink.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1928-tempelviertel-von-pert-1928-paul-klee": {
+   "text": "An abstract geometric composition of interlocking squares and triangles in a muted palette of gold, dusty rose, sage green, and periwinkle blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-der-ballon-im-fenster-1929-paul-klee": {
+   "text": "An abstract watercolor of a balloon floating above geometric shapes and birds in a warm palette of yellow, red, and purple.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-die-schlange-auf-der-leiter-1929-paul-klee": {
+   "text": "A surrealist composition featuring a snake climbing a ladder toward a crescent moon, surrounded by geometric shapes and botanical forms in a sepia and gold palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-h-hlen-ausblick-paul-klee-1929": {
+   "text": "An abstract, atmospheric landscape of hazy, cave-like forms in a palette of deep burgundy, dusty rose, and muted violet.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-hauptweg-und-nebenwege-paul-klee-museum-ludwig-7026-cropped": {
+   "text": "An abstract, geometric composition of layered horizontal bands in blue, yellow, and green, forming a structured, architectural landscape of intersecting paths and pathways.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-heitere-gebirgslandschaft-by-paul-klee-1929": {
+   "text": "An abstract geometric landscape of jagged mountain shapes and circular celestial bodies in a warm palette of orange, yellow, and earthy tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-highway-byways": {
+   "text": "An abstract, geometric composition of layered rectangular blocks in a vibrant palette of ochre, blue, and earthy tones, arranged in a rhythmic, grid-like pattern.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-im-lande-edelstein-1929-paul-klee": {
+   "text": "A surrealist landscape featuring a large blue moon over a blue sea with abstract, organic shapes and a vibrant primary color palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-in-der-str-mung-sechs-schwellen-1929-paul-klee": {
+   "text": "An abstract geometric painting featuring a grid of horizontal rectangles in a palette of deep charcoal, burnt orange, and muted gold with thin red lines.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-into-the-cave-1929-paul-klee": {
+   "text": "A stylized, abstract pair of figures in a cave, composed of geometric shapes and a muted palette of dusty rose, grey, and teal.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-klee-fleeing-ghost": {
+   "text": "A stylized, geometric human figure with a circular head and angular limbs, composed of linear shapes and horizontal stripes in a warm orange and ochre palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-landschaft-mit-pappeln-1929-paul-klee": {
+   "text": "An abstract landscape featuring layered horizontal bands of color, vertical green forms, and stylized poplar trees in a muted palette of lavender, ochre, and sage.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-little-jester-in-a-trance-1929-paul-klee": {
+   "text": "A stylized, geometric figure in a trance, composed of sharp angular lines and overlapping shapes, in a muted palette of ochre, brown, and red.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-monuments-at-g-1929-paul-klee-met-dt7818": {
+   "text": "An abstract geometric composition of horizontal stripes and interlocking triangular shapes in a palette of muted pink, sage green, and mustard yellow.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-paul-klee-der-weg-zur-zitadelle-1929": {
+   "text": "An abstract geometric composition of interlocking architectural shapes and polygons in a muted palette of dusty rose, teal, and grey with small red arrows.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-paul-klee-hauptweg-und-nebenwege-1929-l-auf-leinwand-83-7-x-67-5-cm-mu": {
+   "text": "An abstract geometric composition of horizontal bands and converging diagonal paths in a palette of blue, orange, and white.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-pfeil-im-garten-1929-paul-klee": {
+   "text": "A dense, intricate garden of geometric patterns and organic line drawings in a warm, earthy palette of rust, copper, and burnt orange.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1929-salt-1929-paul-klee": {
+   "text": "An abstract, horizontal landscape of stylized, colorful houses in a row, featuring a muted palette of earthy browns, reds, and yellows.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-ad-marginem-paul-klee-1930": {
+   "text": "A surreal, textured composition featuring a central red circle surrounded by whimsical, line-drawn figures and symbols in a muted, earthy palette of ochre and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-anstieg-eines-st-dtchens-1930-paul-klee": {
+   "text": "An abstract, vertical composition of overlapping rectangular blocks in a palette of muted pink, grey, black, and earthy brown.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-aus-ngstlichkeit-1930-paul-klee": {
+   "text": "A minimalist, geometric line drawing of a fragmented, angular human figure composed of sharp triangles and intersecting lines in a monochrome gray and white palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-bildnis-in-der-laube-1930-paul-klee": {
+   "text": "A stylized portrait of a figure in a textured, circular archway, featuring bold black outlines, circular motifs, and a palette of blue, white, and terracotta.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-conqueror-paul-klee": {
+   "text": "An abstract geometric composition featuring a stylized figure and a large, tilted cube with circular cutouts in a bold yellow, red, and blue palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-doctor-1930-paul-klee-met-dt7819": {
+   "text": "A minimalist, stylized portrait of a figure with a large circular head and simplified torso, rendered in a muted palette of ochre, terracotta, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-erd-teufel-1930-paul-klee": {
+   "text": "An abstract, dark composition featuring geometric shapes, a stylized face with a pointed hat, and a hand-like form in a palette of deep red, gold, and black.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-farbtafel-qu-1-1930-paul-klee": {
+   "text": "A grid of vibrant, hand-painted squares in a primary and secondary color palette of red, blue, yellow, orange, and green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-ger-st-eines-neubaues-paul-klee-1930": {
+   "text": "An abstract composition of thin, intersecting white lines and geometric shapes over a dark, textured brown background with subtle hints of color.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-great-hall-for-singers-1930-paul-klee-met-dt5845": {
+   "text": "An abstract architectural interior featuring geometric linework, interlocking triangular patterns, and a muted palette of white, grey, and pastel tones.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-herbstbl-tter-straus-1930-paul-klee": {
+   "text": "An abstract composition of organic, interlocking leaf-like shapes in a centered cluster, featuring a palette of dusty rose, ochre, charcoal, and muted gold.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-individualized-altimetry-of-stripes-1930-paul-klee": {
+   "text": "An abstract geometric composition of horizontal and vertical stripes in a vibrant palette of purple, pink, orange, and lime green.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-m-rchen-des-nordens-1930-paul-klee": {
+   "text": "A whimsical, folk-art style scene featuring a stylized tree, a bird, and two figures under a moon in a dark blue, gold, and red palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-north-german-city-1930-paul-klee-met-dt5844": {
+   "text": "An abstract geometric composition of interlocking rectangles and triangles in a muted palette of grey, ochre, dusty rose, and muted blue.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-offenes-buch-paul-klee-1930": {
+   "text": "An open book with nested square pages revealing a central geometric pattern, rendered in a warm palette of ochre, brown, and muted red.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-paul-klee-fragment-nr-67-1930": {
+   "text": "A stylized, minimalist woman in a red dress with a heart-shaped mouth, featuring bold geometric shapes and a muted palette of red, blue, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-paul-klee-trinkender-engel-1930": {
+   "text": "A stylized, abstract figure with a triangular dress and wavy facial features, rendered in a muted palette of charcoal, dusty rose, and deep brown.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-polyphon-gefasstes-weiss-1930-paul-klee": {
+   "text": "An abstract geometric composition of overlapping rectangular planes in a muted palette of dusty rose, mauve, and grey, centering on a white square.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-siblings-1930-paul-klee": {
+   "text": "A whimsical, abstract illustration of two intertwined, rounded figures with thin legs and tiny faces on a warm gold and white palette.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-sunset-1930-paul-klee": {
+   "text": "An abstract composition of overlapping geometric shapes, circles, and dotted patterns in a warm palette of orange, blue, and earthy browns.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  },
+  "klee-1930-the-castle-mountain-of-s-1930-paul-klee": {
+   "text": "A monochromatic, abstract architectural landscape of a castle mountain featuring blocky, geometric shapes and a dark, moody palette of black, white, and grey.",
+   "model": "gemma4:12b-mlx",
+   "reviewed": false
+  }
+ }
+}

@@ -1,0 +1,501 @@
+{
+  "generatedAt": "2026-09-24T07:45:20.633Z",
+  "models": [
+    "lfm-base",
+    "lfm-lora",
+    "qwen3-base",
+    "qwen3-lora",
+    "gemma4-12b-prompted"
+  ],
+  "heldOutArtworks": 52,
+  "budgets": [
+    12,
+    24,
+    48
+  ],
+  "metrics": "rmse/layout/palette are medians over usable generations; usable and valid are means. See src/probe/evalPage.js.",
+  "seesImage": [
+    "oracle",
+    "flat-mean"
+  ],
+  "summary": {
+    "lfm-base": {
+      "12": {
+        "n": 104,
+        "usable": 0,
+        "valid": 0,
+        "rmse": null,
+        "layout": null,
+        "palette": null,
+        "rank": null,
+        "top5": 0,
+        "shapes": null
+      },
+      "24": {
+        "n": 104,
+        "usable": 0,
+        "valid": 0,
+        "rmse": null,
+        "layout": null,
+        "palette": null,
+        "rank": null,
+        "top5": 0,
+        "shapes": null
+      },
+      "48": {
+        "n": 104,
+        "usable": 0,
+        "valid": 0.00576923076923077,
+        "rmse": null,
+        "layout": null,
+        "palette": null,
+        "rank": null,
+        "top5": 0,
+        "shapes": null
+      },
+      "all": {
+        "n": 312,
+        "usable": 0,
+        "valid": 0.0019230769230769234,
+        "rmse": null,
+        "layout": null,
+        "palette": null,
+        "rank": null,
+        "top5": 0,
+        "shapes": null
+      }
+    },
+    "lfm-lora": {
+      "12": {
+        "n": 104,
+        "usable": 1,
+        "valid": 0.9996153846153847,
+        "rmse": 58.543738842329574,
+        "layout": 48.32532450100098,
+        "palette": 0.8483886684098252,
+        "rank": 19,
+        "top5": 0.14423076923076922,
+        "shapes": 12
+      },
+      "24": {
+        "n": 104,
+        "usable": 0.9903846153846154,
+        "valid": 0.9968694096601074,
+        "rmse": 65.09057545634273,
+        "layout": 49.621466874860985,
+        "palette": 0.8049316401265969,
+        "rank": 22,
+        "top5": 0.1262135922330097,
+        "shapes": 24
+      },
+      "48": {
+        "n": 104,
+        "usable": 0.9903846153846154,
+        "valid": 0.9987430220766336,
+        "rmse": 66.6871044111848,
+        "layout": 52.6654850603437,
+        "palette": 0.7760687984209653,
+        "rank": 23,
+        "top5": 0.1553398058252427,
+        "shapes": 47
+      },
+      "all": {
+        "n": 312,
+        "usable": 0.9935897435897436,
+        "valid": 0.9984092721173752,
+        "rmse": 64.75458645543101,
+        "layout": 50.1543724175714,
+        "palette": 0.8168674079934135,
+        "rank": 22,
+        "top5": 0.14193548387096774,
+        "shapes": 24
+      }
+    },
+    "qwen3-base": {
+      "12": {
+        "n": 104,
+        "usable": 0.04807692307692308,
+        "valid": 0.528559158733754,
+        "rmse": 125.65134027742296,
+        "layout": 120.98421588398308,
+        "palette": 1,
+        "rank": 23,
+        "top5": 0,
+        "shapes": 11
+      },
+      "24": {
+        "n": 104,
+        "usable": 0.08653846153846154,
+        "valid": 0.5820847072836728,
+        "rmse": 137.85314521848622,
+        "layout": 134.02211158810277,
+        "palette": 0.9990505642490461,
+        "rank": 34,
+        "top5": 0.1111111111111111,
+        "shapes": 28
+      },
+      "48": {
+        "n": 104,
+        "usable": 0.10576923076923077,
+        "valid": 0.540701763083726,
+        "rmse": 100.23561864142894,
+        "layout": 98.49279324434082,
+        "palette": 0.9922960069961846,
+        "rank": 9,
+        "top5": 0.09090909090909091,
+        "shapes": 17
+      },
+      "all": {
+        "n": 312,
+        "usable": 0.08012820512820513,
+        "valid": 0.5504485430337184,
+        "rmse": 109.96538955323582,
+        "layout": 101.56387901938807,
+        "palette": 0.999755859375,
+        "rank": 23,
+        "top5": 0.08,
+        "shapes": 18
+      }
+    },
+    "qwen3-lora": {
+      "12": {
+        "n": 104,
+        "usable": 1,
+        "valid": 0.9997763864042934,
+        "rmse": 59.82340344388118,
+        "layout": 47.28934186635931,
+        "palette": 0.8461100291460752,
+        "rank": 23,
+        "top5": 0.16346153846153846,
+        "shapes": 12
+      },
+      "24": {
+        "n": 104,
+        "usable": 1,
+        "valid": 0.999646455646704,
+        "rmse": 60.68551667073248,
+        "layout": 47.246472349094645,
+        "palette": 0.8164876314694993,
+        "rank": 21,
+        "top5": 0.15384615384615385,
+        "shapes": 24
+      },
+      "48": {
+        "n": 104,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 60.11347963967373,
+        "layout": 48.505197204091985,
+        "palette": 0.8064778633415699,
+        "rank": 21,
+        "top5": 0.125,
+        "shapes": 48
+      },
+      "all": {
+        "n": 312,
+        "usable": 1,
+        "valid": 0.999807614016999,
+        "rmse": 60.09401640474163,
+        "layout": 47.357585897971106,
+        "palette": 0.8181966136326082,
+        "rank": 21,
+        "top5": 0.14743589743589744,
+        "shapes": 24
+      }
+    },
+    "gemma4-12b-prompted": {
+      "12": {
+        "n": 0,
+        "usable": 0,
+        "valid": 0,
+        "rmse": null,
+        "layout": null,
+        "palette": null,
+        "rank": null,
+        "top5": 0,
+        "shapes": null
+      },
+      "24": {
+        "n": 52,
+        "usable": 0.5769230769230769,
+        "valid": 0.8444475669773954,
+        "rmse": 89.54369984862709,
+        "layout": 76.67164993424565,
+        "palette": 0.8571777330434998,
+        "rank": 20,
+        "top5": 0.2,
+        "shapes": 48
+      },
+      "48": {
+        "n": 0,
+        "usable": 0,
+        "valid": 0,
+        "rmse": null,
+        "layout": null,
+        "palette": null,
+        "rank": null,
+        "top5": 0,
+        "shapes": null
+      },
+      "all": {
+        "n": 52,
+        "usable": 0.5769230769230769,
+        "valid": 0.8444475669773954,
+        "rmse": 89.54369984862709,
+        "layout": 76.67164993424565,
+        "palette": 0.8571777330434998,
+        "rank": 20,
+        "top5": 0.2,
+        "shapes": 48
+      }
+    },
+    "oracle": {
+      "12": {
+        "n": 52,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 27.91502443863738,
+        "layout": 10.349326374415176,
+        "palette": 0.3639594086234865,
+        "rank": 1,
+        "top5": 0.9615384615384616,
+        "shapes": 12
+      },
+      "24": {
+        "n": 52,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 22.572595800288333,
+        "layout": 7.716048240078359,
+        "palette": 0.2719997800886631,
+        "rank": 1,
+        "top5": 1,
+        "shapes": 24
+      },
+      "48": {
+        "n": 52,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 18.347363584623427,
+        "layout": 4.301893045455874,
+        "palette": 0.15418837749166414,
+        "rank": 1,
+        "top5": 1,
+        "shapes": 48
+      },
+      "all": {
+        "n": 156,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 21.831921040783804,
+        "layout": 6.864264924571322,
+        "palette": 0.2487521730363369,
+        "rank": 1,
+        "top5": 0.9871794871794872,
+        "shapes": 24
+      }
+    },
+    "random-train": {
+      "12": {
+        "n": 104,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 68.23724096096002,
+        "layout": 57.34278211728515,
+        "palette": 0.8636881513521075,
+        "rank": 28,
+        "top5": 0.07692307692307693,
+        "shapes": 12
+      },
+      "24": {
+        "n": 104,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 70.96771031333937,
+        "layout": 59.60146828263445,
+        "palette": 0.8453776045844279,
+        "rank": 28,
+        "top5": 0.1346153846153846,
+        "shapes": 24
+      },
+      "48": {
+        "n": 104,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 68.74903355802202,
+        "layout": 51.76914268931027,
+        "palette": 0.7679307736034389,
+        "rank": 23,
+        "top5": 0.07692307692307693,
+        "shapes": 48
+      },
+      "all": {
+        "n": 312,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 69.66657178792217,
+        "layout": 55.979656117339324,
+        "palette": 0.8153483119513112,
+        "rank": 27,
+        "top5": 0.09615384615384616,
+        "shapes": 24
+      }
+    },
+    "procedural": {
+      "12": {
+        "n": 52,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 102.56470229483779,
+        "layout": 90.92003767361138,
+        "palette": 0.9188639302064985,
+        "rank": 25,
+        "top5": 0.07692307692307693,
+        "shapes": null
+      },
+      "24": {
+        "n": 52,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 102.56470229483779,
+        "layout": 90.92003767361138,
+        "palette": 0.9188639302064985,
+        "rank": 25,
+        "top5": 0.07692307692307693,
+        "shapes": null
+      },
+      "48": {
+        "n": 52,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 102.56470229483779,
+        "layout": 90.92003767361138,
+        "palette": 0.9188639302064985,
+        "rank": 25,
+        "top5": 0.07692307692307693,
+        "shapes": null
+      },
+      "all": {
+        "n": 156,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 102.56470229483779,
+        "layout": 90.92003767361138,
+        "palette": 0.9188639302064985,
+        "rank": 25,
+        "top5": 0.07692307692307693,
+        "shapes": null
+      }
+    },
+    "flat-mean": {
+      "12": {
+        "n": 52,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 35.516319284898806,
+        "layout": 18.289576991941235,
+        "palette": 0.6225314736366272,
+        "rank": 3,
+        "top5": 0.6730769230769231,
+        "shapes": null
+      },
+      "24": {
+        "n": 52,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 35.516319284898806,
+        "layout": 18.289576991941235,
+        "palette": 0.6225314736366272,
+        "rank": 3,
+        "top5": 0.6730769230769231,
+        "shapes": null
+      },
+      "48": {
+        "n": 52,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 35.516319284898806,
+        "layout": 18.289576991941235,
+        "palette": 0.6225314736366272,
+        "rank": 3,
+        "top5": 0.6730769230769231,
+        "shapes": null
+      },
+      "all": {
+        "n": 156,
+        "usable": 1,
+        "valid": 1,
+        "rmse": 35.516319284898806,
+        "layout": 18.289576991941235,
+        "palette": 0.6225314736366272,
+        "rank": 3,
+        "top5": 0.6730769230769231,
+        "shapes": null
+      }
+    }
+  },
+  "invalidExamples": {
+    "lfm-base": [
+      "background #rrggbb",
+      "fill #rrggbb",
+      "rect x y w h",
+      "circle x y d",
+      "polygon x1,y1 x2,y2 x3,y3",
+      "background #rrggbb",
+      "fill #rrggbb",
+      "rect x y w h",
+      "circle x y d",
+      "polygon x1,y1 x2,y2 x3,y3",
+      "background #rrggbb",
+      "fill #rrggbb"
+    ],
+    "lfm-lora": [
+      "circle -0.09 -0.01",
+      "fill #e6dba",
+      "circle 0.08,-0.32 0.27 0.36",
+      "circle 0.73,-0.54 0.38 0.33",
+      "circle 0.53,0.33 0.15 0.29",
+      "circle 0.72,-0.35 0.22 0.34",
+      "circle -0.66,0.53 0.33 0.37",
+      "fill #f0deccf",
+      "fill #f0dec77",
+      "fill #f0dec73",
+      "fill #f0dec76",
+      "fill #f0dec76"
+    ],
+    "qwen3-base": [
+      "polygon -0.5 0.5 0 0.5 0.5 0.5",
+      "polygon 0 -0.5 0 0.5 0.5 0.5",
+      "polygon 0.5 -0.5 1 1 1 1",
+      "polygon -1 0 -1 1 0 1",
+      "background #ff0000ff",
+      "fill #111111ff",
+      "rect -1 0",
+      "polygon -1 1 1 0 1 0",
+      "polygon 1 0 1 1 0 1",
+      "polygon 1 1 0 1 0 1",
+      "polygon 0 0 1 1 0 1",
+      "polygon 0 1 1 0 1 0"
+    ],
+    "qwen3-lora": [
+      "circle 1.05 0.5",
+      "rect 0.31 0.7 0.15 0.",
+      "polygon -0.52,-0.2",
+      "rect -0"
+    ],
+    "gemma4-12b-prompted": [
+      "circle 0.4,0.4 0.5",
+      "circle -0.4,-0.3 0.4",
+      "circle 0.2,0.7 0.3",
+      "circle -0.6,0.2 0.25",
+      "circle 0.1,-0.5 0.35",
+      "fill #8",
+      "circle 0.5,0.5 0.4",
+      "circle -0.5,-0.5 0.3",
+      "rect 0.3,0.3 0.4,0.4",
+      "rect -0.4,-0.4 0.2,0.2",
+      "circle 0.1,0.1 0.15",
+      "polygon -0.5 -0.5 -0.4 -0.6 -0.3 -0.5"
+    ]
+  }
+}

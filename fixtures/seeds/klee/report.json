@@ -1,0 +1,255 @@
+{
+  "generatedAt": "2026-09-24T05:25:18.223Z",
+  "config": {
+    "SET": "klee",
+    "SHAPES": 800,
+    "SIZE": 240,
+    "SEED": 1
+  },
+  "method": "Greedy shape fitting (rect/triangle/circle, opaque flat fill) minimising RGB squared error; verified by rendering through FlatCanvasMedium.",
+  "metric": "RMSE over RGB channels in 0–255 units at the eval size; lower is closer. Pixel error, not a judgement of artistic quality.",
+  "references": [
+    {
+      "id": "klee-1928-castle-and-sun",
+      "file": "klee-1928-castle-and-sun.jpg",
+      "commonsPage": "https://commons.wikimedia.org/wiki/File:Burg_und_Sonne_-_Klee.jpg"
+    },
+    {
+      "id": "klee-1922-senecio",
+      "file": "klee-1922-senecio.jpg",
+      "commonsPage": "https://commons.wikimedia.org/wiki/File:Paul_Klee,_1922,_Senecio,_oil_on_gauze,_40.3_%C3%97_37.4_cm,_Kunstmuseum_Basel.jpg"
+    },
+    {
+      "id": "klee-1922-twittering-machine",
+      "file": "klee-1922-twittering-machine.jpg",
+      "commonsPage": "https://commons.wikimedia.org/wiki/File:Paul_Klee,_Die_Zwitscher-Maschine%27.jpg"
+    }
+  ],
+  "results": [
+    {
+      "id": "klee-1928-castle-and-sun",
+      "title": "Castle and Sun (Burg und Sonne)",
+      "evalSize": [
+        240,
+        197
+      ],
+      "crop": null,
+      "seed": 1,
+      "shapesRequested": 800,
+      "shapesPlaced": 800,
+      "opCounts": {
+        "background": 1,
+        "noStroke": 1,
+        "fill": 800,
+        "polygon": 124,
+        "circle": 379,
+        "rect": 297
+      },
+      "seconds": 4.896855000019073,
+      "rmse": {
+        "fitted": 11.36986963074739,
+        "fitterInternal": 11.208554195924668,
+        "textOnly": 167.94318294413003,
+        "flatMean": 49.98937210792975
+      },
+      "checkpoints": [
+        {
+          "shapes": 10,
+          "rmse": 46.24638070623901,
+          "seconds": 0.09495999991893768
+        },
+        {
+          "shapes": 25,
+          "rmse": 40.735755852206005,
+          "seconds": 0.21304999995231627
+        },
+        {
+          "shapes": 50,
+          "rmse": 33.21492028013944,
+          "seconds": 0.38415499997138974
+        },
+        {
+          "shapes": 100,
+          "rmse": 27.09743652063508,
+          "seconds": 0.5363049999475479
+        },
+        {
+          "shapes": 200,
+          "rmse": 20.117065912989066,
+          "seconds": 0.9878799999952317
+        },
+        {
+          "shapes": 300,
+          "rmse": 17.016181832668472,
+          "seconds": 1.479735000014305
+        },
+        {
+          "shapes": 500,
+          "rmse": 13.724040767217922,
+          "seconds": 2.0781549999713897
+        },
+        {
+          "shapes": 800,
+          "rmse": 11.36986963074739,
+          "seconds": 3.997625
+        }
+      ],
+      "textBaseline": {
+        "prompt": "Castle and Sun (Burg und Sonne) by Paul Klee",
+        "actionCount": 12
+      }
+    },
+    {
+      "id": "klee-1922-senecio",
+      "title": "Senecio (Baldgreis)",
+      "evalSize": [
+        220,
+        240
+      ],
+      "crop": null,
+      "seed": 1,
+      "shapesRequested": 800,
+      "shapesPlaced": 800,
+      "opCounts": {
+        "background": 1,
+        "noStroke": 1,
+        "fill": 800,
+        "circle": 395,
+        "rect": 232,
+        "polygon": 173
+      },
+      "seconds": 5.8541700000762935,
+      "rmse": {
+        "fitted": 8.29532087895631,
+        "fitterInternal": 8.21177166292989,
+        "textOnly": 110.73967870367848,
+        "flatMean": 33.92712304381707
+      },
+      "checkpoints": [
+        {
+          "shapes": 10,
+          "rmse": 25.058772708304463,
+          "seconds": 0.1816450001001358
+        },
+        {
+          "shapes": 25,
+          "rmse": 20.87313863956896,
+          "seconds": 0.3327549999952316
+        },
+        {
+          "shapes": 50,
+          "rmse": 16.585997387659095,
+          "seconds": 0.5498100000619889
+        },
+        {
+          "shapes": 100,
+          "rmse": 13.631799804467894,
+          "seconds": 0.9176150000095368
+        },
+        {
+          "shapes": 200,
+          "rmse": 11.535185523020644,
+          "seconds": 1.4955400000810624
+        },
+        {
+          "shapes": 300,
+          "rmse": 10.326150057015441,
+          "seconds": 2.0294300000667573
+        },
+        {
+          "shapes": 500,
+          "rmse": 9.25309325839121,
+          "seconds": 3.0002000000476836
+        },
+        {
+          "shapes": 800,
+          "rmse": 8.29532087895631,
+          "seconds": 5.167280000090599
+        }
+      ],
+      "textBaseline": {
+        "prompt": "Senecio (Baldgreis) by Paul Klee",
+        "actionCount": 12
+      }
+    },
+    {
+      "id": "klee-1922-twittering-machine",
+      "title": "Twittering Machine (Die Zwitscher-Maschine)",
+      "evalSize": [
+        179,
+        240
+      ],
+      "crop": {
+        "x": 0.199,
+        "y": 0.156,
+        "w": 0.631,
+        "h": 0.638,
+        "note": "Fractional box around the painted sheet including its grey border; excludes Klee's mount and handwritten caption. Estimated by eye."
+      },
+      "seed": 1,
+      "shapesRequested": 800,
+      "shapesPlaced": 800,
+      "opCounts": {
+        "background": 1,
+        "noStroke": 1,
+        "fill": 800,
+        "polygon": 214,
+        "circle": 352,
+        "rect": 234
+      },
+      "seconds": 4.907674999952317,
+      "rmse": {
+        "fitted": 6.867207789963839,
+        "fitterInternal": 6.761107414647081,
+        "textOnly": 118.34766325487593,
+        "flatMean": 21.11247957765316
+      },
+      "checkpoints": [
+        {
+          "shapes": 10,
+          "rmse": 16.650310642943502,
+          "seconds": 0.12245999991893769
+        },
+        {
+          "shapes": 25,
+          "rmse": 14.313039149525201,
+          "seconds": 0.29425
+        },
+        {
+          "shapes": 50,
+          "rmse": 12.555803125116995,
+          "seconds": 0.47215499997138977
+        },
+        {
+          "shapes": 100,
+          "rmse": 10.94587936095048,
+          "seconds": 0.7611699999570847
+        },
+        {
+          "shapes": 200,
+          "rmse": 9.571934359067747,
+          "seconds": 1.2424099999666214
+        },
+        {
+          "shapes": 300,
+          "rmse": 8.694428479904747,
+          "seconds": 1.6781449999809266
+        },
+        {
+          "shapes": 500,
+          "rmse": 7.702077964150955,
+          "seconds": 2.5320099999904633
+        },
+        {
+          "shapes": 800,
+          "rmse": 6.867207789963839,
+          "seconds": 4.046614999890328
+        }
+      ],
+      "textBaseline": {
+        "prompt": "Twittering Machine (Die Zwitscher-Maschine) by Paul Klee",
+        "actionCount": 12
+      }
+    }
+  ]
+}

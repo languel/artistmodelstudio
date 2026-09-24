@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "ams-dev", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "--port", "3017", "--strictPort"], "port": 3017 }
+  ]
+}

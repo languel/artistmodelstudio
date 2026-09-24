@@ -1,0 +1,87 @@
+{
+  "generatedAt": "2026-09-24T05:35:34.394Z",
+  "budgets": [
+    12,
+    40,
+    120,
+    300
+  ],
+  "seed": 1,
+  "results": [
+    {
+      "id": "klee-1928-castle-and-sun",
+      "budgets": [
+        {
+          "shapes": 12,
+          "flatRMSE": 44.92911153641675,
+          "watercolorWarnings": []
+        },
+        {
+          "shapes": 40,
+          "flatRMSE": 35.22331104944502,
+          "watercolorWarnings": []
+        },
+        {
+          "shapes": 120,
+          "flatRMSE": 25.501589147921234,
+          "watercolorWarnings": []
+        },
+        {
+          "shapes": 300,
+          "flatRMSE": 17.016181832668472,
+          "watercolorWarnings": []
+        }
+      ]
+    },
+    {
+      "id": "klee-1922-senecio",
+      "budgets": [
+        {
+          "shapes": 12,
+          "flatRMSE": 24.187513083023113,
+          "watercolorWarnings": []
+        },
+        {
+          "shapes": 40,
+          "flatRMSE": 18.265310445118793,
+          "watercolorWarnings": []
+        },
+        {
+          "shapes": 120,
+          "flatRMSE": 13.009562576595089,
+          "watercolorWarnings": []
+        },
+        {
+          "shapes": 300,
+          "flatRMSE": 10.326150057015441,
+          "watercolorWarnings": []
+        }
+      ]
+    },
+    {
+      "id": "klee-1922-twittering-machine",
+      "budgets": [
+        {
+          "shapes": 12,
+          "flatRMSE": 16.138826601844993,
+          "watercolorWarnings": []
+        },
+        {
+          "shapes": 40,
+          "flatRMSE": 13.066090714798726,
+          "watercolorWarnings": []
+        },
+        {
+          "shapes": 120,
+          "flatRMSE": 10.590461169561271,
+          "watercolorWarnings": []
+        },
+        {
+          "shapes": 300,
+          "flatRMSE": 8.694428479904747,
+          "watercolorWarnings": []
+        }
+      ]
+    }
+  ]
+}

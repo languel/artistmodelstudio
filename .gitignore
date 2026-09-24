@@ -3,3 +3,7 @@ dist/
 .DS_Store
 *.local
 
+training/.venv/
+training/klee/images/
+training/klee/runs/
+training/klee/data/sft/

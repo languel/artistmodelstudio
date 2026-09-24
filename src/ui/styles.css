@@ -1547,3 +1547,55 @@ main.studio-main {
 }
 
 
+
+/* Reference Panel */
+.reference-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 2px;
+}
+
+.reference-controls select {
+  width: 100%;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+
+.reference-view img {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.reference-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.reference-meta strong {
+  color: var(--text-primary);
+}
+
+.reference-meta a {
+  color: var(--accent-secondary);
+}
+
+.reference-hint,
+.reference-empty {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0;
+}

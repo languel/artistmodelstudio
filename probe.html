@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AMS Reference Probe</title>
+  <style>
+    body { font: 14px/1.45 system-ui, sans-serif; margin: 24px; background: #f6f4ef; color: #222; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 16px; margin: 28px 0 4px; }
+    #meta, .status, .curve { color: #555; margin: 4px 0; }
+    .grid { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+    figure { margin: 0; }
+    figure canvas, figure img { display: block; max-width: min(520px, 90vw); height: auto; border: 1px solid #ccc; background: #fff; }
+    figcaption { font-size: 12px; color: #555; margin-top: 4px; max-width: 520px; }
+  </style>
+</head>
+<body>
+  <h1>Reference probe: can the flat DSL express this?</h1>
+  <p id="meta">Loading…</p>
+  <main id="probe"></main>
+  <script type="module" src="/src/probe/probePage.js"></script>
+</body>
+</html>

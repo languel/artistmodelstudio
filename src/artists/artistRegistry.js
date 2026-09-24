@@ -10,6 +10,8 @@ import { WebGPUTransformersArtist } from './WebGPUTransformersArtist.js';
 import { OpenRouterArtist } from './OpenRouterArtist.js';
 import { OpenAICompatibleArtist } from './OpenAICompatibleArtist.js';
 import { TrainedModelArtist } from './TrainedModelArtist.js';
+import { ReferenceFitterArtist } from './ReferenceFitterArtist.js';
+import { DistilledArtist } from './DistilledArtist.js';
 
 export class ArtistRegistry {
   constructor() {
@@ -21,13 +23,17 @@ export class ArtistRegistry {
     const openrouter = new OpenRouterArtist();
     const openai = new OpenAICompatibleArtist();
     const trained = new TrainedModelArtist();
+    const fitter = new ReferenceFitterArtist();
+    const distilled = new DistilledArtist();
 
     this.register(mock);
+    this.register(fitter);
     this.register(openrouter);
     this.register(openai);
     this.register(ollama);
     this.register(webgpu);
     this.register(trained);
+    this.register(distilled);
 
     // Default to mock for instant reliability, user or settings can switch
     this.activeId = 'mock';

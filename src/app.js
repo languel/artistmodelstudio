@@ -17,6 +17,7 @@ import { SettingsModal } from './ui/SettingsModal.js';
 import { ModelExplorerModal } from './ui/ModelExplorerModal.js';
 import { HelpModal } from './ui/HelpModal.js';
 import { ProcessLog } from './ui/ProcessLog.js';
+import { ReferencePanel } from './ui/ReferencePanel.js';
 import { EXAMPLES } from '../examples/index.js';
 import { initWebMCP } from './mcp/webmcp.js';
 import { icon } from './ui/icons.js';
@@ -108,6 +109,13 @@ export class StudioApp {
 
     this.helpModal = new HelpModal();
 
+    this.referencePanel = new ReferencePanel({
+      onReferenceChange: (ref) => {
+        this.artistRegistry.get('fitter')?.setReference(ref);
+        if (ref && this.processLog) this.processLog.log(`Reference set: ${ref.name}`, 'info');
+      }
+    });
+
     this.controls = new Controls({
       artists: this.artistRegistry.list(),
       media: this.mediaRegistry.list(),
@@ -150,12 +158,18 @@ export class StudioApp {
               <button class="side-tab-btn" id="tab-btn-log" data-tab="log">
                 ${icon('terminal', 'icon-sm')} <span>Process Log</span>
               </button>
+              <button class="side-tab-btn" id="tab-btn-reference" data-tab="reference">
+                ${icon('photo', 'icon-sm')} <span>Reference</span>
+              </button>
             </div>
             <div id="side-pane-editor" class="side-pane active">
               <div id="program-editor-container"></div>
             </div>
             <div id="side-pane-log" class="side-pane">
               <div id="process-log-container"></div>
+            </div>
+            <div id="side-pane-reference" class="side-pane">
+              <div id="reference-panel-container"></div>
             </div>
           </div>
         </div>
@@ -166,6 +180,7 @@ export class StudioApp {
     this.controls.render(this.root.querySelector('#controls-container'));
     this.statusBanner.render(this.root.querySelector('#status-banner-container'));
     this.processLog.render(this.root.querySelector('#process-log-container'));
+    this.referencePanel.render(this.root.querySelector('#reference-panel-container'));
 
     const initialArtist = this.getActiveArtist();
     const initialModel = (typeof initialArtist.getModel === 'function') ? initialArtist.getModel() : '';
@@ -217,27 +232,19 @@ export class StudioApp {
   }
 
   attachSideTabEvents() {
-    const editorBtn = this.root.querySelector('#tab-btn-editor');
-    const logBtn = this.root.querySelector('#tab-btn-log');
-    const editorPane = this.root.querySelector('#side-pane-editor');
-    const logPane = this.root.querySelector('#side-pane-log');
-
-    editorBtn?.addEventListener('click', () => {
-      this.rightPaneTab = 'editor';
-      editorBtn.classList.add('active');
-      logBtn?.classList.remove('active');
-      editorPane?.classList.add('active');
-      logPane?.classList.remove('active');
-    });
-
-    logBtn?.addEventListener('click', () => {
-      this.rightPaneTab = 'log';
-      logBtn.classList.add('active');
-      editorBtn?.classList.remove('active');
-      logPane?.classList.add('active');
-      editorPane?.classList.remove('active');
-      this.processLog.render();
-    });
+    const buttons = [...this.root.querySelectorAll('.side-tab-btn')];
+    for (const btn of buttons) {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        this.rightPaneTab = tab;
+        for (const other of buttons) {
+          const active = other === btn;
+          other.classList.toggle('active', active);
+          this.root.querySelector(`#side-pane-${other.dataset.tab}`)?.classList.toggle('active', active);
+        }
+        if (tab === 'log') this.processLog.render();
+      });
+    }
   }
 
   handleToggleLog() {
