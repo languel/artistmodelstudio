@@ -49,8 +49,11 @@ function cropImage(img, crop) {
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
 export class ReferencePanel {
-  constructor({ onReferenceChange, onLiveToggle, onLiveParams, onExportContinuous } = {}) {
+  constructor({ onLiveClear, onReferenceChange, onLiveToggle, onLiveParams, onExportContinuous, onOverlayChange } = {}) {
     this.onReferenceChange = onReferenceChange;
+    this.onLiveClear = onLiveClear;
+    this.onOverlayChange = onOverlayChange;
+    this.overlay = { mode: 'off', opacity: 0.5 };
     this.onLiveToggle = onLiveToggle;
     this.onLiveParams = onLiveParams;
     this.onExportContinuous = onExportContinuous;
@@ -74,9 +77,26 @@ export class ReferencePanel {
           <input type="file" id="reference-upload" accept="image/*" hidden />
         </div>
         <div id="reference-view" class="reference-view"></div>
+        <div class="live-controls overlay-controls">
+          <label class="live-slider" title="Show the reference on the canvas: under the painting as its ground, over it for comparing, or on its own">
+            <span>Overlay</span>
+            <select id="overlay-mode">
+              <option value="off">Off</option>
+              <option value="under">Under</option>
+              <option value="over">Over</option>
+              <option value="solo">Solo</option>
+            </select>
+          </label>
+          <label class="live-slider" title="Reference opacity for Under and Over">
+            <span>Opacity</span>
+            <input type="range" id="overlay-opacity" min="0" max="1" step="0.05" value="${this.overlay.opacity}" />
+            <input class="num-field" id="overlay-opacity-num" inputmode="decimal" value="${this.overlay.opacity}" title="Type any value from 0 to 1" />
+          </label>
+        </div>
         <div class="live-controls" title="Continuous mode: shapes fade in, live for a while, fade out, and are replaced by new fits, repainting the reference forever.">
           <div class="live-row">
-            <button id="live-toggle" class="btn-primary live-toggle">Play continuous</button>
+            <button id="live-toggle" class="btn-primary live-toggle" title="Play or stop continuous mode">Play</button>
+            <button id="live-clear" class="btn-micro" title="Clear the canvas and repaint from blank">Clear</button>
             <button id="live-export" class="btn-micro" title="Export an endless p5.js sketch (zip) with these settings">Export p5</button>
           </div>
           <label class="live-slider" title="Watercolor: each stroke is a p5.brush painting that fades in and out on its own. Layered: strokes pile up on one sheet and fade together under washes (Fade out sets how slowly).">
@@ -94,9 +114,10 @@ export class ReferencePanel {
               <option value="fade">Fade</option>
             </select>
           </label>
-          <label class="live-slider" title="Shapes alive at once: more shapes, more detail">
+          <label class="live-slider live-slider-count" title="Shapes alive at once: more shapes, more detail. While playing, the muted number is how many are on screen now (watercolor can paint about 30 new strokes a second, so longer cycles allow more).">
             <span>Density</span>
             <input type="range" id="live-density" min="10" max="800" step="10" value="${this.live.density}" />
+            <span class="live-count" id="live-count"></span>
             <input class="num-field" id="live-density-num" inputmode="decimal" value="${this.live.density}" title="Type any value; the slider covers 10–800" />
           </label>
           <label class="live-slider" title="Seconds for the whole painting to turn over: sets the pacing">
@@ -159,6 +180,8 @@ export class ReferencePanel {
       lifetime: this.live.lifetime,
       fadeIn: this.live.fadeIn,
       fadeOut: this.live.fadeOut,
+      overlay: this.overlay.mode,
+      refOpacity: this.overlay.opacity,
       opacity: this.live.opacity,
       pigment: this.live.pigment,
       shapes: this.live.shapes === 'mixed' ? ['rect', 'triangle', 'circle'] : [this.live.shapes]
@@ -192,6 +215,29 @@ export class ReferencePanel {
     bindSlider('fadein', 'fadeIn', { min: 0, max: 1 });
     bindSlider('fadeout', 'fadeOut', { min: 0, max: 1 });
     bindSlider('opacity', 'opacity', { min: 0, max: 1 });
+    const overlayChanged = () => {
+      this.onOverlayChange?.({ ...this.overlay });
+      this.onLiveParams?.(liveParams());
+    };
+    container.querySelector('#overlay-mode')?.addEventListener('change', (e) => {
+      this.overlay.mode = e.target.value;
+      overlayChanged();
+    });
+    const ovRange = container.querySelector('#overlay-opacity');
+    const ovField = container.querySelector('#overlay-opacity-num');
+    ovRange?.addEventListener('input', () => {
+      this.overlay.opacity = Number(ovRange.value);
+      ovField.value = ovRange.value;
+      overlayChanged();
+    });
+    ovField?.addEventListener('change', () => {
+      const v = Number(ovField.value);
+      if (!Number.isFinite(v)) { ovField.value = this.overlay.opacity; return; }
+      this.overlay.opacity = Math.min(1, Math.max(0, v));
+      ovField.value = this.overlay.opacity;
+      ovRange.value = this.overlay.opacity;
+      overlayChanged();
+    });
     bindSlider('pigment', 'pigment', { min: 0, max: 1 });
     container.querySelector('#live-render')?.addEventListener('change', (e) => {
       this.live.render = e.target.value;
@@ -209,6 +255,7 @@ export class ReferencePanel {
       if (!this.current?.image && !this.liveRunning) return;
       this.onLiveToggle?.(!this.liveRunning, liveParams());
     });
+    container.querySelector('#live-clear')?.addEventListener('click', () => this.onLiveClear?.());
     container.querySelector('#live-export')?.addEventListener('click', () => this.onExportContinuous?.(liveParams()));
 
     let saved = '';
@@ -253,10 +300,16 @@ export class ReferencePanel {
     }
   }
 
+  /** Show "visible /" before the density value while playing. */
+  setLiveCount(n) {
+    const el = this.container?.querySelector('#live-count');
+    if (el) el.textContent = n === null ? '' : `${n} /`;
+  }
+
   setLiveRunning(on) {
     this.liveRunning = on;
     const btn = this.container?.querySelector('#live-toggle');
-    if (btn) btn.textContent = on ? 'Stop' : 'Play continuous';
+    if (btn) btn.textContent = on ? 'Stop' : 'Play';
   }
 
   setCurrent(ref) {

@@ -20,6 +20,7 @@ import { ProcessLog } from './ui/ProcessLog.js';
 import { ReferencePanel } from './ui/ReferencePanel.js';
 import { LivePainter } from './ui/LivePainter.js';
 import { buildContinuousZip, downloadBytes } from './export/p5Export.js';
+import { fitTarget } from './artists/ReferenceFitterArtist.js';
 import { EXAMPLES } from '../examples/index.js';
 import { initWebMCP } from './mcp/webmcp.js';
 import { icon } from './ui/icons.js';
@@ -112,12 +113,20 @@ export class StudioApp {
 
     this.helpModal = new HelpModal();
 
-    this.livePainter = new LivePainter();
+    this.livePainter = new LivePainter({
+      onFrame: (lp) => {
+        const now = performance.now();
+        if (now - (this._countAt || 0) < 250) return;
+        this._countAt = now;
+        this.referencePanel?.setLiveCount(lp.visibleCount());
+      }
+    });
     if (import.meta.env?.DEV) window.__amsApp = this; // dev-only handle for debugging
     this.referencePanel = new ReferencePanel({
       onReferenceChange: (ref) => {
         this.artistRegistry.get('fitter')?.setReference(ref);
         if (this.canvasAspect === 'ref' && this.mediaRegistry) this.handleCanvasSizeChange(this.canvasSize);
+        this.updateRefOverlay?.();
         if (ref && this.processLog) this.processLog.log(`Reference set: ${ref.name}`, 'info');
         if (this.livePainter.running) {
           if (ref?.image) this.livePainter.start(ref.image, this.referencePanel.liveParams(), this.aspectValue());
@@ -126,7 +135,9 @@ export class StudioApp {
       },
       onLiveToggle: (on, params) => (on ? this.startLive(params) : this.stopLive()),
       onLiveParams: (params) => this.livePainter.setParams(params),
-      onExportContinuous: (params) => this.exportContinuous(params)
+      onExportContinuous: (params) => this.exportContinuous(params),
+      onOverlayChange: () => this.updateRefOverlay(),
+      onLiveClear: () => this.livePainter.clear()
     });
 
     this.controls = new Controls({
@@ -272,6 +283,25 @@ export class StudioApp {
     }
   }
 
+  /** Reference image at the canvas aspect, as an image the preview can overlay. */
+  refOverlaySrc() {
+    const ref = this.referencePanel?.current;
+    if (!ref?.image) return null;
+    const [w, h] = this.canvasDims();
+    const k = 1024 / Math.max(w, h);
+    const key = `${ref.id}|${w}x${h}`;
+    if (this._refOverlayKey !== key) {
+      this._refOverlayKey = key;
+      this._refOverlaySrc = fitTarget(ref.image, Math.round(w * k), Math.round(h * k)).toDataURL('image/jpeg', 0.9);
+    }
+    return this._refOverlaySrc;
+  }
+
+  updateRefOverlay() {
+    const { mode, opacity } = this.referencePanel?.overlay || { mode: 'off', opacity: 0.5 };
+    this.candidateGrid?.setRefOverlay({ src: mode === 'off' ? null : this.refOverlaySrc(), mode, opacity });
+  }
+
   startLive(params) {
     const ref = this.referencePanel.current;
     if (!ref?.image) return;
@@ -283,6 +313,7 @@ export class StudioApp {
   stopLive() {
     this.livePainter.stop();
     this.referencePanel.setLiveRunning(false);
+    this.referencePanel.setLiveCount(null);
   }
 
   async exportContinuous(params) {
@@ -290,7 +321,7 @@ export class StudioApp {
     if (!ref?.image) return;
     const target = LivePainter.targetFor(ref.image, this.aspectValue());
     const title = ref.name.replace(/\s*\(.*\)\s*$/, '') || 'AMS continuous';
-    const zip = await buildContinuousZip(target, { ...params, seed: 1 }, { title, source: 'Reference Fitter, continuous' });
+    const zip = await buildContinuousZip(target, { ...params, seed: 1 }, { title, source: 'Reference Fitter, continuous', refDataUrl: this.refOverlaySrc() });
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'ams-continuous';
     downloadBytes(zip, `${slug}-continuous-p5.zip`, 'application/zip');
   }
@@ -590,6 +621,7 @@ export class StudioApp {
     localStorage.setItem('ams_canvas_size', String(this.canvasSize));
     this.resetMedia();
     const [cw, ch] = this.canvasDims();
+    this.updateRefOverlay?.();
 
     this.processLog.log(`Canvas set to ${cw} × ${ch}. Re-rendering...`, 'info');
 

@@ -7,6 +7,7 @@ import { ContinuousFitter } from '../fitting/continuousFit.js';
 import { canvasToRGB } from '../fitting/fitReference.js';
 import { fitTarget, fitDims } from '../artists/ReferenceFitterArtist.js';
 import { WatercolorLayer, WatercolorSprites, retentionFor } from '../fitting/continuousWatercolor.js';
+import { drawScene } from '../fitting/continuousScene.js';
 
 let brushModule = null;
 const loadBrush = async () => (brushModule ||= await import('p5.brush/standalone'));
@@ -34,6 +35,8 @@ export class LivePainter {
     if (params.render === 'watercolor' || params.render === 'layered') await loadBrush();
     this.aspect = aspect;
     this.target = LivePainter.targetFor(image, aspect);
+    const [rw, rh] = fitDims(aspect, 1024);
+    this.refCanvas = fitTarget(image, rw, rh); // display-resolution reference for the overlay
     this.cf = new ContinuousFitter(this.target.rgb, this.target.width, this.target.height, params);
     this.params = { ...params };
     this.t = 0;
@@ -45,7 +48,9 @@ export class LivePainter {
       const dt = Math.min(0.1, (now - this.last) / 1000);
       this.last = now;
       this.t += dt;
-      this.cf.update(this.t, dt);
+      // Watercolor sprites are slow to build: hold back new strokes while any are queued.
+      const cap = this.params.render === 'watercolor' && this.sprites ? (this.sprites.pending > 0 ? 0 : 2) : Infinity;
+      this.cf.update(this.t, dt, cap);
       this.paint(dt);
       this.onFrame?.(this);
       this.raf = requestAnimationFrame(tick);
@@ -57,6 +62,15 @@ export class LivePainter {
     this.params = { ...this.params, ...params };
     if (this.params.render === 'watercolor' || this.params.render === 'layered') await loadBrush();
     this.cf?.setParams(params);
+  }
+
+  /** Clear the canvas and keep painting from blank. */
+  clear() {
+    if (!this.cf) return;
+    this.cf.clear();
+    this.sprites = null;
+    this.layer = null;
+    if (!this.running) this.canvas.remove();
   }
 
   stop() {
@@ -79,29 +93,37 @@ export class LivePainter {
       this.canvas.height = h;
     }
     const ctx = this.canvas.getContext('2d');
-    ctx.fillStyle = '#18191d';
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--canvas-bg').trim() || '#18191d';
     ctx.fillRect(0, 0, w, h);
     // Fit the canvas aspect inside the preview.
     const a = this.aspect || 1;
     const vw = Math.min(w, h * a), vh = vw / a;
     const x = (w - vw) / 2, y = (h - vh) / 2;
     const [lw, lh] = fitDims(a, 1024);
-    if (this.params.render === 'watercolor' && brushModule) {
+    const render = brushModule ? this.params.render : 'flat';
+    if (render === 'watercolor') {
       // Per-stroke watercolor sprites with individual fades.
       this.sprites ||= new WatercolorSprites(brushModule, { width: lw, height: lh });
       this.sprites.opacity = this.params.opacity ?? 1;
       this.sprites.pigment = this.params.pigment ?? 0.6;
-      this.sprites.update(this.cf);
-      this.sprites.draw(ctx, x, y, vw, vh, this.cf, this.t);
-    } else if (this.params.render === 'layered' && brushModule) {
+      this.sprites.update(this.cf, this.t);
+    } else if (render === 'layered') {
       // Strokes painted once into one canvas; everything fades under washes.
       this.layer ||= new WatercolorLayer(brushModule, { width: lw, height: lh });
       this.layer.opacity = this.params.opacity ?? 1;
       this.layer.update(this.cf, this.t, dt, retentionFor(this.params.fadeOut));
-      this.layer.draw(ctx, x, y, vw, vh);
-    } else {
-      this.cf.draw(ctx, x, y, vw, vh, this.t);
     }
+    drawScene(ctx, x, y, vw, vh, {
+      cf: this.cf, now: this.t, render, sprites: this.sprites, layer: this.layer,
+      ref: this.refCanvas, overlay: this.params.overlay || 'off', refOpacity: this.params.refOpacity ?? 0.5
+    });
+  }
+
+  /** Strokes currently on screen (watercolor counts only strokes with a sprite). */
+  visibleCount() {
+    if (!this.cf) return 0;
+    if (this.params?.render === 'watercolor' && this.sprites) return this.sprites.sprites.size;
+    return this.cf.alive.length;
   }
 
   /** Current picture as a Core DSL program, e.g. to keep as a candidate. */

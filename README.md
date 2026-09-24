@@ -21,7 +21,7 @@ npm run dev          # http://localhost:3000 (use --port to pick another)
 npm test
 ```
 
-Pick **Reference Fitter** as the engine, choose a reference in the **Reference** tab, and press **Generate 4**. For the endless painting, use **Play continuous** in the Reference tab.
+Pick **Reference Fitter** as the engine, choose a reference in the **Reference** tab, and press **Generate 4**. For the endless painting, press **Play** in the Reference tab (**Clear** starts it over from blank).
 
 ## Engines
 

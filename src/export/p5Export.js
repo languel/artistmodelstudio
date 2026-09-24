@@ -15,6 +15,7 @@ import watercolorSource from '../media/watercolorBrush.js?raw';
 import fitReferenceSource from '../fitting/fitReference.js?raw';
 import continuousSource from '../fitting/continuousFit.js?raw';
 import continuousWatercolorSource from '../fitting/continuousWatercolor.js?raw';
+import continuousSceneSource from '../fitting/continuousScene.js?raw';
 
 const MAX_FRAMES = 150;
 const MAX_PIXEL_FRAMES = 60;
@@ -302,12 +303,30 @@ export function buildIndexHtml(title, { brush = true } = {}) {
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #111; }
     canvas { display: block; }
-    #ams-panel { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); display: none; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center;
-      padding: 8px; border-radius: 8px; background: rgba(20, 20, 24, 0.85); font: 13px system-ui, sans-serif; color: #ccc; }
-    #ams-panel button { font: inherit; padding: 5px 10px; border: 1px solid #444; border-radius: 5px; background: #2a2a30; color: #eee; cursor: pointer; }
-    #ams-panel button:hover { background: #3a3a42; }
+    #ams-panel { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center;
+      padding: 8px; border-radius: 8px; background: rgba(20, 20, 24, 0.86); font: 13px system-ui, sans-serif; color: #b8bac0; }
+    #ams-panel[hidden] { display: none; }
+    #ams-panel button { font: inherit; padding: 5px 10px; border: 1px solid #3a3c44; border-radius: 5px; background: #24262d; color: #e4e5e8; cursor: pointer; }
+    #ams-panel button:hover { background: #2f323a; }
     #ams-panel button:disabled { opacity: 0.4; cursor: default; }
     #ams-panel span { min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+    /* Continuous player: a card of labelled controls, like the studio's Reference tab */
+    #ams-panel:has(.ams-control) { left: auto; right: 14px; transform: none; width: 300px; flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 12px; }
+    .ams-row { display: flex; gap: 6px; }
+    .ams-control { display: grid; grid-template-columns: 72px 1fr 44px; align-items: center; gap: 8px; }
+    #ams-panel .ams-control span { min-width: 0; text-align: left; color: #9a9ea6; }
+    .ams-control select { grid-column: 2 / 4; font: inherit; background: #1b1d22; color: #e4e5e8; border: 1px solid #2f323a; border-radius: 4px; padding: 3px 6px; outline: none; }
+    .ams-control.ams-control-count { grid-template-columns: 72px 1fr auto 44px; }
+    #ams-panel .ams-count { min-width: 0; font: 12px ui-monospace, Menlo, monospace; color: #6a6e76; text-align: right; }
+    .ams-control .num { width: 100%; font: 12px ui-monospace, Menlo, monospace; background: transparent; color: #e4e5e8; border: 1px solid transparent; border-radius: 4px; text-align: right; padding: 1px 3px; outline: none; }
+    .ams-control .num:hover { border-color: #2f323a; }
+    .ams-control .num:focus { border-color: #4a4d56; background: #1b1d22; }
+    #ams-panel input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; height: 16px; width: 100%; cursor: pointer; }
+    #ams-panel input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: #4a4d56; }
+    #ams-panel input[type="range"]::-moz-range-track { height: 2px; background: #4a4d56; }
+    #ams-panel input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; margin-top: -4.5px; border-radius: 50%; background: #b8bac0; border: none; }
+    #ams-panel input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border-radius: 50%; background: #b8bac0; border: none; }
+    #ams-panel input[type="range"]:focus { outline: none; }
   </style>
   <script src="p5.min.js"></script>
 ${brush ? '  <script src="brush.js"></script>\n' : ''}  <script src="sketch.js"></script>
@@ -376,13 +395,15 @@ function rgbToBase64(rgb) {
 
 const CONTINUOUS_RUNTIME = String.raw`
 // ---------------------------------------------------------------------------
-// Player: U toggles the panel · Space pause · W watercolor/flat · M style
-//         (strokes/fade) · [ ] density · , . cycle · F fit/fill · S save PNG
+// Player. The panel mirrors the studio's continuous controls.
+// Keys: U panel · Space pause · C clear · W render (flat / watercolor / layered)
+//       M style · [ ] density · , . cycle · O overlay · F fit/fill · S save PNG
+// Names avoid single letters (brush.js defines globals t and e) and p5 globals such as set().
 // ---------------------------------------------------------------------------
-// Names avoid single letters: brush.js defines globals t and e.
-let cf, simTime = 0, lastMillis = 0, paused = false, fitMode = true, uiVisible = false, panel;
-let renderer = PARAMS.render === 'watercolor' && typeof brush !== 'undefined' ? 'watercolor' : 'flat';
-let layer = null;
+let cf, simTime = 0, lastMillis = 0, paused = false, fitMode = true, panel = null;
+let sprites = null, layer = null, refImg = null;
+const state = Object.assign({ render: 'flat', overlay: 'off', refOpacity: 0.5, opacity: 1, pigment: 0.6 }, PARAMS);
+if (typeof brush === 'undefined' && state.render !== 'flat') state.render = 'flat';
 
 function decodeTarget() {
   const bin = atob(TARGET_B64);
@@ -393,103 +414,187 @@ function decodeTarget() {
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  cf = new ContinuousFitter(decodeTarget(), TARGET_W, TARGET_H, PARAMS);
+  cf = new ContinuousFitter(decodeTarget(), TARGET_W, TARGET_H, state);
+  cf.setParams({ opacity: state.opacity });
+  refImg = new Image();
+  refImg.src = REF_DATA_URL;
   lastMillis = millis();
   buildPanel();
 }
 
 function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 
+function rendererDims() {
+  const aspect = TARGET_W / TARGET_H;
+  return aspect >= 1 ? { width: 1024, height: Math.round(1024 / aspect) } : { width: Math.round(1024 * aspect), height: 1024 };
+}
+
 function draw() {
   const now = millis();
   const dt = Math.min(0.1, (now - lastMillis) / 1000);
   lastMillis = now;
-  if (!paused) { simTime += dt; cf.update(simTime, dt); }
-  background('#111111');
-  const ctx = drawingContext;
-  const aspect = TARGET_W / TARGET_H;
-  const paint = (x, y, w, h) => {
-    if (renderer === 'watercolor') {
-      layer ||= new WatercolorLayer(brush, aspect >= 1 ? { width: 1024, height: Math.round(1024 / aspect) } : { width: Math.round(1024 * aspect), height: 1024 });
-      if (!paused) layer.update(cf, simTime, dt, retentionFor(PARAMS.fadeOut ?? PARAMS.fade ?? 0.15));
-      layer.draw(ctx, x, y, w, h);
-    } else {
-      cf.draw(ctx, x, y, w, h, simTime);
-    }
-  };
-  if (fitMode) {
-    const vw = Math.min(width, height * aspect), vh = vw / aspect;
-    paint((width - vw) / 2, (height - vh) / 2, vw, vh);
-  } else {
-    paint(0, 0, width, height);
+  if (!paused) {
+    simTime += dt;
+    // Watercolor sprites are slow to build: hold back new strokes while any are queued.
+    const cap = state.render === 'watercolor' && sprites ? (sprites.pending > 0 ? 0 : 2) : Infinity;
+    cf.update(simTime, dt, cap);
   }
+  if (state.render === 'watercolor') {
+    sprites ||= new WatercolorSprites(brush, rendererDims());
+    sprites.opacity = state.opacity;
+    sprites.pigment = state.pigment;
+    sprites.update(cf, simTime);
+  } else if (state.render === 'layered') {
+    layer ||= new WatercolorLayer(brush, rendererDims());
+    layer.opacity = state.opacity;
+    if (!paused) layer.update(cf, simTime, dt, retentionFor(state.fadeOut));
+  }
+  background('#111111');
+  const aspect = TARGET_W / TARGET_H;
+  let x = 0, y = 0, w = width, h = height;
+  if (fitMode) {
+    w = Math.min(width, height * aspect);
+    h = w / aspect;
+    x = (width - w) / 2;
+    y = (height - h) / 2;
+  }
+  if (panel && !panel.hidden && frameCount % 15 === 0) {
+    const shown = state.render === 'watercolor' && sprites ? sprites.sprites.size : cf.alive.length;
+    const el = panel.querySelector('.ams-count');
+    if (el) el.textContent = shown + ' /';
+  }
+  drawScene(drawingContext, x, y, w, h, {
+    cf, now: simTime, render: state.render, sprites, layer,
+    ref: refImg && refImg.complete ? refImg : null, overlay: state.overlay, refOpacity: state.refOpacity
+  });
 }
 
-function setDensity(k) { cf.setParams({ density: Math.max(5, Math.min(2000, Math.round(cf.density * k))) }); updatePanel(); }
-function setLifetime(k) { cf.setParams({ lifetime: Math.max(0.5, Math.min(300, cf.lifetime * k)) }); updatePanel(); }
-function togglePause() { paused = !paused; updatePanel(); }
-function toggleRenderer() {
-  if (typeof brush === 'undefined') return;
-  renderer = renderer === 'watercolor' ? 'flat' : 'watercolor';
-  layer = null;
-  updatePanel();
+// ---- controls -------------------------------------------------------------
+const RENDERS = ['flat', 'watercolor', 'layered'];
+const OVERLAYS = ['off', 'under', 'over', 'solo'];
+
+function setParam(key, value) {
+  state[key] = value;
+  if (key === 'render') { sprites = null; layer = null; }
+  if (key === 'opacity') cf.setParams({ opacity: value });
+  if (key === 'shapes') cf.setParams({ shapes: value === 'mixed' ? ['rect', 'triangle', 'circle'] : [value] });
+  else if (['mode', 'density', 'lifetime', 'fadeIn', 'fadeOut'].includes(key)) cf.setParams({ [key]: value });
+  syncPanel();
 }
-function toggleMode() { cf.setParams({ mode: cf.mode === 'strokes' ? 'fade' : 'strokes' }); updatePanel(); }
-function toggleFit() { fitMode = !fitMode; updatePanel(); }
+
+function togglePause() { paused = !paused; syncPanel(); }
+function clearCanvas() { cf.clear(); sprites = null; layer = null; }
+function toggleFit() { fitMode = !fitMode; syncPanel(); }
 function savePNG() { saveCanvas(TITLE_SLUG, 'png'); }
+function cycleParam(list, key) { setParam(key, list[(list.indexOf(state[key]) + 1) % list.length]); }
 
 function keyPressed() {
   const k = key.toLowerCase();
-  if (k === 'u') { uiVisible = !uiVisible; panel.style.display = uiVisible ? 'flex' : 'none'; }
+  if (document.activeElement && ['INPUT', 'SELECT'].includes(document.activeElement.tagName)) return;
+  if (k === 'u') panel.hidden = !panel.hidden;
   else if (k === ' ') togglePause();
-  else if (k === 'm') toggleMode();
-  else if (k === 'w') toggleRenderer();
-  else if (k === '[') setDensity(0.8);
-  else if (k === ']') setDensity(1.25);
-  else if (k === ',') setLifetime(1.25);
-  else if (k === '.') setLifetime(0.8);
+  else if (k === 'c') clearCanvas();
+  else if (k === 'w' && typeof brush !== 'undefined') cycleParam(RENDERS, 'render');
+  else if (k === 'm') setParam('mode', state.mode === 'strokes' ? 'fade' : 'strokes');
+  else if (k === '[') setParam('density', Math.max(1, Math.round(state.density * 0.8)));
+  else if (k === ']') setParam('density', Math.round(state.density * 1.25));
+  else if (k === ',') setParam('lifetime', +(state.lifetime * 1.25).toFixed(2));
+  else if (k === '.') setParam('lifetime', Math.max(0.1, +(state.lifetime * 0.8).toFixed(2)));
+  else if (k === 'o') cycleParam(OVERLAYS, 'overlay');
   else if (k === 'f') toggleFit();
   else if (k === 's') savePNG();
 }
 
+// [key, label, kind, options, tip]; sliders: [min, max, step, typedMin, typedMax]
+const CONTROLS = [
+  ['render', 'Render', 'select', [['flat', 'Flat'], ['watercolor', 'Watercolor'], ['layered', 'Watercolor, layered']], 'W'],
+  ['mode', 'Style', 'select', [['strokes', 'Strokes'], ['fade', 'Fade']], 'M'],
+  ['density', 'Density', 'range', [10, 800, 10, 1, Infinity], 'Shapes alive at once ([ ])'],
+  ['lifetime', 'Cycle s', 'range', [1, 60, 0.5, 0.1, Infinity], 'Seconds for a full turnover (, .)'],
+  ['fadeIn', 'Fade in', 'range', [0, 0.5, 0.05, 0, 1], 'How gradually each shape appears'],
+  ['fadeOut', 'Fade out', 'range', [0, 0.5, 0.05, 0, 1], 'How gradually each shape disappears'],
+  ['opacity', 'Opacity', 'range', [0.1, 1, 0.05, 0, 1], 'Stroke strength at full life'],
+  ['pigment', 'Pigment', 'range', [0, 1, 0.05, 0, 1], 'Watercolor: 0 pale wash, 1 fitted colour'],
+  ['shapes', 'Shapes', 'select', [['mixed', 'Mixed'], ['rect', 'Rectangles'], ['circle', 'Circles'], ['triangle', 'Triangles']], 'Shape vocabulary'],
+  ['overlay', 'Overlay', 'select', [['off', 'Off'], ['under', 'Under'], ['over', 'Over'], ['solo', 'Solo']], 'Reference (O)'],
+  ['refOpacity', 'Ref opacity', 'range', [0, 1, 0.05, 0, 1], 'Reference opacity for Under and Over']
+];
+
 function buildPanel() {
+  if (!state.shapes || Array.isArray(state.shapes)) {
+    const s = state.shapes || [];
+    state.shapes = s.length === 1 ? s[0] : 'mixed';
+  }
   panel = document.createElement('div');
   panel.id = 'ams-panel';
+  panel.hidden = true;
   panel.title = 'U shows or hides this panel';
-  const buttons = [
-    ['pause', 'Pause', togglePause, 'Space'],
-    ['render', 'Flat', toggleRenderer, 'W: watercolor or flat'],
-    ['mode', 'Strokes', toggleMode, 'M: strokes (one at a time) or fade (many at once)'],
-    ['dminus', 'Density −', () => setDensity(0.8), '['],
-    ['density', '', null, 'Shapes alive at once'],
-    ['dplus', 'Density +', () => setDensity(1.25), ']'],
-    ['slower', 'Slower', () => setLifetime(1.25), ','],
-    ['life', '', null, 'Seconds for the whole painting to turn over'],
-    ['faster', 'Faster', () => setLifetime(0.8), '.'],
-    ['fit', 'Fit', toggleFit, 'F'],
-    ['save', 'Save PNG', savePNG, 'S']
-  ];
-  for (const [id, label, fn, tip] of buttons) {
-    const el = document.createElement(fn ? 'button' : 'span');
-    el.dataset.id = id;
-    el.textContent = label;
-    el.title = tip;
-    if (fn) el.addEventListener('click', fn);
-    panel.appendChild(el);
+  const buttons = document.createElement('div');
+  buttons.className = 'ams-row';
+  for (const [id, label, fn, tip] of [['pause', 'Pause', togglePause, 'Space'], ['clear', 'Clear', clearCanvas, 'C: clear and repaint from blank'], ['fit', 'Fit', toggleFit, 'F'], ['save', 'Save PNG', savePNG, 'S']]) {
+    const b = document.createElement('button');
+    b.dataset.id = id;
+    b.textContent = label;
+    b.title = tip;
+    b.addEventListener('click', fn);
+    buttons.appendChild(b);
+  }
+  panel.appendChild(buttons);
+  for (const [key, label, kind, opts, tip] of CONTROLS) {
+    const row = document.createElement('label');
+    row.className = 'ams-control';
+    row.title = tip;
+    const name = document.createElement('span');
+    name.textContent = label;
+    row.appendChild(name);
+    if (kind === 'select') {
+      const sel = document.createElement('select');
+      sel.dataset.key = key;
+      for (const [value, text] of opts) sel.add(new Option(text, value));
+      if (key === 'render' && typeof brush === 'undefined') sel.disabled = true;
+      sel.addEventListener('change', () => { setParam(key, sel.value); sel.blur(); });
+      row.appendChild(sel);
+    } else {
+      const [min, max, step, tmin, tmax] = opts;
+      const range = document.createElement('input');
+      range.type = 'range';
+      range.min = min; range.max = max; range.step = step;
+      range.dataset.key = key;
+      const num = document.createElement('input');
+      num.className = 'num';
+      num.dataset.key = key;
+      range.addEventListener('input', () => setParam(key, Number(range.value)));
+      if (key === 'density') {
+        row.classList.add('ams-control-count');
+        row.title = tip + '. The muted number is how many are on screen now.';
+      }
+      num.addEventListener('change', () => {
+        const v = Number(num.value);
+        if (Number.isFinite(v)) setParam(key, Math.min(tmax, Math.max(tmin, v)));
+        num.blur();
+      });
+      row.appendChild(range);
+      if (key === 'density') {
+        const count = document.createElement('span');
+        count.className = 'ams-count';
+        row.appendChild(count);
+      }
+      row.appendChild(num);
+    }
+    panel.appendChild(row);
   }
   document.body.appendChild(panel);
-  updatePanel();
+  syncPanel();
 }
 
-function updatePanel() {
+function syncPanel() {
   if (!panel) return;
-  const q = id => panel.querySelector('[data-id="' + id + '"]');
-  q('pause').textContent = paused ? 'Play' : 'Pause';
-  q('mode').textContent = cf.mode === 'strokes' ? 'Strokes' : 'Fade';
-  q('render').textContent = renderer === 'watercolor' ? 'Watercolor' : 'Flat';
-  q('density').textContent = cf.density + ' shapes';
-  q('life').textContent = cf.lifetime.toFixed(1) + ' s';
-  q('fit').textContent = fitMode ? 'Fit' : 'Fill';
+  panel.querySelector('[data-id="pause"]').textContent = paused ? 'Play' : 'Pause';
+  panel.querySelector('[data-id="fit"]').textContent = fitMode ? 'Fit' : 'Fill';
+  for (const el of panel.querySelectorAll('[data-key]')) {
+    const v = state[el.dataset.key];
+    if (document.activeElement !== el) el.value = v;
+  }
 }
 `;
 
@@ -497,7 +602,7 @@ function updatePanel() {
  * @param {{rgb: Float32Array, width: number, height: number}} target RGB target at the canvas aspect
  * @param {{mode?:string, density:number, lifetime:number, fadeIn?:number, fadeOut?:number, fade?:number, shapes:string[], seed:number}} params
  */
-export function buildContinuousSketch(target, params, { title = 'AMS continuous', source = '' } = {}) {
+export function buildContinuousSketch(target, params, { title = 'AMS continuous', source = '', refDataUrl = '' } = {}) {
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ams-continuous';
   const header = [
     `// ${title}: continuous Reference Fitter`,
@@ -511,6 +616,7 @@ const TARGET_W = ${target.width};
 const TARGET_H = ${target.height};
 const PARAMS = ${JSON.stringify(params)};
 const TARGET_B64 = "${rgbToBase64(target.rgb)}";
+const REF_DATA_URL = ${JSON.stringify(refDataUrl)};
 ${CONTINUOUS_RUNTIME}
 // ---- Studio fitter (src/fitting/fitReference.js) ----
 ${inlineModule(fitReferenceSource)}
@@ -518,8 +624,10 @@ ${inlineModule(fitReferenceSource)}
 ${inlineModule(continuousSource)}
 // ---- Studio watercolor routine (src/media/watercolorBrush.js) ----
 ${inlineModule(watercolorSource)}
-// ---- Continuous watercolor layer (src/fitting/continuousWatercolor.js) ----
-${inlineModule(continuousWatercolorSource)}`;
+// ---- Continuous watercolor (src/fitting/continuousWatercolor.js) ----
+${inlineModule(continuousWatercolorSource)}
+// ---- Scene with reference overlay (src/fitting/continuousScene.js) ----
+${inlineModule(continuousSceneSource)}`;
 }
 
 export async function buildContinuousZip(target, params, options = {}) {
@@ -536,16 +644,19 @@ the reference forever: each shape fades in, lives for a while, fades out, and is
 replaced by a new shape fitted to what is left.
 
 Open \`index.html\` in a browser (no server needed). Press **U** for controls:
-pause (Space), watercolor or flat (W), style (M), density ([ and ]),
-cycle (, and .), fit or fill (F), save PNG (S).
+the same controls as the studio's Reference tab (render, style, density, cycle,
+fades, opacity, pigment, shapes, reference overlay). Keys: Space pause, C clear,
+W render, M style, [ ] density, , . cycle, O overlay, F fit or fill, S save PNG.
 
-Watercolor paints each stroke with p5.brush as it lands; older paint fades under
-thin washes of paper colour. It needs WebGL.
+Watercolor paints each stroke with p5.brush as its own translucent sprite that
+fades in and out; "Watercolor, layered" paints strokes onto one sheet that fades
+under thin washes. Both need WebGL. The overlay shows the reference under the
+painting, over it, or on its own.
 
 Styles: **strokes** adds one shape at a time and retires the oldest, like a
 looping stroke-by-stroke replay; **fade** lets many shapes fade in and out at once.
 
-Settings at export: ${params.render || 'flat'} render, ${params.mode || 'strokes'} style, ${params.density} shapes, ${params.lifetime} s cycle, fade in ${params.fadeIn ?? params.fade}, fade out ${params.fadeOut ?? params.fade}, shapes: ${params.shapes.join(', ')}.
+Settings at export: ${params.render || 'flat'} render, overlay ${params.overlay || 'off'}, ${params.mode || 'strokes'} style, ${params.density} shapes, ${params.lifetime} s cycle, fade in ${params.fadeIn ?? params.fade}, fade out ${params.fadeOut ?? params.fade}, shapes: ${params.shapes.join(', ')}.
 
 - \`sketch.js\`: the player, the studio's fitter and continuous-mode code, and a
   ${target.width}×${target.height} copy of the reference used as the fitting target.

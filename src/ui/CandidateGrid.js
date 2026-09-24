@@ -222,8 +222,12 @@ export class CandidateGrid {
               draggable="false"
               src="${heroSrc}"
               alt="Candidate ${activeLetter} Large Preview"
-              style="${heroHasImage ? 'display: block;' : 'display: none;'}"
+              style="${heroHasImage ? 'display: block;' : 'display: none;'}${this.refOverlay?.mode === 'solo' && this.refOverlay?.src ? ' visibility: hidden;' : ''}"
             />
+            ${this.refOverlay?.src && this.refOverlay.mode !== 'off' ? `
+              <img id="hero-ref-overlay" class="hero-image hero-ref-overlay" draggable="false" alt="Reference overlay"
+                src="${this.refOverlay.src}" style="opacity: ${this.refOverlay.mode === 'solo' ? 1 : this.refOverlay.opacity};" />
+            ` : ''}
             ${(!activeCand?.renderedImage || this.downloadProgress) ? `
               <div class="hero-loading-overlay ${this.downloadProgress || !heroHasImage ? 'centered' : 'floating'}">
                 ${this.downloadProgress ? this.renderDownloadCard() : `
@@ -581,6 +585,12 @@ export class CandidateGrid {
     });
   }
 
+  /** Reference overlay on the static preview: { src, mode: off|under|over|solo, opacity }. */
+  setRefOverlay(overlay) {
+    this.refOverlay = overlay;
+    if (this.candidates?.length) this.render();
+  }
+
   applyExpanded() {
     this.container?.closest('.studio-hero-layout')?.classList.toggle('preview-expanded', Boolean(this.isFullSize));
   }
@@ -619,7 +629,7 @@ export class CandidateGrid {
     const identity = Math.abs(v.s - 1) < 0.001 && Math.abs(v.x) < 0.1 && Math.abs(v.y) < 0.1;
     const transform = identity ? '' : `translate(${v.x}px, ${v.y}px) scale(${v.s})`;
     const wrap = this.container?.querySelector('#hero-canvas-wrap');
-    for (const el of [this.container?.querySelector('#hero-main-img'), wrap?.querySelector('.live-painter-canvas')]) {
+    for (const el of [this.container?.querySelector('#hero-main-img'), this.container?.querySelector('#hero-ref-overlay'), wrap?.querySelector('.live-painter-canvas')]) {
       if (!el) continue;
       el.style.transform = transform;
       el.style.transformOrigin = 'center center';

@@ -71,6 +71,14 @@ describe('p5 export', () => {
     expect(sketch).toContain('const TARGET_H = 6;');
     expect(() => new Function(sketch)).not.toThrow();
     expect(sketch).toContain('class WatercolorLayer');
+    expect(sketch).toContain('class WatercolorSprites');
+    expect(sketch).toContain('function drawScene(');
+    expect(sketch).toContain('const REF_DATA_URL = ');
+    // Top-level names must not collide with p5 globals (p5 refuses to redefine them).
+    const p5Globals = ['set', 'get', 'fill', 'stroke', 'text', 'image', 'color', 'random', 'noise', 'map', 'line', 'rect',
+      'circle', 'point', 'save', 'loop', 'redraw', 'remove', 'clear', 'erase', 'shape', 'triangle', 'filter', 'blend', 'copy', 'mask', 'print'];
+    const topLevel = [...sketch.matchAll(/^(?:function|let|const|class)\s+([A-Za-z_$][\w$]*)/gm)].map(m => m[1]);
+    expect(topLevel.filter(n => p5Globals.includes(n))).toEqual([]);
     // brush.js declares globals t and e; a top-level let/const with those names breaks the page.
     expect(sketch).not.toMatch(/^(let|const|var)\s+(t|e)\b|^let [^;]*\b(t|e)\s*=/m);
     expect(sketch).toContain("k === 'w'");

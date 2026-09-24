@@ -95,12 +95,13 @@ export function retentionFor(fadeOut) {
  * opacity, the same envelope the flat renderer uses.
  */
 export class WatercolorSprites {
-  constructor(brush, { width = 1024, height = 1024, seed = 42, maxBuildsPerFrame = 2 } = {}) {
+  constructor(brush, { width = 1024, height = 1024, seed = 42, budgetMs = 12 } = {}) {
     this.brush = brush;
     this.w = width;
     this.h = height;
     this.seed = seed;
-    this.maxBuildsPerFrame = maxBuildsPerFrame;
+    this.budgetMs = budgetMs; // sprite-building time per frame
+    this.pending = 0;         // living strokes still waiting for a sprite
     this.scratch = document.createElement('canvas');
     this.scratch.width = width;
     this.scratch.height = height;
@@ -188,25 +189,31 @@ export class WatercolorSprites {
     this.paper.getContext('2d').drawImage(this.scratch, 0, 0);
   }
 
-  /** Build sprites for new strokes (a few per frame) and drop sprites of dead ones. */
-  update(cf) {
+  /**
+   * Build sprites for new strokes, newest first, within a per-frame time budget,
+   * and drop sprites of dead strokes. A stroke whose sprite arrives late is
+   * re-timed to start its life now, so it still gets its whole fade-in.
+   */
+  update(cf, now) {
     this.ensurePaper(cf);
-    const aliveIds = new Set();
-    let built = 0;
-    for (const s of cf.alive) {
-      aliveIds.add(s.id);
-      if (!this.sprites.has(s.id) && built < this.maxBuildsPerFrame) {
-        this.sprites.set(s.id, this.build(s));
-        built++;
-      }
-    }
+    const aliveIds = new Set(cf.alive.map(s => s.id));
     for (const id of this.sprites.keys()) if (!aliveIds.has(id)) this.sprites.delete(id);
+    const waiting = cf.alive.filter(s => !this.sprites.has(s.id)).sort((a, b) => b.born - a.born);
+    const t0 = performance.now();
+    let built = 0;
+    for (const s of waiting) {
+      if (built > 0 && performance.now() - t0 > this.budgetMs) break;
+      this.sprites.set(s.id, this.build(s));
+      if (now !== undefined && now > s.born) s.born = now; // late sprite: begin its fade-in now
+      built++;
+    }
+    this.pending = waiting.length - built;
   }
 
-  draw(ctx, x, y, w, h, cf, now) {
+  draw(ctx, x, y, w, h, cf, now, { ground = true } = {}) {
     const kx = w / this.w, ky = h / this.h;
     ctx.save();
-    if (this.paper) ctx.drawImage(this.paper, x, y, w, h);
+    if (ground && this.paper) ctx.drawImage(this.paper, x, y, w, h);
     for (const s of cf.alive) {
       const sp = this.sprites.get(s.id);
       if (!sp) continue;

@@ -1935,3 +1935,30 @@ button:focus { outline: none; }
 select:focus-visible,
 input:focus-visible,
 button:focus-visible { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 1px var(--border-focus); }
+
+/* Reference overlay on the static preview */
+.hero-canvas-container .hero-ref-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.overlay-controls { gap: 6px; }
+
+/* Play / Clear / Export: one size; Play keeps a slightly stronger fill */
+.live-row button {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+}
+.live-row .live-toggle { min-width: 60px; }
+
+/* Density row: "visible / requested" while playing */
+.live-slider.live-slider-count { grid-template-columns: 64px 1fr auto 56px; }
+.live-count { font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-muted); text-align: right; white-space: nowrap; }
+.live-count:empty { display: none; }

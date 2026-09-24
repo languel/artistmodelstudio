@@ -57,6 +57,12 @@ export class ContinuousFitter {
     if (shapes !== undefined && shapes.length) this.fitter.shapeTypes = shapes;
   }
 
+  /** Wipe the painting: remove every shape; new ones start filling from blank. */
+  clear() {
+    this.alive = [];
+    this.spawnDebt = 0;
+  }
+
   /** Seconds between strokes. */
   get beat() {
     return this.lifetime / this.density;
@@ -125,14 +131,17 @@ export class ContinuousFitter {
     return true;
   }
 
-  /** Advance the simulation to time `now` (seconds); `dt` is the elapsed time. */
-  update(now, dt) {
+  /**
+   * Advance the simulation to time `now` (seconds); `dt` is the elapsed time.
+   * `maxSpawns` lets a slow renderer apply backpressure (e.g. watercolor sprites).
+   */
+  update(now, dt, maxSpawns = Infinity) {
     this.alive = this.alive.filter(s => now - s.born < s.life);
     const strokes = this.mode === 'strokes';
     // Strokes keep a steady one-per-beat pace (also while filling); fade builds up faster at first.
     const rate = (this.density / this.lifetime) * (!strokes && this.alive.length < this.density * 0.9 ? 3 : 1);
-    const maxPerFrame = strokes ? Math.max(1, Math.ceil(rate / 30)) : this.maxSpawnsPerFrame;
-    this.spawnDebt = Math.min(this.spawnDebt + dt * rate, maxPerFrame * 2);
+    const maxPerFrame = Math.min(maxSpawns, strokes ? Math.max(1, Math.ceil(rate / 30)) : this.maxSpawnsPerFrame);
+    this.spawnDebt = Math.min(this.spawnDebt + dt * rate, Math.max(1, maxPerFrame) * 2);
     let spawned = 0;
     while (this.spawnDebt >= 1 && spawned < maxPerFrame) {
       this.spawnDebt -= 1;
@@ -141,15 +150,17 @@ export class ContinuousFitter {
     return spawned;
   }
 
-  /** Draw at time `now` into the view rectangle (x, y, w, h) of a 2D context. */
-  draw(ctx, x, y, w, h, now) {
+  /** Draw at time `now` into the view rectangle (x, y, w, h); `ground: false` skips the background fill. */
+  draw(ctx, x, y, w, h, now, { ground = true } = {}) {
     const X = v => x + (v + 1) * 0.5 * w;
     const Y = v => y + (v + 1) * 0.5 * h;
     const S = v => v * 0.5 * Math.min(w, h);
     ctx.save();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = this.background;
-    ctx.fillRect(x, y, w, h);
+    if (ground) {
+      ctx.fillStyle = this.background;
+      ctx.fillRect(x, y, w, h);
+    }
     ctx.beginPath();
     ctx.rect(x, y, w, h);
     ctx.clip();

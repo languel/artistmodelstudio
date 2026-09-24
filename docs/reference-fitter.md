@@ -23,14 +23,19 @@ Geometry matches `FlatCanvasMedium`, so a fitted program renders the same in the
 | Strokes (default) | One shape per beat (beat = cycle ÷ density). Each lives exactly one cycle, so the oldest leaves as the newest arrives: a looping stroke-by-stroke time-lapse. Fade in / out last 1 + 20 × setting beats. |
 | Fade | Lifetimes vary ±20% and each shape fades in and out over a share of its life, so many shapes are fading at once. |
 
-**Render**
+**Render** (`src/fitting/continuousWatercolor.js`)
 
 - **Flat** redraws every living shape each frame with its current opacity.
-- **Watercolor** (`src/fitting/continuousWatercolor.js`) paints each stroke once with p5.brush as it lands (~5 ms) and fades old paint with a thin paper-coloured wash every half second. A full p5.brush repaint of 150 shapes takes about a second, too slow to redraw per frame. **Fade out** sets how much of a stroke survives one cycle. p5.brush holds a single drawing surface, so if anything else paints with it, the layer repaints the living shapes.
+- **Watercolor** paints each stroke once with p5.brush on white and on black with the same seed (p5.brush output is deterministic per seed), recovers per-pixel opacity and colour, and caches the stroke as a sprite. Every frame draws the paper and each living sprite at its current opacity, so strokes fade in and out individually like flat. A new stroke costs ~33 ms; drawing is nearly free. Sprites are built newest first within a per-frame time budget; a stroke whose sprite arrives late starts its life when it appears (so it keeps its whole fade-in), and while sprites are queued the fitter holds back new strokes. On an M5 Max that caps watercolor at about 28 new strokes a second, so the most it can show is about 28 × cycle (≈140 at a 5 s cycle); longer cycles allow more. Flat has no such limit. **Pigment** (0–1) pulls the recovered colour, which p5.brush paints as a pale wash, toward the stroke's fitted colour while keeping the brush texture.
+- **Watercolor, layered** paints each stroke once onto one sheet (~5 ms) and fades everything together under thin paper-coloured washes every half second; **Fade out** sets how much survives one cycle, and traces linger for several cycles. p5.brush holds a single drawing surface, so if anything else paints with it, the layer repaints the living shapes.
+
+**Opacity** sets each stroke's strength at full life in every render.
+
+**Overlay** shows the reference on the canvas: **Under** replaces the plain ground with the reference (at its own opacity), **Over** lays it on top for comparing, **Solo** shows it alone. It also works on the static preview. All drawing goes through `src/fitting/continuousScene.js`, shared with the export.
 
 Fitting runs at 128 px; drawing is at full resolution. On *Senecio* at 150 shapes the displayed picture settles around pixel RMSE 12, about a static 150-shape fit.
 
-**In the studio:** Reference tab → **Play continuous**. Render, Style, Density, Cycle, Fade in, Fade out and Shapes change the running painting live.
+**In the studio:** Reference tab → **Play** (**Clear** wipes the canvas and repaints from blank). While playing, the Density row reads *visible / requested* (e.g. `140 / 460`). Render, Style, Density, Cycle, Fade in, Fade out, Opacity, Pigment, Shapes and Overlay change the running painting live; typed values may go past the slider ranges.
 
 ## p5.js export
 
@@ -43,10 +48,11 @@ Press **U** in an exported sketch for its control panel (bottom of the window; h
 
 | Static sketch | Continuous sketch |
 | --- | --- |
-| R re-render · A animate · L loop · F fit/fill · W watercolor/flat · S save PNG | Space pause · W watercolor/flat · M strokes/fade · `[` `]` density · `,` `.` cycle · F fit/fill · S save PNG |
+| R re-render · A animate · L loop · F fit/fill · W watercolor/flat · S save PNG | Panel mirrors the Reference tab controls, including the *visible / requested* density readout. Space pause · C clear · W render · M style · `[` `]` density · `,` `.` cycle · O overlay · F fit/fill · S save PNG |
 
 Notes:
 
 - Pixel programs replay frames pre-rendered by the studio's pixel medium.
 - Invalid colours are skipped rather than stopping the sketch.
-- `brush.js` defines globals `t` and `e`, so sketch code must not declare top-level variables with those names (a test guards this).
+- `brush.js` defines globals `t` and `e`, and p5 defines globals such as `set`, so sketch code avoids those names at top level (tests guard this).
+- Continuous exports embed the reference at the canvas aspect for the overlay, and start with the studio's settings at export time.
