@@ -11,7 +11,7 @@ A human-in-the-loop creative coding studio. Models (or procedures) write small d
 - **Continuous mode**: the fitter as an endless painting. Shapes land one at a time (or fade in and out together), live for a cycle and are replaced by new fits, repainting the reference forever, flat or in watercolor.
 - **Exports**: Text DSL, JSON, or a self-contained **p5.js project** (zip with `index.html`, `sketch.js`, vendored `p5.min.js` and `p5.brush`). Static exports can animate, loop, fit or fill the window and switch watercolor/flat; continuous exports run forever with live density, pacing and style controls.
 - **Distilled models**: a pipeline that trains small models (LFM2.5-350M, Qwen3-0.6B) with LoRA on Reference Fitter programs of public-domain Paul Klee paintings, served locally for the *Distilled Klee* engine. See [training/klee/README.md](training/klee/README.md).
-- **References**: bundled public-domain works with sources and rights recorded ([fixtures/README.md](fixtures/README.md)), or your own uploads, which stay in the browser.
+- **References**: bundled public-domain works with sources and rights recorded ([fixtures/README.md](fixtures/README.md)), your own uploads (images, animated GIF/WebP, video), or the webcam, all kept in the browser. Live sources are sampled continuously, at an interval, or held.
 
 ## Quick start
 

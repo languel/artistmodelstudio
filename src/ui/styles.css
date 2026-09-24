@@ -1963,3 +1963,15 @@ button:focus-visible { outline: none; border-color: var(--border-focus); box-sha
 .num-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 4px; min-width: 0; }
 .num-wrap .num-field { width: 44px; flex: none; }
 .live-count { font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-muted); white-space: nowrap; }
+
+/* Live reference preview (webcam / video / animation) */
+.reference-live-view {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+.source-controls[hidden], .live-slider[hidden] { display: none !important; }

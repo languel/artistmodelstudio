@@ -31,6 +31,20 @@ Geometry matches `FlatCanvasMedium`, so a fitted program renders the same in the
 
 **Opacity** sets each stroke's strength at full life in every render.
 
+**Fit** (Reference tab): how the reference is placed when its aspect differs from the canvas. *Cover* (default) crops to fill, so nothing outside the reference is sampled. *Contain* shows all of it: the padding is masked out of fitting and painting is clipped to the reference's area. *Stretch* distorts to fill. It applies to the Reference Fitter engine, continuous mode, the overlay and exports (live exports also have a Fit control).
+
+**Ground**: *Transparent* (default) paints no ground; strokes fill the picture in. *Fixed* uses the reference's average colour, taken at Play and on every Clear. *Follow* re-takes it from each sampled frame (it can shift with live sources). *Drift* eases toward each frame's average over **Ground s** seconds, smoothing flicker and cuts into slow colour shifts (watercolor paper is repainted only when the colour has moved noticeably). The fitter always assumes the average colour internally. The layered watercolor keeps its paper, which is part of its painting.
+
+**Live references** (`src/fitting/referenceSource.js`): choose **Webcam** in the reference menu, or upload a video (mp4, webm, mov) or an animated GIF / WebP / APNG (decoded frame by frame with `ImageDecoder`). The **Source** controls then set how continuous mode follows it:
+
+| Sampling | Behaviour |
+| --- | --- |
+| Continuous | refit to every frame (live portraits) |
+| Interval | take a new frame every *Interval* seconds |
+| Hold | keep the current frame; the painting settles on it |
+
+**Rate** changes video/animation playback speed independently of sampling (0 pauses). The fitter swaps in each sampled frame as its new target; the ground colour changes only with Ground *Follow*, and then only when the frame's average moves noticeably. The Reference Fitter engine, overlay and Reference aspect use the current frame.
+
 **Overlay** shows the reference on the canvas: **Under** replaces the plain ground with the reference (at its own opacity), **Over** lays it on top for comparing, **Solo** shows it alone. It also works on the static preview. All drawing goes through `src/fitting/continuousScene.js`, shared with the export.
 
 Fitting runs at 128 px; drawing is at full resolution. On *Senecio* at 150 shapes the displayed picture settles around pixel RMSE 12, about a static 150-shape fit.
@@ -56,3 +70,4 @@ Notes:
 - Invalid colours are skipped rather than stopping the sketch.
 - `brush.js` defines globals `t` and `e`, and p5 defines globals such as `set`, so sketch code avoids those names at top level (tests guard this).
 - Continuous exports embed the reference at the canvas aspect for the overlay, and start with the studio's settings at export time.
+- Live sources travel with continuous exports: a webcam export asks for the camera when opened (falling back to the frame captured at export); an uploaded video or animation is embedded in `sketch.js` as base64, because a media file loaded from disk would make the canvas unreadable to the fitter. The panel adds Sampling, Interval and Rate, and **H** toggles Hold.

@@ -7,28 +7,47 @@
  *   over   the reference on top of the painting at `refOpacity`, for comparing
  *   solo   the reference only
  *
+ * With cf.ground === 'transparent' no ground colour or paper is painted (the
+ * layered watercolor keeps its paper, which is part of its painting).
+ *
  * Shared by the studio's live preview and the continuous p5 export, which
  * embeds this file with import/export lines stripped. Renderers are updated by
  * the caller; this only draws.
  */
-export function drawScene(ctx, x, y, w, h, { cf, now, render = 'flat', sprites = null, layer = null, ref = null, overlay = 'off', refOpacity = 0.5 }) {
+export function drawScene(ctx, x, y, w, h, opts) {
+  // Fit 'contain': clip everything to the reference's area inside the canvas.
+  const r = opts.cf.contentRect;
+  if (!r) return drawSceneInner(ctx, x, y, w, h, opts);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x + r.x * w, y + r.y * h, r.w * w, r.h * h);
+  ctx.clip();
+  drawSceneInner(ctx, x, y, w, h, opts);
+  ctx.restore();
+}
+
+function drawSceneInner(ctx, x, y, w, h, { cf, now, render = 'flat', sprites = null, layer = null, ref = null, overlay = 'off', refOpacity = 0.5 }) {
   if (overlay === 'solo' && ref) {
     ctx.drawImage(ref, x, y, w, h);
     return;
   }
   const canUnder = render !== 'layered';
   const under = overlay === 'under' && ref && canUnder;
+  const transparent = cf.ground === 'transparent';
   if (under) {
     ctx.save();
-    ctx.fillStyle = cf.background;
-    ctx.fillRect(x, y, w, h);
+    if (!transparent) {
+      ctx.fillStyle = cf.background;
+      ctx.fillRect(x, y, w, h);
+    }
     ctx.globalAlpha = refOpacity;
     ctx.drawImage(ref, x, y, w, h);
     ctx.restore();
   }
-  if (render === 'watercolor' && sprites) sprites.draw(ctx, x, y, w, h, cf, now, { ground: !under });
+  const ground = !under && !transparent;
+  if (render === 'watercolor' && sprites) sprites.draw(ctx, x, y, w, h, cf, now, { ground });
   else if (render === 'layered' && layer) layer.draw(ctx, x, y, w, h);
-  else cf.draw(ctx, x, y, w, h, now, { ground: !under });
+  else cf.draw(ctx, x, y, w, h, now, { ground });
   if (ref && (overlay === 'over' || (overlay === 'under' && !canUnder))) {
     ctx.save();
     ctx.globalAlpha = refOpacity;

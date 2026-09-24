@@ -8,6 +8,7 @@ import { canvasToRGB } from '../fitting/fitReference.js';
 import { fitTarget, fitDims } from '../artists/ReferenceFitterArtist.js';
 import { WatercolorLayer, WatercolorSprites, retentionFor } from '../fitting/continuousWatercolor.js';
 import { drawScene } from '../fitting/continuousScene.js';
+import { SourceSampler, letterbox, rgbOf } from '../fitting/referenceSource.js';
 
 let brushModule = null;
 const loadBrush = async () => (brushModule ||= await import('p5.brush/standalone'));
@@ -25,19 +26,29 @@ export class LivePainter {
   }
 
   /** RGB target for a reference at a canvas aspect (also used by the p5 export). */
-  static targetFor(image, aspect = 1) {
+  static targetFor(image, aspect = 1, fit = 'cover') {
     const [w, h] = fitDims(aspect, LIVE_FIT_SIZE);
-    return { rgb: canvasToRGB(fitTarget(image, w, h)), width: w, height: h };
+    const c = fitTarget(image, w, h, fit);
+    return { rgb: canvasToRGB(c), width: w, height: h, contentRect: c.contentRect };
   }
 
-  async start(image, params, aspect = 1) {
+  /**
+   * @param image   still reference, or a live source's frame canvas
+   * @param source  optional LiveSource (webcam / video / animation); its frames
+   *                are sampled into the fitting target on the sampler's schedule
+   */
+  async start(image, params, aspect = 1, source = null) {
     this.stop();
+    this.source = source;
+    this.sampler = source ? new SourceSampler({ mode: params.sampling, interval: params.interval }) : null;
     if (params.render === 'watercolor' || params.render === 'layered') await loadBrush();
     this.aspect = aspect;
-    this.target = LivePainter.targetFor(image, aspect);
+    this.fit = params.fit || 'cover';
+    this.target = LivePainter.targetFor(image, aspect, this.fit);
     const [rw, rh] = fitDims(aspect, 1024);
-    this.refCanvas = fitTarget(image, rw, rh); // display-resolution reference for the overlay
+    this.refCanvas = fitTarget(image, rw, rh, this.fit); // display-resolution reference for the overlay
     this.cf = new ContinuousFitter(this.target.rgb, this.target.width, this.target.height, params);
+    this.cf.setContent(this.target.contentRect);
     this.params = { ...params };
     this.t = 0;
     this.last = performance.now();
@@ -48,6 +59,7 @@ export class LivePainter {
       const dt = Math.min(0.1, (now - this.last) / 1000);
       this.last = now;
       this.t += dt;
+      this.sampleSource(dt);
       // Watercolor sprites are slow to build: hold back new strokes while any are queued.
       const cap = this.params.render === 'watercolor' && this.sprites ? (this.sprites.pending > 0 ? 0 : 2) : Infinity;
       this.cf.update(this.t, dt, cap);
@@ -58,8 +70,25 @@ export class LivePainter {
     this.raf = requestAnimationFrame(tick);
   }
 
+  /** Refresh the fitting target (and overlay image) from a live source when due. */
+  sampleSource(dt) {
+    if (!this.source || !this.sampler || !this.cf) return;
+    if (!this.sampler.due(this.source, dt)) return;
+    const frame = this.source.canvas;
+    if (!frame.width || !frame.height) return;
+    const placed = letterbox(frame, this.target.width, this.target.height, this.fit);
+    this.cf.setTarget(rgbOf(placed));
+    this.cf.setContent(placed.contentRect);
+    const [rw, rh] = fitDims(this.aspect || 1, 1024);
+    this.refCanvas = letterbox(frame, rw, rh, this.fit);
+  }
+
   async setParams(params) {
     this.params = { ...this.params, ...params };
+    if (this.sampler) {
+      if (params.sampling) this.sampler.mode = params.sampling;
+      if (params.interval !== undefined) this.sampler.interval = params.interval;
+    }
     if (this.params.render === 'watercolor' || this.params.render === 'layered') await loadBrush();
     this.cf?.setParams(params);
   }
@@ -75,6 +104,8 @@ export class LivePainter {
 
   stop() {
     this.running = false;
+    this.source = null;
+    this.sampler = null;
     this.layer = null;
     this.sprites = null;
     if (this.raf) cancelAnimationFrame(this.raf);

@@ -93,6 +93,20 @@ describe('p5 export', () => {
     const params = JSON.parse(sketch.match(/^const PARAMS = (.*);$/m)[1]);
     expect(params).toEqual(panel);
     // The player's state starts from PARAMS (defaults only fill gaps).
-    expect(sketch).toContain("const state = Object.assign({ render: 'flat', overlay: 'off', refOpacity: 0.5, opacity: 1, pigment: 0.6 }, PARAMS);");
+    expect(sketch).toMatch(/const state = Object\.assign\(\{[^}]*\}, PARAMS\);/);
+  });
+
+  it('embeds a live source when exporting from webcam or media', () => {
+    const target = { rgb: new Float32Array(4 * 4 * 3).fill(100), width: 4, height: 4 };
+    const params = { density: 10, lifetime: 2, shapes: ['rect'], sampling: 'interval', interval: 3, rate: 0.5 };
+    const cam = buildContinuousSketch(target, params, { media: { kind: 'webcam' } });
+    expect(cam).toContain('const MEDIA_KIND = "webcam";');
+    expect(cam).toContain('class LiveSource');
+    const vid = buildContinuousSketch(target, params, { media: { kind: 'video', type: 'video/mp4', bytes: new Uint8Array([1, 2, 3, 250]) } });
+    expect(vid).toContain('const MEDIA_TYPE = "video/mp4";');
+    expect(vid).toContain('const MEDIA_B64 = "AQID+g==";');
+    expect(() => new Function(vid)).not.toThrow();
+    const still = buildContinuousSketch(target, params);
+    expect(still).toContain('const MEDIA_KIND = "";');
   });
 });

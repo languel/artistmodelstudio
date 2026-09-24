@@ -16,6 +16,7 @@ import fitReferenceSource from '../fitting/fitReference.js?raw';
 import continuousSource from '../fitting/continuousFit.js?raw';
 import continuousWatercolorSource from '../fitting/continuousWatercolor.js?raw';
 import continuousSceneSource from '../fitting/continuousScene.js?raw';
+import referenceSourceSource from '../fitting/referenceSource.js?raw';
 
 const MAX_FRAMES = 150;
 const MAX_PIXEL_FRAMES = 60;
@@ -388,6 +389,12 @@ function inlineModule(src) {
   return src.replace(/^import .*$/gm, '').replace(/^export (?=(const|function|class) )/gm, '');
 }
 
+function bytesToBase64(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
 function rgbToBase64(rgb) {
   let bin = '';
   for (let i = 0; i < rgb.length; i++) bin += String.fromCharCode(Math.max(0, Math.min(255, Math.round(rgb[i]))));
@@ -397,13 +404,13 @@ function rgbToBase64(rgb) {
 const CONTINUOUS_RUNTIME = String.raw`
 // ---------------------------------------------------------------------------
 // Player. The panel mirrors the studio's continuous controls.
-// Keys: U panel · Space pause · C clear · W render (flat / watercolor / layered)
+// Keys: U panel · Space pause · C clear · H hold/resume sampling · W render (flat / watercolor / layered)
 //       M style · [ ] density · , . cycle · O overlay · F fit/fill · S save PNG
 // Names avoid single letters (brush.js defines globals t and e) and p5 globals such as set().
 // ---------------------------------------------------------------------------
 let cf, simTime = 0, lastMillis = 0, paused = false, fitMode = true, panel = null;
-let sprites = null, layer = null, refImg = null;
-const state = Object.assign({ render: 'flat', overlay: 'off', refOpacity: 0.5, opacity: 1, pigment: 0.6 }, PARAMS);
+let sprites = null, layer = null, refImg = null, liveSource = null, sampler = null;
+const state = Object.assign({ fit: 'cover', ground: 'transparent', groundTime: 5, render: 'flat', overlay: 'off', refOpacity: 0.5, opacity: 1, pigment: 0.6, sampling: 'continuous', interval: 2, rate: 1 }, PARAMS);
 if (typeof brush === 'undefined' && state.render !== 'flat') state.render = 'flat';
 
 function decodeTarget() {
@@ -417,10 +424,32 @@ function setup() {
   createCanvas(windowWidth, windowHeight);
   cf = new ContinuousFitter(decodeTarget(), TARGET_W, TARGET_H, state);
   cf.setParams({ opacity: state.opacity });
+  cf.setContent(PARAMS.contentRect || null);
   refImg = new Image();
   refImg.src = REF_DATA_URL;
   lastMillis = millis();
   buildPanel();
+  if (MEDIA_KIND) startSource();
+}
+
+// Webcam asks for the camera; embedded video/animation is decoded from the sketch.
+async function startSource() {
+  try {
+    if (MEDIA_KIND === 'webcam') {
+      liveSource = await LiveSource.webcam();
+    } else {
+      const bin = atob(MEDIA_B64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes], { type: MEDIA_TYPE });
+      liveSource = MEDIA_KIND === 'video' ? await LiveSource.video(URL.createObjectURL(blob)) : await LiveSource.animated(blob);
+    }
+    if (!liveSource) return;
+    liveSource.setRate(state.rate);
+    sampler = new SourceSampler({ mode: state.sampling, interval: state.interval });
+  } catch (err) {
+    console.warn('Live source unavailable, keeping the still reference:', err);
+  }
 }
 
 function windowResized() { resizeCanvas(windowWidth, windowHeight); }
@@ -434,6 +463,16 @@ function draw() {
   const now = millis();
   const dt = Math.min(0.1, (now - lastMillis) / 1000);
   lastMillis = now;
+  if (liveSource) {
+    liveSource.tick(dt);
+    if (!paused && sampler && sampler.due(liveSource, dt) && liveSource.canvas.width) {
+      const placed = letterbox(liveSource.canvas, TARGET_W, TARGET_H, state.fit);
+      cf.setTarget(rgbOf(placed));
+      cf.setContent(placed.contentRect);
+      const d = rendererDims();
+      refImg = letterbox(liveSource.canvas, d.width, d.height, state.fit);
+    }
+  }
   if (!paused) {
     simTime += dt;
     // Watercolor sprites are slow to build: hold back new strokes while any are queued.
@@ -466,7 +505,7 @@ function draw() {
   }
   drawScene(drawingContext, x, y, w, h, {
     cf, now: simTime, render: state.render, sprites, layer,
-    ref: refImg && refImg.complete ? refImg : null, overlay: state.overlay, refOpacity: state.refOpacity
+    ref: refImg && (refImg.complete || refImg instanceof HTMLCanvasElement) ? refImg : null, overlay: state.overlay, refOpacity: state.refOpacity
   });
 }
 
@@ -478,8 +517,11 @@ function setParam(key, value) {
   state[key] = value;
   if (key === 'render') { sprites = null; layer = null; }
   if (key === 'opacity') cf.setParams({ opacity: value });
+  if (key === 'sampling' && sampler) sampler.mode = value;
+  if (key === 'interval' && sampler) sampler.interval = value;
+  if (key === 'rate' && liveSource) liveSource.setRate(value);
   if (key === 'shapes') cf.setParams({ shapes: value === 'mixed' ? ['rect', 'triangle', 'circle'] : [value] });
-  else if (['mode', 'density', 'lifetime', 'fadeIn', 'fadeOut'].includes(key)) cf.setParams({ [key]: value });
+  else if (['mode', 'density', 'lifetime', 'fadeIn', 'fadeOut', 'ground', 'groundTime'].includes(key)) cf.setParams({ [key]: value });
   syncPanel();
 }
 
@@ -495,6 +537,7 @@ function keyPressed() {
   if (k === 'u') panel.hidden = !panel.hidden;
   else if (k === ' ') togglePause();
   else if (k === 'c') clearCanvas();
+  else if (k === 'h' && MEDIA_KIND) setParam('sampling', state.sampling === 'hold' ? 'continuous' : 'hold');
   else if (k === 'w' && typeof brush !== 'undefined') cycleParam(RENDERS, 'render');
   else if (k === 'm') setParam('mode', state.mode === 'strokes' ? 'fade' : 'strokes');
   else if (k === '[') setParam('density', Math.max(1, Math.round(state.density * 0.8)));
@@ -509,6 +552,8 @@ function keyPressed() {
 // [key, label, kind, options, tip]; sliders: [min, max, step, typedMin, typedMax]
 const CONTROLS = [
   ['render', 'Render', 'select', [['flat', 'Flat'], ['watercolor', 'Watercolor'], ['layered', 'Watercolor, layered']], 'W'],
+  ['ground', 'Ground', 'select', [['transparent', 'Transparent'], ['fixed', 'Fixed'], ['follow', 'Follow'], ['drift', 'Drift']], 'Transparent: no ground. Fixed: average colour at start and on Clear. Follow: tracks the source. Drift: eases toward it over Ground s'],
+  ['groundTime', 'Ground s', 'range', [0.5, 60, 0.5, 0.05, Infinity], 'Drift: seconds to ease toward the source average'],
   ['mode', 'Style', 'select', [['strokes', 'Strokes'], ['fade', 'Fade']], 'M'],
   ['density', 'Density', 'range', [10, 800, 10, 1, Infinity], 'Shapes alive at once ([ ])'],
   ['lifetime', 'Cycle s', 'range', [1, 60, 0.5, 0.1, Infinity], 'Seconds for a full turnover (, .)'],
@@ -520,6 +565,12 @@ const CONTROLS = [
   ['overlay', 'Overlay', 'select', [['off', 'Off'], ['under', 'Under'], ['over', 'Over'], ['solo', 'Solo']], 'Reference (O)'],
   ['refOpacity', 'Ref opacity', 'range', [0, 1, 0.05, 0, 1], 'Reference opacity for Under and Over']
 ];
+if (MEDIA_KIND) {
+  CONTROLS.push(['fit', 'Fit', 'select', [['cover', 'Cover'], ['contain', 'Contain'], ['stretch', 'Stretch']], 'How the live source is placed when aspects differ']);
+  CONTROLS.push(['sampling', 'Sampling', 'select', [['continuous', 'Continuous'], ['interval', 'Interval'], ['hold', 'Hold']], 'How often the painting follows the live source (H holds)']);
+  CONTROLS.push(['interval', 'Interval s', 'range', [0.2, 20, 0.2, 0.05, Infinity], 'Seconds between samples (Interval)']);
+  if (MEDIA_KIND !== 'webcam') CONTROLS.push(['rate', 'Rate', 'range', [0, 4, 0.05, 0, 16], 'Playback speed, independent of sampling (0 pauses)']);
+}
 
 function buildPanel() {
   if (!state.shapes || Array.isArray(state.shapes)) {
@@ -604,7 +655,7 @@ function syncPanel() {
  * @param {{rgb: Float32Array, width: number, height: number}} target RGB target at the canvas aspect
  * @param {{mode?:string, density:number, lifetime:number, fadeIn?:number, fadeOut?:number, fade?:number, shapes:string[], seed:number}} params
  */
-export function buildContinuousSketch(target, params, { title = 'AMS continuous', source = '', refDataUrl = '' } = {}) {
+export function buildContinuousSketch(target, params, { title = 'AMS continuous', source = '', refDataUrl = '', media = null } = {}) {
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ams-continuous';
   const header = [
     `// ${title}: continuous Reference Fitter`,
@@ -619,6 +670,9 @@ const TARGET_H = ${target.height};
 const PARAMS = ${JSON.stringify(params)};
 const TARGET_B64 = "${rgbToBase64(target.rgb)}";
 const REF_DATA_URL = ${JSON.stringify(refDataUrl)};
+const MEDIA_KIND = ${JSON.stringify(media?.kind || '')};
+const MEDIA_TYPE = ${JSON.stringify(media?.type || '')};
+const MEDIA_B64 = "${media?.bytes ? bytesToBase64(media.bytes) : ''}";
 ${CONTINUOUS_RUNTIME}
 // ---- Studio fitter (src/fitting/fitReference.js) ----
 ${inlineModule(fitReferenceSource)}
@@ -629,7 +683,9 @@ ${inlineModule(watercolorSource)}
 // ---- Continuous watercolor (src/fitting/continuousWatercolor.js) ----
 ${inlineModule(continuousWatercolorSource)}
 // ---- Scene with reference overlay (src/fitting/continuousScene.js) ----
-${inlineModule(continuousSceneSource)}`;
+${inlineModule(continuousSceneSource)}
+// ---- Live sources: webcam, video, animation (src/fitting/referenceSource.js) ----
+${inlineModule(referenceSourceSource)}`;
 }
 
 export async function buildContinuousZip(target, params, options = {}) {
@@ -647,7 +703,8 @@ replaced by a new shape fitted to what is left.
 
 Open \`index.html\` in a browser (no server needed). Press **U** for controls:
 the same controls as the studio's Reference tab (render, style, density, cycle,
-fades, opacity, pigment, shapes, reference overlay). Keys: Space pause, C clear,
+fades, opacity, pigment, shapes, reference overlay, and sampling / interval /
+rate for live sources). Keys: Space pause, C clear, H hold sampling,
 W render, M style, [ ] density, , . cycle, O overlay, F fit or fill, S save PNG.
 
 Watercolor paints each stroke with p5.brush as its own translucent sprite that
@@ -658,7 +715,7 @@ painting, over it, or on its own.
 Styles: **strokes** adds one shape at a time and retires the oldest, like a
 looping stroke-by-stroke replay; **fade** lets many shapes fade in and out at once.
 
-Settings at export: ${params.render || 'flat'} render, overlay ${params.overlay || 'off'}, ${params.mode || 'strokes'} style, ${params.density} shapes, ${params.lifetime} s cycle, fade in ${params.fadeIn ?? params.fade}, fade out ${params.fadeOut ?? params.fade}, shapes: ${params.shapes.join(', ')}.
+${options.media?.kind === 'webcam' ? 'Source: webcam. The browser asks for the camera when the sketch opens; if it is refused, the painting keeps the frame captured at export.\n\n' : options.media?.kind ? 'Source: the uploaded ' + options.media.kind + ', embedded in sketch.js.\n\n' : ''}Settings at export: ${params.render || 'flat'} render, overlay ${params.overlay || 'off'}, ${params.mode || 'strokes'} style, ${params.density} shapes, ${params.lifetime} s cycle, fade in ${params.fadeIn ?? params.fade}, fade out ${params.fadeOut ?? params.fade}, shapes: ${params.shapes.join(', ')}.
 
 - \`sketch.js\`: the player, the studio's fitter and continuous-mode code, and a
   ${target.width}×${target.height} copy of the reference used as the fitting target.

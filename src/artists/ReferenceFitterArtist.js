@@ -14,6 +14,7 @@ import { Artist } from './Artist.js';
 import { ReferenceFitter, canvasToRGB } from '../fitting/fitReference.js';
 import { FlatCanvasMedium } from '../media/FlatCanvasMedium.js';
 import { normalizeProgram } from '../language/normalize.js';
+import { letterbox } from '../fitting/referenceSource.js';
 
 const FIT_SIZE = 192;
 
@@ -43,28 +44,11 @@ export function squareTarget(image, size = FIT_SIZE) {
 }
 
 /**
- * Letterbox an image into a w×h canvas padded with its mean colour, so the fit
- * fills the studio canvas without distorting the reference.
+ * Place an image into a w×h canvas (cover / contain / stretch, see
+ * referenceSource.letterbox). Contain pads with the image's mean colour.
  */
-export function fitTarget(image, w, h) {
-  const iw = image.naturalWidth || image.width;
-  const ih = image.naturalHeight || image.height;
-  const probe = document.createElement('canvas');
-  probe.width = probe.height = 1;
-  const pctx = probe.getContext('2d', { willReadFrequently: true });
-  pctx.drawImage(image, 0, 0, 1, 1);
-  const [r, g, b] = pctx.getImageData(0, 0, 1, 1).data;
-
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  ctx.fillStyle = `rgb(${r},${g},${b})`;
-  ctx.fillRect(0, 0, w, h);
-  const k = Math.min(w / iw, h / ih);
-  const dw = iw * k, dh = ih * k;
-  ctx.drawImage(image, (w - dw) / 2, (h - dh) / 2, dw, dh);
-  return c;
+export function fitTarget(image, w, h, fit = 'contain') {
+  return letterbox(image, w, h, fit);
 }
 
 export class ReferenceFitterArtist extends Artist {
@@ -74,6 +58,11 @@ export class ReferenceFitterArtist extends Artist {
     this.reference = null; // { image, name, source }
     this.runCounter = 0;
     this.aspect = 1; // canvas width / height, set by the studio
+    this.fit = 'cover'; // how the reference is placed when aspects differ
+  }
+
+  setFit(fit) {
+    if (['cover', 'contain', 'stretch'].includes(fit)) this.fit = fit;
   }
 
   setCanvasAspect(aspect) {
@@ -107,7 +96,7 @@ export class ReferenceFitterArtist extends Artist {
     const budget = FITTER_BUDGETS.find(b => b.id === this.model) || FITTER_BUDGETS[1];
     const count = Math.min(request.count || 4, FITTER_VOCABULARIES.length);
     const [fw, fh] = fitDims(this.aspect);
-    const target = canvasToRGB(fitTarget(this.reference.image, fw, fh));
+    const target = canvasToRGB(fitTarget(this.reference.image, fw, fh, this.fit));
     const baseSeed = Number(request.settings?.seed ?? 0) || (Date.now() % 100000) + ++this.runCounter;
 
     // Continue from a parent program when refining.

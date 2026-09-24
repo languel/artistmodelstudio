@@ -1,4 +1,5 @@
 import { icon } from './icons.js';
+import { LiveSource } from '../fitting/referenceSource.js';
 
 /**
  * Reference Panel
@@ -49,15 +50,18 @@ function cropImage(img, crop) {
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
 export class ReferencePanel {
-  constructor({ onLiveClear, onReferenceChange, onLiveToggle, onLiveParams, onExportContinuous, onOverlayChange } = {}) {
+  constructor({ onFitChange, onLiveClear, onReferenceChange, onLiveToggle, onLiveParams, onExportContinuous, onOverlayChange } = {}) {
     this.onReferenceChange = onReferenceChange;
     this.onLiveClear = onLiveClear;
+    this.onFitChange = onFitChange;
     this.onOverlayChange = onOverlayChange;
     this.overlay = { mode: 'off', opacity: 0.5 };
+    this.fit = 'cover'; // how the reference is placed when its aspect differs from the canvas
     this.onLiveToggle = onLiveToggle;
     this.onLiveParams = onLiveParams;
     this.onExportContinuous = onExportContinuous;
-    this.live = { render: 'flat', mode: 'strokes', density: 150, lifetime: 10, fadeIn: 0.05, fadeOut: 0.15, opacity: 1, pigment: 0.6, shapes: 'mixed' };
+    this.sourceCfg = { sampling: 'continuous', interval: 2, rate: 1 };
+    this.live = { ground: 'transparent', groundTime: 5, render: 'flat', mode: 'strokes', density: 150, lifetime: 10, fadeIn: 0.05, fadeOut: 0.15, opacity: 1, pigment: 0.6, shapes: 'mixed' };
     this.liveRunning = false;
     this.references = bundledReferences();
     this.current = null; // { id, name, image, displayUrl, source, rights, uploaded }
@@ -72,12 +76,41 @@ export class ReferencePanel {
           <select id="reference-select" title="Bundled public-domain references">
             <option value="">No reference</option>
             ${options}
-            <option value="__upload">Upload an image…</option>
+            <option value="__webcam">Webcam</option>
+            <option value="__upload">Upload image, animation or video…</option>
           </select>
-          <input type="file" id="reference-upload" accept="image/*" hidden />
+          <input type="file" id="reference-upload" accept="image/*,video/*" hidden />
         </div>
         <div id="reference-view" class="reference-view"></div>
+        <div class="live-controls source-controls" id="source-controls" hidden title="How continuous mode follows a moving reference">
+          <label class="live-slider" title="Continuous: refit to every frame. Interval: take a new frame every few seconds. Hold: keep the last frame.">
+            <span>Sampling</span>
+            <select id="src-sampling">
+              <option value="continuous">Continuous</option>
+              <option value="interval">Interval</option>
+              <option value="hold">Hold</option>
+            </select>
+          </label>
+          <label class="live-slider" title="Seconds between samples (Interval)">
+            <span>Interval s</span>
+            <input type="range" id="src-interval" min="0.2" max="20" step="0.2" value="${this.sourceCfg.interval}" />
+            <input class="num-field" id="src-interval-num" inputmode="decimal" value="${this.sourceCfg.interval}" title="Type any value" />
+          </label>
+          <label class="live-slider" id="src-rate-row" title="Playback speed of the video or animation, independent of sampling (0 pauses)">
+            <span>Rate</span>
+            <input type="range" id="src-rate" min="0" max="4" step="0.05" value="${this.sourceCfg.rate}" />
+            <input class="num-field" id="src-rate-num" inputmode="decimal" value="${this.sourceCfg.rate}" title="Type any value; 0 pauses" />
+          </label>
+        </div>
         <div class="live-controls overlay-controls">
+          <label class="live-slider" title="When the reference and canvas aspects differ. Cover: crop to fill (nothing outside the reference is sampled). Contain: show all of it; the padding is ignored by the fitter and left unpainted. Stretch: distort to fill.">
+            <span>Fit</span>
+            <select id="ref-fit">
+              <option value="cover">Cover</option>
+              <option value="contain">Contain</option>
+              <option value="stretch">Stretch</option>
+            </select>
+          </label>
           <label class="live-slider" title="Show the reference on the canvas: under the painting as its ground, over it for comparing, or on its own">
             <span>Overlay</span>
             <select id="overlay-mode">
@@ -106,6 +139,20 @@ export class ReferencePanel {
               <option value="watercolor">Watercolor</option>
               <option value="layered">Watercolor, layered</option>
             </select>
+          </label>
+          <label class="live-slider" title="Transparent: no ground, strokes fill the picture in. Fixed: the reference's average colour, taken at Play and on every Clear. Follow: the average of each sampled frame (can shift with live sources). Drift: eases toward that average over Ground s seconds.">
+            <span>Ground</span>
+            <select id="live-ground">
+              <option value="transparent">Transparent</option>
+              <option value="fixed">Fixed</option>
+              <option value="follow">Follow</option>
+              <option value="drift">Drift</option>
+            </select>
+          </label>
+          <label class="live-slider" id="ground-time-row" hidden title="Drift: seconds for the ground to ease toward the source's average colour">
+            <span>Ground s</span>
+            <input type="range" id="live-groundtime" min="0.5" max="60" step="0.5" value="${this.live.groundTime}" />
+            <input class="num-field" id="live-groundtime-num" inputmode="decimal" value="${this.live.groundTime}" title="Type any value" />
           </label>
           <label class="live-slider" title="Strokes: one shape at a time, the oldest leaves as the newest arrives. Fade: many shapes fading at once.">
             <span>Style</span>
@@ -161,9 +208,18 @@ export class ReferencePanel {
     select.addEventListener('change', () => {
       if (select.value === '__upload') {
         upload.click();
-        select.value = this.current?.uploaded ? '__upload' : (this.current?.id || '');
+        select.value = this.current?.id || '';
         return;
       }
+      if (select.value === '__webcam') {
+        this.selectWebcam().catch(err => {
+          window.alert(`Webcam unavailable: ${err.message}`);
+          select.value = '';
+          this.selectBundled('');
+        });
+        return;
+      }
+      if (select.value.startsWith('upload:') && this.current?.id === select.value) return;
       this.selectBundled(select.value);
     });
     upload.addEventListener('change', () => {
@@ -173,7 +229,13 @@ export class ReferencePanel {
     });
 
     const liveParams = () => ({
+      fit: this.fit,
+      sampling: this.sourceCfg.sampling,
+      interval: this.sourceCfg.interval,
+      rate: this.sourceCfg.rate,
       render: this.live.render,
+      ground: this.live.ground,
+      groundTime: this.live.groundTime,
       mode: this.live.mode,
       density: this.live.density,
       lifetime: this.live.lifetime,
@@ -214,10 +276,39 @@ export class ReferencePanel {
     bindSlider('fadein', 'fadeIn', { min: 0, max: 1 });
     bindSlider('fadeout', 'fadeOut', { min: 0, max: 1 });
     bindSlider('opacity', 'opacity', { min: 0, max: 1 });
+    bindSlider('groundtime', 'groundTime', { min: 0.05 });
+    const bindSource = (id, key, { min = 0, max = Infinity } = {}) => {
+      const range = container.querySelector(`#src-${id}`);
+      const field = container.querySelector(`#src-${id}-num`);
+      const commit = (v) => {
+        this.sourceCfg[key] = v;
+        if (key === 'rate') this.current?.live?.setRate(v);
+        this.onLiveParams?.(liveParams());
+      };
+      range?.addEventListener('input', () => { field.value = range.value; commit(Number(range.value)); });
+      field?.addEventListener('change', () => {
+        const v = Number(field.value);
+        if (!Number.isFinite(v)) { field.value = this.sourceCfg[key]; return; }
+        const value = Math.min(max, Math.max(min, v));
+        field.value = value;
+        range.value = value;
+        commit(value);
+      });
+    };
+    bindSource('interval', 'interval', { min: 0.05 });
+    bindSource('rate', 'rate', { min: 0, max: 16 });
+    container.querySelector('#src-sampling')?.addEventListener('change', (e) => {
+      this.sourceCfg.sampling = e.target.value;
+      this.onLiveParams?.(liveParams());
+    });
     const overlayChanged = () => {
       this.onOverlayChange?.({ ...this.overlay });
       this.onLiveParams?.(liveParams());
     };
+    container.querySelector('#ref-fit')?.addEventListener('change', (e) => {
+      this.fit = e.target.value;
+      this.onFitChange?.(this.fit);
+    });
     container.querySelector('#overlay-mode')?.addEventListener('change', (e) => {
       this.overlay.mode = e.target.value;
       overlayChanged();
@@ -238,6 +329,11 @@ export class ReferencePanel {
       overlayChanged();
     });
     bindSlider('pigment', 'pigment', { min: 0, max: 1 });
+    container.querySelector('#live-ground')?.addEventListener('change', (e) => {
+      this.live.ground = e.target.value;
+      container.querySelector('#ground-time-row').hidden = e.target.value !== 'drift';
+      this.onLiveParams?.(liveParams());
+    });
     container.querySelector('#live-render')?.addEventListener('change', (e) => {
       this.live.render = e.target.value;
       this.onLiveParams?.(liveParams());
@@ -264,7 +360,44 @@ export class ReferencePanel {
     this.selectBundled(initial);
   }
 
+  /** Stop and forget the current live source, if any. */
+  releaseLive() {
+    this.current?.live?.stop();
+    cancelAnimationFrame(this.liveRaf);
+    this.liveRaf = null;
+  }
+
+  /** Keep a live source's frame canvas current and mirrored into the preview. */
+  runLive(src) {
+    let last = performance.now();
+    const tick = () => {
+      if (this.current?.live !== src) return;
+      const now = performance.now();
+      src.tick(Math.min(0.1, (now - last) / 1000));
+      last = now;
+      const view = this.container?.querySelector('#reference-live-view');
+      if (view && src.canvas.width) {
+        if (view.width !== src.canvas.width || view.height !== src.canvas.height) {
+          view.width = src.canvas.width;
+          view.height = src.canvas.height;
+        }
+        view.getContext('2d').drawImage(src.canvas, 0, 0);
+      }
+      this.liveRaf = requestAnimationFrame(tick);
+    };
+    this.liveRaf = requestAnimationFrame(tick);
+  }
+
+  async selectWebcam() {
+    const src = await LiveSource.webcam();
+    src.tick(0);
+    this.releaseLive();
+    this.setCurrent({ id: '__webcam', name: 'Webcam', image: src.canvas, live: src, kind: 'webcam', rights: 'live camera, stays in this browser' });
+    this.runLive(src);
+  }
+
   async selectBundled(id) {
+    this.releaseLive();
     const ref = this.references.find(r => r.id === id);
     try { localStorage.setItem(STORAGE_KEY, id || ''); } catch { /* storage unavailable */ }
     if (!ref) return this.setCurrent(null);
@@ -282,20 +415,35 @@ export class ReferencePanel {
   }
 
   async selectUpload(file) {
-    const url = URL.createObjectURL(file);
-    const img = await loadImage(url);
-    this.setCurrent({ id: `upload:${file.name}`, name: file.name, image: img, displayUrl: url, source: null, rights: 'your upload (kept in this browser)', uploaded: true });
+    const id = `upload:${file.name}`;
+    let live = null;
+    if (file.type.startsWith('video/')) {
+      live = await LiveSource.video(URL.createObjectURL(file));
+    } else if (/^image\/(gif|webp|png|apng|avif)$/.test(file.type)) {
+      live = await LiveSource.animated(file).catch(() => null); // null for stills
+    }
+    this.releaseLive();
+    if (live) {
+      live.setRate(this.sourceCfg.rate);
+      live.tick(0);
+      this.setCurrent({ id, name: file.name, image: live.canvas, live, kind: live.kind, file, rights: 'your upload (kept in this browser)', uploaded: true });
+      this.runLive(live);
+    } else {
+      const url = URL.createObjectURL(file);
+      const img = await loadImage(url);
+      this.setCurrent({ id, name: file.name, image: img, displayUrl: url, source: null, rights: 'your upload (kept in this browser)', uploaded: true });
+    }
     const select = this.container?.querySelector('#reference-select');
     if (select) {
       let opt = select.querySelector('option[data-upload]');
       if (!opt) {
         opt = document.createElement('option');
         opt.dataset.upload = '1';
-        select.insertBefore(opt, select.querySelector('option[value="__upload"]'));
+        select.insertBefore(opt, select.querySelector('option[value="__webcam"]'));
       }
-      opt.value = `upload:${file.name}`;
+      opt.value = id;
       opt.textContent = `Uploaded: ${file.name}`;
-      select.value = opt.value;
+      select.value = id;
     }
   }
 
@@ -318,15 +466,21 @@ export class ReferencePanel {
       if (!ref) {
         view.innerHTML = '<p class="reference-empty">No reference selected.</p>';
       } else {
-        const src = ref.image instanceof HTMLCanvasElement ? ref.image.toDataURL('image/jpeg', 0.9) : ref.displayUrl;
+        const src = ref.live ? '' : (ref.image instanceof HTMLCanvasElement ? ref.image.toDataURL('image/jpeg', 0.9) : ref.displayUrl);
         view.innerHTML = `
-          <img src="${src}" alt="${escapeHtml(ref.name)}" />
+          ${ref.live ? '<canvas id="reference-live-view" class="reference-live-view"></canvas>' : `<img src="${src}" alt="${escapeHtml(ref.name)}" />`}
           <div class="reference-meta">
             <strong>${escapeHtml(ref.name)}</strong>
             <span class="reference-info" title="${escapeHtml([ref.rights, ref.crop ? 'cropped to the painted sheet' : '', ref.source ? 'Wikimedia Commons' : ''].filter(Boolean).join(' · '))}">${icon('questionMarkCircle', 'icon-xs')}</span>
             ${ref.source ? `<a href="${escapeHtml(ref.source)}" target="_blank" rel="noopener">source</a>` : ''}
           </div>`;
       }
+    }
+    const controls = this.container?.querySelector('#source-controls');
+    if (controls) {
+      controls.hidden = !ref?.live;
+      const rateRow = controls.querySelector('#src-rate-row');
+      if (rateRow) rateRow.hidden = ref?.kind === 'webcam';
     }
     this.onReferenceChange?.(ref);
   }

@@ -178,9 +178,13 @@ export class WatercolorSprites {
     return { canvas, x: r.bx, y: r.by };
   }
 
-  /** Paper texture in the reference's mean colour, painted once. */
+  /** Paper texture in the ground colour; repainted only when that colour moves noticeably. */
   ensurePaper(cf) {
-    if (this.paper && this.background === cf.background) return;
+    if (this.paper && this.background) {
+      const a = [1, 3, 5].map(i => parseInt(this.background.slice(i, i + 2), 16));
+      const b = cf.bgRGB;
+      if (a.every((v, i) => Math.abs(v - b[i]) <= 6)) return;
+    }
     this.background = cf.background;
     paintWatercolor(this.brush, this.scratch, [{ op: 'background', color: cf.background }], { seed: this.seed });
     this.paper = document.createElement('canvas');

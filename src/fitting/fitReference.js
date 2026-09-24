@@ -72,6 +72,7 @@ export class ReferenceFitter {
    * @param {Float32Array} [opts.start] starting canvas (e.g. a parent program's render)
    * @param {string} [opts.background] background colour to emit when `start` is given
    * @param {number} [opts.precision] decimals kept in emitted coordinates (search accounts for rounding)
+   * Set `mask` (Uint8Array, one entry per pixel, 0 = ignore) to fit only part of the canvas.
    */
   constructor(target, width, height, { seed = 1, trials = 64, climbs = 96, shapes = SHAPE_TYPES, start = null, background = null, precision = 3 } = {}) {
     this.target = target;
@@ -189,11 +190,13 @@ export class ReferenceFitter {
     const { bx, by, bw, bh, a } = cov;
     const { target: T, current: C, w } = this;
     // Colour minimising sum a^2 (c - (T - (1-a)C)/a)^2  → weighted mean of target under coverage
+    const M = this.mask;
     let sw = 0, sr = 0, sg = 0, sb = 0;
     for (let y = 0; y < bh; y++) {
       for (let x = 0; x < bw; x++) {
         const al = a[(y * bw + x) * 4 + 3] / 255;
         if (al === 0) continue;
+        if (M && !M[(by + y) * w + bx + x]) continue;
         const i = ((by + y) * w + bx + x) * 3;
         const wt = al * al;
         sw += wt;
@@ -210,6 +213,7 @@ export class ReferenceFitter {
       for (let x = 0; x < bw; x++) {
         const al = a[(y * bw + x) * 4 + 3] / 255;
         if (al === 0) continue;
+        if (M && !M[(by + y) * w + bx + x]) continue;
         const i = ((by + y) * w + bx + x) * 3;
         for (let ch = 0; ch < 3; ch++) {
           const before = T[i + ch] - C[i + ch];

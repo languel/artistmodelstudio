@@ -129,7 +129,7 @@ export class StudioApp {
         this.updateRefOverlay?.();
         if (ref && this.processLog) this.processLog.log(`Reference set: ${ref.name}`, 'info');
         if (this.livePainter.running) {
-          if (ref?.image) this.livePainter.start(ref.image, this.referencePanel.liveParams(), this.aspectValue());
+          if (ref?.image) this.livePainter.start(ref.image, this.referencePanel.liveParams(), this.aspectValue(), ref.live || null);
           else this.stopLive();
         }
       },
@@ -137,7 +137,8 @@ export class StudioApp {
       onLiveParams: (params) => this.livePainter.setParams(params),
       onExportContinuous: (params) => this.exportContinuous(params),
       onOverlayChange: () => this.updateRefOverlay(),
-      onLiveClear: () => this.livePainter.clear()
+      onLiveClear: () => this.livePainter.clear(),
+      onFitChange: (fit) => this.handleFitChange(fit)
     });
 
     this.controls = new Controls({
@@ -283,16 +284,26 @@ export class StudioApp {
     }
   }
 
+  /** Placement of the reference when aspects differ: cover / contain / stretch. */
+  handleFitChange(fit) {
+    this.artistRegistry.get('fitter')?.setFit?.(fit);
+    this._refOverlayKey = null;
+    this.updateRefOverlay();
+    if (this.livePainter.running) this.startLive(this.referencePanel.liveParams());
+    this.processLog.log(`Reference fit: ${fit}.`, 'info');
+  }
+
   /** Reference image at the canvas aspect, as an image the preview can overlay. */
   refOverlaySrc() {
     const ref = this.referencePanel?.current;
     if (!ref?.image) return null;
     const [w, h] = this.canvasDims();
     const k = 1024 / Math.max(w, h);
-    const key = `${ref.id}|${w}x${h}`;
+    const fit = this.referencePanel?.fit || 'cover';
+    const key = `${ref.id}|${w}x${h}|${fit}`;
     if (this._refOverlayKey !== key) {
       this._refOverlayKey = key;
-      this._refOverlaySrc = fitTarget(ref.image, Math.round(w * k), Math.round(h * k)).toDataURL('image/jpeg', 0.9);
+      this._refOverlaySrc = fitTarget(ref.image, Math.round(w * k), Math.round(h * k), fit).toDataURL('image/jpeg', 0.9);
     }
     return this._refOverlaySrc;
   }
@@ -305,7 +316,7 @@ export class StudioApp {
   startLive(params) {
     const ref = this.referencePanel.current;
     if (!ref?.image) return;
-    this.livePainter.start(ref.image, params, this.aspectValue());
+    this.livePainter.start(ref.image, params, this.aspectValue(), ref.live || null);
     this.referencePanel.setLiveRunning(true);
     this.processLog.log(`Continuous mode on "${ref.name}": ${params.density} shapes, ${params.lifetime} s lifetime.`, 'info');
   }
@@ -319,9 +330,15 @@ export class StudioApp {
   async exportContinuous(params) {
     const ref = this.referencePanel.current;
     if (!ref?.image) return;
-    const target = LivePainter.targetFor(ref.image, this.aspectValue());
-    const title = ref.name.replace(/\s*\(.*\)\s*$/, '') || 'AMS continuous';
-    const zip = await buildContinuousZip(target, { ...params, seed: 1 }, { title, source: 'Reference Fitter, continuous', refDataUrl: this.refOverlaySrc() });
+    const target = LivePainter.targetFor(ref.image, this.aspectValue(), params.fit);
+    const title = ref.name.replace(/\s*\(.*\)\s*$/, '').replace(/\.[a-z0-9]+$/i, '') || 'AMS continuous';
+    // Live sources travel with the export: webcam asks for the camera; uploaded
+    // video/animation is embedded so the sketch can read its pixels offline.
+    let source = null;
+    if (ref.kind === 'webcam') source = { kind: 'webcam' };
+    else if (ref.live && ref.file) source = { kind: ref.kind, type: ref.file.type, bytes: new Uint8Array(await ref.file.arrayBuffer()) };
+    this._refOverlayKey = null; // live frames change: take a fresh overlay snapshot
+    const zip = await buildContinuousZip(target, { ...params, contentRect: target.contentRect, seed: 1 }, { title, source: 'Reference Fitter, continuous', refDataUrl: this.refOverlaySrc(), media: source });
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'ams-continuous';
     downloadBytes(zip, `${slug}-continuous-p5.zip`, 'application/zip');
   }

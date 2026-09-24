@@ -30,7 +30,7 @@ export class ContinuousFitter {
    * @param {number} width fitting resolution
    * @param {number} height fitting resolution
    */
-  constructor(target, width, height, { mode = 'strokes', density = 150, lifetime = 12, fade = 0.1, fadeIn, fadeOut, shapes = ['rect', 'triangle', 'circle'], seed = 1, trials = 48, climbs = 64 } = {}) {
+  constructor(target, width, height, { ground = 'transparent', groundTime = 5, mode = 'strokes', density = 150, lifetime = 12, fade = 0.1, fadeIn, fadeOut, shapes = ['rect', 'triangle', 'circle'], seed = 1, trials = 48, climbs = 64 } = {}) {
     this.w = width;
     this.h = height;
     this.fitter = new ReferenceFitter(target, width, height, { seed, shapes, trials, climbs });
@@ -39,13 +39,19 @@ export class ContinuousFitter {
     this.buffer = new Float32Array(target.length);
     this.alive = [];
     this.opacity = 1;
+    // 'transparent' | 'fixed' (set at start and Clear) | 'follow' (each frame's mean)
+    // | 'drift' (eases toward the mean over `groundTime` seconds)
+    this.ground = 'transparent';
+    this.groundTime = 5;
     this.nextId = 1;
     this.spawnDebt = 0;
     this.maxSpawnsPerFrame = 4;
-    this.setParams({ mode, density, lifetime, fade, fadeIn, fadeOut });
+    this.setParams({ mode, density, lifetime, fade, fadeIn, fadeOut, ground, groundTime });
   }
 
-  setParams({ mode, density, lifetime, fade, fadeIn, fadeOut, shapes, opacity } = {}) {
+  setParams({ mode, density, lifetime, fade, fadeIn, fadeOut, shapes, opacity, ground, groundTime } = {}) {
+    if (['transparent', 'fixed', 'follow', 'drift'].includes(ground)) this.ground = ground;
+    if (groundTime !== undefined) this.groundTime = Math.max(0.05, groundTime);
     if (opacity !== undefined) this.opacity = Math.min(1, Math.max(0, opacity));
     if (mode === 'strokes' || mode === 'fade') this.mode = mode;
     if (density !== undefined) this.density = Math.max(1, Math.round(density));
@@ -57,10 +63,76 @@ export class ContinuousFitter {
     if (shapes !== undefined && shapes.length) this.fitter.shapeTypes = shapes;
   }
 
+  /**
+   * Swap in a new target (a live source frame). The ground colour changes only
+   * with ground 'follow', and then only when the mean moves noticeably, so
+   * watercolor paper is not rebuilt every frame.
+   */
+  setTarget(target) {
+    if (!target || target.length !== this.fitter.target.length) return;
+    this.fitter.target = target;
+    this.targetMean = this.meanOf(target);
+    if (this.ground === 'follow') this.updateBackground(10);
+  }
+
+  meanOf(target) {
+    const n = target.length / 3;
+    const mean = [0, 0, 0];
+    for (let i = 0; i < target.length; i += 3) { mean[0] += target[i]; mean[1] += target[i + 1]; mean[2] += target[i + 2]; }
+    return mean.map(v => v / n);
+  }
+
+  /** Drift: ease the ground toward the latest frame's mean (time constant groundTime). */
+  driftBackground(dt) {
+    if (this.ground !== 'drift' || !this.targetMean) return;
+    this.driftRGB ||= this.bgRGB.slice();
+    const k = 1 - Math.exp(-dt / this.groundTime);
+    this.driftRGB = this.driftRGB.map((v, i) => v + (this.targetMean[i] - v) * k);
+    const m = this.driftRGB.map(Math.round);
+    if (m.some((v, i) => v !== this.bgRGB[i])) {
+      this.bgRGB = m;
+      this.background = '#' + m.map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+      this.fitter.background = this.background;
+    }
+  }
+
+  /**
+   * Limit fitting and drawing to the reference's area (fit 'contain'): `rect`
+   * is {x, y, w, h} in 0–1. Padding outside it is ignored by the fitter and
+   * clipped when drawing. A full rect removes the limit.
+   */
+  setContent(rect) {
+    const full = !rect || (rect.x <= 0.001 && rect.y <= 0.001 && rect.w >= 0.999 && rect.h >= 0.999);
+    this.contentRect = full ? null : rect;
+    if (full) { this.fitter.mask = null; return; }
+    const W = this.w, H = this.h;
+    const x0 = Math.floor(rect.x * W), x1 = Math.ceil((rect.x + rect.w) * W);
+    const y0 = Math.floor(rect.y * H), y1 = Math.ceil((rect.y + rect.h) * H);
+    const mask = new Uint8Array(W * H);
+    for (let y = Math.max(0, y0); y < Math.min(H, y1); y++) mask.fill(1, y * W + Math.max(0, x0), y * W + Math.min(W, x1));
+    this.fitter.mask = mask;
+  }
+
+  /** Set the ground colour to the target's mean (if it moved more than `threshold`). */
+  updateBackground(threshold = 0) {
+    const target = this.fitter.target;
+    const n = target.length / 3;
+    const mean = [0, 0, 0];
+    for (let i = 0; i < target.length; i += 3) { mean[0] += target[i]; mean[1] += target[i + 1]; mean[2] += target[i + 2]; }
+    const m = mean.map(v => Math.round(v / n));
+    if (m.some((v, i) => Math.abs(v - this.bgRGB[i]) > threshold)) {
+      this.bgRGB = m;
+      this.background = '#' + m.map(v => v.toString(16).padStart(2, '0')).join('');
+      this.fitter.background = this.background;
+    }
+  }
+
   /** Wipe the painting: remove every shape; new ones start filling from blank. */
   clear() {
     this.alive = [];
     this.spawnDebt = 0;
+    this.updateBackground(); // fixed ground: re-take the colour on every Clear
+    this.driftRGB = null;
   }
 
   /** Seconds between strokes. */
@@ -136,6 +208,7 @@ export class ContinuousFitter {
    * `maxSpawns` lets a slow renderer apply backpressure (e.g. watercolor sprites).
    */
   update(now, dt, maxSpawns = Infinity) {
+    this.driftBackground(dt);
     this.alive = this.alive.filter(s => now - s.born < s.life);
     const strokes = this.mode === 'strokes';
     // Strokes keep a steady one-per-beat pace (also while filling); fade builds up faster at first.

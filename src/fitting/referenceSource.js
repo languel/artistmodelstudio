@@ -1,0 +1,220 @@
+/**
+ * Live reference sources for continuous mode: webcam, video, animated image.
+ *
+ * Each source keeps `canvas`, its current frame (long side ≤ 1024), so the rest
+ * of the studio can treat it like a still reference. A SourceSampler decides
+ * when the fitter's target is refreshed from that frame:
+ *
+ *   continuous  every frame
+ *   interval    every `interval` seconds
+ *   hold        keep the last sample (the painting settles on it)
+ *
+ * Playback rate (video and animated images) is independent of sampling.
+ *
+ * Shared by the studio and the continuous p5 export (embedded with
+ * import/export lines stripped), so keep it free of imports.
+ */
+
+const MAX_SIDE = 1024;
+
+function sizeFor(w, h) {
+  const k = Math.min(1, MAX_SIDE / Math.max(w, h));
+  return [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))];
+}
+
+export class LiveSource {
+  constructor(kind) {
+    this.kind = kind; // 'webcam' | 'video' | 'animated'
+    this.canvas = document.createElement('canvas');
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+    this.rate = 1;
+    this.ready = false;
+    this.version = 0; // increments whenever `canvas` gets a new frame
+  }
+
+  /** Camera via getUserMedia (the browser asks for permission). */
+  static async webcam() {
+    const src = new LiveSource('webcam');
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    src.stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 } }, audio: false });
+    video.srcObject = src.stream;
+    await video.play();
+    src.video = video;
+    src.mirror = true; // selfie view
+    src.ready = true;
+    return src;
+  }
+
+  /** Video file (or blob) played muted and looped. */
+  static async video(url) {
+    const src = new LiveSource('video');
+    const video = document.createElement('video');
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.src = url;
+    await new Promise((resolve, reject) => {
+      video.onloadeddata = resolve;
+      video.onerror = () => reject(new Error('Could not load the video'));
+    });
+    await video.play().catch(() => {});
+    src.video = video;
+    src.ready = true;
+    return src;
+  }
+
+  /** Animated GIF / WebP / APNG decoded with ImageDecoder (null if it is a still). */
+  static async animated(blob) {
+    if (typeof ImageDecoder === 'undefined') return null;
+    const decoder = new ImageDecoder({ data: blob.stream(), type: blob.type });
+    await decoder.tracks.ready;
+    const track = decoder.tracks.selectedTrack;
+    if (!track || track.frameCount < 2) {
+      decoder.close();
+      return null;
+    }
+    const src = new LiveSource('animated');
+    src.decoder = decoder;
+    src.frameCount = track.frameCount;
+    src.frameIndex = 0;
+    src.frameClock = 0;
+    await src.decode(0);
+    src.ready = true;
+    return src;
+  }
+
+  async decode(i) {
+    const { image } = await this.decoder.decode({ frameIndex: i });
+    this.frameDuration = (image.duration || 100000) / 1e6; // seconds
+    const [w, h] = sizeFor(image.displayWidth, image.displayHeight);
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+    }
+    this.ctx.drawImage(image, 0, 0, w, h);
+    image.close();
+    this.version++;
+  }
+
+  setRate(rate) {
+    this.rate = Math.max(0, rate);
+    if (this.video && this.kind === 'video') {
+      if (this.rate === 0) this.video.pause();
+      else {
+        this.video.playbackRate = Math.min(16, Math.max(0.0625, this.rate));
+        if (this.video.paused) this.video.play().catch(() => {});
+      }
+    }
+  }
+
+  /** Advance playback by `dt` seconds and refresh `canvas`. */
+  tick(dt) {
+    if (!this.ready) return;
+    if (this.video) {
+      const v = this.video;
+      if (!v.videoWidth) return;
+      const [w, h] = sizeFor(v.videoWidth, v.videoHeight);
+      if (this.canvas.width !== w || this.canvas.height !== h) {
+        this.canvas.width = w;
+        this.canvas.height = h;
+      }
+      this.ctx.save();
+      if (this.mirror) {
+        this.ctx.translate(w, 0);
+        this.ctx.scale(-1, 1);
+      }
+      this.ctx.drawImage(v, 0, 0, w, h);
+      this.ctx.restore();
+      this.version++;
+    } else if (this.decoder && !this.decoding && this.rate > 0) {
+      this.frameClock += dt * this.rate;
+      if (this.frameClock >= this.frameDuration) {
+        this.frameClock %= Math.max(0.01, this.frameDuration);
+        this.frameIndex = (this.frameIndex + 1) % this.frameCount;
+        this.decoding = true;
+        this.decode(this.frameIndex).finally(() => { this.decoding = false; });
+      }
+    }
+  }
+
+  stop() {
+    this.ready = false;
+    this.stream?.getTracks().forEach(t => t.stop());
+    if (this.video) {
+      this.video.pause();
+      this.video.removeAttribute('src');
+      this.video.srcObject = null;
+    }
+    this.decoder?.close();
+  }
+}
+
+export class SourceSampler {
+  constructor({ mode = 'continuous', interval = 2 } = {}) {
+    this.mode = mode;         // 'continuous' | 'interval' | 'hold'
+    this.interval = interval; // seconds, for 'interval'
+    this.elapsed = Infinity;  // sample on the first check
+    this.lastVersion = -1;
+  }
+
+  /** True when the target should be refreshed from `source` now. */
+  due(source, dt) {
+    this.elapsed += dt;
+    if (!source?.ready || source.version === this.lastVersion) return false;
+    if (this.mode === 'hold' && this.lastVersion !== -1) return false;
+    if (this.mode === 'interval' && this.elapsed < this.interval) return false;
+    this.elapsed = 0;
+    this.lastVersion = source.version;
+    return true;
+  }
+}
+
+/**
+ * Place a drawable into a w×h canvas when aspects differ:
+ *   cover    crop to fill (nothing outside the reference is sampled)
+ *   contain  whole reference, padded with its mean colour; the returned canvas
+ *            has `contentRect` {x, y, w, h} (0–1) marking the reference area
+ *   stretch  fill by distorting
+ */
+export function letterbox(image, w, h, fit = 'contain') {
+  const iw = image.naturalWidth || image.videoWidth || image.width;
+  const ih = image.naturalHeight || image.videoHeight || image.height;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  c.contentRect = { x: 0, y: 0, w: 1, h: 1 };
+  if (fit === 'stretch') {
+    ctx.drawImage(image, 0, 0, w, h);
+    return c;
+  }
+  if (fit === 'cover') {
+    const k = Math.max(w / iw, h / ih);
+    ctx.drawImage(image, (w - iw * k) / 2, (h - ih * k) / 2, iw * k, ih * k);
+    return c;
+  }
+  const probe = document.createElement('canvas');
+  probe.width = probe.height = 1;
+  const pctx = probe.getContext('2d', { willReadFrequently: true });
+  pctx.drawImage(image, 0, 0, 1, 1);
+  const [r, g, b] = pctx.getImageData(0, 0, 1, 1).data;
+  ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+  ctx.fillRect(0, 0, w, h);
+  const k = Math.min(w / iw, h / ih);
+  const dw = iw * k, dh = ih * k;
+  ctx.drawImage(image, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  c.contentRect = { x: (w - dw) / 2 / w, y: (h - dh) / 2 / h, w: dw / w, h: dh / h };
+  return c;
+}
+
+/** RGB floats of a canvas. */
+export function rgbOf(canvas) {
+  const d = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height).data;
+  const out = new Float32Array(canvas.width * canvas.height * 3);
+  for (let i = 0, j = 0; i < d.length; i += 4, j += 3) {
+    out[j] = d[i]; out[j + 1] = d[i + 1]; out[j + 2] = d[i + 2];
+  }
+  return out;
+}
