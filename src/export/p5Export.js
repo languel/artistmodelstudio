@@ -313,11 +313,12 @@ export function buildIndexHtml(title, { brush = true } = {}) {
     /* Continuous player: a card of labelled controls, like the studio's Reference tab */
     #ams-panel:has(.ams-control) { left: auto; right: 14px; transform: none; width: 300px; flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 12px; }
     .ams-row { display: flex; gap: 6px; }
-    .ams-control { display: grid; grid-template-columns: 72px 1fr 44px; align-items: center; gap: 8px; }
+    .ams-control { display: grid; grid-template-columns: 72px 1fr 80px; align-items: center; gap: 8px; }
     #ams-panel .ams-control span { min-width: 0; text-align: left; color: #9a9ea6; }
     .ams-control select { grid-column: 2 / 4; font: inherit; background: #1b1d22; color: #e4e5e8; border: 1px solid #2f323a; border-radius: 4px; padding: 3px 6px; outline: none; }
-    .ams-control.ams-control-count { grid-template-columns: 72px 1fr auto 44px; }
-    #ams-panel .ams-count { min-width: 0; font: 12px ui-monospace, Menlo, monospace; color: #6a6e76; text-align: right; }
+    #ams-panel .ams-value { display: flex; align-items: center; justify-content: flex-end; gap: 4px; min-width: 0; }
+    #ams-panel .ams-value .num { width: 44px; flex: none; }
+    #ams-panel .ams-count { min-width: 0; font: 12px ui-monospace, Menlo, monospace; color: #6a6e76; white-space: nowrap; }
     .ams-control .num { width: 100%; font: 12px ui-monospace, Menlo, monospace; background: transparent; color: #e4e5e8; border: 1px solid transparent; border-radius: 4px; text-align: right; padding: 1px 3px; outline: none; }
     .ams-control .num:hover { border-color: #2f323a; }
     .ams-control .num:focus { border-color: #4a4d56; background: #1b1d22; }
@@ -564,22 +565,23 @@ function buildPanel() {
       num.className = 'num';
       num.dataset.key = key;
       range.addEventListener('input', () => setParam(key, Number(range.value)));
-      if (key === 'density') {
-        row.classList.add('ams-control-count');
-        row.title = tip + '. The muted number is how many are on screen now.';
-      }
+      if (key === 'density') row.title = tip + '. The muted number is how many are on screen now.';
       num.addEventListener('change', () => {
         const v = Number(num.value);
         if (Number.isFinite(v)) setParam(key, Math.min(tmax, Math.max(tmin, v)));
         num.blur();
       });
       row.appendChild(range);
+      // Value cell: the typed value, preceded by the live count for density.
+      const cell = document.createElement('span');
+      cell.className = 'ams-value';
       if (key === 'density') {
         const count = document.createElement('span');
         count.className = 'ams-count';
-        row.appendChild(count);
+        cell.appendChild(count);
       }
-      row.appendChild(num);
+      cell.appendChild(num);
+      row.appendChild(cell);
     }
     panel.appendChild(row);
   }

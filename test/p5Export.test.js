@@ -84,4 +84,15 @@ describe('p5 export', () => {
     expect(sketch).toContain("k === 'w'");
     expect(buildIndexHtml('x', { brush: false })).not.toContain('brush.js');
   });
+
+  it('starts the continuous player with the panel settings at export time', () => {
+    const target = { rgb: new Float32Array(4 * 4 * 3).fill(100), width: 4, height: 4 };
+    const panel = { render: 'layered', mode: 'fade', density: 1000, lifetime: 3, fadeIn: 0.2, fadeOut: 0.4,
+      opacity: 0.7, pigment: 0.3, shapes: ['circle'], overlay: 'over', refOpacity: 0.25, seed: 1 };
+    const sketch = buildContinuousSketch(target, panel, { title: 'Settings' });
+    const params = JSON.parse(sketch.match(/^const PARAMS = (.*);$/m)[1]);
+    expect(params).toEqual(panel);
+    // The player's state starts from PARAMS (defaults only fill gaps).
+    expect(sketch).toContain("const state = Object.assign({ render: 'flat', overlay: 'off', refOpacity: 0.5, opacity: 1, pigment: 0.6 }, PARAMS);");
+  });
 });

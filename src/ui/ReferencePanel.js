@@ -114,11 +114,10 @@ export class ReferencePanel {
               <option value="fade">Fade</option>
             </select>
           </label>
-          <label class="live-slider live-slider-count" title="Shapes alive at once: more shapes, more detail. While playing, the muted number is how many are on screen now (watercolor can paint about 30 new strokes a second, so longer cycles allow more).">
+          <label class="live-slider" title="Shapes alive at once: more shapes, more detail. While playing, the muted number is how many are on screen now (watercolor can paint about 30 new strokes a second, so longer cycles allow more).">
             <span>Density</span>
             <input type="range" id="live-density" min="10" max="800" step="10" value="${this.live.density}" />
-            <span class="live-count" id="live-count"></span>
-            <input class="num-field" id="live-density-num" inputmode="decimal" value="${this.live.density}" title="Type any value; the slider covers 10–800" />
+            <span class="num-wrap"><span class="live-count" id="live-count"></span><input class="num-field" id="live-density-num" inputmode="decimal" value="${this.live.density}" title="Type any value; the slider covers 10–800" /></span>
           </label>
           <label class="live-slider" title="Seconds for the whole painting to turn over: sets the pacing">
             <span>Cycle s</span>
