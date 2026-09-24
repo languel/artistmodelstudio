@@ -28,7 +28,7 @@ export class WatercolorLayer {
   }
 
   /** Paint these shapes as actions on top of the current paper. */
-  paintShapes(shapes, opacity = 0.9) {
+  paintShapes(shapes, opacity = this.opacity ?? 0.9) {
     const actions = [{ op: 'noStroke' }];
     for (const s of shapes) {
       const sh = s.shape;
@@ -109,6 +109,8 @@ export class WatercolorSprites {
     this.read.height = height;
     this.readCtx = this.read.getContext('2d', { willReadFrequently: true });
     this.sprites = new Map(); // stroke id -> { canvas, x, y }
+    this.opacity = 1;   // fill opacity passed to p5.brush for new strokes
+    this.pigment = 0.6; // 0 = colour as p5.brush paints it on white, 1 = the stroke's fitted colour
     this.paper = null;
     this.background = null;
   }
@@ -150,18 +152,22 @@ export class WatercolorSprites {
     const shapeAction = sh.type === 'rect' ? { op: 'rect', x: sh.x, y: sh.y, width: sh.width, height: sh.height }
       : sh.type === 'circle' ? { op: 'circle', x: sh.x, y: sh.y, diameter: sh.diameter }
       : { op: 'polygon', points: sh.points };
-    const actions = [{ op: 'noStroke' }, { op: 'fill', color: s.color, opacity: 0.9 }, shapeAction];
+    const actions = [{ op: 'noStroke' }, { op: 'fill', color: s.color, opacity: this.opacity }, shapeAction];
     const seed = this.seed * 7919 + s.id;
     const white = this.pass('#ffffff', actions, seed, r);
     const black = this.pass('#000000', actions, seed, r);
     const out = new ImageData(r.bw, r.bh);
     const d = out.data;
+    // p5.brush paints a pale, translucent wash of the fill colour; Pigment pulls the
+    // recovered colour back toward the fitted colour while keeping the brush texture.
+    const k = Math.min(1, Math.max(0, this.pigment));
+    const [fr, fg, fb] = s.rgb;
     for (let i = 0; i < d.length; i += 4) {
       const a = 1 - ((white[i] - black[i]) + (white[i + 1] - black[i + 1]) + (white[i + 2] - black[i + 2])) / 765;
       if (a <= 0.01) continue;
-      d[i] = Math.min(255, black[i] / a);
-      d[i + 1] = Math.min(255, black[i + 1] / a);
-      d[i + 2] = Math.min(255, black[i + 2] / a);
+      d[i] = Math.min(255, black[i] / a) * (1 - k) + fr * k;
+      d[i + 1] = Math.min(255, black[i + 1] / a) * (1 - k) + fg * k;
+      d[i + 2] = Math.min(255, black[i + 2] / a) * (1 - k) + fb * k;
       d[i + 3] = Math.round(Math.min(1, a) * 255);
     }
     const canvas = document.createElement('canvas');

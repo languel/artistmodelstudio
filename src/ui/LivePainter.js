@@ -89,11 +89,14 @@ export class LivePainter {
     if (this.params.render === 'watercolor' && brushModule) {
       // Per-stroke watercolor sprites with individual fades.
       this.sprites ||= new WatercolorSprites(brushModule, { width: lw, height: lh });
+      this.sprites.opacity = this.params.opacity ?? 1;
+      this.sprites.pigment = this.params.pigment ?? 0.6;
       this.sprites.update(this.cf);
       this.sprites.draw(ctx, x, y, vw, vh, this.cf, this.t);
     } else if (this.params.render === 'layered' && brushModule) {
       // Strokes painted once into one canvas; everything fades under washes.
       this.layer ||= new WatercolorLayer(brushModule, { width: lw, height: lh });
+      this.layer.opacity = this.params.opacity ?? 1;
       this.layer.update(this.cf, this.t, dt, retentionFor(this.params.fadeOut));
       this.layer.draw(ctx, x, y, vw, vh);
     } else {

@@ -38,13 +38,15 @@ export class ContinuousFitter {
     this.bgRGB = [1, 3, 5].map(i => parseInt(this.background.slice(i, i + 2), 16));
     this.buffer = new Float32Array(target.length);
     this.alive = [];
+    this.opacity = 1;
     this.nextId = 1;
     this.spawnDebt = 0;
     this.maxSpawnsPerFrame = 4;
     this.setParams({ mode, density, lifetime, fade, fadeIn, fadeOut });
   }
 
-  setParams({ mode, density, lifetime, fade, fadeIn, fadeOut, shapes } = {}) {
+  setParams({ mode, density, lifetime, fade, fadeIn, fadeOut, shapes, opacity } = {}) {
+    if (opacity !== undefined) this.opacity = Math.min(1, Math.max(0, opacity));
     if (mode === 'strokes' || mode === 'fade') this.mode = mode;
     if (density !== undefined) this.density = Math.max(1, Math.round(density));
     if (lifetime !== undefined) this.lifetime = Math.max(0.1, lifetime);
@@ -152,7 +154,7 @@ export class ContinuousFitter {
     ctx.rect(x, y, w, h);
     ctx.clip();
     for (const s of this.alive) {
-      const a = this.alpha(s, now);
+      const a = this.alpha(s, now) * this.opacity;
       if (a <= 0) continue;
       const sh = s.shape;
       ctx.globalAlpha = a;

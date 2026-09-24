@@ -54,7 +54,7 @@ export class ReferencePanel {
     this.onLiveToggle = onLiveToggle;
     this.onLiveParams = onLiveParams;
     this.onExportContinuous = onExportContinuous;
-    this.live = { render: 'flat', mode: 'strokes', density: 150, lifetime: 10, fadeIn: 0.05, fadeOut: 0.15, shapes: 'mixed' };
+    this.live = { render: 'flat', mode: 'strokes', density: 150, lifetime: 10, fadeIn: 0.05, fadeOut: 0.15, opacity: 1, pigment: 0.6, shapes: 'mixed' };
     this.liveRunning = false;
     this.references = bundledReferences();
     this.current = null; // { id, name, image, displayUrl, source, rights, uploaded }
@@ -114,6 +114,16 @@ export class ReferencePanel {
             <input type="range" id="live-fadeout" min="0" max="0.5" step="0.05" value="${this.live.fadeOut}" />
             <input class="num-field" id="live-fadeout-num" inputmode="decimal" value="${this.live.fadeOut}" title="Type any value from 0 to 1" />
           </label>
+          <label class="live-slider" title="How strong each stroke is at full life">
+            <span>Opacity</span>
+            <input type="range" id="live-opacity" min="0.1" max="1" step="0.05" value="${this.live.opacity}" />
+            <input class="num-field" id="live-opacity-num" inputmode="decimal" value="${this.live.opacity}" title="Type any value from 0 to 1" />
+          </label>
+          <label class="live-slider" title="Watercolor only: 0 keeps p5.brush's pale wash colour, 1 uses each stroke's fitted colour (texture is kept either way)">
+            <span>Pigment</span>
+            <input type="range" id="live-pigment" min="0" max="1" step="0.05" value="${this.live.pigment}" />
+            <input class="num-field" id="live-pigment-num" inputmode="decimal" value="${this.live.pigment}" title="Type any value from 0 to 1" />
+          </label>
           <label class="live-slider" title="Shape vocabulary for new shapes">
             <span>Shapes</span>
             <select id="live-shapes">
@@ -149,6 +159,8 @@ export class ReferencePanel {
       lifetime: this.live.lifetime,
       fadeIn: this.live.fadeIn,
       fadeOut: this.live.fadeOut,
+      opacity: this.live.opacity,
+      pigment: this.live.pigment,
       shapes: this.live.shapes === 'mixed' ? ['rect', 'triangle', 'circle'] : [this.live.shapes]
     });
     this.liveParams = liveParams;
@@ -179,6 +191,8 @@ export class ReferencePanel {
     bindSlider('lifetime', 'lifetime', { min: 0.1 });
     bindSlider('fadein', 'fadeIn', { min: 0, max: 1 });
     bindSlider('fadeout', 'fadeOut', { min: 0, max: 1 });
+    bindSlider('opacity', 'opacity', { min: 0, max: 1 });
+    bindSlider('pigment', 'pigment', { min: 0, max: 1 });
     container.querySelector('#live-render')?.addEventListener('change', (e) => {
       this.live.render = e.target.value;
       this.onLiveParams?.(liveParams());
