@@ -56,16 +56,18 @@ export class LivePainter {
     this.t = 0;
     this.last = performance.now();
     this.running = true;
+    this.paused = false;
     const tick = () => {
       if (!this.running) return;
       const now = performance.now();
-      const dt = Math.min(0.1, (now - this.last) / 1000);
+      // Paused: keep drawing the frozen picture (overlay, recording) without advancing.
+      const dt = this.paused ? 0 : Math.min(0.1, (now - this.last) / 1000);
       this.last = now;
       this.t += dt;
-      this.sampleSource(dt);
+      if (!this.paused) this.sampleSource(dt);
       // Watercolor sprites are slow to build: hold back new strokes while any are queued.
       const cap = this.params.render === 'watercolor' && this.sprites ? (this.sprites.pending > 0 ? 0 : 2) : Infinity;
-      this.cf.update(this.t, dt, cap);
+      if (!this.paused) this.cf.update(this.t, dt, cap);
       this.paint(dt);
       this.onFrame?.(this);
       this.raf = requestAnimationFrame(tick);
@@ -134,7 +136,8 @@ export class LivePainter {
     const vw = Math.min(w, h * a), vh = vw / a;
     const x = (w - vw) / 2, y = (h - vh) / 2;
     const [lw, lh] = fitDims(a, 1024);
-    const render = brushModule ? this.params.render : 'flat';
+    // Watercolor needs p5.brush; until it loads, show flat.
+    const render = !brushModule && ['watercolor', 'layered'].includes(this.params.render) ? 'flat' : this.params.render;
     if (render === 'watercolor') {
       // Per-stroke watercolor sprites with individual fades.
       this.sprites ||= new WatercolorSprites(brushModule, { width: lw, height: lh });

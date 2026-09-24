@@ -245,7 +245,7 @@ function paintPixels(f) {
 
 // ---------------------------------------------------------------------------
 // Controls: hidden until U is pressed
-//   U toggle panel · R re-render · A animate · L loop · F fit/fill
+//   U toggle panel · R re-render · A animate · L loop · X fit/fill
 //   W cycle renderer (flat, watercolor, pixel, ASCII) · S save PNG
 // ---------------------------------------------------------------------------
 function rerender() { animating = false; noLoop(); shown = TOTAL; paint(shown); updatePanel(); }
@@ -265,12 +265,14 @@ function saveTXT() {
 }
 
 function keyPressed() {
+  // Ignore shortcuts with modifiers (e.g. system fullscreen chords).
+  if (keyIsDown(CONTROL) || keyIsDown(ALT) || keyIsDown(91) || keyIsDown(93)) return;
   const k = key.toLowerCase();
   if (k === 'u') { uiVisible = !uiVisible; panel.style.display = uiVisible ? 'flex' : 'none'; }
   else if (k === 'r') rerender();
   else if (k === 'a') animate();
   else if (k === 'l') toggleLoop();
-  else if (k === 'f') toggleFit();
+  else if (k === 'x') toggleFit();
   else if (k === 'w') toggleRenderer();
   else if (k === 's') savePNG();
   else if (k === 't') saveTXT();
@@ -279,7 +281,7 @@ function keyPressed() {
 function buildPanel() {
   panel = document.createElement('div');
   panel.id = 'ams-panel';
-  const buttons = [['Re-render (R)', rerender], ['Animate (A)', animate], ['Loop (L)', toggleLoop], ['Fit (F)', toggleFit], ['Watercolor (W)', toggleRenderer], ['Save PNG (S)', savePNG], ['Save TXT (T)', saveTXT]];
+  const buttons = [['Re-render (R)', rerender], ['Animate (A)', animate], ['Loop (L)', toggleLoop], ['Fit (X)', toggleFit], ['Watercolor (W)', toggleRenderer], ['Save PNG (S)', savePNG], ['Save TXT (T)', saveTXT]];
   for (const [label, fn] of buttons) {
     const b = document.createElement('button');
     b.textContent = label;
@@ -294,7 +296,7 @@ function buildPanel() {
 function updatePanel() {
   if (!panel) return;
   panel.children[2].textContent = looping ? 'Loop: on (L)' : 'Loop: off (L)';
-  panel.children[3].textContent = fitMode ? 'Fit (F)' : 'Fill (F)';
+  panel.children[3].textContent = fitMode ? 'Fit (X)' : 'Fill (X)';
   const names = { flat: 'Flat', watercolor: 'Watercolor', pixel: 'Pixel', ascii: 'ASCII', grid: 'Pixel grid' };
   panel.children[4].textContent = names[renderer] + (PIXEL ? '' : ' (W)');
   panel.children[4].disabled = !!PIXEL;
@@ -382,7 +384,7 @@ export async function buildP5ProjectZip(program, options = {}) {
 A self-contained p5.js sketch exported from Artist–Model Studio.
 
 Open \`index.html\` in a browser (no server needed). Press **U** for controls:
-re-render (R), animate (A), loop (L), fit or fill the window (F),
+re-render (R), animate (A), loop (L), fit or fill the window (X),
 cycle the renderer: flat, watercolor, pixel, ASCII (W), save PNG (S).
 
 - \`sketch.js\`: the drawing program and a small renderer.
@@ -438,7 +440,7 @@ const CONTINUOUS_RUNTIME = String.raw`
 // Player. The panel mirrors the studio's continuous controls, plus Source
 // (exported / webcam / upload) and Aspect.
 // Keys: U panel · Space pause · C clear · H hold/resume sampling · W render (flat / watercolor / layered)
-//       M style · [ ] density · , . cycle · O overlay · F fit/fill · S save PNG
+//       M style · [ ] density · , . cycle · O overlay · X fit/fill · S save PNG · T text · G gif · V video
 // Names avoid single letters (brush.js defines globals t and e) and p5 globals such as set().
 // ---------------------------------------------------------------------------
 let cf, simTime = 0, lastMillis = 0, paused = false, fitMode = true, panel = null;
@@ -698,6 +700,8 @@ async function toggleRecord(format) {
 function cycleParam(list, key) { setParam(key, list[(list.indexOf(state[key]) + 1) % list.length]); }
 
 function keyPressed() {
+  // Ignore shortcuts with modifiers (e.g. system fullscreen chords).
+  if (keyIsDown(CONTROL) || keyIsDown(ALT) || keyIsDown(91) || keyIsDown(93)) return;
   const k = key.toLowerCase();
   if (document.activeElement && ['INPUT', 'SELECT'].includes(document.activeElement.tagName)) return;
   if (k === 'u') panel.hidden = !panel.hidden;
@@ -711,7 +715,7 @@ function keyPressed() {
   else if (k === ',') setParam('lifetime', +(state.lifetime * 1.25).toFixed(2));
   else if (k === '.') setParam('lifetime', Math.max(0.1, +(state.lifetime * 0.8).toFixed(2)));
   else if (k === 'o') cycleParam(OVERLAYS, 'overlay');
-  else if (k === 'f') toggleFit();
+  else if (k === 'x') toggleFit();
   else if (k === 's') savePNG();
   else if (k === 't') saveTXT();
   else if (k === 'g') toggleRecord('gif');
@@ -725,6 +729,7 @@ const CONTROLS = [
   ['pixelPalette', 'Palette', 'select', [['full', 'Full colour'], ['pico8', 'PICO-8'], ['gameboy', 'Game Boy'], ['cga', 'CGA'], ['bit1', '1-bit'], ['gray8', 'Grayscale 8']], 'Snap pixel colours to a palette'],
   ['asciiRamp', 'Chars', 'select', [['standard', 'Standard'], ['detailed', 'Detailed (70)'], ['blocks', 'Blocks'], ['dots', 'Dots'], ['minimal', 'Minimal'], ['binary', 'Binary'], ['box', 'Box lines'], ['slashes', 'Slashes'], ['tetragram', 'Tetragrams'], ['cp437', 'Code page 437'], ['petscii', 'PETSCII blocks'], ['braille', 'Braille (2x4)'], ['sextants', 'Teletext sextants (2x3)'], ['quadrants', 'Quadrants (2x2)'], ['custom', 'Custom']], 'Characters from sparse to dense'],
   ['asciiCustom', 'Custom', 'text', null, 'Your own characters, sparse to dense (start with a space)'],
+  ['asciiFont', 'Font', 'select', [['system', 'System mono'], ['jetbrains', 'JetBrains Mono'], ['ibmplex', 'IBM Plex Mono'], ['firacode', 'Fira Code'], ['sourcecode', 'Source Code Pro'], ['spacemono', 'Space Mono'], ['courier', 'Courier Prime'], ['vt323', 'VT323 (terminal)'], ['pressstart', 'Press Start 2P (8-bit)'], ['menlo', 'Menlo'], ['courierNew', 'Courier New']], 'Monospace font (web fonts need a connection)'],
   ['asciiCols', 'Columns', 'range', [16, 240, 1, 4, 600], 'Characters across'],
   ['asciiColor', 'Colour', 'select', [['color', 'Colour'], ['mono', 'Mono']], 'Tinted characters or one ink colour'],
   ['asciiInvert', 'Invert', 'select', [['true', 'On (dark ground)'], ['false', 'Off (light ground)']], 'On: bright areas get dense characters'],
@@ -762,7 +767,7 @@ function buildPanel() {
   panel.title = 'U shows or hides this panel';
   const buttons = document.createElement('div');
   buttons.className = 'ams-row';
-  for (const [id, label, fn, tip] of [['pause', 'Pause', togglePause, 'Space'], ['clear', 'Clear', clearCanvas, 'C: clear and repaint from blank'], ['fit', 'Fit', toggleFit, 'F'], ['save', 'Save PNG', savePNG, 'S'], ['txt', 'Save TXT', saveTXT, 'T: plain text of the ASCII frame'], ['gif', 'Rec GIF', () => toggleRecord('gif'), 'G: start / stop and save'], ['video', 'Rec MP4', () => toggleRecord('video'), 'V: start / stop and save (WebM where MP4 is unavailable)']]) {
+  for (const [id, label, fn, tip] of [['pause', 'Pause', togglePause, 'Space'], ['clear', 'Clear', clearCanvas, 'C: clear and repaint from blank'], ['fit', 'Fit', toggleFit, 'X'], ['save', 'Save PNG', savePNG, 'S'], ['txt', 'Save TXT', saveTXT, 'T: plain text of the ASCII frame'], ['gif', 'Rec GIF', () => toggleRecord('gif'), 'G: start / stop and save'], ['video', 'Rec MP4', () => toggleRecord('video'), 'V: start / stop and save (WebM where MP4 is unavailable)']]) {
     const b = document.createElement('button');
     b.dataset.id = id;
     b.textContent = label;
@@ -928,7 +933,7 @@ the same controls as the studio's Reference tab (render, style, density, cycle,
 fades, opacity, pigment, shapes, reference overlay), plus Source (the exported
 reference, this computer's webcam, or an uploaded image, animation or video),
 Aspect and Fit, and sampling / interval / rate for moving sources. Keys: Space pause, C clear, H hold sampling,
-W render, M style, [ ] density, , . cycle, O overlay, F fit or fill, S save PNG.
+W render, M style, [ ] density, , . cycle, O overlay, X fit or fill, S save PNG, T save text, G record GIF, V record MP4.
 
 Watercolor paints each stroke with p5.brush as its own translucent sprite that
 fades in and out; "Watercolor, layered" paints strokes onto one sheet that fades

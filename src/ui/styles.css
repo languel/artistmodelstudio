@@ -1999,3 +1999,10 @@ button:focus-visible { outline: none; border-color: var(--border-focus); box-sha
 
 .live-row select#live-rec-format { font-size: 11px; padding: 2px 4px; }
 .btn-micro.recording { color: #e5484d; border-color: #e5484d; }
+.medium-options .mo-section[hidden] { display: none; }
+.medium-options .mo-empty { color: var(--text-muted, #888); font-size: 12px; }
+#live-render-opts { margin-left: 4px; }
+.live-slider .select-with-btn { grid-column: 2 / 4; display: flex; gap: 4px; min-width: 0; }
+.live-slider .select-with-btn select { flex: 1; min-width: 0; }
+#live-render-opts { margin-left: 0; }
+.inline-prompt { min-width: 220px; }

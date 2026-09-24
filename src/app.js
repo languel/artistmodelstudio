@@ -21,7 +21,7 @@ import { ReferencePanel } from './ui/ReferencePanel.js';
 import { LivePainter } from './ui/LivePainter.js';
 import { buildContinuousZip, downloadBytes } from './export/p5Export.js';
 import { fitTarget } from './artists/ReferenceFitterArtist.js';
-import { DEFAULT_STYLE, drawStylized } from './fitting/stylize.js';
+import { DEFAULT_STYLE, drawStylized, asciiFontReady } from './fitting/stylize.js';
 import { MediumOptions } from './ui/MediumOptions.js';
 import { EXAMPLES } from '../examples/index.js';
 import { initWebMCP } from './mcp/webmcp.js';
@@ -147,6 +147,14 @@ export class StudioApp {
       onExportContinuous: (params) => this.exportContinuous(params),
       onOverlayChange: () => this.updateRefOverlay(),
       onLiveClear: () => this.livePainter.clear(),
+      getStyle: () => this.styleSettings,
+      onRenderChange: (id) => { this.controls?.setMedium?.(id); this.handleMediumChange(id); },
+      onOpenRenderOptions: (anchor) => this.mediumOptions.toggle(anchor, this.activeMediumId),
+      onLivePause: () => {
+        if (!this.livePainter.running) return false;
+        this.livePainter.paused = !this.livePainter.paused;
+        return this.livePainter.paused;
+      },
       onLiveSave: (kind) => {
         const name = 'ams-live-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
         if (kind === 'txt') {
@@ -177,7 +185,7 @@ export class StudioApp {
       onModeChange: (mode) => this.handleModeChange(mode),
       onCanvasSizeChange: (size) => this.handleCanvasSizeChange(size),
       onAspectChange: (aspect) => this.handleAspectChange(aspect),
-      onOpenMediumOptions: (anchor) => this.mediumOptions.toggle(anchor),
+      onOpenMediumOptions: (anchor) => this.mediumOptions.toggle(anchor, this.activeMediumId),
       canvasAspect: this.canvasAspect,
       onVariationChange: (level) => this.handleVariationChange(level),
       onGenerate: (prompt) => this.handleGenerate(prompt),
@@ -235,6 +243,7 @@ export class StudioApp {
     this.statusBanner.render(this.root.querySelector('#status-banner-container'));
     this.processLog.render(this.root.querySelector('#process-log-container'));
     this.referencePanel.render(this.root.querySelector('#reference-panel-container'));
+    this.referencePanel.setRender(this.activeMediumId);
 
     const initialArtist = this.getActiveArtist();
     const initialModel = (typeof initialArtist.getModel === 'function') ? initialArtist.getModel() : '';
@@ -311,6 +320,13 @@ export class StudioApp {
     Object.assign(this.styleSettings, patch);
     try { localStorage.setItem('ams_style', JSON.stringify(this.styleSettings)); } catch { /* storage unavailable */ }
     this.livePainter.setParams({ style: { ...this.styleSettings } });
+    if ('wcMode' in patch) this.pushLiveParams();
+    if ('asciiFont' in patch) {
+      // Web fonts arrive late: redraw once the font is ready so cells use its real width.
+      asciiFontReady(this.styleSettings).then(() => {
+        if (this.getActiveMedium().id === 'ascii') this.handleCanvasSizeChange(this.canvasSize);
+      });
+    }
     clearTimeout(this._styleTimer);
     this._styleTimer = setTimeout(() => {
       if (['pixel', 'ascii'].includes(this.getActiveMedium().id)) this.handleCanvasSizeChange(this.canvasSize);
@@ -931,8 +947,17 @@ export class StudioApp {
     this.processLog.log(`Switched model for ${artist.name} to: ${modelId}`, 'info');
   }
 
+  pushLiveParams() {
+    if (this.referencePanel?.liveParams) this.livePainter.setParams({ ...this.referencePanel.liveParams(), style: { ...this.styleSettings } });
+  }
+
   async handleMediumChange(mediumId) {
     this.activeMediumId = mediumId;
+    // Studio medium and continuous Render are one setting.
+    if (this.referencePanel?.live?.render !== mediumId) {
+      this.referencePanel?.setRender(mediumId);
+      this.pushLiveParams();
+    }
     const medium = this.getActiveMedium();
     this.statusBanner.update({ medium: medium.name });
     this.processLog.log(`Switched active medium to: ${medium.name}`, 'info');

@@ -13,7 +13,75 @@
  * free of imports.
  */
 
-export const CELL_ASPECT = 0.55; // character width / height for common monospace fonts
+export const CELL_ASPECT = 0.55; // fallback character width / line height when fonts can't be measured
+export const ASCII_FONT = '"JetBrains Mono", "SF Mono", Menlo, Consolas, "Noto Sans Symbols 2", "Segoe UI Symbol", monospace';
+
+// Font picker: [label, family]. Web fonts (Google Fonts) load on first use.
+export const ASCII_FONTS = {
+  system: ['System mono', ''],
+  jetbrains: ['JetBrains Mono', 'JetBrains Mono'],
+  ibmplex: ['IBM Plex Mono', 'IBM Plex Mono'],
+  firacode: ['Fira Code', 'Fira Code'],
+  sourcecode: ['Source Code Pro', 'Source Code Pro'],
+  spacemono: ['Space Mono', 'Space Mono'],
+  courier: ['Courier Prime', 'Courier Prime'],
+  vt323: ['VT323 (terminal)', 'VT323'],
+  pressstart: ['Press Start 2P (8-bit)', 'Press Start 2P'],
+  menlo: ['Menlo', 'Menlo'],
+  courierNew: ['Courier New', 'Courier New']
+};
+const WEB_FONTS = ['JetBrains Mono', 'IBM Plex Mono', 'Fira Code', 'Source Code Pro', 'Space Mono', 'Courier Prime', 'VT323', 'Press Start 2P'];
+
+const fontLoads = {};
+function loadWebFont(family) {
+  if (!WEB_FONTS.includes(family) || typeof document === 'undefined') return Promise.resolve();
+  if (fontLoads[family]) return fontLoads[family];
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=' + family.replace(/ /g, '+') + '&display=swap';
+  // Wait for the stylesheet, then the font itself; re-measure when it arrives.
+  fontLoads[family] = new Promise(resolve => { link.onload = link.onerror = resolve; })
+    .then(() => document.fonts && document.fonts.load('20px "' + family + '"'))
+    .then(() => { delete advances[family]; })
+    .catch(() => {});
+  document.head.appendChild(link);
+  return fontLoads[family];
+}
+
+/** Resolves when the chosen font is ready to draw. */
+export function asciiFontReady(style) {
+  const family = (ASCII_FONTS[style && style.asciiFont] || ASCII_FONTS.system)[1];
+  if (!family || typeof document === 'undefined') return Promise.resolve();
+  return loadWebFont(family);
+}
+
+/** CSS font stack for a style's font choice. */
+export function asciiFontStack(style) {
+  const family = (ASCII_FONTS[style && style.asciiFont] || ASCII_FONTS.system)[1];
+  if (family) loadWebFont(family);
+  return family ? '"' + family + '", ' + ASCII_FONT : ASCII_FONT;
+}
+
+// The real font's advance width per em, so the sampling grid matches the glyph cells
+// and characters are drawn at their natural shape.
+const advances = {};
+let fontsWatched = false;
+export function cellAspect(style) {
+  const stack = asciiFontStack(style);
+  const key = (ASCII_FONTS[style && style.asciiFont] || ASCII_FONTS.system)[1] || 'system';
+  if (advances[key]) return advances[key];
+  if (typeof document === 'undefined') return CELL_ASPECT;
+  if (!fontsWatched && document.fonts) {
+    fontsWatched = true;
+    document.fonts.ready.then(() => { for (const k in advances) delete advances[k]; }); // re-measure once web fonts arrive
+  }
+  const c = document.createElement('canvas').getContext('2d');
+  if (!c) return CELL_ASPECT;
+  c.font = '100px ' + stack;
+  const adv = c.measureText('M').width / 100;
+  if (adv > 0.3 && adv < 1.2) advances[key] = adv;
+  return advances[key] || CELL_ASPECT;
+}
 
 export const ASCII_RAMPS = {
   standard: ' .:-=+*#%@',
@@ -76,8 +144,10 @@ export const DEFAULT_STYLE = {
   asciiRamp: 'standard', // a key of ASCII_RAMPS or 'custom'
   asciiCustom: ' .oO@',
   asciiCols: 96,
+  asciiFont: 'system',   // a key of ASCII_FONTS
   asciiColor: 'color',   // 'color' (tinted characters) | 'mono'
-  asciiInvert: true      // true: bright cells get dense characters (for dark grounds)
+  asciiInvert: true,     // true: bright cells get dense characters (for dark grounds)
+  wcMode: 'sprites'      // continuous watercolor: 'sprites' (per stroke) | 'layered'
 };
 
 function hexToRgb(h) {
@@ -109,7 +179,9 @@ export function gridFor(kind, w, h, style) {
     return w >= h ? [n, Math.max(1, Math.round(n * h / w))] : [Math.max(1, Math.round(n * w / h)), n];
   }
   const cols = Math.max(8, Math.round(style.asciiCols || 96));
-  return [cols, Math.max(1, Math.round(cols * (h / w) * CELL_ASPECT))];
+  // Each cell is one glyph advance wide and one em tall, so square picture pixels map to
+  // cellAspect()-shaped cells: fewer rows than columns for a square view.
+  return [cols, Math.max(1, Math.round(cols * (h / w) * cellAspect(style)))];
 }
 
 /**
@@ -176,7 +248,8 @@ export function drawStylized(ctx, kind, x, y, w, h, paint, style = DEFAULT_STYLE
     ctx.fillStyle = ground;
     ctx.fillRect(x, y, w, h);
   }
-  ctx.font = Math.max(4, ch * 0.95).toFixed(1) + 'px "JetBrains Mono", "SF Mono", Menlo, Consolas, "Noto Sans Symbols 2", "Segoe UI Symbol", monospace';
+  // Font size from the cell width, so glyphs keep their natural proportions.
+  ctx.font = Math.max(3, cw / cellAspect(s)).toFixed(2) + 'px ' + asciiFontStack(s);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (let r = 0; r < rows; r++) {

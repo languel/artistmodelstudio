@@ -58,6 +58,10 @@ export class ReferencePanel {
     this.overlay = { mode: 'off', opacity: 0.5 };
     this.fit = 'cover'; // how the reference is placed when its aspect differs from the canvas
     this.onLiveToggle = onLiveToggle;
+    this.onLivePause = arguments[0]?.onLivePause;
+    this.onRenderChange = arguments[0]?.onRenderChange;
+    this.onOpenRenderOptions = arguments[0]?.onOpenRenderOptions;
+    this.getStyle = arguments[0]?.getStyle;
     this.onLiveParams = onLiveParams;
     this.onExportContinuous = onExportContinuous;
     this.sourceCfg = { sampling: 'continuous', interval: 2, rate: 1 };
@@ -129,6 +133,7 @@ export class ReferencePanel {
         <div class="live-controls" title="Continuous mode: shapes fade in, live for a while, fade out, and are replaced by new fits, repainting the reference forever.">
           <div class="live-row">
             <button id="live-toggle" class="btn-primary live-toggle" title="Play or stop continuous mode">Play</button>
+            <button id="live-pause" class="btn-micro" title="Freeze the painting without clearing it; press again to resume" disabled>Pause</button>
             <button id="live-clear" class="btn-micro" title="Clear the canvas and repaint from blank">Clear</button>
             <button id="live-export" class="btn-micro" title="Export an endless p5.js sketch (zip) with these settings">Export p5</button>
           </div>
@@ -143,13 +148,13 @@ export class ReferencePanel {
           </div>
           <label class="live-slider" title="Watercolor: each stroke is a p5.brush painting that fades in and out on its own. Layered: strokes pile up on one sheet and fade together under washes (Fade out sets how slowly). Pixel and ASCII use the options next to the Medium menu.">
             <span>Render</span>
-            <select id="live-render">
+            <span class="select-with-btn"><select id="live-render">
               <option value="flat">Flat</option>
               <option value="watercolor">Watercolor</option>
-              <option value="layered">Watercolor, layered</option>
               <option value="pixel">Pixel</option>
               <option value="ascii">ASCII</option>
             </select>
+            <button id="live-render-opts" class="btn-micro btn-icon-only" title="Render options">${icon('adjustments', 'icon-sm')}</button></span>
           </label>
           <label class="live-slider" title="Transparent: no ground, strokes fill the picture in. Fixed: the reference's average colour, taken at Play and on every Clear. Follow: the average of each sampled frame (can shift with live sources). Drift: eases toward that average over Ground s seconds.">
             <span>Ground</span>
@@ -244,7 +249,7 @@ export class ReferencePanel {
       sampling: this.sourceCfg.sampling,
       interval: this.sourceCfg.interval,
       rate: this.sourceCfg.rate,
-      render: this.live.render,
+      render: this.live.render === 'watercolor' && this.getStyle?.()?.wcMode === 'layered' ? 'layered' : this.live.render,
       ground: this.live.ground,
       groundTime: this.live.groundTime,
       mode: this.live.mode,
@@ -347,8 +352,10 @@ export class ReferencePanel {
     });
     container.querySelector('#live-render')?.addEventListener('change', (e) => {
       this.live.render = e.target.value;
+      this.onRenderChange?.(e.target.value);
       this.onLiveParams?.(liveParams());
     });
+    container.querySelector('#live-render-opts')?.addEventListener('click', (e) => this.onOpenRenderOptions?.(e.currentTarget));
     container.querySelector('#live-mode')?.addEventListener('change', (e) => {
       this.live.mode = e.target.value;
       this.onLiveParams?.(liveParams());
@@ -363,6 +370,10 @@ export class ReferencePanel {
     });
     container.querySelector('#live-clear')?.addEventListener('click', () => this.onLiveClear?.());
     container.querySelector('#live-export')?.addEventListener('click', () => this.onExportContinuous?.(liveParams()));
+    container.querySelector('#live-pause')?.addEventListener('click', (e) => {
+      const paused = this.onLivePause?.();
+      e.currentTarget.textContent = paused ? 'Resume' : 'Pause';
+    });
     container.querySelector('#live-png')?.addEventListener('click', () => this.onLiveSave?.('png'));
     container.querySelector('#live-txt')?.addEventListener('click', () => this.onLiveSave?.('txt'));
     const recBtn = container.querySelector('#live-rec');
@@ -472,10 +483,19 @@ export class ReferencePanel {
     if (el) el.textContent = n === null ? '' : `${n} /`;
   }
 
+  /** Follow the studio medium (the two menus are one setting). */
+  setRender(id) {
+    this.live.render = id;
+    const sel = this.container?.querySelector('#live-render');
+    if (sel) sel.value = id;
+  }
+
   setLiveRunning(on) {
     this.liveRunning = on;
     const btn = this.container?.querySelector('#live-toggle');
     if (btn) btn.textContent = on ? 'Stop' : 'Play';
+    const pause = this.container?.querySelector('#live-pause');
+    if (pause) { pause.disabled = !on; pause.textContent = 'Pause'; }
   }
 
   setCurrent(ref) {

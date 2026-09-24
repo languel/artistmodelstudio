@@ -119,7 +119,7 @@ export class Controls {
                   .map(m => `<option value="${m.id}" ${m.id === this.activeMedium ? 'selected' : ''}>${m.name}</option>`)
                   .join('')}
               </select>
-              <button id="medium-options-btn" class="btn-micro btn-icon-only" title="Pixel and ASCII options">
+              <button id="medium-options-btn" class="btn-micro btn-icon-only" title="Render options">
                 ${icon('adjustments', 'icon-sm')}
               </button>
             </div>
@@ -341,15 +341,20 @@ export class Controls {
       this.onOpenMediumOptions?.(e.currentTarget);
     });
 
+    this.setMedium = (id) => {
+      this.activeMedium = id;
+      const sel = container.querySelector('#medium-select');
+      if (sel) sel.value = id;
+    };
     container.querySelector('#medium-select')?.addEventListener('change', (e) => {
       this.activeMedium = e.target.value;
       this.onMediumChange?.(this.activeMedium);
     });
 
-    container.querySelector('#canvas-size-select')?.addEventListener('change', (e) => {
+    container.querySelector('#canvas-size-select')?.addEventListener('change', async (e) => {
       let v = e.target.value;
       if (v === 'custom') {
-        const typed = Number(window.prompt('Canvas size (pixels on the long side)', String(this.canvasSize)));
+        const typed = Number(await inlinePrompt(e.target, 'Pixels on the long side', String(this.canvasSize)));
         if (!(typed >= 64 && typed <= 8192)) { e.target.value = String(this.canvasSize); return; }
         v = Math.round(typed);
         if (![...e.target.options].some(o => o.value === String(v))) e.target.add(new Option(String(v), String(v)), e.target.options.length - 1);
@@ -359,11 +364,11 @@ export class Controls {
       this.onCanvasSizeChange?.(this.canvasSize);
     });
 
-    container.querySelector('#canvas-aspect-select')?.addEventListener('change', (e) => {
+    container.querySelector('#canvas-aspect-select')?.addEventListener('change', async (e) => {
       let v = e.target.value;
       if (v === 'custom') {
-        const typed = (window.prompt('Aspect ratio as width:height', this.canvasAspect === 'ref' ? '1:1' : this.canvasAspect) || '').trim();
-        const [w, h] = typed.split(':').map(Number);
+        const typed = (await inlinePrompt(e.target, 'Width:height', this.canvasAspect === 'ref' ? '1:1' : this.canvasAspect) || '').trim();
+        const [w, h] = typed.split(/[:x×/]/).map(Number);
         if (!(w > 0 && h > 0)) { e.target.value = this.canvasAspect; return; }
         v = `${w}:${h}`;
         if (![...e.target.options].some(o => o.value === v)) e.target.add(new Option(v, v), e.target.options.length - 2);
@@ -464,4 +469,34 @@ export class Controls {
       intBtn.innerHTML = `${icon('stop', 'icon-sm')} <span>Stop</span>`;
     }
   }
+}
+
+/** Small popover with one text field under `anchor` (window.prompt is blocked in some hosts). */
+function inlinePrompt(anchor, label, initial) {
+  return new Promise((resolve) => {
+    const el = document.createElement('form');
+    el.className = 'medium-options inline-prompt';
+    el.innerHTML = `<label class="live-slider"><span></span><input class="mo-text" /></label>`;
+    el.querySelector('span').textContent = label;
+    const input = el.querySelector('input');
+    input.value = initial;
+    document.body.appendChild(el);
+    const r = anchor.getBoundingClientRect();
+    el.style.top = `${r.bottom + 6}px`;
+    el.style.left = `${Math.max(8, Math.min(window.innerWidth - el.offsetWidth - 8, r.left))}px`;
+    input.focus();
+    input.select();
+    let done = false;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      document.removeEventListener('pointerdown', outside, true);
+      el.remove();
+      resolve(value);
+    };
+    const outside = (ev) => { if (!el.contains(ev.target)) finish(null); };
+    el.addEventListener('submit', (ev) => { ev.preventDefault(); finish(input.value); });
+    input.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') finish(null); });
+    setTimeout(() => document.addEventListener('pointerdown', outside, true));
+  });
 }
