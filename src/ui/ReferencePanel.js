@@ -1,3 +1,5 @@
+import { icon } from './icons.js';
+
 /**
  * Reference Panel
  *
@@ -77,11 +79,12 @@ export class ReferencePanel {
             <button id="live-toggle" class="btn-primary live-toggle">Play continuous</button>
             <button id="live-export" class="btn-micro" title="Export an endless p5.js sketch (zip) with these settings">Export p5</button>
           </div>
-          <label class="live-slider" title="Watercolor paints each stroke with p5.brush as it lands; old paint fades under washes (Fade out sets how slowly)">
+          <label class="live-slider" title="Watercolor: each stroke is a p5.brush painting that fades in and out on its own. Layered: strokes pile up on one sheet and fade together under washes (Fade out sets how slowly).">
             <span>Render</span>
             <select id="live-render">
               <option value="flat">Flat</option>
               <option value="watercolor">Watercolor</option>
+              <option value="layered">Watercolor, layered</option>
             </select>
           </label>
           <label class="live-slider" title="Strokes: one shape at a time, the oldest leaves as the newest arrives. Fade: many shapes fading at once.">
@@ -94,22 +97,22 @@ export class ReferencePanel {
           <label class="live-slider" title="Shapes alive at once: more shapes, more detail">
             <span>Density</span>
             <input type="range" id="live-density" min="10" max="800" step="10" value="${this.live.density}" />
-            <output id="live-density-out">${this.live.density}</output>
+            <input class="num-field" id="live-density-num" inputmode="decimal" value="${this.live.density}" title="Type any value; the slider covers 10–800" />
           </label>
           <label class="live-slider" title="Seconds for the whole painting to turn over: sets the pacing">
-            <span>Cycle</span>
+            <span>Cycle s</span>
             <input type="range" id="live-lifetime" min="1" max="60" step="0.5" value="${this.live.lifetime}" />
-            <output id="live-lifetime-out">${this.live.lifetime} s</output>
+            <input class="num-field" id="live-lifetime-num" inputmode="decimal" value="${this.live.lifetime}" title="Seconds; type any value" />
           </label>
           <label class="live-slider" title="How gradually each shape appears">
             <span>Fade in</span>
             <input type="range" id="live-fadein" min="0" max="0.5" step="0.05" value="${this.live.fadeIn}" />
-            <output id="live-fadein-out">${this.live.fadeIn}</output>
+            <input class="num-field" id="live-fadein-num" inputmode="decimal" value="${this.live.fadeIn}" title="Type any value from 0 to 1" />
           </label>
           <label class="live-slider" title="How gradually each shape disappears">
             <span>Fade out</span>
             <input type="range" id="live-fadeout" min="0" max="0.5" step="0.05" value="${this.live.fadeOut}" />
-            <output id="live-fadeout-out">${this.live.fadeOut}</output>
+            <input class="num-field" id="live-fadeout-num" inputmode="decimal" value="${this.live.fadeOut}" title="Type any value from 0 to 1" />
           </label>
           <label class="live-slider" title="Shape vocabulary for new shapes">
             <span>Shapes</span>
@@ -149,19 +152,33 @@ export class ReferencePanel {
       shapes: this.live.shapes === 'mixed' ? ['rect', 'triangle', 'circle'] : [this.live.shapes]
     });
     this.liveParams = liveParams;
-    const bindSlider = (id, key, fmt) => {
-      const input = container.querySelector(`#live-${id}`);
-      const out = container.querySelector(`#live-${id}-out`);
-      input?.addEventListener('input', () => {
-        this.live[key] = Number(input.value);
-        if (out) out.textContent = fmt(this.live[key]);
+    // Dragging stays within the slider's range; typed values may go past it.
+    const bindSlider = (id, key, { min = 0, max = Infinity } = {}) => {
+      const range = container.querySelector(`#live-${id}`);
+      const field = container.querySelector(`#live-${id}-num`);
+      const commit = (value) => {
+        this.live[key] = value;
         this.onLiveParams?.(liveParams());
+      };
+      range?.addEventListener('input', () => {
+        field.value = range.value;
+        commit(Number(range.value));
       });
+      const fromField = () => {
+        const v = Number(field.value);
+        if (!Number.isFinite(v)) { field.value = this.live[key]; return; }
+        const value = Math.min(max, Math.max(min, v));
+        field.value = value;
+        range.value = value; // the browser clamps the thumb to the slider's own range
+        commit(value);
+      };
+      field?.addEventListener('change', fromField);
+      field?.addEventListener('keydown', (e) => { if (e.key === 'Enter') field.blur(); });
     };
-    bindSlider('density', 'density', v => String(v));
-    bindSlider('lifetime', 'lifetime', v => `${v} s`);
-    bindSlider('fadein', 'fadeIn', v => String(v));
-    bindSlider('fadeout', 'fadeOut', v => String(v));
+    bindSlider('density', 'density', { min: 1 });
+    bindSlider('lifetime', 'lifetime', { min: 0.1 });
+    bindSlider('fadein', 'fadeIn', { min: 0, max: 1 });
+    bindSlider('fadeout', 'fadeOut', { min: 0, max: 1 });
     container.querySelector('#live-render')?.addEventListener('change', (e) => {
       this.live.render = e.target.value;
       this.onLiveParams?.(liveParams());
@@ -240,8 +257,8 @@ export class ReferencePanel {
           <img src="${src}" alt="${escapeHtml(ref.name)}" />
           <div class="reference-meta">
             <strong>${escapeHtml(ref.name)}</strong>
-            <span>${escapeHtml(ref.rights || '')}${ref.crop ? ' · cropped to the painted sheet' : ''}</span>
-            ${ref.source ? `<a href="${escapeHtml(ref.source)}" target="_blank" rel="noopener">Source on Wikimedia Commons</a>` : ''}
+            <span class="reference-info" title="${escapeHtml([ref.rights, ref.crop ? 'cropped to the painted sheet' : '', ref.source ? 'Wikimedia Commons' : ''].filter(Boolean).join(' · '))}">${icon('questionMarkCircle', 'icon-xs')}</span>
+            ${ref.source ? `<a href="${escapeHtml(ref.source)}" target="_blank" rel="noopener">source</a>` : ''}
           </div>`;
       }
     }

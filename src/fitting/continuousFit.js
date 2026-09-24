@@ -26,12 +26,14 @@ import { ReferenceFitter } from './fitReference.js';
 
 export class ContinuousFitter {
   /**
-   * @param {Float32Array} target RGB floats, size*size*3 (square)
-   * @param {number} size fitting resolution
+   * @param {Float32Array} target RGB floats, width*height*3
+   * @param {number} width fitting resolution
+   * @param {number} height fitting resolution
    */
-  constructor(target, size, { mode = 'strokes', density = 150, lifetime = 12, fade = 0.1, fadeIn, fadeOut, shapes = ['rect', 'triangle', 'circle'], seed = 1, trials = 48, climbs = 64 } = {}) {
-    this.size = size;
-    this.fitter = new ReferenceFitter(target, size, size, { seed, shapes, trials, climbs });
+  constructor(target, width, height, { mode = 'strokes', density = 150, lifetime = 12, fade = 0.1, fadeIn, fadeOut, shapes = ['rect', 'triangle', 'circle'], seed = 1, trials = 48, climbs = 64 } = {}) {
+    this.w = width;
+    this.h = height;
+    this.fitter = new ReferenceFitter(target, width, height, { seed, shapes, trials, climbs });
     this.background = this.fitter.background;
     this.bgRGB = [1, 3, 5].map(i => parseInt(this.background.slice(i, i + 2), 16));
     this.buffer = new Float32Array(target.length);
@@ -45,8 +47,8 @@ export class ContinuousFitter {
   setParams({ mode, density, lifetime, fade, fadeIn, fadeOut, shapes } = {}) {
     if (mode === 'strokes' || mode === 'fade') this.mode = mode;
     if (density !== undefined) this.density = Math.max(1, Math.round(density));
-    if (lifetime !== undefined) this.lifetime = Math.max(0.5, lifetime);
-    const clampFade = v => Math.min(0.5, Math.max(0, v));
+    if (lifetime !== undefined) this.lifetime = Math.max(0.1, lifetime);
+    const clampFade = v => Math.min(1, Math.max(0, v));
     if (fade !== undefined) this.fadeIn = this.fadeOut = clampFade(fade);
     if (fadeIn !== undefined) this.fadeIn = clampFade(fadeIn);
     if (fadeOut !== undefined) this.fadeOut = clampFade(fadeOut);
@@ -84,7 +86,7 @@ export class ContinuousFitter {
     const buf = this.buffer;
     const [r, g, b] = this.bgRGB;
     for (let i = 0; i < buf.length; i += 3) { buf[i] = r; buf[i + 1] = g; buf[i + 2] = b; }
-    const w = this.size;
+    const w = this.w;
     for (const s of this.alive) {
       const op = this.alpha(s, at);
       if (op <= 0) continue;
@@ -137,17 +139,17 @@ export class ContinuousFitter {
     return spawned;
   }
 
-  /** Draw at time `now` into the square view (x, y, side) of a 2D context. */
-  draw(ctx, x, y, side, now) {
-    const X = v => x + (v + 1) * 0.5 * side;
-    const Y = v => y + (v + 1) * 0.5 * side;
-    const S = v => v * 0.5 * side;
+  /** Draw at time `now` into the view rectangle (x, y, w, h) of a 2D context. */
+  draw(ctx, x, y, w, h, now) {
+    const X = v => x + (v + 1) * 0.5 * w;
+    const Y = v => y + (v + 1) * 0.5 * h;
+    const S = v => v * 0.5 * Math.min(w, h);
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.fillStyle = this.background;
-    ctx.fillRect(x, y, side, side);
+    ctx.fillRect(x, y, w, h);
     ctx.beginPath();
-    ctx.rect(x, y, side, side);
+    ctx.rect(x, y, w, h);
     ctx.clip();
     for (const s of this.alive) {
       const a = this.alpha(s, now);

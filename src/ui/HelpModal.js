@@ -57,25 +57,25 @@ export class HelpModal {
                 </p>
               </div>
             </div>
-            <button class="btn-icon" id="close-help-modal" title="Close (Esc)">✕</button>
+            <button class="btn-icon" id="close-help-modal" title="Close (Esc)">${icon('xMark', 'icon-sm')}</button>
           </div>
 
           <!-- Navigation Tabs -->
           <div style="display: flex; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--border-color); flex-shrink: 0; overflow-x: auto;">
             <button class="btn-secondary ${this.activeTab === 'benchmarks' ? 'active' : ''}" data-tab="benchmarks">
-              ⚡ M5 Max & Benchmarks
+              M5 Max & Benchmarks
             </button>
             <button class="btn-secondary ${this.activeTab === 'uniformity' ? 'active' : ''}" data-tab="uniformity">
-              🔍 Output Uniformity Guide
+              Output Uniformity Guide
             </button>
             <button class="btn-secondary ${this.activeTab === 'training' ? 'active' : ''}" data-tab="training">
-              🎓 LoRA Training & Models
+              LoRA Training & Models
             </button>
             <button class="btn-secondary ${this.activeTab === 'quickstart' ? 'active' : ''}" data-tab="quickstart">
-              🚀 Studio Workflow
+              Studio Workflow
             </button>
             <button class="btn-secondary ${this.activeTab === 'webmcp' ? 'active' : ''}" data-tab="webmcp">
-              🤖 WebMCP & Agent API
+              WebMCP & Agent API
             </button>
           </div>
 
@@ -192,7 +192,7 @@ export class HelpModal {
           <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
             <div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary);">💻 Detected Workstation: Apple M5 Max</span>
+                <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary);">Detected Workstation: Apple M5 Max</span>
                 <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px;">Verified</span>
               </div>
               <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 4px 0 0 0;">
@@ -210,7 +210,7 @@ export class HelpModal {
         <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; background: var(--bg-primary);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h3 style="font-size: 0.95rem; font-weight: 600; color: var(--text-primary); margin: 0;">
-              🧮 Interactive Training Resource Estimator
+              Interactive Training Resource Estimator
             </h3>
             <span style="font-size: 0.75rem; color: var(--text-muted);">Simulate local fine-tuning requirements</span>
           </div>
@@ -311,7 +311,7 @@ export class HelpModal {
         <!-- Empirical Benchmark Reference Table -->
         <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; background: var(--bg-primary);">
           <h4 style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary); margin: 0 0 8px 0;">
-            📊 Apple Silicon M5 Max (128 GB) Model Matrix
+            Apple Silicon M5 Max (128 GB) Model Matrix
           </h4>
           <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem; text-align: left;">
@@ -449,7 +449,7 @@ export class HelpModal {
 
         <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; background: var(--bg-primary);">
           <h4 style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary); margin: 0 0 6px 0;">
-            💡 Quick Checklist for Maximum Visual Diversity
+            Quick Checklist for Maximum Visual Diversity
           </h4>
           <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px;">
             <li>Set <strong>Variation</strong> dropdown to <code>High</code> or <code>Wild</code>.</li>
@@ -467,7 +467,7 @@ export class HelpModal {
       <div style="display: flex; flex-direction: column; gap: 14px; font-size: 0.84rem; line-height: 1.5; color: var(--text-secondary);">
         <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; background: var(--bg-primary);">
           <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin: 0 0 8px 0;">
-            🎓 In-Browser LoRA Fine-Tuning Architecture
+            In-Browser LoRA Fine-Tuning Architecture
           </h3>
           <p style="margin: 0 0 10px 0;">
             Artist–Model Studio includes a self-contained LoRA (Low-Rank Adaptation) training engine that runs entirely inside your browser (or headless Node.js). No model weights or user artworks are uploaded to remote servers.
@@ -509,7 +509,7 @@ export class HelpModal {
         <!-- Portable Model Format -->
         <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; background: var(--bg-primary);">
           <h4 style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary); margin: 0 0 6px 0;">
-            📦 Portable Model Format (<code>.ams-model.json</code>)
+            Portable Model Format (<code>.ams-model.json</code>)
           </h4>
           <p style="font-size: 0.8rem; margin: 0 0 8px 0;">
             Trained models can be exported and imported seamlessly across browsers, machines, or test runners:
@@ -536,7 +536,7 @@ export class HelpModal {
       <div style="display: flex; flex-direction: column; gap: 14px; font-size: 0.84rem; line-height: 1.5; color: var(--text-secondary);">
         <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; background: var(--bg-primary);">
           <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin: 0 0 8px 0;">
-            🚀 The Studio Workflow
+            The Studio Workflow
           </h3>
           <p style="margin: 0 0 12px 0;">
             Artist–Model Studio bridges prompt-based generative code with an RLHF/RLAIF human-in-the-loop training and evaluation lab:
@@ -588,7 +588,7 @@ export class HelpModal {
       <div style="display: flex; flex-direction: column; gap: 14px; font-size: 0.84rem; line-height: 1.5; color: var(--text-secondary);">
         <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; background: var(--bg-primary);">
           <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin: 0 0 6px 0;">
-            🤖 WebMCP &amp; External Agent API
+            WebMCP &amp; External Agent API
           </h3>
           <p style="margin: 0 0 10px 0;">
             Artist–Model Studio exposes a comprehensive programmatic interface on <code>window.ams</code> (and <code>window.__artistStudioAPI</code>) allowing external AI coding agents to control generation, evaluate visual candidates, fine-tune models, and export artifacts.
@@ -644,7 +644,7 @@ export class HelpModal {
 
         <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; background: var(--bg-primary);">
           <h4 style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin: 0 0 6px 0;">
-            🤖 Agent Autonomous Training Example
+            Agent Autonomous Training Example
           </h4>
           <pre style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; font-family: var(--font-mono); font-size: 0.72rem; color: #d4d4d4; overflow-x: auto; margin: 0;">// Generate candidates
 await window.ams.generate("sapphire hummingbird in flight");

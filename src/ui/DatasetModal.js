@@ -5,6 +5,7 @@
  */
 
 import { exportSessionJSON, exportSFTJSONL, exportPreferenceJSONL, downloadBlob } from '../sessions/exportDataset.js';
+import { icon } from './icons.js';
 import {
   getSavedModels,
   exportModelToJSON,
@@ -44,7 +45,7 @@ export class DatasetModal {
                 Export training data for SFT / DPO, or import & export fine-tuned in-browser models (.ams-model.json)
               </p>
             </div>
-            <button class="btn-icon" id="close-dataset-modal">✕</button>
+            <button class="btn-icon" id="close-dataset-modal">${icon('xMark', 'icon-sm')}</button>
           </div>
 
           <div class="modal-body">
@@ -59,7 +60,7 @@ export class DatasetModal {
                 Full Session (.json)
               </button>
               <button class="btn-secondary ${this.activeType === 'models' ? 'active' : ''}" id="tab-models">
-                🎓 Trained Models (${savedModels.length})
+                Trained Models (${savedModels.length})
               </button>
             </div>
 
@@ -71,7 +72,7 @@ export class DatasetModal {
                 <div>
                   <input type="file" id="import-model-file-input" accept=".json,.ams-model" style="display: none;" />
                   <button class="btn-secondary" id="import-model-btn" style="padding: 6px 12px; font-size: 0.82rem;">
-                    ⬆ Import Model (.json)
+                    Import Model (.json)
                   </button>
                 </div>
               </div>
@@ -93,11 +94,9 @@ export class DatasetModal {
                       </div>
                       <div style="display: flex; gap: 6px;">
                         <button class="btn-micro export-model-item-btn" data-id="${m.id}" title="Export .ams-model.json">
-                          ⬇ Export
+                          Export
                         </button>
-                        <button class="btn-micro delete-model-item-btn" data-id="${m.id}" style="color: var(--accent-red);" title="Delete Model">
-                          ✕
-                        </button>
+                        <button class="btn-micro delete-model-item-btn" data-id="${m.id}" style="color: var(--accent-red);" title="Delete Model">${icon('xMark', 'icon-sm')}</button>
                       </div>
                     </div>
                   `).join('')}
@@ -113,7 +112,7 @@ export class DatasetModal {
                     : 'Full provenance records: prompt, model, medium, seed, ratings, lineage'}
                 </span>
                 <button class="btn-primary" id="download-dataset-btn" style="padding: 6px 14px; font-size: 0.82rem;">
-                  ⬇ Download File
+                  Download File
                 </button>
               </div>
 

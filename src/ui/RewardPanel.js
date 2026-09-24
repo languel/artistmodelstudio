@@ -96,7 +96,7 @@ export class RewardPanel {
                 ▶ Run 5 Episodes
               </button>
               <button id="run-rl-hack-btn" class="btn-secondary" style="font-size: 0.85rem;" title="Showcase reward hacking">
-                ⚡ Reward-Hack Demo
+                Reward-Hack Demo
               </button>
             </div>
 

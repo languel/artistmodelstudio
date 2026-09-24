@@ -32,11 +32,21 @@ export const FITTER_VOCABULARIES = [
   { label: 'triangles', shapes: ['triangle'] }
 ];
 
-/**
- * Letterbox an image into a size×size canvas padded with its mean colour, so
- * the fit fills AMS's square canvas without distorting the reference.
- */
+/** Fitting dimensions for a canvas aspect (width / height), with `long` pixels on the long side. */
+export function fitDims(aspect = 1, long = FIT_SIZE) {
+  return aspect >= 1 ? [long, Math.max(8, Math.round(long / aspect))] : [Math.max(8, Math.round(long * aspect)), long];
+}
+
+/** Letterbox an image into a size×size canvas (kept for the probe/distill pages). */
 export function squareTarget(image, size = FIT_SIZE) {
+  return fitTarget(image, size, size);
+}
+
+/**
+ * Letterbox an image into a w×h canvas padded with its mean colour, so the fit
+ * fills the studio canvas without distorting the reference.
+ */
+export function fitTarget(image, w, h) {
   const iw = image.naturalWidth || image.width;
   const ih = image.naturalHeight || image.height;
   const probe = document.createElement('canvas');
@@ -46,13 +56,14 @@ export function squareTarget(image, size = FIT_SIZE) {
   const [r, g, b] = pctx.getImageData(0, 0, 1, 1).data;
 
   const c = document.createElement('canvas');
-  c.width = c.height = size;
+  c.width = w;
+  c.height = h;
   const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.fillStyle = `rgb(${r},${g},${b})`;
-  ctx.fillRect(0, 0, size, size);
-  const k = size / Math.max(iw, ih);
+  ctx.fillRect(0, 0, w, h);
+  const k = Math.min(w / iw, h / ih);
   const dw = iw * k, dh = ih * k;
-  ctx.drawImage(image, (size - dw) / 2, (size - dh) / 2, dw, dh);
+  ctx.drawImage(image, (w - dw) / 2, (h - dh) / 2, dw, dh);
   return c;
 }
 
@@ -62,6 +73,11 @@ export class ReferenceFitterArtist extends Artist {
     this.model = 'fit-40';
     this.reference = null; // { image, name, source }
     this.runCounter = 0;
+    this.aspect = 1; // canvas width / height, set by the studio
+  }
+
+  setCanvasAspect(aspect) {
+    this.aspect = aspect > 0 ? aspect : 1;
   }
 
   getModel() {
@@ -90,7 +106,8 @@ export class ReferenceFitterArtist extends Artist {
 
     const budget = FITTER_BUDGETS.find(b => b.id === this.model) || FITTER_BUDGETS[1];
     const count = Math.min(request.count || 4, FITTER_VOCABULARIES.length);
-    const target = canvasToRGB(squareTarget(this.reference.image));
+    const [fw, fh] = fitDims(this.aspect);
+    const target = canvasToRGB(fitTarget(this.reference.image, fw, fh));
     const baseSeed = Number(request.settings?.seed ?? 0) || (Date.now() % 100000) + ++this.runCounter;
 
     // Continue from a parent program when refining.
@@ -100,7 +117,7 @@ export class ReferenceFitterArtist extends Artist {
     if (request.previousProgram?.actions?.length) {
       const parent = normalizeProgram(request.previousProgram);
       parentActions = parent.actions;
-      const flat = new FlatCanvasMedium({ width: FIT_SIZE, height: FIT_SIZE });
+      const flat = new FlatCanvasMedium({ width: fw, height: fh });
       const out = await flat.render(parent);
       start = canvasToRGB(out.canvas);
       background = parent.actions.find(a => a.op === 'background')?.color || null;
@@ -129,7 +146,7 @@ export class ReferenceFitterArtist extends Artist {
         message: `Candidate ${String.fromCharCode(65 + c)}: ${vocab.label}, ${budget.shapes} shapes...`
       });
 
-      const fitter = new ReferenceFitter(target, FIT_SIZE, FIT_SIZE, { seed: baseSeed * 7 + c, shapes: vocab.shapes, start, background });
+      const fitter = new ReferenceFitter(target, fw, fh, { seed: baseSeed * 7 + c, shapes: vocab.shapes, start, background });
       const buildProgram = () => parentActions
         ? { version: 1, actions: [...parentActions, { op: 'noStroke' }, ...fitter.shapeActions()] }
         : fitter.toProgram();

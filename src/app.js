@@ -18,7 +18,7 @@ import { ModelExplorerModal } from './ui/ModelExplorerModal.js';
 import { HelpModal } from './ui/HelpModal.js';
 import { ProcessLog } from './ui/ProcessLog.js';
 import { ReferencePanel } from './ui/ReferencePanel.js';
-import { LivePainter, LIVE_FIT_SIZE } from './ui/LivePainter.js';
+import { LivePainter } from './ui/LivePainter.js';
 import { buildContinuousZip, downloadBytes } from './export/p5Export.js';
 import { EXAMPLES } from '../examples/index.js';
 import { initWebMCP } from './mcp/webmcp.js';
@@ -32,7 +32,8 @@ export class StudioApp {
 
     this.activeMediumId = 'watercolor';
     this.activeMode = 'draw'; // 'draw' | 'reward' | 'datasets'
-    this.canvasSize = Number(localStorage.getItem('ams_canvas_size') || 1024);
+    this.canvasSize = Number(localStorage.getItem('ams_canvas_size') || 1024); // long side, px
+    this.canvasAspect = localStorage.getItem('ams_canvas_aspect') || '1:1';   // 'W:H' or 'ref'
     this.variationLevel = localStorage.getItem('ams_variation_level') || 'medium';
 
     this.abortController = null;
@@ -41,11 +42,7 @@ export class StudioApp {
     this.selectedCandidateId = null;
 
     // Configure media canvas dimensions
-    for (const m of this.mediaRegistry.getAll()) {
-      if (typeof m.reset === 'function') {
-        m.reset({ width: this.canvasSize, height: this.canvasSize });
-      }
-    }
+    this.resetMedia();
 
     this.statusBanner = new StatusBanner();
     this.processLog = new ProcessLog();
@@ -120,9 +117,10 @@ export class StudioApp {
     this.referencePanel = new ReferencePanel({
       onReferenceChange: (ref) => {
         this.artistRegistry.get('fitter')?.setReference(ref);
+        if (this.canvasAspect === 'ref' && this.mediaRegistry) this.handleCanvasSizeChange(this.canvasSize);
         if (ref && this.processLog) this.processLog.log(`Reference set: ${ref.name}`, 'info');
         if (this.livePainter.running) {
-          if (ref?.image) this.livePainter.start(ref.image, this.referencePanel.liveParams());
+          if (ref?.image) this.livePainter.start(ref.image, this.referencePanel.liveParams(), this.aspectValue());
           else this.stopLive();
         }
       },
@@ -145,6 +143,8 @@ export class StudioApp {
       onMediumChange: (id) => this.handleMediumChange(id),
       onModeChange: (mode) => this.handleModeChange(mode),
       onCanvasSizeChange: (size) => this.handleCanvasSizeChange(size),
+      onAspectChange: (aspect) => this.handleAspectChange(aspect),
+      canvasAspect: this.canvasAspect,
       onVariationChange: (level) => this.handleVariationChange(level),
       onGenerate: (prompt) => this.handleGenerate(prompt),
       onInterrupt: () => this.handleInterrupt(),
@@ -164,6 +164,7 @@ export class StudioApp {
         <div id="studio-view" class="studio-hero-layout" data-side-tab="variations">
           <div id="candidate-grid-container" class="studio-main-column"></div>
           
+          <div class="studio-splitter" id="studio-splitter" role="separator" aria-orientation="vertical" title="Drag to resize · double-click to reset"></div>
           <div id="right-column-container" class="studio-side-column">
             <div class="side-column-tabs">
               <button class="side-tab-btn active" id="tab-btn-variations" data-tab="variations">
@@ -230,6 +231,7 @@ export class StudioApp {
     }
 
     this.attachSideTabEvents();
+    this.attachSplitter();
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.animationRun) this.stopAnimation();
     });
@@ -273,7 +275,7 @@ export class StudioApp {
   startLive(params) {
     const ref = this.referencePanel.current;
     if (!ref?.image) return;
-    this.livePainter.start(ref.image, params);
+    this.livePainter.start(ref.image, params, this.aspectValue());
     this.referencePanel.setLiveRunning(true);
     this.processLog.log(`Continuous mode on "${ref.name}": ${params.density} shapes, ${params.lifetime} s lifetime.`, 'info');
   }
@@ -286,11 +288,47 @@ export class StudioApp {
   async exportContinuous(params) {
     const ref = this.referencePanel.current;
     if (!ref?.image) return;
-    const target = LivePainter.targetFor(ref.image);
+    const target = LivePainter.targetFor(ref.image, this.aspectValue());
     const title = ref.name.replace(/\s*\(.*\)\s*$/, '') || 'AMS continuous';
-    const zip = await buildContinuousZip(target, LIVE_FIT_SIZE, { ...params, seed: 1 }, { title, source: 'Reference Fitter, continuous' });
+    const zip = await buildContinuousZip(target, { ...params, seed: 1 }, { title, source: 'Reference Fitter, continuous' });
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'ams-continuous';
     downloadBytes(zip, `${slug}-continuous-p5.zip`, 'application/zip');
+  }
+
+  /** Draggable divider between the preview and the side panel (width persisted). */
+  attachSplitter() {
+    const view = this.root.querySelector('#studio-view');
+    const splitter = this.root.querySelector('#studio-splitter');
+    if (!view || !splitter) return;
+    const KEY = 'ams_side_width';
+    const apply = (px) => {
+      if (px) view.style.setProperty('--side-width', `${px}px`);
+      else view.style.removeProperty('--side-width');
+    };
+    try { apply(Number(localStorage.getItem(KEY)) || 0); } catch { /* storage unavailable */ }
+    splitter.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      splitter.setPointerCapture(e.pointerId);
+      splitter.classList.add('dragging');
+      const rect = view.getBoundingClientRect();
+      const move = (ev) => {
+        const px = Math.round(Math.min(rect.width - 320, Math.max(260, rect.right - ev.clientX)));
+        apply(px);
+      };
+      const up = () => {
+        splitter.classList.remove('dragging');
+        splitter.removeEventListener('pointermove', move);
+        splitter.removeEventListener('pointerup', up);
+        const w = parseInt(view.style.getPropertyValue('--side-width'), 10);
+        try { if (w) localStorage.setItem(KEY, String(w)); } catch { /* storage unavailable */ }
+      };
+      splitter.addEventListener('pointermove', move);
+      splitter.addEventListener('pointerup', up);
+    });
+    splitter.addEventListener('dblclick', () => {
+      apply(0);
+      try { localStorage.removeItem(KEY); } catch { /* storage unavailable */ }
+    });
   }
 
   handleToggleLog() {
@@ -314,7 +352,7 @@ export class StudioApp {
     const medium = this.getActiveMedium();
 
     this.processLog.setStatus('streaming');
-    this.processLog.log(`Starting generation with ${artist.name} (Medium: ${medium.name}, Canvas: ${this.canvasSize}x${this.canvasSize}, Variation: ${this.variationLevel})...`, 'info');
+    this.processLog.log(`Starting generation with ${artist.name} (Medium: ${medium.name}, Canvas: ${this.canvasDims().join('x')}, Variation: ${this.variationLevel})...`, 'info');
 
     // If local Ollama or WebGPU, automatically switch side tab to Process Log so the user sees live progress
     if (artist.type === 'ollama' || artist.type === 'webgpu') {
@@ -514,17 +552,46 @@ export class StudioApp {
     }
   }
 
+  /** Canvas aspect (width / height); 'ref' follows the current reference image. */
+  aspectValue() {
+    if (this.canvasAspect === 'ref') {
+      const img = this.referencePanel?.current?.image;
+      const w = img?.naturalWidth || img?.width, h = img?.naturalHeight || img?.height;
+      return w && h ? w / h : 1;
+    }
+    const [w, h] = String(this.canvasAspect).split(':').map(Number);
+    return w > 0 && h > 0 ? w / h : 1;
+  }
+
+  /** Canvas pixel dimensions: `canvasSize` on the long side at the chosen aspect. */
+  canvasDims() {
+    const a = this.aspectValue();
+    const long = this.canvasSize;
+    return a >= 1 ? [long, Math.round(long / a)] : [Math.round(long * a), long];
+  }
+
+  resetMedia() {
+    const [width, height] = this.canvasDims();
+    for (const m of this.mediaRegistry.getAll()) {
+      if (typeof m.reset === 'function' && m.id !== 'pixel') m.reset({ width, height });
+    }
+    this.artistRegistry?.get('fitter')?.setCanvasAspect(width / height);
+  }
+
+  async handleAspectChange(aspect) {
+    this.canvasAspect = aspect;
+    localStorage.setItem('ams_canvas_aspect', aspect);
+    await this.handleCanvasSizeChange(this.canvasSize);
+    if (this.livePainter?.running) this.startLive(this.referencePanel.liveParams());
+  }
+
   async handleCanvasSizeChange(newSize) {
     this.canvasSize = Number(newSize);
     localStorage.setItem('ams_canvas_size', String(this.canvasSize));
+    this.resetMedia();
+    const [cw, ch] = this.canvasDims();
 
-    for (const m of this.mediaRegistry.getAll()) {
-      if (typeof m.reset === 'function') {
-        m.reset({ width: this.canvasSize, height: this.canvasSize });
-      }
-    }
-
-    this.processLog.log(`Canvas resolution set to ${this.canvasSize} × ${this.canvasSize}. Re-rendering...`, 'info');
+    this.processLog.log(`Canvas set to ${cw} × ${ch}. Re-rendering...`, 'info');
 
     // Re-render current candidates in the new resolution
     const cands = this.sessionStore.getCurrentCandidates();

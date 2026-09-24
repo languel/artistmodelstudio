@@ -70,7 +70,7 @@ describe('OpenRouter Models, Search & Favorites', () => {
     expect(models.length).toBeGreaterThan(0);
 
     const groups = new Set(models.map(m => m.group));
-    expect(groups.has('⭐ Favorites (Mostly Free)')).toBe(true);
+    expect(groups.has('Favorites (Mostly Free)')).toBe(true);
     expect(groups.has('🆓 Free Models (:free)')).toBe(true);
     expect(groups.has('Cloud Frontier & Other')).toBe(true);
   });

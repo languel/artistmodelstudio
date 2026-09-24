@@ -14,6 +14,8 @@ export class Controls {
     activeMedium = 'watercolor',
     activeMode = 'draw',
     canvasSize = 1024,
+    canvasAspect = '1:1',
+    onAspectChange,
     variationLevel = 'medium',
     artistRegistry = null,
     onArtistChange,
@@ -36,6 +38,8 @@ export class Controls {
     this.activeMedium = activeMedium;
     this.activeMode = activeMode;
     this.canvasSize = canvasSize;
+    this.canvasAspect = canvasAspect;
+    this.onAspectChange = onAspectChange;
     this.variationLevel = variationLevel;
     this.artistRegistry = artistRegistry;
 
@@ -117,10 +121,20 @@ export class Controls {
 
             <div class="selector-group">
               <label for="canvas-size-select">Canvas</label>
-              <select id="canvas-size-select" title="Canvas Resolution">
-                <option value="1024" ${Number(this.canvasSize) === 1024 ? 'selected' : ''}>1024² (1K)</option>
-                <option value="2048" ${Number(this.canvasSize) === 2048 ? 'selected' : ''}>2048² (2K)</option>
-                <option value="512" ${Number(this.canvasSize) === 512 ? 'selected' : ''}>512² (Draft)</option>
+              <select id="canvas-size-select" title="Canvas size: pixels on the long side">
+                ${[512, 1024, 2048, ...([512, 1024, 2048].includes(Number(this.canvasSize)) ? [] : [Number(this.canvasSize)])]
+                  .map(v => `<option value="${v}" ${Number(this.canvasSize) === v ? 'selected' : ''}>${v}</option>`).join('')}
+                <option value="custom">Custom…</option>
+              </select>
+            </div>
+
+            <div class="selector-group">
+              <label for="canvas-aspect-select">Aspect</label>
+              <select id="canvas-aspect-select" title="Canvas aspect ratio (width : height); Reference follows the current reference image">
+                ${['1:1', '4:3', '3:4', '3:2', '2:3', '16:9', '9:16', ...(['1:1', '4:3', '3:4', '3:2', '2:3', '16:9', '9:16', 'ref'].includes(this.canvasAspect) ? [] : [this.canvasAspect])]
+                  .map(v => `<option value="${v}" ${this.canvasAspect === v ? 'selected' : ''}>${v}</option>`).join('')}
+                <option value="ref" ${this.canvasAspect === 'ref' ? 'selected' : ''}>Reference</option>
+                <option value="custom">Custom…</option>
               </select>
             </div>
 
@@ -151,6 +165,9 @@ export class Controls {
 
             <button id="toggle-log-btn" class="btn-icon btn-icon-only" title="Toggle Process & Activity Log">
               ${icon('terminal', 'icon-sm')}
+            </button>
+            <button id="theme-btn" class="btn-icon btn-icon-only" title="Switch light / dark">
+              ${document.documentElement.dataset.theme === 'light' ? icon('moon', 'icon-sm') : icon('sun', 'icon-sm')}
             </button>
             <button id="help-btn" class="btn-icon btn-icon-only" title="Documentation & Hardware Benchmarks (?)">
               ${icon('questionMarkCircle', 'icon-sm')}
@@ -243,12 +260,12 @@ export class Controls {
       `).join('');
 
       if (this.activeArtist === 'openrouter') {
-        html += `<optgroup label="Explorer"><option value="__open_explorer__">🔍 Search 400+ Models...</option></optgroup>`;
+        html += `<optgroup label="Explorer"><option value="__open_explorer__">Search 400+ Models...</option></optgroup>`;
       }
 
       const savedTrained = getSavedModels();
       if (savedTrained.length > 0 && (this.activeArtist === 'webgpu' || this.activeArtist === 'trained')) {
-        html += `<optgroup label="🎓 Fine-Tuned & Local Models">`;
+        html += `<optgroup label="Fine-Tuned & Local Models">`;
         for (const tm of savedTrained) {
           const isSel = tm.id === currentModel;
           html += `<option value="${tm.id}" ${isSel ? 'selected' : ''}>${tm.name} (${tm.architecture || 'LoRA'})</option>`;
@@ -263,12 +280,12 @@ export class Controls {
         return `<option value="${m.id}" ${isSel ? 'selected' : ''}>${m.name || m.id}</option>`;
       }).join('');
       if (this.activeArtist === 'openrouter') {
-        html += `<optgroup label="Explorer"><option value="__open_explorer__">🔍 Search 400+ Models...</option></optgroup>`;
+        html += `<optgroup label="Explorer"><option value="__open_explorer__">Search 400+ Models...</option></optgroup>`;
       }
 
       const savedTrained = getSavedModels();
       if (savedTrained.length > 0 && (this.activeArtist === 'webgpu' || this.activeArtist === 'trained')) {
-        html += `<optgroup label="🎓 Fine-Tuned & Local Models">`;
+        html += `<optgroup label="Fine-Tuned & Local Models">`;
         for (const tm of savedTrained) {
           const isSel = tm.id === currentModel;
           html += `<option value="${tm.id}" ${isSel ? 'selected' : ''}>${tm.name} (${tm.architecture || 'LoRA'})</option>`;
@@ -321,8 +338,30 @@ export class Controls {
     });
 
     container.querySelector('#canvas-size-select')?.addEventListener('change', (e) => {
-      this.canvasSize = Number(e.target.value);
+      let v = e.target.value;
+      if (v === 'custom') {
+        const typed = Number(window.prompt('Canvas size (pixels on the long side)', String(this.canvasSize)));
+        if (!(typed >= 64 && typed <= 8192)) { e.target.value = String(this.canvasSize); return; }
+        v = Math.round(typed);
+        if (![...e.target.options].some(o => o.value === String(v))) e.target.add(new Option(String(v), String(v)), e.target.options.length - 1);
+        e.target.value = String(v);
+      }
+      this.canvasSize = Number(v);
       this.onCanvasSizeChange?.(this.canvasSize);
+    });
+
+    container.querySelector('#canvas-aspect-select')?.addEventListener('change', (e) => {
+      let v = e.target.value;
+      if (v === 'custom') {
+        const typed = (window.prompt('Aspect ratio as width:height', this.canvasAspect === 'ref' ? '1:1' : this.canvasAspect) || '').trim();
+        const [w, h] = typed.split(':').map(Number);
+        if (!(w > 0 && h > 0)) { e.target.value = this.canvasAspect; return; }
+        v = `${w}:${h}`;
+        if (![...e.target.options].some(o => o.value === v)) e.target.add(new Option(v, v), e.target.options.length - 2);
+        e.target.value = v;
+      }
+      this.canvasAspect = v;
+      this.onAspectChange?.(v);
     });
 
     container.querySelector('#variation-select')?.addEventListener('change', (e) => {
@@ -381,6 +420,13 @@ export class Controls {
 
     container.querySelector('#settings-btn')?.addEventListener('click', () => {
       this.onOpenSettings?.();
+    });
+
+    container.querySelector('#theme-btn')?.addEventListener('click', (e) => {
+      const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem('ams_theme', next); } catch { /* storage unavailable */ }
+      e.currentTarget.innerHTML = next === 'light' ? icon('moon', 'icon-sm') : icon('sun', 'icon-sm');
     });
 
     container.querySelector('#help-btn')?.addEventListener('click', () => {

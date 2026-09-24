@@ -5,8 +5,8 @@
  */
 import { ContinuousFitter } from '../fitting/continuousFit.js';
 import { canvasToRGB } from '../fitting/fitReference.js';
-import { squareTarget } from '../artists/ReferenceFitterArtist.js';
-import { WatercolorLayer, retentionFor } from '../fitting/continuousWatercolor.js';
+import { fitTarget, fitDims } from '../artists/ReferenceFitterArtist.js';
+import { WatercolorLayer, WatercolorSprites, retentionFor } from '../fitting/continuousWatercolor.js';
 
 let brushModule = null;
 const loadBrush = async () => (brushModule ||= await import('p5.brush/standalone'));
@@ -23,16 +23,18 @@ export class LivePainter {
     this.target = null;
   }
 
-  /** Square RGB target for a reference image (also used by the p5 export). */
-  static targetFor(image) {
-    return canvasToRGB(squareTarget(image, LIVE_FIT_SIZE));
+  /** RGB target for a reference at a canvas aspect (also used by the p5 export). */
+  static targetFor(image, aspect = 1) {
+    const [w, h] = fitDims(aspect, LIVE_FIT_SIZE);
+    return { rgb: canvasToRGB(fitTarget(image, w, h)), width: w, height: h };
   }
 
-  async start(image, params) {
+  async start(image, params, aspect = 1) {
     this.stop();
-    if (params.render === 'watercolor') await loadBrush();
-    this.target = LivePainter.targetFor(image);
-    this.cf = new ContinuousFitter(this.target, LIVE_FIT_SIZE, params);
+    if (params.render === 'watercolor' || params.render === 'layered') await loadBrush();
+    this.aspect = aspect;
+    this.target = LivePainter.targetFor(image, aspect);
+    this.cf = new ContinuousFitter(this.target.rgb, this.target.width, this.target.height, params);
     this.params = { ...params };
     this.t = 0;
     this.last = performance.now();
@@ -53,13 +55,14 @@ export class LivePainter {
 
   async setParams(params) {
     this.params = { ...this.params, ...params };
-    if (this.params.render === 'watercolor') await loadBrush();
+    if (this.params.render === 'watercolor' || this.params.render === 'layered') await loadBrush();
     this.cf?.setParams(params);
   }
 
   stop() {
     this.running = false;
     this.layer = null;
+    this.sprites = null;
     if (this.raf) cancelAnimationFrame(this.raf);
     this.canvas.remove();
   }
@@ -78,14 +81,23 @@ export class LivePainter {
     const ctx = this.canvas.getContext('2d');
     ctx.fillStyle = '#18191d';
     ctx.fillRect(0, 0, w, h);
-    const side = Math.min(w, h);
-    const x = (w - side) / 2, y = (h - side) / 2;
+    // Fit the canvas aspect inside the preview.
+    const a = this.aspect || 1;
+    const vw = Math.min(w, h * a), vh = vw / a;
+    const x = (w - vw) / 2, y = (h - vh) / 2;
+    const [lw, lh] = fitDims(a, 1024);
     if (this.params.render === 'watercolor' && brushModule) {
-      this.layer ||= new WatercolorLayer(brushModule, { size: 1024 });
+      // Per-stroke watercolor sprites with individual fades.
+      this.sprites ||= new WatercolorSprites(brushModule, { width: lw, height: lh });
+      this.sprites.update(this.cf);
+      this.sprites.draw(ctx, x, y, vw, vh, this.cf, this.t);
+    } else if (this.params.render === 'layered' && brushModule) {
+      // Strokes painted once into one canvas; everything fades under washes.
+      this.layer ||= new WatercolorLayer(brushModule, { width: lw, height: lh });
       this.layer.update(this.cf, this.t, dt, retentionFor(this.params.fadeOut));
-      this.layer.draw(ctx, x, y, side);
+      this.layer.draw(ctx, x, y, vw, vh);
     } else {
-      this.cf.draw(ctx, x, y, side, this.t);
+      this.cf.draw(ctx, x, y, vw, vh, this.t);
     }
   }
 

@@ -1,3 +1,4 @@
+import { icon } from './icons.js';
 /**
  * Model Explorer Modal
  *
@@ -64,9 +65,9 @@ export class ModelExplorerModal {
         <div class="modal-header" style="flex-shrink: 0;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <h2 style="font-size: 1.15rem; color: var(--text-primary); font-weight: 600; margin: 0;">OpenRouter Model Explorer</h2>
-            <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">400+ Models</span>
+            <span class="badge" style="background: color-mix(in srgb, var(--accent-secondary) 15%, transparent); color: var(--accent-secondary);">400+ Models</span>
           </div>
-          <button class="btn-icon" id="close-explorer-modal" title="Close (Esc)">✕</button>
+          <button class="btn-icon" id="close-explorer-modal" title="Close (Esc)">${icon('xMark', 'icon-sm')}</button>
         </div>
 
         <div class="explorer-toolbar" style="padding: 12px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; flex-shrink: 0;">
@@ -80,10 +81,10 @@ export class ModelExplorerModal {
                 value="${this.searchQuery}"
                 style="padding: 8px 12px; font-size: 0.88rem; width: 100%; border-radius: 6px; background: var(--bg-tertiary);"
               />
-              ${this.searchQuery ? '<button id="explorer-clear-search" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer;">✕</button>' : ''}
+              ${this.searchQuery ? '<button id="explorer-clear-search" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer;">' + icon('xMark', 'icon-sm') + '</button>' : ''}
             </div>
             <button id="explorer-refresh-btn" class="btn-secondary" style="padding: 7px 12px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 5px;" title="Refresh catalog from OpenRouter">
-              🔄 Refresh
+              Refresh
             </button>
           </div>
 
@@ -93,7 +94,7 @@ export class ModelExplorerModal {
                 🆓 Free Models (:free)
               </button>
               <button class="pill-btn ${this.activeFilter === 'favorites' ? 'active' : ''}" data-filter="favorites">
-                ⭐ Favorites
+                Favorites
               </button>
               <button class="pill-btn ${this.activeFilter === 'all' ? 'active' : ''}" data-filter="all">
                 All Models
@@ -111,7 +112,7 @@ export class ModelExplorerModal {
 
         <div class="modal-footer" style="padding: 10px 16px; background: var(--bg-secondary); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
           <span style="font-size: 0.76rem; color: var(--text-muted);">
-            Tip: Star ⭐ your favorite models to keep them pinned at the top of the Studio front-page selector.
+            Tip: Star your favorite models to keep them pinned at the top of the Studio front-page selector.
           </span>
           <button class="btn-secondary" id="close-explorer-btn" style="padding: 6px 14px; font-size: 0.82rem;">Done</button>
         </div>
@@ -158,12 +159,12 @@ export class ModelExplorerModal {
     this.modalEl.querySelector('#explorer-refresh-btn')?.addEventListener('click', async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true;
-      btn.textContent = '⏳ Refreshing...';
+      btn.textContent = 'Refreshing…';
       try {
         await this.artist.fetchModels(true);
       } finally {
         btn.disabled = false;
-        btn.textContent = '🔄 Refresh';
+        btn.textContent = 'Refresh';
         this.updateList();
       }
     });
@@ -186,7 +187,7 @@ export class ModelExplorerModal {
         const modelId = starBtn.dataset.id;
         const isNowFav = this.artist.toggleFavorite(modelId);
         starBtn.classList.toggle('active', isNowFav);
-        starBtn.textContent = isNowFav ? '⭐' : '☆';
+        starBtn.textContent = isNowFav ? '★' : '☆';
         starBtn.title = isNowFav ? 'Remove from favorites' : 'Add to favorites';
         this.onFavoritesChange?.(this.artist.getFavorites());
         this.updateList();
@@ -257,7 +258,7 @@ export class ModelExplorerModal {
             <div class="explorer-model-card ${isSelected ? 'selected' : ''}" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-tertiary); border: 1px solid ${isSelected ? 'var(--accent-cyan)' : 'var(--border-color)'}; border-radius: 6px; gap: 12px; transition: border-color 0.15s ease;">
               <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
                 <button class="explorer-star-btn ${isFav ? 'active' : ''}" data-id="${m.id}" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}" style="background: none; border: none; font-size: 1.15rem; cursor: pointer; padding: 2px 4px; color: ${isFav ? '#f59e0b' : 'var(--text-muted)'}; line-height: 1;">
-                  ${isFav ? '⭐' : '☆'}
+                  ${isFav ? '★' : '☆'}
                 </button>
 
                 <div style="min-width: 0; flex: 1;">
@@ -265,7 +266,7 @@ export class ModelExplorerModal {
                     <strong style="font-size: 0.88rem; color: var(--text-primary);">${m.name}</strong>
                     ${m.isFree ? '<span class="badge" style="background: rgba(34, 197, 94, 0.16); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.35); font-weight: 700; font-size: 0.68rem; padding: 1px 6px;">FREE</span>' : ''}
                     ${formatCtx ? `<span class="badge" style="background: rgba(100, 116, 139, 0.15); color: var(--text-muted); font-size: 0.68rem; padding: 1px 6px;">${formatCtx}</span>` : ''}
-                    ${isSelected ? '<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 0.68rem; padding: 1px 6px;">Active</span>' : ''}
+                    ${isSelected ? '<span class="badge" style="background: color-mix(in srgb, var(--accent-secondary) 15%, transparent); color: var(--accent-secondary); font-size: 0.68rem; padding: 1px 6px;">Active</span>' : ''}
                   </div>
                   <div style="font-family: monospace; font-size: 0.74rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                     ${m.id}

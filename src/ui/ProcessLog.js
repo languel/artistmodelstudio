@@ -40,7 +40,7 @@ export class ProcessLog {
 
     const statusLabels = {
       idle: '● IDLE',
-      streaming: '⏳ STREAMING',
+      streaming: 'STREAMING',
       interrupted: '⏹ INTERRUPTED',
       error: '⚠ ERROR',
       success: '✓ READY'
@@ -210,7 +210,7 @@ export class ProcessLog {
       pill.className = `process-status-pill status-${status}`;
       const labels = {
         idle: '● IDLE',
-        streaming: '⏳ STREAMING',
+        streaming: 'STREAMING',
         interrupted: '⏹ INTERRUPTED',
         error: '⚠ ERROR',
         success: '✓ READY'

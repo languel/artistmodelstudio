@@ -15,10 +15,11 @@
 import { paintWatercolor, lastWatercolorCanvas } from '../media/watercolorBrush.js';
 
 export class WatercolorLayer {
-  constructor(brush, { size = 1024, seed = 42 } = {}) {
+  constructor(brush, { width = 1024, height = 1024, seed = 42 } = {}) {
     this.brush = brush;
     this.canvas = document.createElement('canvas');
-    this.canvas.width = this.canvas.height = size;
+    this.canvas.width = width;
+    this.canvas.height = height;
     this.seed = seed;
     this.painted = 0;      // id of the newest stroke already on the paper
     this.sinceWash = 0;
@@ -72,12 +73,142 @@ export class WatercolorLayer {
     }
   }
 
-  draw(ctx, x, y, side) {
-    ctx.drawImage(this.canvas, x, y, side, side);
+  draw(ctx, x, y, w, h) {
+    ctx.drawImage(this.canvas, x, y, w, h);
   }
 }
 
 /** Fade out (0–0.5) → how much of a stroke survives one cycle. */
 export function retentionFor(fadeOut) {
   return 0.03 + (fadeOut || 0) * 0.6;
+}
+
+/**
+ * Watercolor sprites: true per-stroke fades.
+ *
+ * p5.brush cannot fade one stroke inside its canvas, so each stroke is painted
+ * once on white paper and once on black with the same seed (p5.brush output
+ * is deterministic per seed), and the pair gives exact per-pixel opacity and
+ * colour: alpha = 1 - (white - black), colour = black / alpha. The result is
+ * cached as a small image covering the stroke's bounds plus a bleed margin,
+ * and every frame draws the paper and then each living stroke at its current
+ * opacity, the same envelope the flat renderer uses.
+ */
+export class WatercolorSprites {
+  constructor(brush, { width = 1024, height = 1024, seed = 42, maxBuildsPerFrame = 2 } = {}) {
+    this.brush = brush;
+    this.w = width;
+    this.h = height;
+    this.seed = seed;
+    this.maxBuildsPerFrame = maxBuildsPerFrame;
+    this.scratch = document.createElement('canvas');
+    this.scratch.width = width;
+    this.scratch.height = height;
+    this.read = document.createElement('canvas');
+    this.read.width = width;
+    this.read.height = height;
+    this.readCtx = this.read.getContext('2d', { willReadFrequently: true });
+    this.sprites = new Map(); // stroke id -> { canvas, x, y }
+    this.paper = null;
+    this.background = null;
+  }
+
+  /** Pixel bounds of a shape, padded for bleed. */
+  bounds(sh) {
+    const W = this.w, H = this.h, m = Math.min(W, H);
+    const X = v => (v + 1) * 0.5 * W, Y = v => (v + 1) * 0.5 * H, S = v => v * 0.5 * m;
+    let x0, y0, x1, y1, size;
+    if (sh.type === 'rect') {
+      const w = S(sh.width), h = S(sh.height);
+      x0 = X(sh.x) - w / 2; x1 = x0 + w; y0 = Y(sh.y) - h / 2; y1 = y0 + h; size = Math.max(w, h);
+    } else if (sh.type === 'circle') {
+      const r = S(sh.diameter) / 2;
+      x0 = X(sh.x) - r; x1 = X(sh.x) + r; y0 = Y(sh.y) - r; y1 = Y(sh.y) + r; size = 2 * r;
+    } else {
+      const xs = sh.points.map(p => X(p[0])), ys = sh.points.map(p => Y(p[1]));
+      x0 = Math.min(...xs); x1 = Math.max(...xs); y0 = Math.min(...ys); y1 = Math.max(...ys);
+      size = Math.max(x1 - x0, y1 - y0);
+    }
+    const pad = 0.2 * size + 0.02 * m;
+    const bx = Math.max(0, Math.floor(x0 - pad)), by = Math.max(0, Math.floor(y0 - pad));
+    const bw = Math.min(W, Math.ceil(x1 + pad)) - bx, bh = Math.min(H, Math.ceil(y1 + pad)) - by;
+    return bw > 0 && bh > 0 ? { bx, by, bw, bh } : null;
+  }
+
+  /** Paint `actions` on a flat ground of `paper` and read back the region `r`. */
+  pass(paper, actions, seed, r) {
+    paintWatercolor(this.brush, this.scratch, [{ op: 'background', color: paper }, ...actions], { seed });
+    this.readCtx.clearRect(r.bx, r.by, r.bw, r.bh);
+    this.readCtx.drawImage(this.scratch, r.bx, r.by, r.bw, r.bh, r.bx, r.by, r.bw, r.bh);
+    return this.readCtx.getImageData(r.bx, r.by, r.bw, r.bh).data;
+  }
+
+  build(s) {
+    const r = this.bounds(s.shape);
+    if (!r) return null;
+    const sh = s.shape;
+    const shapeAction = sh.type === 'rect' ? { op: 'rect', x: sh.x, y: sh.y, width: sh.width, height: sh.height }
+      : sh.type === 'circle' ? { op: 'circle', x: sh.x, y: sh.y, diameter: sh.diameter }
+      : { op: 'polygon', points: sh.points };
+    const actions = [{ op: 'noStroke' }, { op: 'fill', color: s.color, opacity: 0.9 }, shapeAction];
+    const seed = this.seed * 7919 + s.id;
+    const white = this.pass('#ffffff', actions, seed, r);
+    const black = this.pass('#000000', actions, seed, r);
+    const out = new ImageData(r.bw, r.bh);
+    const d = out.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const a = 1 - ((white[i] - black[i]) + (white[i + 1] - black[i + 1]) + (white[i + 2] - black[i + 2])) / 765;
+      if (a <= 0.01) continue;
+      d[i] = Math.min(255, black[i] / a);
+      d[i + 1] = Math.min(255, black[i + 1] / a);
+      d[i + 2] = Math.min(255, black[i + 2] / a);
+      d[i + 3] = Math.round(Math.min(1, a) * 255);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = r.bw;
+    canvas.height = r.bh;
+    canvas.getContext('2d').putImageData(out, 0, 0);
+    return { canvas, x: r.bx, y: r.by };
+  }
+
+  /** Paper texture in the reference's mean colour, painted once. */
+  ensurePaper(cf) {
+    if (this.paper && this.background === cf.background) return;
+    this.background = cf.background;
+    paintWatercolor(this.brush, this.scratch, [{ op: 'background', color: cf.background }], { seed: this.seed });
+    this.paper = document.createElement('canvas');
+    this.paper.width = this.w;
+    this.paper.height = this.h;
+    this.paper.getContext('2d').drawImage(this.scratch, 0, 0);
+  }
+
+  /** Build sprites for new strokes (a few per frame) and drop sprites of dead ones. */
+  update(cf) {
+    this.ensurePaper(cf);
+    const aliveIds = new Set();
+    let built = 0;
+    for (const s of cf.alive) {
+      aliveIds.add(s.id);
+      if (!this.sprites.has(s.id) && built < this.maxBuildsPerFrame) {
+        this.sprites.set(s.id, this.build(s));
+        built++;
+      }
+    }
+    for (const id of this.sprites.keys()) if (!aliveIds.has(id)) this.sprites.delete(id);
+  }
+
+  draw(ctx, x, y, w, h, cf, now) {
+    const kx = w / this.w, ky = h / this.h;
+    ctx.save();
+    if (this.paper) ctx.drawImage(this.paper, x, y, w, h);
+    for (const s of cf.alive) {
+      const sp = this.sprites.get(s.id);
+      if (!sp) continue;
+      const a = cf.alpha(s, now);
+      if (a <= 0) continue;
+      ctx.globalAlpha = a;
+      ctx.drawImage(sp.canvas, x + sp.x * kx, y + sp.y * ky, sp.canvas.width * kx, sp.canvas.height * ky);
+    }
+    ctx.restore();
+  }
 }

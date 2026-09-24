@@ -288,15 +288,15 @@ export class OpenRouterArtist extends Artist {
     const result = [];
     const addedIds = new Set();
 
-    // 1. Group: ⭐ Favorites (Mostly Free)
+    // 1. Group: Favorites (Mostly Free)
     for (const favId of favorites) {
       const modelObj = catalogMap.get(favId) || { id: favId, name: favId, isFree: isFreeModel(favId) };
       result.push({
         id: modelObj.id,
-        name: `⭐ ${modelObj.name}${modelObj.isFree ? ' [FREE]' : ''}`,
+        name: `${modelObj.name}${modelObj.isFree ? ' [FREE]' : ''}`,
         isFree: modelObj.isFree,
         isFavorite: true,
-        group: '⭐ Favorites (Mostly Free)'
+        group: 'Favorites (Mostly Free)'
       });
       addedIds.add(favId);
     }
@@ -349,7 +349,7 @@ export class OpenRouterArtist extends Artist {
     const apiKey = request.settings?.apiKey || getStorage('ams_openrouter_key') || this.apiKey;
 
     if (!apiKey) {
-      const errorMsg = 'OpenRouter API key is missing. Click Settings (⚙) to enter your OpenRouter key (sk-or-...).';
+      const errorMsg = 'OpenRouter API key is missing. Click Settings to enter your OpenRouter key (sk-or-...).';
       request.onProgress?.({ type: 'error', error: errorMsg, message: errorMsg });
       throw new Error(errorMsg);
     }
@@ -578,10 +578,10 @@ export class OpenRouterArtist extends Artist {
   diagnoseError(err) {
     const msg = err?.message || String(err);
     if (msg.includes('401') || msg.includes('Invalid API key') || msg.includes('Unauthorized')) {
-      return 'Invalid OpenRouter API Key. Please verify your key in Settings (⚙).';
+      return 'Invalid OpenRouter API Key. Please verify your key in Settings.';
     }
     if (msg.includes('402') || msg.includes('credit') || msg.includes('balance')) {
-      return 'Insufficient OpenRouter credits. Please add credits at openrouter.ai/credits or select a free (:free) model using the 🔍 Browse button.';
+      return 'Insufficient OpenRouter credits. Please add credits at openrouter.ai/credits or select a free (:free) model using the Browse button.';
     }
     return msg;
   }

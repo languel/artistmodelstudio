@@ -62,12 +62,13 @@ describe('p5 export', () => {
   });
 
   it('builds a self-contained continuous sketch', () => {
-    const target = new Float32Array(8 * 8 * 3).fill(128);
-    const sketch = buildContinuousSketch(target, 8, { density: 50, lifetime: 5, fade: 0.3, shapes: ['rect'], seed: 1 }, { title: 'Test' });
+    const target = { rgb: new Float32Array(8 * 6 * 3).fill(128), width: 8, height: 6 };
+    const sketch = buildContinuousSketch(target, { density: 50, lifetime: 5, fade: 0.3, shapes: ['rect'], seed: 1 }, { title: 'Test' });
     expect(sketch).toContain('class ReferenceFitter');
     expect(sketch).toContain('class ContinuousFitter');
     expect(sketch).not.toMatch(/^(import|export) /m);
-    expect(sketch).toContain('const SIZE = 8;');
+    expect(sketch).toContain('const TARGET_W = 8;');
+    expect(sketch).toContain('const TARGET_H = 6;');
     expect(() => new Function(sketch)).not.toThrow();
     expect(sketch).toContain('class WatercolorLayer');
     // brush.js declares globals t and e; a top-level let/const with those names breaks the page.

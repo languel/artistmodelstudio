@@ -46,7 +46,7 @@ export class SettingsModal {
       <div class="modal-content" style="max-width: 680px; width: 92vw;">
         <div class="modal-header">
           <h2 style="font-size: 1.15rem; color: var(--text-primary); font-weight: 600;">Studio Settings & Model Ecosystem</h2>
-          <button class="btn-icon" id="close-settings-modal">✕</button>
+          <button class="btn-icon" id="close-settings-modal">${icon('xMark', 'icon-sm')}</button>
         </div>
 
         <div style="display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary); overflow-x: auto;">
@@ -93,8 +93,8 @@ export class SettingsModal {
               </div>
 
               <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-                <button type="button" id="settings-open-explorer-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
-                  🔍 Search 400+ Models (Free & Favorites)
+                <button type="button" id="settings-open-explorer-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; border-color: color-mix(in srgb, var(--accent-secondary) 40%, transparent); color: var(--accent-secondary);">
+                  Search 400+ Models (Free & Favorites)
                 </button>
                 <span style="font-size: 0.76rem; color: var(--text-muted);">
                   ${typeof openrouter?.getFavorites === 'function' ? `${openrouter.getFavorites().length} favorites saved` : ''}
@@ -214,7 +214,7 @@ export class SettingsModal {
               <!-- Preload / Test Model Weights with Progress Bar -->
               <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <button type="button" id="btn-preload-webgpu" class="btn-secondary" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                  <button type="button" id="btn-preload-webgpu" class="btn-secondary" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; border-color: color-mix(in srgb, var(--accent-secondary) 40%, transparent); color: var(--accent-secondary);">
                     ${icon('arrowDownTray', 'icon-sm')} <span>Preload & Cache Model Weights</span>
                   </button>
                   <span id="preload-status-label" style="font-size: 0.76rem; color: var(--text-muted); font-family: monospace;">
@@ -259,7 +259,7 @@ export class SettingsModal {
                 The studio exposes a direct programmatic API at <code>window.ams</code> and listens to standard MCP JSON-RPC messages via <code>window.postMessage</code>. External AI agents can test, synthesize, critique, and score artworks autonomously.
               </p>
 
-              <pre style="background: #111; color: #3ecf8e; padding: 10px; border-radius: 4px; font-size: 0.76rem; overflow-x: auto; font-family: monospace; border: 1px solid var(--border-color); margin-bottom: 10px;">
+              <pre style="background: var(--bg-primary); color: var(--text-secondary); padding: 10px; border-radius: 4px; font-size: 0.76rem; overflow-x: auto; font-family: monospace; border: 1px solid var(--border-color); margin-bottom: 10px;">
 // Example: Direct Agent Console Call
 await window.ams.generate({ prompt: "three red flowers", artist: "openrouter" });
 const scores = window.ams.evaluateRewards();
@@ -361,9 +361,9 @@ console.log("Reward score:", scores.total);
       const statusDiv = modal.querySelector('#webmcp-test-status');
       if (window.ams) {
         const state = window.ams.getStudioState();
-        statusDiv.innerHTML = `<span style="color: var(--accent-success);">✔ window.ams responsive. Active: ${state.activeArtistName}, Medium: ${state.activeMediumName}, Canvas: ${state.canvasSize}px.</span>`;
+        statusDiv.innerHTML = `<span style="color: var(--accent-success);">window.ams responsive. Active: ${state.activeArtistName}, Medium: ${state.activeMediumName}, Canvas: ${state.canvasSize}px.</span>`;
       } else {
-        statusDiv.innerHTML = '<span style="color: var(--accent-error);">✖ window.ams not detected.</span>';
+        statusDiv.innerHTML = '<span style="color: var(--accent-error);">window.ams not detected.</span>';
       }
     });
 
@@ -372,7 +372,7 @@ console.log("Reward score:", scores.total);
       if (window.ams) {
         navigator.clipboard.writeText(JSON.stringify(window.ams.listTools(), null, 2));
         const statusDiv = modal.querySelector('#webmcp-test-status');
-        statusDiv.innerHTML = '<span style="color: var(--accent-success);">✔ MCP Tools JSON schema copied to clipboard!</span>';
+        statusDiv.innerHTML = '<span style="color: var(--accent-success);">MCP Tools JSON schema copied to clipboard!</span>';
       }
     });
 
@@ -395,7 +395,7 @@ console.log("Reward score:", scores.total);
       if (progressWrap) progressWrap.style.display = 'block';
       if (label) {
         label.textContent = '● Downloading...';
-        label.style.color = '#38bdf8';
+        label.style.color = 'var(--accent-secondary)';
       }
 
       try {

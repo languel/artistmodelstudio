@@ -1,3 +1,4 @@
+import { icon } from './icons.js';
 /**
  * Compare Media Modal (Renderer Ablation Mode)
  *
@@ -27,7 +28,7 @@ export class CompareModal {
               Same prompt · Same model · Same program geometry
             </p>
           </div>
-          <button class="btn-icon" id="close-compare-modal">✕</button>
+          <button class="btn-icon" id="close-compare-modal">${icon('xMark', 'icon-sm')}</button>
         </div>
 
         <div class="modal-body">

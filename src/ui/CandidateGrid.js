@@ -163,7 +163,7 @@ export class CandidateGrid {
         <div class="candidate-grid-section empty-state">
           <div class="empty-placeholder">
             <h3>No candidates generated yet.</h3>
-            <p>Select an artist and click <strong>✦ Generate 4</strong> or pick an example preset above.</p>
+            
           </div>
         </div>
       `;
@@ -187,7 +187,7 @@ export class CandidateGrid {
             <div class="hero-title-group">
               <span class="hero-letter-badge">${activeLetter}</span>
               <strong>Candidate ${activeLetter} (Main Preview)</strong>
-              ${activeCand?.model ? `<span class="badge" style="font-family: monospace; font-size: 0.72rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${activeCand.model}</span>` : ''}
+              ${activeCand?.model ? `<span class="badge" style="font-family: var(--font-mono); font-size: 0.72rem; background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${activeCand.model}</span>` : ''}
               <span class="hero-meta-badge" id="hero-ops-badge">
                 ${activeCand?.renderMetadata?.actionCount || activeCand?.program?.actions?.length || 0} ops · ${activeCand?.renderMetadata?.renderTimeMs || 0}ms
               </span>
@@ -239,7 +239,7 @@ export class CandidateGrid {
         <div class="variants-strip-section" title="Click a candidate to show it in the preview">
           <div class="variants-strip-header">
             ${this.streamingIndex !== null ? `
-              <span class="streaming-live-badge">⏳ Streaming Candidate ${letters[this.streamingIndex]}...</span>
+              <span class="streaming-live-badge">Streaming Candidate ${letters[this.streamingIndex]}...</span>
             ` : ''}
           </div>
 
@@ -309,6 +309,7 @@ export class CandidateGrid {
     `;
 
     this.attachEvents(this.container);
+    this.renderTransform();
   }
 
   attachEvents(target) {
@@ -375,8 +376,8 @@ export class CandidateGrid {
           const mouseX = e.clientX - (rect.left + rect.width / 2);
           const mouseY = e.clientY - (rect.top + rect.height / 2);
 
-          const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-          const newScale = Math.max(0.5, Math.min(10.0, Number((this.zoomScale * zoomFactor).toFixed(2))));
+          const zoomFactor = Math.exp(-e.deltaY * 0.01); // pinch: proportional to gesture
+          const newScale = Math.max(0.5, Math.min(10.0, this.zoomScale * zoomFactor));
 
           const scaleRatio = newScale / this.zoomScale;
           this.panX = mouseX - (mouseX - this.panX) * scaleRatio;
@@ -406,8 +407,8 @@ export class CandidateGrid {
         const mouseX = e.clientX - (rect.left + rect.width / 2);
         const mouseY = e.clientY - (rect.top + rect.height / 2);
 
-        const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
-        const newScale = Math.max(0.5, Math.min(10.0, Number((this.zoomScale * zoomFactor).toFixed(2))));
+        const zoomFactor = Math.exp(-e.deltaY * 0.0015); // wheel: ~14% per notch, finer on trackpads
+        const newScale = Math.max(0.5, Math.min(10.0, this.zoomScale * zoomFactor));
 
         const scaleRatio = newScale / this.zoomScale;
         this.panX = mouseX - (mouseX - this.panX) * scaleRatio;
@@ -432,12 +433,23 @@ export class CandidateGrid {
       const onMouseMove = (e) => {
         if (!this.isDragging) return;
         e.preventDefault();
-        this.panX = e.clientX - this.dragStartX;
+        const nx = e.clientX - this.dragStartX;
+        const now = performance.now();
+        if (this.lastMove) {
+          const dtm = Math.max(1, now - this.lastMove.t);
+          this.velX = ((nx - this.panX) / dtm) * 16;
+          this.velY = ((e.clientY - this.dragStartY - this.panY) / dtm) * 16;
+        }
+        this.lastMove = { t: now };
+        this.panX = nx;
         this.panY = e.clientY - this.dragStartY;
         this.applyTransform();
       };
 
       const onMouseUp = () => {
+        // Keep momentum only if the pointer was still moving at release.
+        if (!this.lastMove || performance.now() - this.lastMove.t > 60) { this.velX = 0; this.velY = 0; }
+        this.lastMove = null;
         if (this.isDragging) {
           this.isDragging = false;
           wrap.style.cursor = (this.zoomScale > 1 || window.event?.shiftKey) ? 'grab' : 'default';
@@ -573,20 +585,46 @@ export class CandidateGrid {
     this.container?.closest('.studio-hero-layout')?.classList.toggle('preview-expanded', Boolean(this.isFullSize));
   }
 
+  /**
+   * Pan/zoom handlers set a target (zoomScale, panX, panY); this eases the
+   * displayed view toward it, and continues flicked drags with decaying momentum.
+   */
   applyTransform() {
-    const img = this.container?.querySelector('#hero-main-img');
+    this.view ||= { s: this.zoomScale, x: this.panX, y: this.panY };
+    if (this.viewRaf) return;
+    const step = () => {
+      if (!this.isDragging && (Math.abs(this.velX || 0) > 0.05 || Math.abs(this.velY || 0) > 0.05)) {
+        this.panX += this.velX;
+        this.panY += this.velY;
+        this.velX *= 0.92;
+        this.velY *= 0.92;
+      }
+      const k = this.isDragging ? 0.55 : 0.2;
+      const v = this.view;
+      v.s += (this.zoomScale - v.s) * k;
+      v.x += (this.panX - v.x) * k;
+      v.y += (this.panY - v.y) * k;
+      const settled = Math.abs(this.zoomScale - v.s) < 0.001 && Math.abs(this.panX - v.x) < 0.1 && Math.abs(this.panY - v.y) < 0.1
+        && Math.abs(this.velX || 0) <= 0.05 && Math.abs(this.velY || 0) <= 0.05 && !this.isDragging;
+      if (settled) Object.assign(v, { s: this.zoomScale, x: this.panX, y: this.panY });
+      this.renderTransform();
+      this.viewRaf = settled ? null : requestAnimationFrame(step);
+    };
+    this.viewRaf = requestAnimationFrame(step);
+  }
+
+  /** Apply the displayed view to the preview image and the continuous-mode canvas. */
+  renderTransform() {
+    const v = this.view || { s: this.zoomScale, x: this.panX, y: this.panY };
+    const identity = Math.abs(v.s - 1) < 0.001 && Math.abs(v.x) < 0.1 && Math.abs(v.y) < 0.1;
+    const transform = identity ? '' : `translate(${v.x}px, ${v.y}px) scale(${v.s})`;
     const wrap = this.container?.querySelector('#hero-canvas-wrap');
-    if (!img) return;
-
-    if (this.zoomScale === 1 && this.panX === 0 && this.panY === 0) {
-      img.style.transform = '';
-      if (wrap) wrap.style.cursor = 'default';
-    } else {
-      img.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
-      img.style.transformOrigin = 'center center';
-      if (wrap) wrap.style.cursor = this.isDragging ? 'grabbing' : 'grab';
+    for (const el of [this.container?.querySelector('#hero-main-img'), wrap?.querySelector('.live-painter-canvas')]) {
+      if (!el) continue;
+      el.style.transform = transform;
+      el.style.transformOrigin = 'center center';
     }
-
+    if (wrap) wrap.style.cursor = this.isDragging ? 'grabbing' : (identity ? 'default' : 'grab');
     const zoomLabel = this.container?.querySelector('#zoom-level-indicator');
     if (zoomLabel) zoomLabel.textContent = `${Math.round(this.zoomScale * 100)}%`;
   }

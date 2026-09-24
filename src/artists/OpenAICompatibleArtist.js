@@ -82,7 +82,7 @@ export class OpenAICompatibleArtist extends Artist {
     const endpoint = this.getEndpoint();
 
     if (!apiKey && !endpoint.includes('localhost') && !endpoint.includes('127.0.0.1')) {
-      const errorMsg = 'OpenAI API key or Bearer token is missing. Click Settings (⚙) to enter your API key.';
+      const errorMsg = 'OpenAI API key or Bearer token is missing. Click Settings to enter your API key.';
       request.onProgress?.({ type: 'error', error: errorMsg, message: errorMsg });
       throw new Error(errorMsg);
     }
@@ -346,7 +346,7 @@ export class OpenAICompatibleArtist extends Artist {
   diagnoseError(err, endpoint) {
     const msg = err?.message || String(err);
     if (msg.includes('401') || msg.includes('Incorrect API key') || msg.includes('Unauthorized')) {
-      return 'Authentication failed. Please verify your OpenAI API key or ChatGPT Bearer token in Settings (⚙).';
+      return 'Authentication failed. Please verify your OpenAI API key or ChatGPT Bearer token in Settings.';
     }
     if (msg.includes('429')) {
       return 'Rate limit reached or quota exceeded. Check your OpenAI / provider plan balance.';

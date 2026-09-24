@@ -104,14 +104,14 @@ function paint(n) {
 
 // p5.brush binds to the first canvas it is given, so render into one fixed
 // square canvas and scale it into the view (fit or fill).
-const WC_SIZE = 1200;
+const WC_LONG = 1200;
 function paintBrush(n) {
   updateView();
   background(LETTERBOX);
   if (!wcCanvas) {
     wcCanvas = document.createElement('canvas');
-    wcCanvas.width = WC_SIZE;
-    wcCanvas.height = WC_SIZE;
+    wcCanvas.width = ASPECT >= 1 ? WC_LONG : Math.round(WC_LONG * ASPECT);
+    wcCanvas.height = ASPECT >= 1 ? Math.round(WC_LONG / ASPECT) : WC_LONG;
   }
   paintWatercolor(brush, wcCanvas, PROGRAM.actions.slice(0, n), { seed: WATERCOLOR_SEED });
   drawingContext.drawImage(wcCanvas, view.x, view.y, view.w, view.h);
@@ -119,8 +119,8 @@ function paintBrush(n) {
 
 function updateView() {
   if (fitMode) {
-    const side = Math.min(width, height);
-    view = { x: (width - side) / 2, y: (height - side) / 2, w: side, h: side };
+    const vw = Math.min(width, height * ASPECT), vh = vw / ASPECT;
+    view = { x: (width - vw) / 2, y: (height - vh) / 2, w: vw, h: vh };
   } else {
     view = { x: 0, y: 0, w: width, h: height };
   }
@@ -153,7 +153,7 @@ function paintArea(c) {
 }
 
 function paintActions(n) {
-  const strokeScale = (fitMode ? Math.min(width, height) : width) / 400;
+  const strokeScale = view.w / 400;
   let hasFill = true, hasStroke = false;
   let fillColor = '#333333', fillOpacity = 1;
   let strokeColor = '#111111', strokeOpacity = 1, strokeW = 1;
@@ -271,7 +271,7 @@ function updatePanel() {
 }
 `;
 
-export async function buildP5Sketch(program, { mediumId = 'flat', medium = null, title = 'AMS sketch', source = '' } = {}) {
+export async function buildP5Sketch(program, { mediumId = 'flat', medium = null, title = 'AMS sketch', source = '', aspect = null } = {}) {
   const norm = normalizeProgram(program);
   const pixel = mediumId === 'pixel' && medium ? await bakePixelFrames(norm, medium) : null;
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ams-sketch';
@@ -287,7 +287,8 @@ export async function buildP5Sketch(program, { mediumId = 'flat', medium = null,
     : `const PROGRAM = ${JSON.stringify(norm, null, 1)};\nconst PIXEL = null;\n`;
   const seed = Number(medium?.seed ?? 42) || 42;
   const shared = `\n// ---- Studio watercolor routine (src/media/watercolorBrush.js) ----\n${inlineModule(watercolorSource)}`;
-  return `${header}const TITLE_SLUG = ${JSON.stringify(slug)};\nconst MEDIUM = ${JSON.stringify(mediumId)};\nconst WATERCOLOR_SEED = ${seed};\n${data}${RUNTIME}${shared}`;
+  const canvasAspect = aspect || (medium?.width && medium?.height ? medium.width / medium.height : 1);
+  return `${header}const TITLE_SLUG = ${JSON.stringify(slug)};\nconst ASPECT = ${Number(canvasAspect.toFixed(4))};\nconst MEDIUM = ${JSON.stringify(mediumId)};\nconst WATERCOLOR_SEED = ${seed};\n${data}${RUNTIME}${shared}`;
 }
 
 export function buildIndexHtml(title, { brush = true } = {}) {
@@ -392,7 +393,7 @@ function decodeTarget() {
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  cf = new ContinuousFitter(decodeTarget(), SIZE, PARAMS);
+  cf = new ContinuousFitter(decodeTarget(), TARGET_W, TARGET_H, PARAMS);
   lastMillis = millis();
   buildPanel();
 }
@@ -406,23 +407,21 @@ function draw() {
   if (!paused) { simTime += dt; cf.update(simTime, dt); }
   background('#111111');
   const ctx = drawingContext;
-  const side = Math.min(width, height);
-  const paint = (x, y) => {
+  const aspect = TARGET_W / TARGET_H;
+  const paint = (x, y, w, h) => {
     if (renderer === 'watercolor') {
-      layer ||= new WatercolorLayer(brush, { size: 1024 });
+      layer ||= new WatercolorLayer(brush, aspect >= 1 ? { width: 1024, height: Math.round(1024 / aspect) } : { width: Math.round(1024 * aspect), height: 1024 });
       if (!paused) layer.update(cf, simTime, dt, retentionFor(PARAMS.fadeOut ?? PARAMS.fade ?? 0.15));
-      layer.draw(ctx, x, y, side);
+      layer.draw(ctx, x, y, w, h);
     } else {
-      cf.draw(ctx, x, y, side, simTime);
+      cf.draw(ctx, x, y, w, h, simTime);
     }
   };
   if (fitMode) {
-    paint((width - side) / 2, (height - side) / 2);
+    const vw = Math.min(width, height * aspect), vh = vw / aspect;
+    paint((width - vw) / 2, (height - vh) / 2, vw, vh);
   } else {
-    ctx.save();
-    ctx.scale(width / side, height / side);
-    paint(0, 0);
-    ctx.restore();
+    paint(0, 0, width, height);
   }
 }
 
@@ -495,11 +494,10 @@ function updatePanel() {
 `;
 
 /**
- * @param {Float32Array} target square RGB target (size*size*3)
- * @param {number} size
+ * @param {{rgb: Float32Array, width: number, height: number}} target RGB target at the canvas aspect
  * @param {{mode?:string, density:number, lifetime:number, fadeIn?:number, fadeOut?:number, fade?:number, shapes:string[], seed:number}} params
  */
-export function buildContinuousSketch(target, size, params, { title = 'AMS continuous', source = '' } = {}) {
+export function buildContinuousSketch(target, params, { title = 'AMS continuous', source = '' } = {}) {
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ams-continuous';
   const header = [
     `// ${title}: continuous Reference Fitter`,
@@ -509,9 +507,10 @@ export function buildContinuousSketch(target, size, params, { title = 'AMS conti
     ''
   ].join('\n');
   return `${header}const TITLE_SLUG = ${JSON.stringify(slug)};
-const SIZE = ${size};
+const TARGET_W = ${target.width};
+const TARGET_H = ${target.height};
 const PARAMS = ${JSON.stringify(params)};
-const TARGET_B64 = "${rgbToBase64(target)}";
+const TARGET_B64 = "${rgbToBase64(target.rgb)}";
 ${CONTINUOUS_RUNTIME}
 // ---- Studio fitter (src/fitting/fitReference.js) ----
 ${inlineModule(fitReferenceSource)}
@@ -523,9 +522,9 @@ ${inlineModule(watercolorSource)}
 ${inlineModule(continuousWatercolorSource)}`;
 }
 
-export async function buildContinuousZip(target, size, params, options = {}) {
+export async function buildContinuousZip(target, params, options = {}) {
   const title = options.title || 'AMS continuous';
-  const sketch = buildContinuousSketch(target, size, params, options);
+  const sketch = buildContinuousSketch(target, params, options);
   const [p5src, brushSrc] = await Promise.all([
     import('../../node_modules/p5/lib/p5.min.js?raw').then(m => m.default),
     import('../../node_modules/p5.brush/dist/brush.js?raw').then(m => m.default)
@@ -549,7 +548,7 @@ looping stroke-by-stroke replay; **fade** lets many shapes fade in and out at on
 Settings at export: ${params.render || 'flat'} render, ${params.mode || 'strokes'} style, ${params.density} shapes, ${params.lifetime} s cycle, fade in ${params.fadeIn ?? params.fade}, fade out ${params.fadeOut ?? params.fade}, shapes: ${params.shapes.join(', ')}.
 
 - \`sketch.js\`: the player, the studio's fitter and continuous-mode code, and a
-  ${size}×${size} copy of the reference used as the fitting target.
+  ${target.width}×${target.height} copy of the reference used as the fitting target.
 - \`p5.min.js\`: p5.js 2.3.3, vendored unmodified, GNU LGPL 2.1;
   source at https://github.com/processing/p5.js.
 - \`brush.js\`: p5.brush 2.2.2 (standalone build) by Alejandro Campos, vendored
