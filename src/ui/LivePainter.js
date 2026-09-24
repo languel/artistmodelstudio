@@ -8,7 +8,10 @@ import { canvasToRGB } from '../fitting/fitReference.js';
 import { fitTarget, fitDims } from '../artists/ReferenceFitterArtist.js';
 import { WatercolorLayer, WatercolorSprites, retentionFor } from '../fitting/continuousWatercolor.js';
 import { drawScene } from '../fitting/continuousScene.js';
+import { getAsciiText } from '../fitting/stylize.js';
+import { CanvasRecorder, saveBlob, videoMime } from '../export/recorder.js';
 import { SourceSampler, letterbox, rgbOf } from '../fitting/referenceSource.js';
+import { drawStylized } from '../fitting/stylize.js';
 
 let brushModule = null;
 const loadBrush = async () => (brushModule ||= await import('p5.brush/standalone'));
@@ -146,8 +149,42 @@ export class LivePainter {
     }
     drawScene(ctx, x, y, vw, vh, {
       cf: this.cf, now: this.t, render, sprites: this.sprites, layer: this.layer,
-      ref: this.refCanvas, overlay: this.params.overlay || 'off', refOpacity: this.params.refOpacity ?? 0.5
+      ref: this.refCanvas, overlay: this.params.overlay || 'off', refOpacity: this.params.refOpacity ?? 0.5,
+      style: this.params.style, stylize: drawStylized
     });
+    this.view = { x, y, w: vw, h: vh };
+    if (this.recorder) this.recorder.frame(this.canvas, x, y, vw, vh);
+  }
+
+  /** Current picture (no letterbox) as a PNG download. */
+  savePNG(name) {
+    const v = this.view;
+    if (!v) return;
+    const c = document.createElement('canvas');
+    c.width = Math.round(v.w); c.height = Math.round(v.h);
+    c.getContext('2d').drawImage(this.canvas, v.x, v.y, v.w, v.h, 0, 0, c.width, c.height);
+    c.toBlob(b => b && saveBlob(b, name + '.png'), 'image/png');
+  }
+
+  /** Current ASCII frame as plain text (only while Render is ASCII). */
+  saveText(name) {
+    if (this.params?.render !== 'ascii') return false;
+    saveBlob(new Blob([getAsciiText()], { type: 'text/plain;charset=utf-8' }), name + '.txt');
+    return true;
+  }
+
+  get recording() { return !!this.recorder; }
+
+  startRecording(format) {
+    if (format !== 'gif' && !videoMime()) throw new Error('Video recording is not supported in this browser');
+    this.recorder = new CanvasRecorder(format);
+  }
+
+  async stopRecording(name) {
+    const rec = this.recorder;
+    this.recorder = null;
+    const out = rec && await rec.stop();
+    if (out) saveBlob(out.blob, name + '.' + out.ext);
   }
 
   /** Strokes currently on screen (watercolor counts only strokes with a sprite). */

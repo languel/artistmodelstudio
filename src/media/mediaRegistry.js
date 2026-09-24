@@ -7,6 +7,7 @@
 import { FlatCanvasMedium } from './FlatCanvasMedium.js';
 import { WatercolorMedium } from './WatercolorMedium.js';
 import { PixelMedium } from './PixelMedium.js';
+import { AsciiMedium } from './AsciiMedium.js';
 
 export class MediaRegistry {
   constructor() {
@@ -14,6 +15,7 @@ export class MediaRegistry {
     this.register(new FlatCanvasMedium());
     this.register(new WatercolorMedium());
     this.register(new PixelMedium());
+    this.register(new AsciiMedium());
   }
 
   register(medium) {

@@ -1975,3 +1975,27 @@ button:focus-visible { outline: none; border-color: var(--border-focus); box-sha
   border-radius: var(--radius-md);
 }
 .source-controls[hidden], .live-slider[hidden] { display: none !important; }
+
+/* Medium options popover (Pixel / ASCII) */
+.medium-options {
+  position: fixed;
+  z-index: 50;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.medium-options .mo-section { display: flex; flex-direction: column; gap: 6px; }
+.medium-options .mo-heading { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.medium-options .live-slider select { grid-column: 2 / 4; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 4px 6px; }
+.medium-options .mo-text { grid-column: 2 / 4; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 4px 6px; font-family: var(--font-mono); }
+.medium-options .mo-preview { font-family: var(--font-mono); font-size: 0.9rem; color: var(--text-secondary); white-space: pre; overflow: hidden; text-overflow: ellipsis; padding-left: 72px; }
+#medium-options-btn { margin-left: 4px; }
+
+.live-row select#live-rec-format { font-size: 11px; padding: 2px 4px; }
+.btn-micro.recording { color: #e5484d; border-color: #e5484d; }

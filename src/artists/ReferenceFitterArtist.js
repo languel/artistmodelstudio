@@ -89,9 +89,6 @@ export class ReferenceFitterArtist extends Artist {
     if (!this.reference?.image) {
       throw new Error('Reference Fitter needs a reference image. Open the Reference tab and choose or upload one.');
     }
-    if (request.mediumCapabilities?.coordinateSystem === 'pixel') {
-      throw new Error('Reference Fitter writes normalized Core DSL shapes; switch to the Flat or Watercolor medium.');
-    }
 
     const budget = FITTER_BUDGETS.find(b => b.id === this.model) || FITTER_BUDGETS[1];
     const count = Math.min(request.count || 4, FITTER_VOCABULARIES.length);

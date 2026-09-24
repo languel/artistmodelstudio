@@ -72,3 +72,14 @@ Notes:
 - Continuous exports embed the reference at the canvas aspect for the overlay, and start with the studio's settings at export time.
 - Every continuous export has **Source** (Exported / Webcam / Upload…), **Aspect** (as exported, Source, or a ratio) and **Fit** in its panel, so the viewer can point it at their own camera or files; a new aspect starts the painting over. Still exports pack the original reference uncropped so aspect and fit can change; nothing else is packed unless it was the exported source.
 - Live sources travel with continuous exports: a webcam export asks for the camera when opened (falling back to the frame captured at export); an uploaded video or animation is embedded in `sketch.js` as base64, because a media file loaded from disk would make the canvas unreadable to the fitter. The panel adds Sampling, Interval and Rate, and **H** toggles Hold.
+
+## Pixel and ASCII
+
+- **Pixel medium** follows the canvas aspect ratio. Its cells are square, and the long side has *Cells* cells. Fitter programs render as filled shapes.
+- **ASCII medium**: a character ramp (Standard, Detailed, Blocks, Dots, Minimal, Binary, Box, Slashes or Custom), *Columns*, Colour or Mono, and Invert. Cells use a 0.55 width:height ratio, so the picture keeps its proportions.
+- The options button next to the medium select holds the settings. Continuous mode has matching **Render: Pixel / ASCII** options, and the continuous p5 export includes the same controls (`src/fitting/stylize.js` is embedded).
+- More character sets:
+  - **Braille** (2×4 dots), **Teletext sextants** (2×3) and **Quadrants** (2×2) draw sub-cell patterns, so they show fine detail.
+  - **Tetragrams** (Tai Xuan Jing), **Code page 437** and **PETSCII blocks** are brightness ramps.
+- **Saving output.** In continuous mode, PNG saves the picture and TXT saves the current ASCII frame as plain text. Rec records MP4 (WebM where MP4 is unavailable) or GIF (up to 480 px on the long side, 12 fps, at most 450 frames).
+- **In exports.** The continuous export has Save TXT (T), Rec GIF (G) and Rec MP4 (V). The static export has Save TXT (T). The encoder lives in `src/export/recorder.js`.

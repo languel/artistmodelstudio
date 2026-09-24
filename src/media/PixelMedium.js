@@ -8,6 +8,8 @@
 import { Medium } from './Medium.js';
 import { PIXEL_OPS, DEFAULT_PIXEL_PALETTE } from '../language/schema.js';
 import { normalizeProgram } from '../language/normalize.js';
+import { renderStylized } from './AsciiMedium.js';
+import { DEFAULT_STYLE } from '../fitting/stylize.js';
 
 export class PixelMedium extends Medium {
   constructor(options = {}) {
@@ -16,6 +18,9 @@ export class PixelMedium extends Medium {
     this.rows = options.rows || 48;
     this.displayScale = options.displayScale || 10;
     this.palette = [...(options.palette || DEFAULT_PIXEL_PALETTE)];
+    this.style = { ...DEFAULT_STYLE, ...(options.style || {}) };
+    this.outW = options.width || 1024; // output size for Core-shape programs
+    this.outH = options.height || 1024;
 
     this.mirrorX = false;
     this.mirrorY = false;
@@ -43,6 +48,18 @@ export class PixelMedium extends Medium {
   }
 
   reset(config = {}) {
+    if (config.style) this.style = { ...this.style, ...config.style };
+    if (config.width && config.height) {
+      this.outW = config.width;
+      this.outH = config.height;
+      // Grid-coordinate programs: keep the long side and follow the canvas aspect.
+      if (!config.cols && !config.rows) {
+        const long = Math.max(this.cols, this.rows);
+        const a = config.width / config.height;
+        this.cols = a >= 1 ? long : Math.max(1, Math.round(long * a));
+        this.rows = a >= 1 ? Math.max(1, Math.round(long / a)) : long;
+      }
+    }
     if (config.cols) this.cols = config.cols;
     if (config.rows) this.rows = config.rows;
     if (config.palette) this.palette = [...config.palette];
@@ -299,6 +316,21 @@ export class PixelMedium extends Medium {
 
     const norm = normalizeProgram(program);
     const isNorm = this.isNormalizedProgram(norm);
+
+    // Core-shape programs (e.g. Reference Fitter output): draw at pixel-grid
+    // resolution with filled shapes, then enlarge with hard edges (stylize.js).
+    if (isNorm && this.canvas) {
+      const warnings = await renderStylized('pixel', norm, this.outW, this.outH, this.style, this.canvas, null);
+      this.ctx = this.canvas.getContext('2d');
+      return {
+        image: this.canvas.toDataURL('image/png'),
+        canvas: this.canvas,
+        width: this.outW,
+        height: this.outH,
+        warnings,
+        executionTimeMs: Math.round(performance.now() - startTime)
+      };
+    }
 
     // Pre-scan for palette if declared
     const paletteAct = norm.actions.find(a => a.op === 'palette');

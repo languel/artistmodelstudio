@@ -16,6 +16,7 @@ export class Controls {
     canvasSize = 1024,
     canvasAspect = '1:1',
     onAspectChange,
+    onOpenMediumOptions,
     variationLevel = 'medium',
     artistRegistry = null,
     onArtistChange,
@@ -40,6 +41,7 @@ export class Controls {
     this.canvasSize = canvasSize;
     this.canvasAspect = canvasAspect;
     this.onAspectChange = onAspectChange;
+    this.onOpenMediumOptions = onOpenMediumOptions;
     this.variationLevel = variationLevel;
     this.artistRegistry = artistRegistry;
 
@@ -117,6 +119,9 @@ export class Controls {
                   .map(m => `<option value="${m.id}" ${m.id === this.activeMedium ? 'selected' : ''}>${m.name}</option>`)
                   .join('')}
               </select>
+              <button id="medium-options-btn" class="btn-micro btn-icon-only" title="Pixel and ASCII options">
+                ${icon('adjustments', 'icon-sm')}
+              </button>
             </div>
 
             <div class="selector-group">
@@ -330,6 +335,10 @@ export class Controls {
         artistObj.setModel(selectedModel);
       }
       this.onModelChange?.(selectedModel, this.activeArtist);
+    });
+
+    container.querySelector('#medium-options-btn')?.addEventListener('click', (e) => {
+      this.onOpenMediumOptions?.(e.currentTarget);
     });
 
     container.querySelector('#medium-select')?.addEventListener('change', (e) => {

@@ -5,13 +5,14 @@ import { WatercolorMedium } from '../src/media/WatercolorMedium.js';
 import { defaultMediaRegistry } from '../src/media/mediaRegistry.js';
 
 describe('Media Layer', () => {
-  it('registers all 3 core media', () => {
+  it('registers the core media', () => {
     const list = defaultMediaRegistry.list();
-    expect(list.length).toBe(3);
+    expect(list.length).toBe(4);
     const ids = list.map(m => m.id);
     expect(ids).toContain('flat');
     expect(ids).toContain('watercolor');
     expect(ids).toContain('pixel');
+    expect(ids).toContain('ascii');
   });
 
   it('declares proper capabilities for FlatCanvas', () => {

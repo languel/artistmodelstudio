@@ -132,12 +132,23 @@ export class ReferencePanel {
             <button id="live-clear" class="btn-micro" title="Clear the canvas and repaint from blank">Clear</button>
             <button id="live-export" class="btn-micro" title="Export an endless p5.js sketch (zip) with these settings">Export p5</button>
           </div>
-          <label class="live-slider" title="Watercolor: each stroke is a p5.brush painting that fades in and out on its own. Layered: strokes pile up on one sheet and fade together under washes (Fade out sets how slowly).">
+          <div class="live-row">
+            <button id="live-png" class="btn-micro" title="Save the current picture as PNG">PNG</button>
+            <button id="live-txt" class="btn-micro" title="Save the current ASCII frame as plain text (Render: ASCII)">TXT</button>
+            <select id="live-rec-format" title="Recording format (MP4 falls back to WebM where the browser can't record MP4)">
+              <option value="video">MP4</option>
+              <option value="gif">GIF</option>
+            </select>
+            <button id="live-rec" class="btn-micro" title="Record the canvas; press again to stop and save">Rec</button>
+          </div>
+          <label class="live-slider" title="Watercolor: each stroke is a p5.brush painting that fades in and out on its own. Layered: strokes pile up on one sheet and fade together under washes (Fade out sets how slowly). Pixel and ASCII use the options next to the Medium menu.">
             <span>Render</span>
             <select id="live-render">
               <option value="flat">Flat</option>
               <option value="watercolor">Watercolor</option>
               <option value="layered">Watercolor, layered</option>
+              <option value="pixel">Pixel</option>
+              <option value="ascii">ASCII</option>
             </select>
           </label>
           <label class="live-slider" title="Transparent: no ground, strokes fill the picture in. Fixed: the reference's average colour, taken at Play and on every Clear. Follow: the average of each sampled frame (can shift with live sources). Drift: eases toward that average over Ground s seconds.">
@@ -352,6 +363,14 @@ export class ReferencePanel {
     });
     container.querySelector('#live-clear')?.addEventListener('click', () => this.onLiveClear?.());
     container.querySelector('#live-export')?.addEventListener('click', () => this.onExportContinuous?.(liveParams()));
+    container.querySelector('#live-png')?.addEventListener('click', () => this.onLiveSave?.('png'));
+    container.querySelector('#live-txt')?.addEventListener('click', () => this.onLiveSave?.('txt'));
+    const recBtn = container.querySelector('#live-rec');
+    recBtn?.addEventListener('click', async () => {
+      const on = await this.onLiveRecord?.(container.querySelector('#live-rec-format').value);
+      recBtn.textContent = on ? 'Stop' : 'Rec';
+      recBtn.classList.toggle('recording', !!on);
+    });
 
     let saved = '';
     try { saved = localStorage.getItem(STORAGE_KEY) || ''; } catch { /* storage unavailable */ }

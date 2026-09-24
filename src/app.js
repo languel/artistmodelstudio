@@ -21,6 +21,8 @@ import { ReferencePanel } from './ui/ReferencePanel.js';
 import { LivePainter } from './ui/LivePainter.js';
 import { buildContinuousZip, downloadBytes } from './export/p5Export.js';
 import { fitTarget } from './artists/ReferenceFitterArtist.js';
+import { DEFAULT_STYLE, drawStylized } from './fitting/stylize.js';
+import { MediumOptions } from './ui/MediumOptions.js';
 import { EXAMPLES } from '../examples/index.js';
 import { initWebMCP } from './mcp/webmcp.js';
 import { icon } from './ui/icons.js';
@@ -35,6 +37,9 @@ export class StudioApp {
     this.activeMode = 'draw'; // 'draw' | 'reward' | 'datasets'
     this.canvasSize = Number(localStorage.getItem('ams_canvas_size') || 1024); // long side, px
     this.canvasAspect = localStorage.getItem('ams_canvas_aspect') || '1:1';   // 'W:H' or 'ref'
+    // Pixel / ASCII look, shared by the Pixel and ASCII media, continuous mode and exports.
+    this.styleSettings = { ...DEFAULT_STYLE };
+    try { Object.assign(this.styleSettings, JSON.parse(localStorage.getItem('ams_style') || '{}')); } catch { /* ignore */ }
     this.variationLevel = localStorage.getItem('ams_variation_level') || 'medium';
 
     this.abortController = null;
@@ -64,7 +69,7 @@ export class StudioApp {
       onRenderWithOtherMedium: (cand) => this.handleSwapMedium(cand),
       getExportContext: () => {
         const medium = this.getActiveMedium();
-        return { mediumId: medium.id, medium };
+        return { mediumId: medium.id, medium, style: this.styleSettings };
       }
     });
 
@@ -113,6 +118,10 @@ export class StudioApp {
 
     this.helpModal = new HelpModal();
 
+    this.mediumOptions = new MediumOptions({
+      getStyle: () => this.styleSettings,
+      onChange: (patch) => this.handleStyleChange(patch)
+    });
     this.livePainter = new LivePainter({
       onFrame: (lp) => {
         const now = performance.now();
@@ -129,15 +138,27 @@ export class StudioApp {
         this.updateRefOverlay?.();
         if (ref && this.processLog) this.processLog.log(`Reference set: ${ref.name}`, 'info');
         if (this.livePainter.running) {
-          if (ref?.image) this.livePainter.start(ref.image, this.referencePanel.liveParams(), this.aspectValue(), ref.live || null);
+          if (ref?.image) this.livePainter.start(ref.image, { ...this.referencePanel.liveParams(), style: { ...this.styleSettings } }, this.aspectValue(), ref.live || null);
           else this.stopLive();
         }
       },
       onLiveToggle: (on, params) => (on ? this.startLive(params) : this.stopLive()),
-      onLiveParams: (params) => this.livePainter.setParams(params),
+      onLiveParams: (params) => this.livePainter.setParams({ ...params, style: { ...this.styleSettings } }),
       onExportContinuous: (params) => this.exportContinuous(params),
       onOverlayChange: () => this.updateRefOverlay(),
       onLiveClear: () => this.livePainter.clear(),
+      onLiveSave: (kind) => {
+        const name = 'ams-live-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+        if (kind === 'txt') {
+          if (!this.livePainter.saveText(name)) console.warn('TXT needs Render: ASCII');
+        } else this.livePainter.savePNG(name);
+      },
+      onLiveRecord: async (format) => {
+        const name = 'ams-live-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+        if (this.livePainter.recording) { await this.livePainter.stopRecording(name); return false; }
+        if (!this.livePainter.running) return false;
+        try { this.livePainter.startRecording(format); return true; } catch (err) { console.warn(err); return false; }
+      },
       onFitChange: (fit) => this.handleFitChange(fit)
     });
 
@@ -156,6 +177,7 @@ export class StudioApp {
       onModeChange: (mode) => this.handleModeChange(mode),
       onCanvasSizeChange: (size) => this.handleCanvasSizeChange(size),
       onAspectChange: (aspect) => this.handleAspectChange(aspect),
+      onOpenMediumOptions: (anchor) => this.mediumOptions.toggle(anchor),
       canvasAspect: this.canvasAspect,
       onVariationChange: (level) => this.handleVariationChange(level),
       onGenerate: (prompt) => this.handleGenerate(prompt),
@@ -284,6 +306,18 @@ export class StudioApp {
     }
   }
 
+  /** Pixel / ASCII settings changed: update media, re-render, and the live painter. */
+  handleStyleChange(patch) {
+    Object.assign(this.styleSettings, patch);
+    try { localStorage.setItem('ams_style', JSON.stringify(this.styleSettings)); } catch { /* storage unavailable */ }
+    this.livePainter.setParams({ style: { ...this.styleSettings } });
+    clearTimeout(this._styleTimer);
+    this._styleTimer = setTimeout(() => {
+      if (['pixel', 'ascii'].includes(this.getActiveMedium().id)) this.handleCanvasSizeChange(this.canvasSize);
+      else this.resetMedia();
+    }, 150);
+  }
+
   /** Placement of the reference when aspects differ: cover / contain / stretch. */
   handleFitChange(fit) {
     this.artistRegistry.get('fitter')?.setFit?.(fit);
@@ -316,7 +350,7 @@ export class StudioApp {
   startLive(params) {
     const ref = this.referencePanel.current;
     if (!ref?.image) return;
-    this.livePainter.start(ref.image, params, this.aspectValue(), ref.live || null);
+    this.livePainter.start(ref.image, { ...params, style: { ...this.styleSettings } }, this.aspectValue(), ref.live || null);
     this.referencePanel.setLiveRunning(true);
     this.processLog.log(`Continuous mode on "${ref.name}": ${params.density} shapes, ${params.lifetime} s lifetime.`, 'info');
   }
@@ -350,7 +384,7 @@ export class StudioApp {
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       originalUrl = c.toDataURL('image/jpeg', 0.9);
     }
-    const zip = await buildContinuousZip(target, { ...params, contentRect: target.contentRect, aspect: 'export', source: 'exported', seed: 1 },
+    const zip = await buildContinuousZip(target, { ...params, style: { ...this.styleSettings }, contentRect: target.contentRect, aspect: 'export', source: 'exported', seed: 1 },
       { title, source: 'Reference Fitter, continuous', refDataUrl: this.refOverlaySrc(), media: source, originalUrl });
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'ams-continuous';
     downloadBytes(zip, `${slug}-continuous-p5.zip`, 'application/zip');
@@ -634,7 +668,7 @@ export class StudioApp {
   resetMedia() {
     const [width, height] = this.canvasDims();
     for (const m of this.mediaRegistry.getAll()) {
-      if (typeof m.reset === 'function' && m.id !== 'pixel') m.reset({ width, height });
+      if (typeof m.reset === 'function') m.reset({ width, height, style: this.styleSettings });
     }
     this.artistRegistry?.get('fitter')?.setCanvasAspect(width / height);
   }

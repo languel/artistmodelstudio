@@ -17,6 +17,8 @@ import continuousSource from '../fitting/continuousFit.js?raw';
 import continuousWatercolorSource from '../fitting/continuousWatercolor.js?raw';
 import continuousSceneSource from '../fitting/continuousScene.js?raw';
 import referenceSourceSource from '../fitting/referenceSource.js?raw';
+import stylizeSource from '../fitting/stylize.js?raw';
+import recorderSource from './recorder.js?raw';
 
 const MAX_FRAMES = 150;
 const MAX_PIXEL_FRAMES = 60;
@@ -59,7 +61,8 @@ let animating = false;
 let looping = false;
 let uiVisible = false;
 let fitMode = true;     // true: keep the square artwork, letterboxed; false: stretch to fill
-let renderer = PIXEL ? 'pixel' : (MEDIUM === 'watercolor' && typeof brush !== 'undefined' ? 'watercolor' : 'flat');
+const RENDERERS = typeof brush === 'undefined' ? ['flat', 'pixel', 'ascii'] : ['flat', 'watercolor', 'pixel', 'ascii'];
+let renderer = PIXEL ? 'grid' : RENDERERS.includes(MEDIUM) ? MEDIUM : 'flat';
 let wcCanvas = null;
 let panel;
 let view = { x: 0, y: 0, w: 1, h: 1 };  // drawing area inside the window
@@ -101,7 +104,26 @@ function draw() {
 function paint(n) {
   if (PIXEL) paintPixels(Math.max(0, Math.min(FRAMES - 1, n - 1)));
   else if (renderer === 'watercolor') paintBrush(n);
+  else if (renderer === 'pixel' || renderer === 'ascii') paintStylized(n);
   else paintActions(n);
+}
+
+// Pixel / ASCII: paint flat, then redraw the view through the shared stylizer.
+function paintStylized(n) {
+  paintActions(n);
+  const src = drawingContext.canvas, k = src.width / width;
+  const snap = document.createElement('canvas');
+  snap.width = Math.max(1, Math.round(view.w * k));
+  snap.height = Math.max(1, Math.round(view.h * k));
+  snap.getContext('2d').drawImage(src, view.x * k, view.y * k, snap.width, snap.height, 0, 0, snap.width, snap.height);
+  const ctx = drawingContext;
+  ctx.save();
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  const ground = renderer === 'ascii' ? (STYLE.asciiInvert ? '#111214' : '#f4f3ef') : null;
+  ctx.fillStyle = ground || LETTERBOX;
+  ctx.fillRect(view.x, view.y, view.w, view.h);
+  drawStylized(ctx, renderer, view.x, view.y, view.w, view.h, (c, X, Y, W, H) => c.drawImage(snap, X, Y, W, H), STYLE, ground);
+  ctx.restore();
 }
 
 // p5.brush binds to the first canvas it is given, so render into one fixed
@@ -224,19 +246,23 @@ function paintPixels(f) {
 // ---------------------------------------------------------------------------
 // Controls: hidden until U is pressed
 //   U toggle panel · R re-render · A animate · L loop · F fit/fill
-//   W watercolor/flat renderer · S save PNG
+//   W cycle renderer (flat, watercolor, pixel, ASCII) · S save PNG
 // ---------------------------------------------------------------------------
 function rerender() { animating = false; noLoop(); shown = TOTAL; paint(shown); updatePanel(); }
 function animate() { shown = 0; animating = true; loop(); updatePanel(); }
 function toggleLoop() { looping = !looping; if (looping && !animating) animate(); updatePanel(); }
 function toggleFit() { fitMode = !fitMode; paint(shown); updatePanel(); }
 function toggleRenderer() {
-  if (PIXEL || typeof brush === 'undefined') return;
-  renderer = renderer === 'watercolor' ? 'flat' : 'watercolor';
+  if (PIXEL) return;
+  renderer = RENDERERS[(RENDERERS.indexOf(renderer) + 1) % RENDERERS.length];
   paint(shown);
   updatePanel();
 }
 function savePNG() { saveCanvas(TITLE_SLUG, 'png'); }
+function saveTXT() {
+  if (renderer !== 'ascii') return;
+  saveBlob(new Blob([getAsciiText()], { type: 'text/plain;charset=utf-8' }), TITLE_SLUG + '.txt');
+}
 
 function keyPressed() {
   const k = key.toLowerCase();
@@ -247,12 +273,13 @@ function keyPressed() {
   else if (k === 'f') toggleFit();
   else if (k === 'w') toggleRenderer();
   else if (k === 's') savePNG();
+  else if (k === 't') saveTXT();
 }
 
 function buildPanel() {
   panel = document.createElement('div');
   panel.id = 'ams-panel';
-  const buttons = [['Re-render (R)', rerender], ['Animate (A)', animate], ['Loop (L)', toggleLoop], ['Fit (F)', toggleFit], ['Watercolor (W)', toggleRenderer], ['Save PNG (S)', savePNG]];
+  const buttons = [['Re-render (R)', rerender], ['Animate (A)', animate], ['Loop (L)', toggleLoop], ['Fit (F)', toggleFit], ['Watercolor (W)', toggleRenderer], ['Save PNG (S)', savePNG], ['Save TXT (T)', saveTXT]];
   for (const [label, fn] of buttons) {
     const b = document.createElement('button');
     b.textContent = label;
@@ -268,29 +295,33 @@ function updatePanel() {
   if (!panel) return;
   panel.children[2].textContent = looping ? 'Loop: on (L)' : 'Loop: off (L)';
   panel.children[3].textContent = fitMode ? 'Fit (F)' : 'Fill (F)';
-  panel.children[4].textContent = renderer === 'watercolor' ? 'Watercolor (W)' : renderer === 'flat' ? 'Flat (W)' : 'Pixel';
-  panel.children[4].disabled = renderer === 'pixel' || typeof brush === 'undefined';
+  const names = { flat: 'Flat', watercolor: 'Watercolor', pixel: 'Pixel', ascii: 'ASCII', grid: 'Pixel grid' };
+  panel.children[4].textContent = names[renderer] + (PIXEL ? '' : ' (W)');
+  panel.children[4].disabled = !!PIXEL;
 }
 `;
 
-export async function buildP5Sketch(program, { mediumId = 'flat', medium = null, title = 'AMS sketch', source = '', aspect = null } = {}) {
+export async function buildP5Sketch(program, { mediumId = 'flat', medium = null, title = 'AMS sketch', source = '', aspect = null, style = null } = {}) {
   const norm = normalizeProgram(program);
-  const pixel = mediumId === 'pixel' && medium ? await bakePixelFrames(norm, medium) : null;
+  // Integer-grid pixel programs are baked cell by cell; normalized ones use the Pixel renderer.
+  const gridPixel = mediumId === 'pixel' && medium && !medium.isNormalizedProgram?.(norm);
+  const pixel = gridPixel ? await bakePixelFrames(norm, medium) : null;
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ams-sketch';
   const header = [
     `// ${title}`,
     `// Exported from Artist–Model Studio on ${new Date().toISOString().slice(0, 10)}${source ? ` · ${source}` : ''}`,
     `// Medium: ${mediumId}`,
-    '// Press U for controls: re-render, animate, loop, fit/fill, watercolor/flat, save PNG.',
+    '// Press U for controls: re-render, animate, loop, fit/fill, renderer (flat/watercolor/pixel/ASCII), save PNG.',
     ''
   ].join('\n');
   const data = pixel
     ? `const PROGRAM = null;\nconst PIXEL = ${JSON.stringify(pixel)};\n`
     : `const PROGRAM = ${JSON.stringify(norm, null, 1)};\nconst PIXEL = null;\n`;
   const seed = Number(medium?.seed ?? 42) || 42;
-  const shared = `\n// ---- Studio watercolor routine (src/media/watercolorBrush.js) ----\n${inlineModule(watercolorSource)}`;
+  const shared = `\n// ---- Studio watercolor routine (src/media/watercolorBrush.js) ----\n${inlineModule(watercolorSource)}\n// ---- Pixel and ASCII looks (src/fitting/stylize.js) ----\n${inlineModule(stylizeSource)}\n// ---- Downloads (src/export/recorder.js) ----\n${inlineModule(recorderSource)}`;
+  const styleLine = `const STYLE = Object.assign({}, DEFAULT_STYLE, ${JSON.stringify(style || medium?.style || {})});\n`;
   const canvasAspect = aspect || (medium?.width && medium?.height ? medium.width / medium.height : 1);
-  return `${header}const TITLE_SLUG = ${JSON.stringify(slug)};\nconst ASPECT = ${Number(canvasAspect.toFixed(4))};\nconst MEDIUM = ${JSON.stringify(mediumId)};\nconst WATERCOLOR_SEED = ${seed};\n${data}${RUNTIME}${shared}`;
+  return `${header}const TITLE_SLUG = ${JSON.stringify(slug)};\nconst ASPECT = ${Number(canvasAspect.toFixed(4))};\nconst MEDIUM = ${JSON.stringify(mediumId)};\nconst WATERCOLOR_SEED = ${seed};\n${data}${RUNTIME}${shared}\n${styleLine}`;
 }
 
 export function buildIndexHtml(title, { brush = true } = {}) {
@@ -320,6 +351,7 @@ export function buildIndexHtml(title, { brush = true } = {}) {
     #ams-panel .ams-value { display: flex; align-items: center; justify-content: flex-end; gap: 4px; min-width: 0; }
     #ams-panel .ams-value .num { width: 44px; flex: none; }
     #ams-panel .ams-count { min-width: 0; font: 12px ui-monospace, Menlo, monospace; color: #6a6e76; white-space: nowrap; }
+    .ams-control .ams-text { grid-column: 2 / 4; font: 12px ui-monospace, Menlo, monospace; background: #1b1d22; color: #e4e5e8; border: 1px solid #2f323a; border-radius: 4px; padding: 3px 6px; outline: none; }
     .ams-control .num { width: 100%; font: 12px ui-monospace, Menlo, monospace; background: transparent; color: #e4e5e8; border: 1px solid transparent; border-radius: 4px; text-align: right; padding: 1px 3px; outline: none; }
     .ams-control .num:hover { border-color: #2f323a; }
     .ams-control .num:focus { border-color: #4a4d56; background: #1b1d22; }
@@ -351,7 +383,7 @@ A self-contained p5.js sketch exported from Artist–Model Studio.
 
 Open \`index.html\` in a browser (no server needed). Press **U** for controls:
 re-render (R), animate (A), loop (L), fit or fill the window (F),
-switch watercolor/flat rendering (W), save PNG (S).
+cycle the renderer: flat, watercolor, pixel, ASCII (W), save PNG (S).
 
 - \`sketch.js\`: the drawing program and a small renderer.
 - \`p5.min.js\`: p5.js 2.3.3, vendored unmodified. p5.js is licensed under the
@@ -414,7 +446,8 @@ let sprites = null, layer = null, refImg = null, liveSource = null, sampler = nu
 let stillImage = null;           // current still reference (exported original or an upload)
 let tW = TARGET_W, tH = TARGET_H; // fitting target size (long side 128)
 const state = Object.assign({ fit: 'cover', ground: 'transparent', groundTime: 5, render: 'flat', overlay: 'off', refOpacity: 0.5, opacity: 1, pigment: 0.6, sampling: 'continuous', interval: 2, rate: 1, aspect: 'export', source: 'exported' }, PARAMS);
-if (typeof brush === 'undefined' && state.render !== 'flat') state.render = 'flat';
+Object.assign(state, DEFAULT_STYLE, PARAMS.style || {}); // pixel / ASCII settings live on state
+if (typeof brush === 'undefined' && (state.render === 'watercolor' || state.render === 'layered')) state.render = 'flat';
 
 function decodeTarget() {
   const bin = atob(TARGET_B64);
@@ -614,15 +647,21 @@ function draw() {
   }
   drawScene(drawingContext, x, y, w, h, {
     cf, now: simTime, render: state.render, sprites, layer,
-    ref: refImg && (refImg.complete || refImg instanceof HTMLCanvasElement) ? refImg : null, overlay: state.overlay, refOpacity: state.refOpacity
+    ref: refImg && (refImg.complete || refImg instanceof HTMLCanvasElement) ? refImg : null, overlay: state.overlay, refOpacity: state.refOpacity,
+    style: state
   });
+  if (recorder) {
+    const k = drawingContext.canvas.width / width;
+    recorder.frame(drawingContext.canvas, x * k, y * k, w * k, h * k);
+  }
 }
 
 // ---- controls -------------------------------------------------------------
-const RENDERS = ['flat', 'watercolor', 'layered'];
+const RENDERS = typeof brush === 'undefined' ? ['flat', 'pixel', 'ascii'] : ['flat', 'watercolor', 'layered', 'pixel', 'ascii'];
 const OVERLAYS = ['off', 'under', 'over', 'solo'];
 
 function setParam(key, value) {
+  if (key === 'asciiInvert') value = value === true || value === 'true';
   state[key] = value;
   if (key === 'render') { sprites = null; layer = null; }
   if (key === 'opacity') cf.setParams({ opacity: value });
@@ -639,6 +678,23 @@ function togglePause() { paused = !paused; syncPanel(); }
 function clearCanvas() { cf.clear(); sprites = null; layer = null; }
 function toggleFit() { fitMode = !fitMode; syncPanel(); }
 function savePNG() { saveCanvas(TITLE_SLUG, 'png'); }
+function saveTXT() {
+  if (state.render !== 'ascii') return;
+  saveBlob(new Blob([getAsciiText()], { type: 'text/plain;charset=utf-8' }), TITLE_SLUG + '.txt');
+}
+let recorder = null;
+async function toggleRecord(format) {
+  if (recorder) {
+    const rec = recorder;
+    recorder = null;
+    const out = await rec.stop();
+    if (out) saveBlob(out.blob, TITLE_SLUG + '.' + out.ext);
+  } else if (format === 'gif' || videoMime()) {
+    recorder = new CanvasRecorder(format);
+    recorder.kind = format;
+  }
+  syncPanel();
+}
 function cycleParam(list, key) { setParam(key, list[(list.indexOf(state[key]) + 1) % list.length]); }
 
 function keyPressed() {
@@ -657,11 +713,21 @@ function keyPressed() {
   else if (k === 'o') cycleParam(OVERLAYS, 'overlay');
   else if (k === 'f') toggleFit();
   else if (k === 's') savePNG();
+  else if (k === 't') saveTXT();
+  else if (k === 'g') toggleRecord('gif');
+  else if (k === 'v') toggleRecord('video');
 }
 
 // [key, label, kind, options, tip]; sliders: [min, max, step, typedMin, typedMax]
 const CONTROLS = [
-  ['render', 'Render', 'select', [['flat', 'Flat'], ['watercolor', 'Watercolor'], ['layered', 'Watercolor, layered']], 'W'],
+  ['render', 'Render', 'select', [['flat', 'Flat'], ['watercolor', 'Watercolor'], ['layered', 'Watercolor, layered'], ['pixel', 'Pixel'], ['ascii', 'ASCII']], 'W'],
+  ['pixelCells', 'Cells', 'range', [8, 256, 1, 2, 1024], 'Pixel cells on the long side'],
+  ['pixelPalette', 'Palette', 'select', [['full', 'Full colour'], ['pico8', 'PICO-8'], ['gameboy', 'Game Boy'], ['cga', 'CGA'], ['bit1', '1-bit'], ['gray8', 'Grayscale 8']], 'Snap pixel colours to a palette'],
+  ['asciiRamp', 'Chars', 'select', [['standard', 'Standard'], ['detailed', 'Detailed (70)'], ['blocks', 'Blocks'], ['dots', 'Dots'], ['minimal', 'Minimal'], ['binary', 'Binary'], ['box', 'Box lines'], ['slashes', 'Slashes'], ['tetragram', 'Tetragrams'], ['cp437', 'Code page 437'], ['petscii', 'PETSCII blocks'], ['braille', 'Braille (2x4)'], ['sextants', 'Teletext sextants (2x3)'], ['quadrants', 'Quadrants (2x2)'], ['custom', 'Custom']], 'Characters from sparse to dense'],
+  ['asciiCustom', 'Custom', 'text', null, 'Your own characters, sparse to dense (start with a space)'],
+  ['asciiCols', 'Columns', 'range', [16, 240, 1, 4, 600], 'Characters across'],
+  ['asciiColor', 'Colour', 'select', [['color', 'Colour'], ['mono', 'Mono']], 'Tinted characters or one ink colour'],
+  ['asciiInvert', 'Invert', 'select', [['true', 'On (dark ground)'], ['false', 'Off (light ground)']], 'On: bright areas get dense characters'],
   ['ground', 'Ground', 'select', [['transparent', 'Transparent'], ['fixed', 'Fixed'], ['follow', 'Follow'], ['drift', 'Drift']], 'Transparent: no ground. Fixed: average colour at start and on Clear. Follow: tracks the source. Drift: eases toward it over Ground s'],
   ['groundTime', 'Ground s', 'range', [0.5, 60, 0.5, 0.05, Infinity], 'Drift: seconds to ease toward the source average'],
   ['mode', 'Style', 'select', [['strokes', 'Strokes'], ['fade', 'Fade']], 'M'],
@@ -696,7 +762,7 @@ function buildPanel() {
   panel.title = 'U shows or hides this panel';
   const buttons = document.createElement('div');
   buttons.className = 'ams-row';
-  for (const [id, label, fn, tip] of [['pause', 'Pause', togglePause, 'Space'], ['clear', 'Clear', clearCanvas, 'C: clear and repaint from blank'], ['fit', 'Fit', toggleFit, 'F'], ['save', 'Save PNG', savePNG, 'S']]) {
+  for (const [id, label, fn, tip] of [['pause', 'Pause', togglePause, 'Space'], ['clear', 'Clear', clearCanvas, 'C: clear and repaint from blank'], ['fit', 'Fit', toggleFit, 'F'], ['save', 'Save PNG', savePNG, 'S'], ['txt', 'Save TXT', saveTXT, 'T: plain text of the ASCII frame'], ['gif', 'Rec GIF', () => toggleRecord('gif'), 'G: start / stop and save'], ['video', 'Rec MP4', () => toggleRecord('video'), 'V: start / stop and save (WebM where MP4 is unavailable)']]) {
     const b = document.createElement('button');
     b.dataset.id = id;
     b.textContent = label;
@@ -713,7 +779,14 @@ function buildPanel() {
     const name = document.createElement('span');
     name.textContent = label;
     row.appendChild(name);
-    if (kind === 'select') {
+    if (kind === 'text') {
+      const input = document.createElement('input');
+      input.className = 'ams-text';
+      input.dataset.key = key;
+      input.spellcheck = false;
+      input.addEventListener('input', () => setParam(key, input.value || ' .'));
+      row.appendChild(input);
+    } else if (kind === 'select') {
       const sel = document.createElement('select');
       sel.dataset.key = key;
       for (const [value, text] of opts) sel.add(new Option(text, value));
@@ -775,14 +848,22 @@ function syncPanel() {
   if (!panel) return;
   panel.querySelector('[data-id="pause"]').textContent = paused ? 'Play' : 'Pause';
   panel.querySelector('[data-id="fit"]').textContent = fitMode ? 'Fit' : 'Fill';
+  panel.querySelector('[data-id="txt"]').hidden = state.render !== 'ascii';
+  panel.querySelector('[data-id="gif"]').textContent = recorder && recorder.kind === 'gif' ? 'Stop GIF' : 'Rec GIF';
+  panel.querySelector('[data-id="video"]').textContent = recorder && recorder.kind === 'video' ? 'Stop MP4' : 'Rec MP4';
+  panel.querySelector('[data-id="gif"]').disabled = !!recorder && recorder.kind !== 'gif';
+  panel.querySelector('[data-id="video"]').disabled = !!recorder && recorder.kind !== 'video';
   for (const row of panel.querySelectorAll('[data-row]')) {
     const key = row.dataset.row;
     row.hidden = (LIVE_ONLY.includes(key) && !liveSource) || (key === 'rate' && liveSource && liveSource.kind === 'webcam')
-      || (key === 'groundTime' && state.ground !== 'drift');
+      || (key === 'groundTime' && state.ground !== 'drift')
+      || (key.startsWith('pixel') && state.render !== 'pixel')
+      || (key.startsWith('ascii') && state.render !== 'ascii')
+      || (key === 'asciiCustom' && state.asciiRamp !== 'custom');
   }
   for (const el of panel.querySelectorAll('[data-key]')) {
     const v = state[el.dataset.key];
-    if (document.activeElement !== el) el.value = v;
+    if (document.activeElement !== el) el.value = String(v);
   }
 }
 `;
@@ -822,7 +903,11 @@ ${inlineModule(continuousWatercolorSource)}
 // ---- Scene with reference overlay (src/fitting/continuousScene.js) ----
 ${inlineModule(continuousSceneSource)}
 // ---- Live sources: webcam, video, animation (src/fitting/referenceSource.js) ----
-${inlineModule(referenceSourceSource)}`;
+${inlineModule(referenceSourceSource)}
+// ---- Pixel and ASCII looks (src/fitting/stylize.js) ----
+${inlineModule(stylizeSource)}
+// ---- Recording and downloads (src/export/recorder.js) ----
+${inlineModule(recorderSource)}`;
 }
 
 export async function buildContinuousZip(target, params, options = {}) {
