@@ -50,6 +50,8 @@ export class MediumOptions {
           <input class="num-field" id="mo-cells-num" inputmode="numeric" value="${s.pixelCells}" /></label>
         <label class="live-slider" title="Snap colours to a palette"><span>Palette</span>
           <select id="mo-palette">${Object.keys(PIXEL_PALETTES).map(k => `<option value="${k}" ${k === s.pixelPalette ? 'selected' : ''}>${PALETTE_LABELS[k]}</option>`).join('')}</select></label>
+        <label class="live-slider" title="Faint cell grid, for reference only (not saved)"><span>Grid</span>
+          <input type="checkbox" id="mo-pgrid" ${s.pixelGrid ? 'checked' : ''} /></label>
       </div>
       <div class="mo-section" data-for="ascii" title="ASCII medium and Render: ASCII">
         <span class="mo-heading">ASCII</span>
@@ -67,6 +69,8 @@ export class MediumOptions {
           <select id="mo-color"><option value="color" ${s.asciiColor === 'color' ? 'selected' : ''}>Colour</option><option value="mono" ${s.asciiColor === 'mono' ? 'selected' : ''}>Mono</option></select></label>
         <label class="live-slider" title="On: bright areas get dense characters (dark ground). Off: dark areas do (light ground)."><span>Invert</span>
           <select id="mo-invert"><option value="1" ${s.asciiInvert ? 'selected' : ''}>On (dark ground)</option><option value="0" ${s.asciiInvert ? '' : 'selected'}>Off (light ground)</option></select></label>
+        <label class="live-slider" title="Faint character-cell grid, for reference only (not saved)"><span>Grid</span>
+          <input type="checkbox" id="mo-agrid" ${s.asciiGrid ? 'checked' : ''} /></label>
       </div>`;
     for (const sec of el.querySelectorAll('.mo-section')) sec.hidden = sec.dataset.for !== kind;
     document.body.appendChild(el);
@@ -89,6 +93,8 @@ export class MediumOptions {
     pair('cells', 'pixelCells', 2, 1024);
     pair('cols', 'asciiCols', 4, 600);
     el.querySelector('#mo-wc-mode').addEventListener('change', e => set({ wcMode: e.target.value }));
+    el.querySelector('#mo-pgrid').addEventListener('change', e => set({ pixelGrid: e.target.checked }));
+    el.querySelector('#mo-agrid').addEventListener('change', e => set({ asciiGrid: e.target.checked }));
     el.querySelector('#mo-palette').addEventListener('change', e => set({ pixelPalette: e.target.value }));
     el.querySelector('#mo-ramp').addEventListener('change', e => {
       el.querySelector('#mo-custom-row').hidden = e.target.value !== 'custom';

@@ -6,10 +6,11 @@ A human-in-the-loop creative coding studio. Models (or procedures) write small d
 
 ## What it does
 
-- **Four candidates per prompt** from a choice of engines, rendered as flat shapes, watercolor (`p5.brush`) or pixel art. Programs are plain JSON / text DSL you can read and edit.
+- **Four candidates per prompt** from a choice of engines, rendered as flat shapes, watercolor (`p5.brush`), pixel art or ASCII (character sets including braille, teletext sextants and code page 437; a choice of fonts). Programs are plain JSON / text DSL you can read and edit.
 - **Reference Fitter**: approximates a reference image with a budget of shapes (12 to 800) by greedy search, with no model involved. Candidates A–D use mixed, rectangle, circle and triangle shapes, so one round shows how the shape vocabulary changes the look. See [docs/reference-fitter.md](docs/reference-fitter.md).
-- **Continuous mode**: the fitter as an endless painting. Shapes land one at a time (or fade in and out together), live for a cycle and are replaced by new fits, repainting the reference forever, flat or in watercolor.
+- **Continuous mode**: the fitter as an endless painting. Shapes land one at a time (or fade in and out together), live for a cycle and are replaced by new fits, repainting the reference forever, in any of the four looks. Save PNG, plain-text ASCII, or record GIF/MP4.
 - **Exports**: Text DSL, JSON, or a self-contained **p5.js project** (zip with `index.html`, `sketch.js`, vendored `p5.min.js` and `p5.brush`). Static exports can animate, loop, fit or fill the window and switch watercolor/flat; continuous exports run forever with live density, pacing and style controls.
+- **Assets**: a browser for saved variations, paintings and imported images (IndexedDB), with folders, search, tags, stars and export; any asset can be used as the reference.
 - **Distilled models**: a pipeline that trains small models (LFM2.5-350M, Qwen3-0.6B) with LoRA on Reference Fitter programs of public-domain Paul Klee paintings, served locally for the *Distilled Klee* engine. See [training/klee/README.md](training/klee/README.md).
 - **References**: bundled public-domain works with sources and rights recorded ([fixtures/README.md](fixtures/README.md)), your own uploads (images, animated GIF/WebP, video), or the webcam, all kept in the browser. Live sources are sampled continuously, at an interval, or held.
 

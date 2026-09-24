@@ -24,6 +24,14 @@ export class LivePainter {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'live-painter-canvas';
     this.running = false;
+    this.shown = false; // stopped canvas should stay on screen
+    // The preview DOM is rebuilt on candidate updates: put a stopped frame back.
+    document.addEventListener('ams:hero-rendered', () => { if (!this.running && this.shown) this.paint(0); });
+    // Theme switches change the preview background: repaint a stopped frame.
+    if (typeof MutationObserver !== 'undefined') {
+      new MutationObserver(() => { if (!this.running && this.shown) this.paint(0); })
+        .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    }
     this.cf = null;
     this.target = null;
   }
@@ -42,6 +50,8 @@ export class LivePainter {
    */
   async start(image, params, aspect = 1, source = null) {
     this.stop();
+    this.layer = null;
+    this.sprites = null;
     this.source = source;
     this.sampler = source ? new SourceSampler({ mode: params.sampling, interval: params.interval }) : null;
     if (params.render === 'watercolor' || params.render === 'layered') await loadBrush();
@@ -96,6 +106,7 @@ export class LivePainter {
     }
     if (this.params.render === 'watercolor' || this.params.render === 'layered') await loadBrush();
     this.cf?.setParams(params);
+    if (!this.running && this.shown) this.paint(0);
   }
 
   /** Clear the canvas and keep painting from blank. */
@@ -104,16 +115,42 @@ export class LivePainter {
     this.cf.clear();
     this.sprites = null;
     this.layer = null;
-    if (!this.running) this.canvas.remove();
+    if (!this.running && this.shown) this.paint(0); // stopped: show the blank sheet
   }
 
+  /** Stop painting but leave the last frame on screen (hide() removes it). */
   stop() {
     this.running = false;
+    this.paused = false;
     this.source = null;
     this.sampler = null;
+    if (this.raf) cancelAnimationFrame(this.raf);
+  }
+
+  /**
+   * While stopped: show the reference (or the stopped painting) in the preview,
+   * so render and style changes are visible before Play.
+   * @param reset drop a stopped painting (e.g. the reference changed)
+   */
+  preview(image, params, aspect = 1, reset = false) {
+    if (this.running) return;
+    this.params = { ...(this.params || {}), ...params };
+    if (reset || this.aspect !== aspect || this.fit !== (params.fit || 'cover')) { this.cf = null; this.sprites = null; this.layer = null; }
+    this.aspect = aspect;
+    this.fit = params.fit || 'cover';
+    if (image) {
+      const [rw, rh] = fitDims(aspect, 1024);
+      this.stillRef = fitTarget(image, rw, rh, this.fit);
+    }
+    this.paint(0);
+  }
+
+  /** Remove the live canvas so the main preview shows the candidate again. */
+  hide() {
+    if (this.running) return;
+    this.shown = false;
     this.layer = null;
     this.sprites = null;
-    if (this.raf) cancelAnimationFrame(this.raf);
     this.canvas.remove();
   }
 
@@ -121,6 +158,7 @@ export class LivePainter {
     const wrap = document.querySelector('#hero-canvas-wrap');
     if (!wrap) return;
     if (this.canvas.parentElement !== wrap) wrap.appendChild(this.canvas);
+    this.shown = true;
     const rect = wrap.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const w = Math.round(rect.width * dpr), h = Math.round(rect.height * dpr);
@@ -136,6 +174,16 @@ export class LivePainter {
     const vw = Math.min(w, h * a), vh = vw / a;
     const x = (w - vw) / 2, y = (h - vh) / 2;
     const [lw, lh] = fitDims(a, 1024);
+    if (!this.cf && this.stillRef) {
+      // Not painted yet: show the reference itself in the current look.
+      const r = this.params?.render;
+      const draw = (c, X, Y, W, H) => c.drawImage(this.stillRef, X, Y, W, H);
+      if (r === 'pixel' || r === 'ascii') drawStylized(ctx, r, x, y, vw, vh, draw, this.params.style);
+      else draw(ctx, x, y, vw, vh);
+      this.view = { x, y, w: vw, h: vh };
+      return;
+    }
+    if (!this.cf) return;
     // Watercolor needs p5.brush; until it loads, show flat.
     const render = !brushModule && ['watercolor', 'layered'].includes(this.params.render) ? 'flat' : this.params.render;
     if (render === 'watercolor') {
@@ -150,6 +198,7 @@ export class LivePainter {
       this.layer.opacity = this.params.opacity ?? 1;
       this.layer.update(this.cf, this.t, dt, retentionFor(this.params.fadeOut));
     }
+    this.lastRender = render;
     drawScene(ctx, x, y, vw, vh, {
       cf: this.cf, now: this.t, render, sprites: this.sprites, layer: this.layer,
       ref: this.refCanvas, overlay: this.params.overlay || 'off', refOpacity: this.params.refOpacity ?? 0.5,
@@ -159,14 +208,24 @@ export class LivePainter {
     if (this.recorder) this.recorder.frame(this.canvas, x, y, vw, vh);
   }
 
-  /** Current picture (no letterbox) as a PNG download. */
+  /** Current picture as a PNG download; a transparent ground stays transparent. */
   savePNG(name) {
+    this.pictureBlob().then(b => b && saveBlob(b, name + '.png'));
+  }
+
+  /** Current picture (no preview background, no reference grid) as a PNG blob. */
+  pictureBlob() {
     const v = this.view;
-    if (!v) return;
+    if (!v || !this.cf) return Promise.resolve(null);
     const c = document.createElement('canvas');
     c.width = Math.round(v.w); c.height = Math.round(v.h);
-    c.getContext('2d').drawImage(this.canvas, v.x, v.y, v.w, v.h, 0, 0, c.width, c.height);
-    c.toBlob(b => b && saveBlob(b, name + '.png'), 'image/png');
+    // Redraw the scene alone (no preview background behind it).
+    drawScene(c.getContext('2d'), 0, 0, c.width, c.height, {
+      cf: this.cf, now: this.t, render: this.lastRender || this.params.render, sprites: this.sprites, layer: this.layer,
+      ref: this.refCanvas, overlay: this.params.overlay || 'off', refOpacity: this.params.refOpacity ?? 0.5,
+      style: { ...this.params.style, showGrid: false }, stylize: drawStylized
+    });
+    return new Promise(resolve => c.toBlob(resolve, 'image/png'));
   }
 
   /** Current ASCII frame as plain text (only while Render is ASCII). */

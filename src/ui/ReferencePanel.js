@@ -59,6 +59,9 @@ export class ReferencePanel {
     this.fit = 'cover'; // how the reference is placed when its aspect differs from the canvas
     this.onLiveToggle = onLiveToggle;
     this.onLivePause = arguments[0]?.onLivePause;
+    this.onLiveSave = arguments[0]?.onLiveSave;
+    this.onSaveAsset = arguments[0]?.onSaveAsset;
+    this.onLiveRecord = arguments[0]?.onLiveRecord;
     this.onRenderChange = arguments[0]?.onRenderChange;
     this.onOpenRenderOptions = arguments[0]?.onOpenRenderOptions;
     this.getStyle = arguments[0]?.getStyle;
@@ -145,6 +148,7 @@ export class ReferencePanel {
               <option value="gif">GIF</option>
             </select>
             <button id="live-rec" class="btn-micro" title="Record the canvas; press again to stop and save">Rec</button>
+            <button id="live-asset" class="btn-micro btn-icon-only" title="Add the painting to Assets">${icon('bookmark', 'icon-sm')}</button>
           </div>
           <label class="live-slider" title="Watercolor: each stroke is a p5.brush painting that fades in and out on its own. Layered: strokes pile up on one sheet and fade together under washes (Fade out sets how slowly). Pixel and ASCII use the options next to the Medium menu.">
             <span>Render</span>
@@ -351,7 +355,7 @@ export class ReferencePanel {
       this.onLiveParams?.(liveParams());
     });
     container.querySelector('#live-render')?.addEventListener('change', (e) => {
-      this.live.render = e.target.value;
+      this.setRender(e.target.value);
       this.onRenderChange?.(e.target.value);
       this.onLiveParams?.(liveParams());
     });
@@ -374,6 +378,7 @@ export class ReferencePanel {
       const paused = this.onLivePause?.();
       e.currentTarget.textContent = paused ? 'Resume' : 'Pause';
     });
+    container.querySelector('#live-asset')?.addEventListener('click', (e) => this.onSaveAsset?.(e.currentTarget));
     container.querySelector('#live-png')?.addEventListener('click', () => this.onLiveSave?.('png'));
     container.querySelector('#live-txt')?.addEventListener('click', () => this.onLiveSave?.('txt'));
     const recBtn = container.querySelector('#live-rec');
@@ -488,6 +493,8 @@ export class ReferencePanel {
     this.live.render = id;
     const sel = this.container?.querySelector('#live-render');
     if (sel) sel.value = id;
+    const txt = this.container?.querySelector('#live-txt');
+    if (txt) txt.disabled = id !== 'ascii';
   }
 
   setLiveRunning(on) {

@@ -43,6 +43,7 @@ export class CandidateGrid {
     this.onStartOver = onStartOver;
     this.onRate = onRate;
     this.onAnimateStrokes = onAnimateStrokes;
+    this.onSaveAsset = arguments[0]?.onSaveAsset;
   }
 
   update(candidates, selectedId = null) {
@@ -209,6 +210,9 @@ export class CandidateGrid {
                   ${icon('arrowPath', 'icon-sm')}
                 </button>
               </div>
+ <button id="save-asset-btn" class="btn-micro btn-icon-only" title="Add what the preview shows to Assets">
+                ${icon('bookmark', 'icon-sm')}
+              </button>
               <button id="toggle-zoom-btn" class="btn-micro btn-icon-only" title="${this.isFullSize ? 'Show side panel' : 'Expand preview'}">
                 ${this.isFullSize ? icon('collapse', 'icon-sm') : icon('expand', 'icon-sm')}
               </button>
@@ -313,6 +317,7 @@ export class CandidateGrid {
     `;
 
     this.attachEvents(this.container);
+    document.dispatchEvent(new Event('ams:hero-rendered')); // live painter re-attaches its canvas
     this.renderTransform();
   }
 
@@ -336,6 +341,9 @@ export class CandidateGrid {
         this.onRate?.(candId, rating);
       });
     });
+
+    const saveAsset = target.querySelector('#save-asset-btn');
+    if (saveAsset) saveAsset.onclick = () => this.onSaveAsset?.(saveAsset);
 
     // Expand: give the preview the full width by hiding the right column.
     const toggleBtn = target.querySelector('#toggle-zoom-btn');

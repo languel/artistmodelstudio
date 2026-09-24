@@ -17,9 +17,12 @@ import { SettingsModal } from './ui/SettingsModal.js';
 import { ModelExplorerModal } from './ui/ModelExplorerModal.js';
 import { HelpModal } from './ui/HelpModal.js';
 import { ProcessLog } from './ui/ProcessLog.js';
-import { ReferencePanel } from './ui/ReferencePanel.js';
+import { ReferencePanel, bundledReferences } from './ui/ReferencePanel.js';
 import { LivePainter } from './ui/LivePainter.js';
 import { buildContinuousZip, downloadBytes } from './export/p5Export.js';
+import { createZip } from './export/zip.js';
+import { AssetStore } from './assets/assetStore.js';
+import { AssetPanel } from './ui/AssetPanel.js';
 import { fitTarget } from './artists/ReferenceFitterArtist.js';
 import { DEFAULT_STYLE, drawStylized, asciiFontReady } from './fitting/stylize.js';
 import { MediumOptions } from './ui/MediumOptions.js';
@@ -61,7 +64,8 @@ export class StudioApp {
       onCompareMedia: (id) => this.handleCompareMedia(id),
       onStartOver: () => this.handleStartOver(),
       onRate: (id, rating) => this.handleRate(id, rating),
-      onAnimateStrokes: (cand) => this.handleAnimateStrokes(cand)
+      onAnimateStrokes: (cand) => this.handleAnimateStrokes(cand),
+      onSaveAsset: (btn) => this.saveToAssets(btn)
     });
 
     this.programEditor = new ProgramEditor({
@@ -122,6 +126,12 @@ export class StudioApp {
       getStyle: () => this.styleSettings,
       onChange: (patch) => this.handleStyleChange(patch)
     });
+    this.assetStore = new AssetStore();
+    this.assetPanel = new AssetPanel({
+      store: this.assetStore,
+      onUseAsReference: (asset) => this.useAssetAsReference(asset),
+      onExport: (asset) => this.exportAsset(asset)
+    });
     this.livePainter = new LivePainter({
       onFrame: (lp) => {
         const now = performance.now();
@@ -137,16 +147,18 @@ export class StudioApp {
         if (this.canvasAspect === 'ref' && this.mediaRegistry) this.handleCanvasSizeChange(this.canvasSize);
         this.updateRefOverlay?.();
         if (ref && this.processLog) this.processLog.log(`Reference set: ${ref.name}`, 'info');
+        this.showRefPreview(true);
         if (this.livePainter.running) {
           if (ref?.image) this.livePainter.start(ref.image, { ...this.referencePanel.liveParams(), style: { ...this.styleSettings } }, this.aspectValue(), ref.live || null);
           else this.stopLive();
         }
       },
       onLiveToggle: (on, params) => (on ? this.startLive(params) : this.stopLive()),
-      onLiveParams: (params) => this.livePainter.setParams({ ...params, style: { ...this.styleSettings } }),
+      onLiveParams: (params) => { this.livePainter.setParams({ ...params, style: { ...this.styleSettings } }); this.showRefPreview(); },
       onExportContinuous: (params) => this.exportContinuous(params),
       onOverlayChange: () => this.updateRefOverlay(),
       onLiveClear: () => this.livePainter.clear(),
+      onSaveAsset: (btn) => this.saveToAssets(btn, true),
       getStyle: () => this.styleSettings,
       onRenderChange: (id) => { this.controls?.setMedium?.(id); this.handleMediumChange(id); },
       onOpenRenderOptions: (anchor) => this.mediumOptions.toggle(anchor, this.activeMediumId),
@@ -221,6 +233,9 @@ export class StudioApp {
               <button class="side-tab-btn" id="tab-btn-reference" data-tab="reference">
                 ${icon('photo', 'icon-sm')} <span>Reference</span>
               </button>
+              <button class="side-tab-btn" id="tab-btn-assets" data-tab="assets">
+                ${icon('folder', 'icon-sm')} <span>Assets</span>
+              </button>
             </div>
             <div id="side-pane-variations" class="side-pane active"></div>
             <div id="side-pane-editor" class="side-pane">
@@ -231,6 +246,9 @@ export class StudioApp {
             </div>
             <div id="side-pane-reference" class="side-pane">
               <div id="reference-panel-container"></div>
+            </div>
+            <div id="side-pane-assets" class="side-pane">
+              <div id="asset-panel-container"></div>
             </div>
           </div>
         </div>
@@ -243,6 +261,8 @@ export class StudioApp {
     this.statusBanner.render(this.root.querySelector('#status-banner-container'));
     this.processLog.render(this.root.querySelector('#process-log-container'));
     this.referencePanel.render(this.root.querySelector('#reference-panel-container'));
+    this.assetStore.seed(bundledReferences()).catch(err => console.warn('Asset seed failed', err));
+    this.assetPanel.render(this.root.querySelector('#asset-panel-container'));
     this.referencePanel.setRender(this.activeMediumId);
 
     const initialArtist = this.getActiveArtist();
@@ -311,6 +331,8 @@ export class StudioApp {
           this.root.querySelector(`#side-pane-${other.dataset.tab}`)?.classList.toggle('active', active);
         }
         if (tab === 'log') this.processLog.render();
+        if (tab === 'reference') this.showRefPreview();
+        else if (tab === 'variations') this.livePainter.hide();
       });
     }
   }
@@ -321,6 +343,7 @@ export class StudioApp {
     try { localStorage.setItem('ams_style', JSON.stringify(this.styleSettings)); } catch { /* storage unavailable */ }
     this.livePainter.setParams({ style: { ...this.styleSettings } });
     if ('wcMode' in patch) this.pushLiveParams();
+    this.showRefPreview();
     if ('asciiFont' in patch) {
       // Web fonts arrive late: redraw once the font is ready so cells use its real width.
       asciiFontReady(this.styleSettings).then(() => {
@@ -340,6 +363,7 @@ export class StudioApp {
     this._refOverlayKey = null;
     this.updateRefOverlay();
     if (this.livePainter.running) this.startLive(this.referencePanel.liveParams());
+    else this.showRefPreview();
     this.processLog.log(`Reference fit: ${fit}.`, 'info');
   }
 
@@ -456,6 +480,7 @@ export class StudioApp {
   }
 
   async handleGenerate(prompt, previousProgram = null, feedback = null, parentId = null) {
+    this.livePainter.hide();
     this.abortController = new AbortController();
     this.controls.setGenerating(true);
 
@@ -694,6 +719,7 @@ export class StudioApp {
     localStorage.setItem('ams_canvas_aspect', aspect);
     await this.handleCanvasSizeChange(this.canvasSize);
     if (this.livePainter?.running) this.startLive(this.referencePanel.liveParams());
+    else this.showRefPreview();
   }
 
   async handleCanvasSizeChange(newSize) {
@@ -841,6 +867,7 @@ export class StudioApp {
   }
 
   async handleSelectCandidate(candidateId) {
+    this.livePainter.hide(); // a stopped live painting gives way to the chosen candidate
     this.selectedCandidateId = candidateId;
     this.candidateGrid.selectedId = candidateId;
 
@@ -947,8 +974,67 @@ export class StudioApp {
     this.processLog.log(`Switched model for ${artist.name} to: ${modelId}`, 'info');
   }
 
+  /** Add the preview (a live painting when one is shown, else the active candidate) to Assets. */
+  async saveToAssets(btn, painting = false) {
+    const lp = this.livePainter;
+    const folder = this.assetPanel.folder;
+    let saved = null;
+    if (painting || (lp.cf && lp.canvas.parentElement)) {
+      const blob = await lp.pictureBlob();
+      if (!blob) return;
+      const ref = this.referencePanel.current;
+      saved = await this.assetStore.add(blob, {
+        title: (ref?.name || 'Painting').replace(/\s*\(.*\)\s*$/, '') + ' · painting',
+        kind: 'painting', folder, tags: [lp.lastRender || lp.params.render].filter(Boolean),
+        program: lp.snapshot(), meta: { reference: ref?.name, params: { ...lp.params, style: undefined } }
+      });
+    } else {
+      const cand = this.sessionStore.getActiveCandidate();
+      if (!cand?.renderedImage) return;
+      const blob = await (await fetch(cand.renderedImage)).blob();
+      saved = await this.assetStore.add(blob, {
+        title: cand.prompt || 'Variation', kind: 'variation', folder, rating: cand.rating || 0,
+        tags: [String(cand.medium || this.activeMediumId).toLowerCase()], program: cand.program,
+        meta: { model: cand.model, medium: cand.medium }
+      });
+    }
+    if (saved && btn) {
+      btn.classList.add('saved');
+      setTimeout(() => btn.classList.remove('saved'), 900);
+    }
+  }
+
+  async useAssetAsReference(asset) {
+    const ext = (asset.blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    const file = new File([asset.blob], `${asset.title}.${ext}`, { type: asset.blob.type || 'image/png' });
+    await this.referencePanel.selectUpload(file);
+    this.root.querySelector('#tab-btn-reference')?.click();
+  }
+
+  async exportAsset(asset) {
+    const slug = asset.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'asset';
+    const ext = (asset.blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    if (!asset.program && !asset.meta) return downloadBytes(new Uint8Array(await asset.blob.arrayBuffer()), `${slug}.${ext}`, asset.blob.type);
+    const meta = { title: asset.title, tags: asset.tags, rating: asset.rating, kind: asset.kind, folder: asset.folder, created: new Date(asset.created).toISOString(), ...asset.meta };
+    const files = [
+      { name: `${slug}.${ext}`, data: new Uint8Array(await asset.blob.arrayBuffer()) },
+      { name: 'meta.json', data: JSON.stringify(meta, null, 2) }
+    ];
+    if (asset.program) files.push({ name: 'program.json', data: JSON.stringify(asset.program, null, 2) });
+    downloadBytes(createZip(files), `${slug}.zip`, 'application/zip');
+  }
+
+  /** Reference tab, not playing: the preview shows the reference (or the stopped painting). */
+  showRefPreview(reset = false) {
+    if (this.rightPaneTab !== 'reference' || this.livePainter.running) return;
+    const ref = this.referencePanel?.current;
+    if (!ref?.image) return;
+    this.livePainter.preview(ref.image, { ...this.referencePanel.liveParams(), style: { ...this.styleSettings } }, this.aspectValue(), reset);
+  }
+
   pushLiveParams() {
     if (this.referencePanel?.liveParams) this.livePainter.setParams({ ...this.referencePanel.liveParams(), style: { ...this.styleSettings } });
+    this.showRefPreview();
   }
 
   async handleMediumChange(mediumId) {

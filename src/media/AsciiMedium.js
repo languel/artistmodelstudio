@@ -10,14 +10,17 @@ import { Medium } from './Medium.js';
 import { CORE_OPS } from '../language/schema.js';
 import { normalizeProgram } from '../language/normalize.js';
 import { FlatCanvasMedium } from './FlatCanvasMedium.js';
-import { drawStylized, gridFor, DEFAULT_STYLE } from '../fitting/stylize.js';
+import { drawStylized, DEFAULT_STYLE } from '../fitting/stylize.js';
 
 /** Render `program` at grid size, then draw it stylized into a w×h canvas. */
 export async function renderStylized(kind, program, w, h, style, canvas, ground) {
   const s = { ...DEFAULT_STYLE, ...style };
-  const [cols, rows] = gridFor(kind, w, h, s);
-  const small = new FlatCanvasMedium({ width: cols, height: rows });
-  const out = await small.render(program);
+  // Render at the view's own proportions (not the grid's): ASCII cells aren't square, so
+  // drawing straight into the grid would turn circles into ellipses. drawStylized then
+  // samples this image into the cell grid.
+  const k = Math.min(1, 1024 / Math.max(w, h));
+  const flat = new FlatCanvasMedium({ width: Math.max(1, Math.round(w * k)), height: Math.max(1, Math.round(h * k)) });
+  const out = await flat.render(program);
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');

@@ -663,7 +663,7 @@ const RENDERS = typeof brush === 'undefined' ? ['flat', 'pixel', 'ascii'] : ['fl
 const OVERLAYS = ['off', 'under', 'over', 'solo'];
 
 function setParam(key, value) {
-  if (key === 'asciiInvert') value = value === true || value === 'true';
+  if (['asciiInvert', 'asciiGrid', 'pixelGrid'].includes(key)) value = value === true || value === 'true';
   state[key] = value;
   if (key === 'render') { sprites = null; layer = null; }
   if (key === 'opacity') cf.setParams({ opacity: value });
@@ -727,11 +727,13 @@ const CONTROLS = [
   ['render', 'Render', 'select', [['flat', 'Flat'], ['watercolor', 'Watercolor'], ['layered', 'Watercolor, layered'], ['pixel', 'Pixel'], ['ascii', 'ASCII']], 'W'],
   ['pixelCells', 'Cells', 'range', [8, 256, 1, 2, 1024], 'Pixel cells on the long side'],
   ['pixelPalette', 'Palette', 'select', [['full', 'Full colour'], ['pico8', 'PICO-8'], ['gameboy', 'Game Boy'], ['cga', 'CGA'], ['bit1', '1-bit'], ['gray8', 'Grayscale 8']], 'Snap pixel colours to a palette'],
+  ['pixelGrid', 'Grid', 'select', [['false', 'Off'], ['true', 'On']], 'Faint cell grid for reference'],
   ['asciiRamp', 'Chars', 'select', [['standard', 'Standard'], ['detailed', 'Detailed (70)'], ['blocks', 'Blocks'], ['dots', 'Dots'], ['minimal', 'Minimal'], ['binary', 'Binary'], ['box', 'Box lines'], ['slashes', 'Slashes'], ['tetragram', 'Tetragrams'], ['cp437', 'Code page 437'], ['petscii', 'PETSCII blocks'], ['braille', 'Braille (2x4)'], ['sextants', 'Teletext sextants (2x3)'], ['quadrants', 'Quadrants (2x2)'], ['custom', 'Custom']], 'Characters from sparse to dense'],
   ['asciiCustom', 'Custom', 'text', null, 'Your own characters, sparse to dense (start with a space)'],
   ['asciiFont', 'Font', 'select', [['system', 'System mono'], ['jetbrains', 'JetBrains Mono'], ['ibmplex', 'IBM Plex Mono'], ['firacode', 'Fira Code'], ['sourcecode', 'Source Code Pro'], ['spacemono', 'Space Mono'], ['courier', 'Courier Prime'], ['vt323', 'VT323 (terminal)'], ['pressstart', 'Press Start 2P (8-bit)'], ['menlo', 'Menlo'], ['courierNew', 'Courier New']], 'Monospace font (web fonts need a connection)'],
   ['asciiCols', 'Columns', 'range', [16, 240, 1, 4, 600], 'Characters across'],
   ['asciiColor', 'Colour', 'select', [['color', 'Colour'], ['mono', 'Mono']], 'Tinted characters or one ink colour'],
+  ['asciiGrid', 'Grid', 'select', [['false', 'Off'], ['true', 'On']], 'Faint character-cell grid for reference'],
   ['asciiInvert', 'Invert', 'select', [['true', 'On (dark ground)'], ['false', 'Off (light ground)']], 'On: bright areas get dense characters'],
   ['ground', 'Ground', 'select', [['transparent', 'Transparent'], ['fixed', 'Fixed'], ['follow', 'Follow'], ['drift', 'Drift']], 'Transparent: no ground. Fixed: average colour at start and on Clear. Follow: tracks the source. Drift: eases toward it over Ground s'],
   ['groundTime', 'Ground s', 'range', [0.5, 60, 0.5, 0.05, Infinity], 'Drift: seconds to ease toward the source average'],

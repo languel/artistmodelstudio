@@ -141,11 +141,13 @@ export const PIXEL_PALETTES = {
 export const DEFAULT_STYLE = {
   pixelCells: 64,        // cells on the long side
   pixelPalette: 'full',
+  pixelGrid: false,      // faint cell grid, for reference only (not in saved PNGs)
   asciiRamp: 'standard', // a key of ASCII_RAMPS or 'custom'
   asciiCustom: ' .oO@',
   asciiCols: 96,
   asciiFont: 'system',   // a key of ASCII_FONTS
   asciiColor: 'color',   // 'color' (tinted characters) | 'mono'
+  asciiGrid: false,      // faint character-cell grid, for reference only
   asciiInvert: true,     // true: bright cells get dense characters (for dark grounds)
   wcMode: 'sprites'      // continuous watercolor: 'sprites' (per stroke) | 'layered'
 };
@@ -184,6 +186,18 @@ export function gridFor(kind, w, h, style) {
   return [cols, Math.max(1, Math.round(cols * (h / w) * cellAspect(style)))];
 }
 
+function drawGrid(ctx, x, y, w, h, cols, rows) {
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = 'rgba(128, 128, 128, 0.28)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let c = 0; c <= cols; c++) { const X = Math.round(x + c * w / cols) + 0.5; ctx.moveTo(X, y); ctx.lineTo(X, y + h); }
+  for (let r = 0; r <= rows; r++) { const Y = Math.round(y + r * h / rows) + 0.5; ctx.moveTo(x, Y); ctx.lineTo(x + w, Y); }
+  ctx.stroke();
+  ctx.restore();
+}
+
 /**
  * Draw a painting at (x, y, w, h) in pixel or ASCII style.
  * @param paint  (ctx, x, y, w, h) => void, draws the painting into the given rect
@@ -219,6 +233,7 @@ export function drawStylized(ctx, kind, x, y, w, h, paint, style = DEFAULT_STYLE
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(grid, x, y, w, h);
     ctx.restore();
+    if (s.pixelGrid) drawGrid(ctx, x, y, w, h, cols, rows);
     return;
   }
 
@@ -284,5 +299,6 @@ export function drawStylized(ctx, kind, x, y, w, h, paint, style = DEFAULT_STYLE
     lines.push(line.replace(/\s+$/, ''));
   }
   lastAsciiText = lines.join('\n') + '\n';
+  if (s.asciiGrid) drawGrid(ctx, x, y, w, h, cols, rows);
   ctx.restore();
 }

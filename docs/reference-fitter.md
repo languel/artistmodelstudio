@@ -83,3 +83,22 @@ Notes:
   - **Tetragrams** (Tai Xuan Jing), **Code page 437** and **PETSCII blocks** are brightness ramps.
 - **Saving output.** In continuous mode, PNG saves the picture and TXT saves the current ASCII frame as plain text. Rec records MP4 (WebM where MP4 is unavailable) or GIF (up to 480 px on the long side, 12 fps, at most 450 frames).
 - **In exports.** The continuous export has Save TXT (T), Rec GIF (G) and Rec MP4 (V). The static export has Save TXT (T). The encoder lives in `src/export/recorder.js`.
+
+## Assets
+
+The **Assets** tab is a small dataset browser, stored in the browser (IndexedDB).
+- **Adding:** the bookmark button on the preview saves what the preview shows: a live painting if one is on screen, otherwise the active variation. The one in the reference panel saves the painting. The three Klee references are added on first run, in a `Klee` folder.
+- **Importing:** the upload button imports a folder of images and keeps its subfolders. A `sources.json` manifest (as in `fixtures/references/klee`) supplies titles and tags. You can also drop images onto the panel.
+- **Folders:** make new ones with the folder button. Drag cards onto a folder chip or breadcrumb to move them. Double-click a breadcrumb to rename that folder.
+- **Search:** words match the title, tags, kind, folder and artist, and `#tag` matches a tag exactly. Searching covers the current folder and its subfolders.
+- **Cards:** double-click the title or tags to edit them, click the stars to rate. The photo button (or a double-click on the image) uses the asset as the reference. Export saves a PNG, or a zip with `meta.json` and `program.json` when the asset has them.
+
+Pixel and ASCII options also have a faint reference **Grid** at cell size. It is left out of saved paintings.
+
+## Preview while stopped
+
+- On the Reference tab with continuous mode not playing, the preview shows the reference in the current render (Pixel, ASCII or Flat). Setting changes redraw it right away.
+- After Stop, it shows the stopped painting. Clear blanks it.
+- Switching to the Variations tab, choosing a candidate or generating brings the candidates back.
+- Pause freezes the painting without clearing it.
+- PNG keeps a transparent ground transparent.
