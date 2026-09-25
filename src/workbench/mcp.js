@@ -143,11 +143,17 @@ export function workbenchTools(app) {
       else return { error: 'Nothing to answer: call ams_decide_step first' };
       return a.apply ? { applied: d.apply('agent') } : { ok: true };
     } },
-    { name: 'ams_decision_labels', description: 'Decision labels recorded so far (lev training format). export:true downloads them as JSONL; returns counts by source.', inputSchema: S({ export: { type: 'boolean' } }), run: (a) => {
+    { name: 'ams_decision_labels', description: 'Decision labels recorded so far (lev training format); returns counts by source. export:true downloads them as JSONL; save:true writes them to training/decisions/labels/ (dev server).', inputSchema: S({ export: { type: 'boolean' }, save: { type: 'boolean' } }), run: async (a) => {
       decide(app);
       const labels = app.decider.labels;
       if (a.export) download(app.decider.exportJSONL(), 'ams-decisions.jsonl', 'application/jsonl');
-      return { count: labels.length, bySource: labels.reduce((m, l) => ((m[l.meta?.source] = (m[l.meta?.source] || 0) + 1), m), {}) };
+      const saved = a.save ? await app.decider.saveToProject() : undefined;
+      return { count: labels.length, saved, bySource: labels.reduce((m, l) => ((m[l.meta?.source] = (m[l.meta?.source] || 0) + 1), m), {}) };
+    } },
+    { name: 'ams_walkthrough', description: 'Walkthroughs (guided lessons and tours with the real controls): action "list", "start" {id}, or "stop".', inputSchema: S({ action: str('list | start | stop'), id: str('Walkthrough id') }), run: (a) => {
+      if (a.action === 'start') { app.walkthroughs.start(a.id).catch(e => app.log(e.message, 'error')); return { started: a.id }; }
+      if (a.action === 'stop') { app.walkthroughs.stop(); return { ok: true }; }
+      return app.walkthroughs.list();
     } },
     { name: 'ams_undo', description: 'Undo (or redo with redo:true).', inputSchema: S({ redo: { type: 'boolean' } }), run: (a) => ({ ok: a.redo ? app.store.redo() : app.store.undo() }) }
   ];

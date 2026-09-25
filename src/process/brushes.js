@@ -64,6 +64,34 @@ function rotatePts(pts, a, cx, cy) {
   return pts.map(([x, y]) => [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c]);
 }
 
+
+/**
+ * The walk of a line (after William Ngan's "Taking a line for a walk"): resampled points with
+ * the unit normal and the hand's speed at each, from the recorded time (units per 16 ms frame),
+ * smoothed so a line's character follows its motion rather than its jitter.
+ */
+function walkFrames(e, samples = 4, smoothing = 0.5) {
+  const pts = smoothPath(e.points, e.closed, samples);
+  let v = 0;
+  return pts.map((q, i) => {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+    let dx = b[0] - a[0], dy = b[1] - a[1];
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    const prev = pts[Math.max(0, i - 1)];
+    const step = Math.hypot(q[0] - prev[0], q[1] - prev[1]);
+    const dt = (q[2] ?? 0) - (prev[2] ?? 0);
+    const raw = i === 0 ? 0 : dt > 0.5 ? (step / dt) * 16 : step;
+    v = i === 0 ? raw : v * smoothing + raw * (1 - smoothing);
+    return { x: q[0], y: q[1], nx: -dy, ny: dx, speed: v, pressure: q[3] ?? 0.5 };
+  });
+}
+
+function strokeSegment(ctx, x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+
+const lineParams = (width, opacity = 1) => [param('width', 'Width', 0.25, 20, 0.25, width, 'Stroke width.'), param('opacity', 'Opacity', 0, 1, 0.05, opacity, 'Paint opacity.')];
+const speedParams = (gain, max) => [param('gain', 'Speed gain', 0, 6, 0.05, gain, 'How much the hand\'s speed changes the mark.'), param('max', 'Max', 1, 200, 1, max, 'The largest mark, in artboard units.')];
+const beginInk = (ctx, e, p) => { ctx.save(); ctx.globalAlpha = p.opacity; ctx.strokeStyle = e.color || INK; ctx.fillStyle = e.color || INK; ctx.lineWidth = p.width; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; };
+
 export const BRUSHES = {
   none: {
     label: 'None', roles: ['note'], doc: 'Not drawn in the picture.',
@@ -148,6 +176,110 @@ export const BRUSHES = {
     }
   },
 
+
+  speed: {
+    label: 'Speed lines', roles: ['line', 'gesture'], doc: 'After Ngan: short lines across the walk, as long as the hand was fast. Slow passages stay thin and dense.',
+    params: [...speedParams(1.2, 60), param('every', 'Every', 1, 12, 1, 1, 'Draw one mark every n samples.'), ...lineParams(0.75)],
+    draw(ctx, e, p) {
+      beginInk(ctx, e, p);
+      walkFrames(e).forEach((f, i) => {
+        if (i % p.every) return;
+        const L = Math.min(p.max, 0.5 + f.speed * p.gain) / 2;
+        strokeSegment(ctx, f.x - f.nx * L, f.y - f.ny * L, f.x + f.nx * L, f.y + f.ny * L);
+      });
+      ctx.restore();
+    }
+  },
+  restate: {
+    label: 'Restated line', roles: ['line', 'gesture'], doc: 'After Ngan and the life-drawing habit of restating: the walk drawn several times, the passes drifting apart where the hand was fast.',
+    params: [param('times', 'Times', 1, 12, 1, 4, 'How many passes.'), param('spread', 'Spread', 0, 40, 0.5, 6, 'How far the passes drift, per unit of speed.'), ...lineParams(0.8, 0.6)],
+    draw(ctx, e, p, env) {
+      beginInk(ctx, e, p);
+      const fr = walkFrames(e);
+      for (let k = 0; k < p.times; k++) {
+        const phase = env.rng() * Math.PI * 2, freq = 0.02 + env.rng() * 0.05;
+        ctx.beginPath();
+        fr.forEach((f, i) => {
+          const o = Math.sin(phase + i * freq * 6) * p.spread * (0.3 + Math.min(3, f.speed / 8)) * (k ? 1 : 0.2);
+          const x = f.x + f.nx * o, y = f.y + f.ny * o;
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        });
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  },
+  zigzag: {
+    label: 'Zigzag', roles: ['line', 'gesture'], doc: 'After Ngan: the walk as a zigzag whose amplitude follows the speed. The rhythm of the hand made visible.',
+    params: [...speedParams(1, 50), param('every', 'Every', 1, 12, 1, 2, 'Samples per zig.'), ...lineParams(1)],
+    draw(ctx, e, p) {
+      beginInk(ctx, e, p);
+      ctx.beginPath();
+      let n = 0;
+      walkFrames(e).forEach((f, i) => {
+        if (i % p.every) return;
+        const L = Math.min(p.max, 1 + f.speed * p.gain) / 2 * (n++ % 2 ? 1 : -1);
+        n === 1 ? ctx.moveTo(f.x + f.nx * L, f.y + f.ny * L) : ctx.lineTo(f.x + f.nx * L, f.y + f.ny * L);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+  },
+  inner: {
+    label: 'Inner lines', roles: ['line', 'gesture'], doc: 'After Ngan: parallel lines inside the walk that open where the hand speeds up and close where it slows. A line becoming a plane.',
+    params: [param('lines', 'Lines', 2, 16, 1, 5, 'How many parallel lines.'), ...speedParams(1.5, 80), ...lineParams(0.6)],
+    draw(ctx, e, p) {
+      beginInk(ctx, e, p);
+      const fr = walkFrames(e, 4, 0.8);
+      for (let k = 0; k < p.lines; k++) {
+        const u = p.lines === 1 ? 0 : k / (p.lines - 1) - 0.5;
+        ctx.beginPath();
+        fr.forEach((f, i) => {
+          const o = u * Math.min(p.max, 1 + f.speed * p.gain);
+          const x = f.x + f.nx * o, y = f.y + f.ny * o;
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        });
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  },
+  dotted: {
+    label: 'Dotted walk', roles: ['line', 'gesture'], doc: 'After Ngan: a line of points. Where the hand lingered the dots swell, like ink pooling; fast passages leave specks.',
+    params: [param('spacing', 'Spacing', 2, 60, 1, 10, 'Distance between dots.'), param('size', 'Size', 0.5, 30, 0.5, 6, 'Largest dot.'), param('gain', 'Speed gain', 0, 3, 0.05, 0.6, 'How strongly speed shrinks the dots.'), param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')],
+    draw(ctx, e, p) {
+      ctx.save(); ctx.globalAlpha = p.opacity; ctx.fillStyle = e.color || INK;
+      let acc = p.spacing, px = null, py = null;
+      for (const f of walkFrames(e)) {
+        if (px !== null) acc += Math.hypot(f.x - px, f.y - py);
+        px = f.x; py = f.y;
+        if (acc < p.spacing) continue;
+        acc = 0;
+        const r = Math.max(0.3, p.size / (1 + f.speed * p.gain * 0.2)) / 2;
+        ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  },
+  arcs: {
+    label: 'Arcs', roles: ['line', 'gesture'], doc: 'After Ngan: small arcs swung from the walk, their radius from the speed. The line as a sequence of gestures.',
+    params: [...speedParams(0.8, 60), param('every', 'Every', 1, 24, 1, 4, 'One arc every n samples.'), param('sweep', 'Sweep', 10, 360, 5, 140, 'Arc angle in degrees.'), ...lineParams(0.6)],
+    draw(ctx, e, p) {
+      beginInk(ctx, e, p);
+      walkFrames(e).forEach((f, i) => {
+        if (i % p.every) return;
+        const r = Math.min(p.max, 1 + f.speed * p.gain), a0 = Math.atan2(f.ny, f.nx), sweep = (p.sweep * Math.PI) / 180;
+        ctx.beginPath();
+        for (let k = 0; k <= 16; k++) {
+          const a = a0 - sweep / 2 + (sweep * k) / 16;
+          const x = f.x + Math.cos(a) * r, y = f.y + Math.sin(a) * r;
+          k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+  },
   flat: {
     label: 'Flat', roles: ['plane'], doc: 'A flat, even fill of the plane: the simplest way to state a mass.',
     params: [
@@ -249,8 +381,42 @@ export function resolveParams(brushId, params = {}) {
   return out;
 }
 
-export function brushesForRole(role) {
-  return Object.entries(BRUSHES).filter(([, b]) => b.roles.includes(role)).map(([id, b]) => ({ id, label: b.label }));
+/** Brushes for a role; lines a document defined itself are listed only for that document. */
+export function brushesForRole(role, doc = null) {
+  return Object.entries(BRUSHES).filter(([id, b]) => b.roles.includes(role) && (!b.custom || doc?.lines?.[id])).map(([id, b]) => ({ id, label: b.label }));
+}
+
+/**
+ * Lines a document defines itself (defineLine in a score): { name: { source, doc, params: { key: [min, max, default] } } }.
+ * "Create your own lines before you draw them" (Ngan). The source is compiled once and registered
+ * beside the built-in brushes, so it renders, exports to SVG, and appears in Properties.
+ * draw(ctx, frames, p, env): frames = [{ x, y, nx, ny, speed, pressure }], env = { color, rng, closed, points }.
+ */
+const compiled = new Map();
+export function installLines(doc) {
+  for (const [name, spec] of Object.entries(doc?.lines || {})) {
+    if (!spec?.source || (BRUSHES[name] && !BRUSHES[name].custom)) continue;
+    const key = `${name}\n${spec.source}\n${JSON.stringify(spec.params || {})}`;
+    if (compiled.get(name) === key) continue;
+    let fn;
+    try {
+      // eslint-disable-next-line no-new-func
+      fn = new Function(`return (${spec.source});`)();
+    } catch (err) { fn = () => { throw err; }; }
+    const params = Object.entries(spec.params || {}).map(([k, [min, max, def]]) => param(k, k, min, max, (max - min) / 100, def, `${name}: ${k}`));
+    BRUSHES[name] = {
+      label: name, roles: ['line', 'gesture', 'plane'], doc: spec.doc || 'A line defined in this drawing\'s score.', custom: true, params,
+      draw(ctx, e, p, env) {
+        const color = e.color || INK;
+        ctx.save();
+        ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        try { fn(ctx, walkFrames(e), p, { color, rng: env.rng, closed: e.closed, points: e.points, scale: env.scale }); }
+        catch (err) { ctx.restore(); ctx.save(); BRUSHES.ink.draw(ctx, e, resolveParams('ink', {}), env); console.warn(`line "${name}" failed: ${err.message}`); }
+        ctx.restore();
+      }
+    };
+    compiled.set(name, key);
+  }
 }
 
 export { smoothPath };

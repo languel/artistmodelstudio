@@ -68,7 +68,7 @@ export function mountDecide(root, app) {
 
   const propose = async () => {
     const subject = app.store.doc.title;
-    status(backend === 'agent' ? 'Waiting for the agent (ams_decision_pending / ams_decision_answer)…' : backend === 'you' ? '' : `asking ${backend}…`);
+    status(backend === 'agent' ? 'Waiting for the agent…' : backend === 'you' ? '' : `Asking ${backend}…`);
     proposal = await eng.propose(backend, subject);
     final = Object.fromEntries(Object.entries(proposal.answers).map(([k, v]) => [k, v?.value]));
     status('');
@@ -134,9 +134,8 @@ export function mountDecide(root, app) {
         h('div', { class: 'wb-opts' }, ...opts)));
     }
     box.append(h('div', { class: 'wb-row wb-row-actions' },
-      h('button', { class: 'wb-btn primary', 'data-guide': 'button:apply-step', onclick: () => apply() }, 'Apply step'),
-      h('button', { class: 'wb-btn', onclick: () => { proposal = null; final = {}; render(); } }, 'Skip'),
-      h('span', { class: 'wb-muted wb-small' }, 'Your choices become training labels')));
+      h('button', { class: 'wb-btn primary', 'data-guide': 'button:apply-step', title: 'Realise the step. Your choices are kept as training labels.', onclick: () => apply() }, 'Apply step'),
+      h('button', { class: 'wb-btn', onclick: () => { proposal = null; final = {}; render(); } }, 'Skip')));
     return box;
   };
 
@@ -154,7 +153,7 @@ export function mountDecide(root, app) {
         h('button', { class: 'wb-btn', 'data-guide': 'button:analyse', html: `${icon('picture')}<span>Analyse reference</span>`, onclick: () => analyse({ mediapipe: mp.checked }).catch(e => status(e.message)) }),
         h('label', { class: 'wb-row' }, mp, h('span', {}, 'MediaPipe')),
         a ? h('label', { class: 'wb-row' }, h('input', { type: 'checkbox', checked: app.showRegions, onchange: e => { app.showRegions = e.target.checked; app.canvas.invalidate(); } }), h('span', {}, 'Regions')) : null),
-      a ? h('div', { class: 'wb-muted wb-small' }, `${a.regions.length} regions · masses ${a.masses.map(m => `${Math.round(m.lightness * 100)}:${Math.round(m.share * 100)}%`).join(' ')}${a.poses?.length ? ` · ${a.poses.length} pose(s)` : ''}`) : h('div', { class: 'wb-muted wb-small' }, app.reference ? 'Reference ready: analyse it to start.' : 'No reference yet: open an image from Assets.'),
+      a ? h('div', { class: 'wb-muted wb-small' }, `${a.regions.length} regions · masses ${a.masses.map(m => `${Math.round(m.lightness * 100)}:${Math.round(m.share * 100)}%`).join(' ')}${a.poses?.length ? ` · ${a.poses.length} pose(s)` : ''}`) : h('div', { class: 'wb-muted wb-small', title: 'Open an image from Assets as the reference, then Analyse' }, app.reference ? app.reference.title : 'No reference'),
       a?.poses?.length ? h('button', { class: 'wb-btn', onclick: () => addPoseGuides(app, a) }, 'Add pose as gesture guides') : null,
       row('Policy', backendSel),
       backend === 'lev' ? row('Server', urlInput) : null,
@@ -169,7 +168,9 @@ export function mountDecide(root, app) {
       section(`Labels (${eng.labels.length})`, false,
         h('div', { class: 'wb-small wb-muted' }, Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'none yet'),
         h('div', { class: 'wb-row wb-row-actions' },
-          h('button', { class: 'wb-btn', onclick: () => download(eng.exportJSONL(), 'ams-decisions.jsonl', 'application/jsonl') }, 'Export JSONL (lev format)'),
+          h('button', { class: 'wb-btn', title: 'Download the labels as JSONL (lev format)', onclick: () => download(eng.exportJSONL(), 'ams-decisions.jsonl', 'application/jsonl') }, 'Export JSONL'),
+          h('button', { class: 'wb-btn', title: 'Keep the labels as a dataset in Assets (export it from there as JSONL)', onclick: () => eng.saveToAssets(app.assetStore, { title: `Decisions · ${app.store.doc.title}` }).then(a => status(`Saved “${a.title}” to Assets`), e => status(e.message)) }, 'Save to Assets'),
+          import.meta.env?.DEV ? h('button', { class: 'wb-btn', title: 'Write the labels to training/decisions/labels/ for make_suite.py', onclick: () => eng.saveToProject().then(p => status(`Saved ${p}`), e => status(e.message)) }, 'Save to project') : null,
           h('button', { class: 'wb-btn', onclick: () => { if (confirm('Delete all decision labels?')) { eng.labels = []; eng.saveLabels(); render(); } } }, 'Clear')))
     ].filter(Boolean));
   };

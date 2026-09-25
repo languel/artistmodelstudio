@@ -28,14 +28,14 @@ export function mountProperties(el, app) {
 
     el.append(section('Element', true,
       row('Role', selectField(Object.keys(ROLES).map(r => [r, r]), e.role, v => {
-        const brush = BRUSHES[e.realize.brush]?.roles.includes(v) ? e.realize.brush : brushesForRole(v)[0]?.id || 'ink';
+        const brush = BRUSHES[e.realize.brush]?.roles.includes(v) ? e.realize.brush : brushesForRole(v, app.store.doc)[0]?.id || 'ink';
         patchAll({ role: v, realize: { brush, params: {} }, closed: v === 'plane' ? true : e.closed }, 'role');
       }), ROLES[e.role]),
       row('Stage', selectField(app.store.doc.stages.map(s => [s.id, s.name]), e.stage, v => patchAll({ stage: v }, 'stage'))),
       row('Colour', h('input', { type: 'color', class: 'wb-color', value: e.color || '#1d1b19', onchange: ev => patchAll({ color: ev.target.value }, 'colour') })),
       e.role === 'note' ? row('Text', noteText(e, v => patchAll({ text: v }, 'note'))) : null
     ));
-    el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush')));
+    el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc));
     el.append(section('Reason', true,
       whyField(e.why, v => patchAll({ why: v }, 'why')),
       h('div', { class: 'wb-muted wb-small' }, multi ? '' : `By ${esc(e.by?.name || 'unknown')} (${esc(e.by?.kind || '')}) · seed ${e.seed}`)
@@ -53,7 +53,7 @@ export function mountProperties(el, app) {
     el.append(section('Element', true,
       row('Colour', h('input', { type: 'color', class: 'wb-color', value: d.color || '#1d1b19', onchange: ev => app.setDefaults(tool, { color: ev.target.value }) }))
     ));
-    el.append(brushSection(tool, d.realize, realize => app.setDefaults(tool, { realize })));
+    el.append(brushSection(tool, d.realize, realize => app.setDefaults(tool, { realize }), app.store.doc));
     el.append(section('Reason', true, whyField(d.why || '', v => app.setDefaults(tool, { why: v }), 'Why the next marks are made (kept on each one)')));
   };
 
@@ -63,8 +63,8 @@ export function mountProperties(el, app) {
   render();
 }
 
-function brushSection(role, realize, onChange) {
-  const brushes = brushesForRole(role);
+function brushSection(role, realize, onChange, doc) {
+  const brushes = brushesForRole(role, doc);
   const brushId = realize?.brush || brushes[0]?.id;
   const b = BRUSHES[brushId];
   const params = resolveParams(brushId, realize?.params);

@@ -25,6 +25,9 @@ import { mountLog } from './panels/log.js';
 import { mountGenerate } from './panels/generate.js';
 import { mountAssistant } from './panels/assistant.js';
 import { mountDecide } from './panels/decide.js';
+import { mountDocs, docsTopicList } from './panels/docs.js';
+import { Walkthroughs } from './walkthroughs.js';
+import { openPalette } from './palette.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 import { Guide } from './guide.js';
@@ -136,6 +139,12 @@ export class Workbench {
     this.renderChrome();
     this.assetStore.seed(bundledReferences()).catch(() => {});
     this.guide = new Guide(this);
+    this.walkthroughs = new Walkthroughs(this);
+    this.toolList = TOOLS.filter(Boolean);
+    this.docsTopics = () => docsTopicList(this);
+    // The Docs panel mounts on first open and then replaces this with its own openDocs.
+    const openDocsFirst = id => { this.docks.open('docs'); if (this.openDocs !== openDocsFirst) this.openDocs(id); };
+    this.openDocs = openDocsFirst;
     initWorkbenchMCP(this);
     this.log('Workbench ready.');
   }
@@ -150,6 +159,7 @@ export class Workbench {
     reg('generate', 'Generate', 'sparkles', 'right', mountGenerate);
     reg('assistant', 'Assistant', 'chat', 'right', mountAssistant);
     reg('decide', 'Decide', 'exercise', 'right', mountDecide);
+    reg('docs', 'Docs', 'book', 'right', mountDocs);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }
 
@@ -158,12 +168,20 @@ export class Workbench {
       store: this.assetStore,
       onOpen: a => this.openAsset(a),
       onUseAsReference: a => this.setReferenceFromBlob(a.blob, a.title),
-      onExport: a => download(a.blob, `${a.title}.png`, a.blob.type)
+      onExport: a => (a.kind === 'dataset' && a.program?.jsonl
+        ? download(a.program.jsonl, `${a.title}.jsonl`, 'application/jsonl')
+        : download(a.blob, `${a.title}.png`, a.blob.type))
     });
     this.assetPanel.render(el);
   }
 
   async openAsset(a) {
+    if (a.kind === 'dataset' && a.program?.jsonl) {
+      this.docks.open('decide');
+      const added = this.decider.importJSONL(a.program.jsonl);
+      this.log(`Dataset “${a.title}”: ${added} new decision labels added to Decide.`);
+      return;
+    }
     if (a.program?.type === 'ams-process') { this.loadDocument(a.program, 'open asset'); this.log(`Opened “${a.title}”.`); return; }
     if (a.program?.actions) {
       const doc = dslToProcess(a.program, { title: a.title, width: a.width || 1000, height: a.height || 1000 });
@@ -335,9 +353,11 @@ export class Workbench {
   // ---- keys ------------------------------------------------------------------------
   bindKeys() {
     window.addEventListener('keydown', e => {
-      if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
       const k = e.key.toLowerCase();
       const mod = e.metaKey || e.ctrlKey;
+      if (mod && k === 'k') { e.preventDefault(); openPalette(this); return; }
+      if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+      if (k === '?') { this.openDocs(); return; }
       if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) this.store.redo(); else this.store.undo(); return; }
       if (mod && k === 's') { e.preventDefault(); this.saveToAssets(); return; }
       if (mod && k === 'a') { e.preventDefault(); this.canvas.select(this.store.doc.elements.filter(el => this.canvas.editable(el)).map(el => el.id)); return; }

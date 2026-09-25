@@ -54,6 +54,7 @@ export function mountAssistant(root, app) {
   const add = (who, text, kind = '') => { log.append(h('div', { class: `wb-msg ${who} ${kind}` }, text)); log.scrollTop = log.scrollHeight; };
   for (const m of history) add(m.who, m.text);
 
+  app.assistantAsk = text => { input.value = text; send(); };
   const send = async () => {
     const text = input.value.trim();
     if (!text || busy) return;

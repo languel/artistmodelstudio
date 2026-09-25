@@ -10,6 +10,7 @@
  *
  * Pure data + a tiny observable store with undo. No DOM.
  */
+import { installLines } from './brushes.js';
 
 export const PROCESS_VERSION = 1;
 
@@ -75,6 +76,8 @@ export function normalizeDocument(doc) {
   const stageIds = new Set(d.stages.map(s => s.id));
   d.elements = (d.elements || []).map(e => normalizeElement(e, stageIds.has(e.stage) ? e.stage : d.stages[0].id));
   d.decisions = d.decisions || [];
+  d.lines = d.lines && typeof d.lines === 'object' ? d.lines : {};
+  installLines(d);
   return d;
 }
 

@@ -11,7 +11,7 @@
  *              the same brushes on p5's drawingContext.
  *   Sheet      a PNG "process sheet": the picture built up stage by stage, with decisions.
  */
-import { BRUSHES, mulberry32, resolveParams } from './brushes.js';
+import { BRUSHES, mulberry32, resolveParams, installLines } from './brushes.js';
 import { normalizeDocument, normalizeElement, createDocument } from './document.js';
 import { renderToCanvas } from './render.js';
 import documentSrc from './document.js?raw';
@@ -59,6 +59,7 @@ export function toSVG(doc, { mode = 'process' } = {}) {
   out.push(`  <rect data-ams-ground="1" width="${width}" height="${height}" fill="${esc(ground)}"/>`);
   if (doc.decisions.length) out.push(`  <desc data-ams-decisions='${esc(JSON.stringify(doc.decisions))}'>${esc(doc.decisions.map(d => `${d.question} → ${d.chosen}${d.why ? ` (${d.why})` : ''}`).join('\n'))}</desc>`);
   if (doc.meta?.script) out.push(`  <metadata data-ams-script='${esc(JSON.stringify(doc.meta.script))}'/>`);
+  installLines(doc);
   for (const s of doc.stages) {
     out.push(`  <g data-ams-stage="${esc(s.id)}" data-ams-name="${esc(s.name)}" data-ams-kind="${esc(s.kind)}"${s.visible ? '' : ' display="none"'}>`);
     for (const e of doc.elements.filter(x => x.stage === s.id)) {

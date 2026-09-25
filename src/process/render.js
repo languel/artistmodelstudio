@@ -7,7 +7,7 @@
  * upTo:       render only stages up to and including this index (filmstrip, replay)
  * transform:  { x, y, scale }, artboard → screen
  */
-import { BRUSHES, mulberry32, resolveParams } from './brushes.js';
+import { BRUSHES, mulberry32, resolveParams, installLines } from './brushes.js';
 
 export function renderDocument(ctx, doc, {
   mode = 'process', upTo = Infinity, transform = { x: 0, y: 0, scale: 1 },
@@ -28,6 +28,7 @@ export function renderDocument(ctx, doc, {
     .sort((a, b) => (rank.get(a[0].stage) ?? 0) - (rank.get(b[0].stage) ?? 0) || a[1] - b[1])
     .map(([e]) => e);
 
+  installLines(doc);
   const env = { scale: transform.scale, rng: null };
   const overlay = [];
   for (const e of ordered) {

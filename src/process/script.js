@@ -18,7 +18,7 @@
  * Helpers: random(a?, b?), noise(x, y?), seed(n), sin, cos, PI, TAU, lerp, map, range(n).
  */
 import { createDocument, normalizeDocument, newId, STAGE_KINDS } from './document.js';
-import { BRUSHES, mulberry32 } from './brushes.js';
+import { BRUSHES, mulberry32, installLines } from './brushes.js';
 
 const ELEMENT_KEYS = new Set(['why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by']);
 
@@ -76,6 +76,7 @@ export function runScript(source, { seed = 1, by = { kind: 'script', name: 'scri
     }
     const stage = el.stage || ensureStage().id;
     const brush = el.brush || defaultBrush;
+    installLines(doc);
     if (!BRUSHES[brush]) throw new Error(`Unknown brush "${brush}" (have: ${Object.keys(BRUSHES).join(', ')})`);
     const e = {
       id: newId(role), stage, role,
@@ -109,6 +110,20 @@ export function runScript(source, { seed = 1, by = { kind: 'script', name: 'scri
     guide(pts, opts = {}) { return add('guide', pts, opts, 'guide'); },
     gesture(pts, opts = {}) { return add('gesture', pts, opts, 'guide'); },
     note(x, y, text, opts = {}) { return add('note', [[x, y]], { ...opts, text }, 'none'); },
+    /**
+     * Create a line before drawing it: defineLine(name, [{ doc, params: { key: [min, max, default] } },] (ctx, frames, p, env) => { ... })
+     * frames: [{ x, y, nx, ny, speed, pressure }] along the walk; env: { color, rng, closed, points }. Then line(pts, { brush: name }).
+     */
+    defineLine(name, spec, fn) {
+      if (typeof spec === 'function') { fn = spec; spec = {}; }
+      if (typeof name !== 'string' || !/^[a-z][\w-]*$/i.test(name)) throw new Error('defineLine(name, fn): name must be a word like "teeth"');
+      if (typeof fn !== 'function') throw new Error('defineLine(name, fn): fn draws the line: (ctx, frames, p, env) => { ... }');
+      if (BRUSHES[name] && !BRUSHES[name].custom) throw new Error(`"${name}" is a built-in brush; choose another name`);
+      doc.lines = doc.lines || {};
+      doc.lines[name] = { source: fn.toString(), doc: spec.doc || '', params: spec.params || {} };
+      installLines(doc);
+      return name;
+    },
     decide(question, options, chosen, why = '') {
       doc.decisions.push({ id: newId('dec'), stage: ensureStage().id, question, options, chosen, why, by, t: clock });
       return chosen;
@@ -158,6 +173,8 @@ line(points, {brush, width, pressure, taper, wobble, color, why, pressures: t =>
 plane(points, {brush: flat | hatch | stipple, angle, spacing, density, color, why})
 guide(points, {why})   gesture(points, {why})   note(x, y, text)
 decide(question, options, chosen, why)
+defineLine(name, {doc, params: {k: [min, max, def]}}, (ctx, frames, p, env) => {...})   then line(pts, {brush: name})
+  frames: [{x, y, nx, ny, speed, pressure}]   env: {color, rng, closed}
 walk({from, heading, steps, step, turn: (i, t) => degrees})
 circle(cx, cy, r)   rect(x, y, w, h)
 random(a, b)  noise(x, y)  seed(n)  lerp  map  range(n)  sin cos PI TAU  print(...)`;

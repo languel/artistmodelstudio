@@ -41,14 +41,15 @@ export const DENSITIES = ['very sparse', 'sparse', 'medium', 'dense', 'very dens
 /** Compact state text (kept well under ~380 tokens). */
 export function stateText({ subject, analysis, history }) {
   const regs = analysis.regions.slice(0, 9);
-  const done = history.slice(-8).map(h => `${h.step}${h.region ? ` ${h.region}` : ''}${h.technique && h.step !== 'look' ? ` ${h.technique}` : ''}${h.value && ['block', 'value'].includes(h.step) ? ` ${h.value}` : ''}`);
+  const done = history.slice(-6).map(h => `${h.step}${h.region ? ` ${h.region}` : ''}${h.technique && h.step !== 'look' ? ` ${h.technique}` : ''}${h.value && ['block', 'value'].includes(h.step) ? ` ${h.value}` : ''}`);
   const touched = [...new Set(history.map(h => h.region).filter(Boolean))];
   const m = analysis.masses;
   return [
     `Subject: ${subject || 'a study of the reference'}`,
     `Reference masses: dark ${pct(m.filter(x => x.lightness < 0.36))}, middle ${pct(m.filter(x => x.lightness >= 0.36 && x.lightness <= 0.66))}, light ${pct(m.filter(x => x.lightness > 0.66))}`,
     'Regions:', ...regs.map(describeRegion),
-    `Steps so far (${history.length}): ${done.join('; ') || 'none'}`,
+    `Steps so far (${history.length}): ${Object.keys(STEPS).filter(k => k !== 'stop').map(k => `${k} ${history.filter(h => h.step === k).length}`).join(', ')}`,
+    `Recent: ${done.join('; ') || 'none'}`,
     `Regions worked: ${touched.join(', ') || 'none'}`
   ].join('\n');
 }

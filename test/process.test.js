@@ -136,3 +136,37 @@ describe('score robustness', () => {
     expect(runScript('line([[0,0],[1,1]], { width: t => t })').error).toMatch(/pressures/);
   });
 });
+
+describe('defineLine', () => {
+  it('stores a line function in the document and draws with it', async () => {
+    const { runScript } = await import('../src/process/script.js');
+    const { BRUSHES } = await import('../src/process/brushes.js');
+    const { toSVG } = await import('../src/process/exports.js');
+    const res = runScript(`
+      defineLine('teeth', { doc: 'an aggressive line', params: { bite: [0, 40, 12] } }, (ctx, frames, p) => {
+        ctx.beginPath();
+        frames.forEach((f, i) => { const o = i % 2 ? p.bite : 0; i ? ctx.lineTo(f.x + f.nx * o, f.y + f.ny * o) : ctx.moveTo(f.x, f.y); });
+        ctx.stroke();
+      });
+      line(walk({ from: [100, 500], steps: 30, step: 20 }), { brush: 'teeth', bite: 20 });
+    `);
+    expect(res.error).toBeNull();
+    expect(res.doc.lines.teeth.source).toMatch(/bite/);
+    expect(BRUSHES.teeth.custom).toBe(true);
+    expect(BRUSHES.teeth.params[0]).toMatchObject({ key: 'bite', default: 12 });
+    const svg = toSVG(res.doc);
+    expect(svg).toMatch(/<path/);
+    expect(runScript(`defineLine('ink', () => {})`).error).toMatch(/built-in/);
+  });
+
+  it('Ngan line forms draw from the recorded speed', async () => {
+    const { BRUSHES, resolveParams, mulberry32 } = await import('../src/process/brushes.js');
+    const calls = { lines: 0 };
+    const ctx = new Proxy({}, { get: (t, k) => (k in t ? t[k] : (k === 'lineTo' ? () => { calls.lines++; } : () => {})), set: (t, k, v) => { t[k] = v; return true; } });
+    const e = { points: Array.from({ length: 12 }, (_, i) => [i * 20, 100, i * (i < 6 ? 16 : 4), 0.5]), closed: false, color: null };
+    for (const id of ['speed', 'restate', 'zigzag', 'inner', 'dotted', 'arcs']) {
+      BRUSHES[id].draw(ctx, e, resolveParams(id, {}), { rng: mulberry32(1), scale: 1 });
+    }
+    expect(calls.lines).toBeGreaterThan(50);
+  });
+});

@@ -8,7 +8,8 @@ function probeSavePlugin() {
   const roots = {
     seeds: set => path.resolve('fixtures/seeds', set),
     distill: set => path.resolve('training', set, 'data'),
-    report: set => path.resolve('training', set, 'reports')
+    report: set => path.resolve('training', set, 'reports'),
+    decisions: set => path.resolve('training/decisions', set)
   };
   return {
     name: 'ams-probe-save',

@@ -106,6 +106,41 @@ export class DecisionEngine {
     this.saveLabels();
   }
 
+  /** Merge labels from JSONL (a dataset asset or a file), skipping ones already present. Returns how many were added. */
+  importJSONL(text) {
+    const key = l => JSON.stringify([l.state, Object.fromEntries(Object.entries(l.questions).map(([k, q]) => [k, q.label]))]);
+    const have = new Set(this.labels.map(key));
+    let added = 0;
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      const l = JSON.parse(line);
+      if (have.has(key(l))) continue;
+      have.add(key(l));
+      this.labels.push({ state: l.state, questions: l.questions, meta: l.meta || { source: 'import' } });
+      added++;
+    }
+    this.saveLabels();
+    return added;
+  }
+
+  /** Keep the labels as a dataset asset (IndexedDB; export from Assets as JSONL). */
+  async saveToAssets(assetStore, { title, sources = null, folder = 'Datasets' } = {}) {
+    const jsonl = this.exportJSONL({ sources });
+    const n = jsonl.split('\n').filter(Boolean).length;
+    const bySource = this.labels.filter(l => !sources || sources.includes(l.meta?.source)).reduce((m, l) => ((m[l.meta?.source] = (m[l.meta?.source] || 0) + 1), m), {});
+    const blob = await datasetCard(title, n, bySource);
+    return assetStore.add(blob, { title: title || `Decisions ${new Date().toISOString().slice(0, 10)}`, kind: 'dataset', folder, tags: ['decisions', 'lev', ...Object.keys(bySource)], program: { type: 'ams-decisions', jsonl }, meta: { records: n, bySource } });
+  }
+
+  /** Dev server only: write the labels into training/decisions/labels/ for make_suite.py. */
+  async saveToProject({ sources = null } = {}) {
+    const name = `ams-decisions-${new Date().toISOString().slice(0, 10)}.jsonl`;
+    const res = await fetch('/__probe/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ root: 'decisions', set: 'labels', files: { [name]: this.exportJSONL({ sources }) } }) });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || !out.ok) throw new Error(out.error || `save failed (${res.status}); the dev server is needed`);
+    return `${out.dir}/${name}`;
+  }
+
   /** JSONL in lev's labelled-request format (meta kept for bookkeeping; lev ignores extra keys). */
   exportJSONL({ sources = null } = {}) {
     return this.labels.filter(l => !sources || sources.includes(l.meta?.source)).map(l => JSON.stringify({ state: l.state, questions: l.questions, meta: l.meta })).join('\n') + '\n';
@@ -113,3 +148,22 @@ export class DecisionEngine {
 }
 
 export { URL_KEY };
+
+/** A small card image for a dataset asset: title, record count, and counts by labeller. */
+async function datasetCard(title, n, bySource) {
+  const c = document.createElement('canvas'); c.width = 320; c.height = 200;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#f2ede3'; ctx.fillRect(0, 0, 320, 200);
+  ctx.fillStyle = '#1d1b19'; ctx.font = '600 15px Inter, sans-serif'; ctx.fillText((title || 'Decisions').slice(0, 34), 16, 30);
+  ctx.font = '48px Inter, sans-serif'; ctx.fillText(String(n), 16, 92);
+  ctx.font = '13px Inter, sans-serif'; ctx.fillText('decision labels (lev format)', 16, 114);
+  const total = Math.max(1, n); let x = 16;
+  for (const [k, v] of Object.entries(bySource)) {
+    const w = (288 * v) / total;
+    ctx.fillStyle = { you: '#1d1b19', accepted: '#6d665c', agent: '#9b9184', rules: '#c9c1b4' }[k] || '#b0a89b';
+    ctx.fillRect(x, 140, Math.max(2, w), 14); x += w;
+  }
+  ctx.fillStyle = '#4d4740'; ctx.font = '11px Inter, sans-serif';
+  ctx.fillText(Object.entries(bySource).map(([k, v]) => `${k} ${v}`).join(' · '), 16, 178);
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}

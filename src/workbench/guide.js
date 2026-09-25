@@ -30,7 +30,8 @@ export class Guide {
       h('div', { class: 'wb-guide-head' }, h('span', { class: 'wb-guide-dot' }), this.meta,
         this.paceSel = h('select', { class: 'wb-guide-pace', title: 'Pace' }, ...[['0', 'Instant'], ['0.5', 'Fast'], ['1', 'Normal'], ['2', 'Slow']].map(([v, l]) => h('option', { value: v, selected: Number(v) === this.pace }, l))),
         h('button', { class: 'wb-icon-btn', title: 'Hide until the next action', onclick: () => { this.card.hidden = true; } }, '×')),
-      this.text);
+      this.text,
+      this.controls = h('div', { class: 'wb-guide-controls', hidden: true }));
     this.paceSel.addEventListener('change', () => { this.pace = Number(this.paceSel.value); try { localStorage.setItem(PACE_KEY, String(this.pace)); } catch { /* ignore */ } });
     this.layer = h('div', { class: 'wb-guide-layer' }, this.halo, this.cursor);
     document.body.append(this.layer, this.card);
@@ -112,13 +113,21 @@ export class Guide {
     });
   }
 
-  say(text, meta = 'Agent') {
+  say(text, meta = 'Agent', { sticky = this.sticky } = {}) {
     if (!this.enabled || !text) return;
     this.text.textContent = text;
-    this.meta.textContent = meta;
+    this.meta.textContent = this.label || meta;
     this.card.hidden = false;
     clearTimeout(this.hideTimer);
-    this.hideTimer = setTimeout(() => { this.card.hidden = true; this.cursor.style.opacity = '0'; }, 9000);
+    if (!sticky) this.hideTimer = setTimeout(() => { this.card.hidden = true; this.cursor.style.opacity = '0'; }, 9000);
+  }
+
+  /** Walkthroughs put their controls (back, pause, next, stop) on the card and keep it open. */
+  setControls(nodes) {
+    this.sticky = Boolean(nodes);
+    this.controls.hidden = !nodes;
+    this.controls.replaceChildren(...(nodes || []));
+    if (!nodes) { clearTimeout(this.hideTimer); this.hideTimer = setTimeout(() => { this.card.hidden = true; this.cursor.style.opacity = '0'; }, 4000); }
   }
 
   dragCard() {

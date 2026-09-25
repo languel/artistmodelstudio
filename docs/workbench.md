@@ -26,6 +26,14 @@ and collapse, as in underscores:
 | Generate | Engines and models write scores. Candidates can be opened, saved, or read as scores. |
 | Assistant | Chat with any engine (Ollama, WebGPU, OpenRouter…). It acts through the same tools as an agent, visibly. *How did you do that?* replays its last session. |
 | Decide | The drawing as a sequence of typed decisions, answered by a policy you can train (see below). |
+| Docs | The documentation, with search and a table of contents. Parts are generated from the code: brushes, vocabulary, exercises, tools. It also holds the walkthroughs and the training estimator. |
+
+**Cmd+K** opens the command palette, which finds every command, panel, exercise, walkthrough and docs topic by name. Anything else you type goes to the Assistant. **?** opens the Docs.
+
+**Walkthroughs** (after underscores) move the guide cursor to the real controls and run actions through the agent tools, so they are logged and undoable. Some steps wait for you. The narration card has Back, Pause, Next and Stop. The walkthroughs:
+- *Taking a line for a walk*, a lesson after Klee and William Ngan.
+- *Tour of the workbench*.
+- *Teaching a decision policy*.
 | Log | What happened, including every agent action (in purple). |
 
 ## Tools
@@ -48,6 +56,19 @@ and collapse, as in underscores:
 
 Opening an image asset (or an image file) puts it under the artboard as a reference. It isn't part
 of the picture, and the Generate panel can send it to vision models.
+
+## Lines
+
+Every line records its walk: points with time and pressure. Six line forms after William Ngan's *Taking a line for a walk* read the hand's speed from it: speed lines, restated, zigzag, inner lines, dotted walk, arcs.
+
+A score can also create its own line, following Ngan's point that artists should make their lines before drawing them:
+
+```js
+defineLine('teeth', { params: { bite: [0, 60, 18] } }, (ctx, frames, p, env) => { /* frames: x, y, nx, ny, speed, pressure */ })
+line(pts, { brush: 'teeth' })
+```
+
+The definition is stored in the drawing (`doc.lines`). It renders on the canvas and in SVG exports, and appears in Properties.
 
 ## Scores
 

@@ -50,6 +50,41 @@ stage('Notes', 'notes')
 note(20, 20, 'Klee: "An active line on a walk, moving freely, without goal."')`
   },
   {
+    id: 'whose-line',
+    title: 'Line: whose line is it?',
+    brief: 'After Klee and William Ngan ("Taking a line for a walk", 2016). A brush is someone\'s idea of a line: the app maker\'s invisible hand guides yours. Create your line before you draw it: a function of the walk (its points, direction and speed). Keep it to one idea. In code complexity is free and simplicity is elusive.',
+    source: `artboard(1000, 700, '#f3efe6')
+
+stage('Concept', 'concept')
+decide('What should this line say?', ['it bites', 'it hesitates', 'it breathes'], 'it bites',
+  'one idea only: a line with teeth where the hand hurried')
+
+// A line is a function of its walk: frames carry x, y, the normal (nx, ny) and the hand's speed.
+defineLine('teeth', { doc: 'Teeth that grow where the hand was fast', params: { bite: [0, 60, 18] } },
+  (ctx, frames, p, env) => {
+    ctx.lineWidth = 1.2
+    ctx.beginPath()
+    frames.forEach((f, i) => {
+      const o = i % 2 ? min(p.bite, f.speed * 2) : 0   // every other frame steps out, by speed
+      const x = f.x + f.nx * o, y = f.y + f.ny * o
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)
+    })
+    ctx.stroke()
+  })
+
+stage('Gesture', 'construction')
+const path = walk({ from: [90, 380], heading: -8, steps: 60, step: 14, turn: (i, t) => sin(i / 5) * 14 + noise(i / 9, 0) * 10 })
+gesture(path, { why: 'the walk before the line: where it goes, not yet how it looks' })
+
+stage('Line', 'marks')
+// The same walk twice: once calm (slow, the time between points is long), once hurried.
+line(path.map(([x, y], i) => [x, y - 90, i * 60]), { brush: 'teeth', bite: 30, why: 'slow: the teeth stay small' })
+line(path.map(([x, y], i) => [x, y + 90, i * 8]), { brush: 'teeth', bite: 30, why: 'hurried: the same line bites' })
+
+stage('Notes', 'notes')
+note(40, 40, 'Change what the line says: rewrite defineLine, keep it short. Then draw your own walk and give it your line in Properties.')`
+  },
+  {
     id: 'medial-line',
     title: 'Line: the medial line encloses a plane',
     brief: 'Klee\'s medial line: a line that closes on itself and so describes a plane. Draw the walk, close it, then let the enclosed area become a plane.',

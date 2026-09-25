@@ -7,3 +7,5 @@ training/.venv/
 training/klee/images/
 training/klee/runs/
 training/klee/data/sft/
+training/decisions/labels/
+training/decisions/suites/
