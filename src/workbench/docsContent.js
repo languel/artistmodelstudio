@@ -313,6 +313,8 @@ Pick the engine and model in Generate or the Assistant; *Custom…* takes any mo
     T('agents-guide', 'Agents', 'Visible automation and replay', 'The guide cursor, narration, pace, and recorded sessions.', () => prose(`
 When an agent acts, a cursor travels to the control it uses, a halo marks the click, strokes are traced as they are made, scores are revealed stage by stage, and the narration card says what is happening. Set the pace on the card (Instant, Fast, Normal, Slow).
 
+\`ams_layout\` opens and closes panels, expands or collapses docks, shows the reference, sets the view and finds assets, so every action happens where it can be seen. Walkthroughs use it, and put your layout back when they end.
+
 Every agent session is recorded from a baseline copy of the drawing. \`ams_sessions {action: "replay"}\` (or *How did you do that?* in the Assistant) restores the baseline, replays each step with the guide, and leaves Undo pointing back to where you were.`)),
 
     T('files-exports', 'Files and data', 'Exports and round trips', 'PNG, SVG with the process inside, p5.js, Excalidraw, JSON.', () => prose(`
