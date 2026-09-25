@@ -10,6 +10,9 @@ import { ROLES, STAGE_KINDS, normalizeElement } from '../process/document.js';
 import { BRUSHES } from '../process/brushes.js';
 import { toSVG, toExcalidraw, toP5, processSheet } from '../process/exports.js';
 import { matches } from '../assets/assetStore.js';
+import { describeRegion } from '../perception/analyze.js';
+import { download } from './ui.js';
+import { SHOW, revealScore, SessionRecorder, summarize, READ_ONLY } from './showActions.js';
 
 const S = (properties = {}, required = []) => ({ type: 'object', properties, required });
 const str = d => ({ type: 'string', description: d });
@@ -50,6 +53,7 @@ export function workbenchTools(app) {
     { name: 'ams_set', description: 'Replace the process document (JSON).', inputSchema: S({ doc: { type: 'object' } }, ['doc']), run: (a) => { app.loadDocument(a.doc, 'agent set'); return { ok: true }; } },
     { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color, why, text (notes).', inputSchema: S({ role: str('Role'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Colour'), why: str('Reason'), text: str('Note text'), by: { type: 'object' } }, ['role', 'points']), run: (a) => {
       const st = doc().stages.find(s => s.id === a.stage || s.name === a.stage) || app.activeStage;
+      a.points = normalizePoints(a.points);
       const el = app.store.addElement({ role: a.role, stage: st.id, points: a.points.map((p, i) => [p[0], p[1], p[2] ?? i * 16, p[3] ?? 0.5]), realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, why: a.why, text: a.text, by: a.by || { kind: 'model', name: 'agent' } }, { by: 'agent' });
       return { id: el.id, stage: st.name };
     } },
@@ -116,8 +120,57 @@ export function workbenchTools(app) {
       if (a.open !== undefined && list[a.open]?.doc) app.loadDocument(structuredClone(list[a.open].doc), 'open candidate');
       return list.map((c, i) => ({ index: i, prompt: c.prompt, engine: c.engine, model: c.model, exercise: c.exercise, stages: c.doc?.stages.length, elements: c.doc?.elements.length, error: c.error || null, attempts: c.attempts, seconds: c.seconds }));
     } },
+    { name: 'ams_analyze', description: 'Decide panel: analyse the reference image (value masses, regions with place/value/hue/edges/direction, optional MediaPipe pose and figure). Returns a compact description of the regions.', inputSchema: S({ mediapipe: { type: 'boolean' }, k: num('Value/colour clusters (3-8, default 5)') }), run: async (a) => {
+      const d = decide(app);
+      const an = await d.analyse({ mediapipe: !!a.mediapipe, k: a.k || 5 });
+      return { regions: an.regions.map(describeRegion), masses: an.masses, poses: an.poses?.length || 0 };
+    } },
+    { name: 'ams_decide_step', description: 'Decide panel: ask a policy (rules, lev, agent, you) for the next step (next, region, technique, value, direction, density) with probabilities. apply:true realises it at once; otherwise the card waits and you may override with ams_decision_answer. With backend "agent" the questions wait for ams_decision_answer.', inputSchema: S({ backend: str('rules | lev | agent | you'), apply: { type: 'boolean' } }), run: async (a) => {
+      const d = decide(app);
+      if (a.backend) d.setBackend(a.backend);
+      if (a.backend === 'agent') { d.propose().catch(e => app.log(e.message, 'error')); await new Promise(r => setTimeout(r, 50)); return pendingView(app); }
+      const p = await d.propose();
+      const view = { state: p.state, answers: Object.fromEntries(Object.entries(p.answers).map(([k, v]) => [k, v ? { value: v.value, confidence: v.confidence } : null])) };
+      if (a.apply) return { ...view, applied: d.apply('policy') };
+      return view;
+    } },
+    { name: 'ams_decision_pending', description: 'The state and typed questions currently waiting for an answer (backend "agent"), or null.', inputSchema: S({}), run: () => pendingView(app) },
+    { name: 'ams_decision_answer', description: 'Answer the step questions: {next, region, technique, value (0 light-2 dark), direction, density (0-4)}. Answers a waiting agent request, or overrides the proposal on the card. apply:true realises the step.', inputSchema: S({ answers: { type: 'object' }, apply: { type: 'boolean' } }, ['answers']), run: async (a) => {
+      const d = decide(app);
+      const eng = app.decider;
+      if (eng.pending) { eng.answerPending(a.answers, 'agent'); await new Promise(r => setTimeout(r, 30)); }
+      else if (d.proposal) d.setFinal(a.answers);
+      else return { error: 'Nothing to answer: call ams_decide_step first' };
+      return a.apply ? { applied: d.apply('agent') } : { ok: true };
+    } },
+    { name: 'ams_decision_labels', description: 'Decision labels recorded so far (lev training format). export:true downloads them as JSONL; returns counts by source.', inputSchema: S({ export: { type: 'boolean' } }), run: (a) => {
+      decide(app);
+      const labels = app.decider.labels;
+      if (a.export) download(app.decider.exportJSONL(), 'ams-decisions.jsonl', 'application/jsonl');
+      return { count: labels.length, bySource: labels.reduce((m, l) => ((m[l.meta?.source] = (m[l.meta?.source] || 0) + 1), m), {}) };
+    } },
     { name: 'ams_undo', description: 'Undo (or redo with redo:true).', inputSchema: S({ redo: { type: 'boolean' } }), run: (a) => ({ ok: a.redo ? app.store.redo() : app.store.undo() }) }
   ];
+}
+
+/** The Decide panel mounts lazily; tools open it first. */
+function decide(app) {
+  if (!app.decidePanel) app.docks.open('decide');
+  return app.decidePanel;
+}
+
+function pendingView(app) {
+  const p = app.decider?.pending;
+  if (!p) return null;
+  return { state: p.state, questions: Object.fromEntries(Object.entries(p.questions).map(([k, q]) => [k, { type: q.type, instructions: q.instructions, options: q.criteria }])) };
+}
+
+/** Accept [[x,y],...], a single [x,y], or a flat [x,y,x,y,...] list; reject anything else clearly. */
+function normalizePoints(pts) {
+  if (!Array.isArray(pts) || !pts.length) throw new Error('points must be a list like [[x, y], [x, y]]');
+  if (pts.every(p => Array.isArray(p) && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))) return pts.map(p => p.map(Number));
+  if (pts.every(v => Number.isFinite(Number(v))) && pts.length % 2 === 0) { const out = []; for (let i = 0; i < pts.length; i += 2) out.push([Number(pts[i]), Number(pts[i + 1])]); return out; }
+  throw new Error('points must be a list like [[x, y], [x, y]] (numbers in artboard units)');
 }
 
 function loadScore(app, source, seed, by, title) {
@@ -129,17 +182,42 @@ function loadScore(app, source, seed, by, title) {
 export function initWorkbenchMCP(app) {
   const tools = workbenchTools(app);
   const byName = Object.fromEntries(tools.map(t => [t.name, t]));
-  const listTools = () => tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
-  const QUIET = /^ams_(wb_state|vocabulary|get|snapshot|process_sheet|assets|pending|candidates)$/;
-  const callTool = async (name, args = {}) => {
+  // Every tool also takes `narrate`: one sentence shown to the user while the action plays.
+  const listTools = () => tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema: { ...inputSchema, properties: { ...(inputSchema.properties || {}), narrate: { type: 'string', description: 'Optional: one sentence shown to the user while this action plays' } } } }));
+  app.sessions = app.sessions || new SessionRecorder(app);
+  /** Run a tool the way a user would see it: guide cursor, narration, then the action. */
+  const callTool = async (name, args = {}, { replay = false } = {}) => {
     const t = byName[name];
     if (!t) throw new Error(`Unknown tool ${name}`);
-    if (!QUIET.test(name) || args.open) {
-      const brief = JSON.stringify(args, (k, v) => (typeof v === 'string' && v.length > 60 ? v.slice(0, 57) + '…' : Array.isArray(v) && v.length > 4 ? `[${v.length}]` : v));
+    const { narrate, ...rest } = args || {};
+    const g = app.guide;
+    const visible = !READ_ONLY.test(name) || rest.open;
+    const tabsBefore = { ...app.docks.state.active };
+    if (visible) {
+      const brief = JSON.stringify(rest, (k, v) => (typeof v === 'string' && v.length > 60 ? v.slice(0, 57) + '…' : Array.isArray(v) && v.length > 4 ? `[${v.length}]` : v));
       app.log(`Agent → ${name.replace(/^ams_/, '')} ${brief === '{}' ? '' : brief}`, 'agent');
+      if (!replay) app.sessions.record(name, args);
+      g?.say(narrate || summarize(name, rest), replay ? 'Replay' : 'Agent');
+      try { await SHOW[name]?.(g, rest, app); } catch { /* showing is best effort */ }
     }
-    try { return await t.run(args); } catch (err) { app.log(`Agent ${name} failed: ${err.message}`, 'error'); throw err; }
+    try {
+      const out = await t.run(rest);
+      if (visible && (name === 'ams_run_score' || (name === 'ams_exercise' && rest.load)) && !out?.error) await revealScore(g, app);
+      return out;
+    } catch (err) { app.log(`Agent ${name} failed: ${err.message}`, 'error'); throw err; }
+    finally {
+      // Showing an action may switch dock tabs; keep a conversation (Assistant) in view.
+      for (const [dock, id] of Object.entries(tabsBefore)) if (id === 'assistant' && app.docks.state.active[dock] !== id) { app.docks.state.active[dock] = id; app.docks.render(); }
+    }
   };
+  tools.push(
+    { name: 'ams_show', description: 'Show something without changing it: move the guide cursor to a target (tool:<id>, panel:<id>, button:<id>, view:picture|process, stage:<name>, title, menu) and narrate.', inputSchema: S({ target: str(''), text: str('') }), run: async (a) => { if (a.text) app.guide.say(a.text, 'Agent'); if (a.target) await app.guide.moveTo(a.target); return { ok: true }; } },
+    { name: 'ams_sessions', description: 'Recorded agent sessions (each starts from a baseline). action "replay" shows how a result was made, step by step with the guide; pace 0 instant, 0.5 fast, 1 normal, 2 slow.', inputSchema: S({ action: str('list | replay'), id: str('Session id (default: latest)'), pace: num('') }), run: async (a) => {
+      if (a.action === 'replay') { if (a.pace !== undefined) app.guide.pace = a.pace; return app.sessions.replay(a.id, callTool); }
+      return app.sessions.list();
+    } }
+  );
+  for (const t of tools.slice(-2)) byName[t.name] = t;
   window.ams = { listTools, callTool, app };
 
   try {

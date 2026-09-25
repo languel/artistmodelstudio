@@ -35,7 +35,7 @@ export function mountScript(el, app) {
     h('div', { class: 'wb-row wb-row-actions' },
       pick,
       h('span', { class: 'wb-muted' }, 'seed'), seedField,
-      h('button', { class: 'wb-btn primary', title: 'Run (Cmd+Enter)', html: `${icon('play')}<span>Run</span>`, onclick: run })
+      h('button', { class: 'wb-btn primary', 'data-guide': 'button:run-score', title: 'Run (Cmd+Enter)', html: `${icon('play')}<span>Run</span>`, onclick: run })
     ),
     brief,
     ta,

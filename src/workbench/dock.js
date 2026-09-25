@@ -139,6 +139,7 @@ export class DockManager {
     for (const t of tabs) {
       const b = document.createElement('button');
       b.className = `wb-tab${t.id === active ? ' active' : ''}`;
+      b.dataset.guide = `tab:${t.id}`;
       b.innerHTML = `${icon(t.icon)}${t.id === active ? `<span>${t.title}</span>` : ''}`;
       b.title = t.title;
       this.bindHandle(b, t.id, () => { this.state.active[dock] = t.id; this.save(); this.render(); });
@@ -165,6 +166,7 @@ export class DockManager {
       head.className = 'wb-float-head';
       const handle = document.createElement('button');
       handle.className = 'wb-tab active';
+      handle.dataset.guide = `tab:${p.id}`;
       handle.innerHTML = `${icon(p.icon)}${s.min ? '' : `<span>${p.title}</span>`}`;
       handle.title = `${p.title}: drag to a side to dock · Shift+double-click to minimise`;
       this.bindHandle(handle, p.id, null, win);

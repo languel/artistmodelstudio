@@ -23,8 +23,11 @@ import { mountScript } from './panels/script.js';
 import { mountProcess } from './panels/process.js';
 import { mountLog } from './panels/log.js';
 import { mountGenerate } from './panels/generate.js';
+import { mountAssistant } from './panels/assistant.js';
+import { mountDecide } from './panels/decide.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
+import { Guide } from './guide.js';
 
 const DOC_KEY = 'ams_process_doc_v1';
 const DEFAULTS_KEY = 'ams_tool_defaults_v1';
@@ -132,6 +135,7 @@ export class Workbench {
     this.bindKeys();
     this.renderChrome();
     this.assetStore.seed(bundledReferences()).catch(() => {});
+    this.guide = new Guide(this);
     initWorkbenchMCP(this);
     this.log('Workbench ready.');
   }
@@ -144,6 +148,8 @@ export class Workbench {
     reg('script', 'Score', 'script', 'right', mountScript);
     reg('process', 'Process', 'process', 'right', mountProcess);
     reg('generate', 'Generate', 'sparkles', 'right', mountGenerate);
+    reg('assistant', 'Assistant', 'chat', 'right', mountAssistant);
+    reg('decide', 'Decide', 'exercise', 'right', mountDecide);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }
 
@@ -195,11 +201,11 @@ export class Workbench {
   renderChrome() {
     if (!this.topbar) return;
     const doc = this.store.doc;
-    const title = h('input', { class: 'wb-title', value: doc.title || 'Untitled', title: 'Title', onchange: e => this.store.change('title', d => { d.title = e.target.value.trim() || 'Untitled'; }) });
+    const title = h('input', { class: 'wb-title', 'data-guide': 'title', value: doc.title || 'Untitled', title: 'Title', onchange: e => this.store.change('title', d => { d.title = e.target.value.trim() || 'Untitled'; }) });
     title.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); });
     const stage = this.activeStage;
     const left = h('div', { class: 'wb-island' },
-      h('button', { class: 'wb-tool', title: 'Menu', html: icon('menu'), onclick: e => this.openMenu(e.currentTarget) }),
+      h('button', { class: 'wb-tool', 'data-guide': 'menu', title: 'Menu', html: icon('menu'), onclick: e => this.openMenu(e.currentTarget) }),
       title,
       h('button', { class: 'wb-tool', title: 'Undo (Cmd+Z)', html: icon('undo'), onclick: () => this.store.undo() }),
       h('button', { class: 'wb-tool', title: 'Redo (Shift+Cmd+Z)', html: icon('redo'), onclick: () => this.store.redo() }),
@@ -210,12 +216,12 @@ export class Workbench {
     for (const t of TOOLS) {
       if (!t) { tools.append(h('div', { class: 'wb-sep' })); continue; }
       const [id, tip, key] = t;
-      tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) }));
+      tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) }));
     }
     const right = h('div', { class: 'wb-island' },
       h('div', { class: 'wb-seg' },
-        h('button', { class: this.view.mode === 'picture' ? 'on' : '', title: 'The finished picture (\\ toggles)', onclick: () => this.setViewMode('picture') }, 'Picture'),
-        h('button', { class: this.view.mode === 'process' ? 'on' : '', title: 'Picture with guides, gestures and notes (\\ toggles)', onclick: () => this.setViewMode('process') }, 'Process')),
+        h('button', { class: this.view.mode === 'picture' ? 'on' : '', 'data-guide': 'view:picture', title: 'The finished picture (\\ toggles)', onclick: () => this.setViewMode('picture') }, 'Picture'),
+        h('button', { class: this.view.mode === 'process' ? 'on' : '', 'data-guide': 'view:process', title: 'Picture with guides, gestures and notes (\\ toggles)', onclick: () => this.setViewMode('process') }, 'Process')),
       this.reference ? h('button', { class: `wb-tool${this.reference.visible ? ' on' : ''}`, title: `Reference underlay: ${this.reference.title} (R toggles)`, html: icon('picture'), onclick: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } }) : null,
       h('button', { class: 'wb-tool', title: 'Theme', html: icon(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun'), onclick: () => this.toggleTheme() })
     );

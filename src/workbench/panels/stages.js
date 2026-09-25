@@ -20,7 +20,7 @@ export function mountStages(el, app) {
         input.addEventListener('keydown', e => { if (e.key === 'Enter') done(); if (e.key === 'Escape') render(); e.stopPropagation(); });
         input.addEventListener('blur', done);
       });
-      const rowEl = h('div', { class: `wb-stage${active ? ' active' : ''}`, onclick: e => { if (e.target.closest('button, select, input')) return; app.setActiveStage(s.id); } },
+      const rowEl = h('div', { class: `wb-stage${active ? ' active' : ''}`, 'data-guide': `stage:${s.name}`, onclick: e => { if (e.target.closest('button, select, input')) return; app.setActiveStage(s.id); } },
         h('button', { class: 'wb-icon-btn', title: s.visible ? 'Hide' : 'Show', html: icon(s.visible ? 'eye' : 'eyeOff'), onclick: () => app.store.updateStage(s.id, { visible: !s.visible }) }),
         h('button', { class: 'wb-icon-btn', title: s.locked ? 'Unlock' : 'Lock', html: icon(s.locked ? 'lock' : 'unlock'), onclick: () => app.store.updateStage(s.id, { locked: !s.locked }) }),
         name,

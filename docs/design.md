@@ -126,6 +126,23 @@ meaningful process documents for each one:
 Training then learns process conditioned on subject and style. Out-of-distribution prompts test what
 transfers.
 
+### 5.1 Decisions as the unit of learning
+
+Free-form generation hides the process. Training on outcomes teaches surface texture: the distilled
+350M model learned Klee's palette, not his subjects. So we split the work:
+
+- **Perception** (analysis, MediaPipe, later SAM) describes the reference as compact text.
+- **A decision policy** answers typed questions at each step. These are TypeSafe System One questions:
+  `choice`, `score` and `noul`, with calibrated probabilities. lev (LFM2.5-350M with a LoRA and a pointer
+  head) is small enough to train locally in under an hour.
+- **Executors** realise each decision with brushes. They decide nothing themselves, and every mark
+  carries the decisions behind it.
+- **You and the agent** confirm or override. Overrides are the labels, so taste is taught one decision at
+  a time, and low confidence is where the model asks.
+
+A frontier model (or the Assistant with a local LLM) can play the policy through MCP to bootstrap labels.
+A trained lev then takes over, and the rules baseline is the bar it has to clear.
+
 ## 6. The syllabus
 
 AMS doubles as *creative coding for AI*: the same exercises for students and models, comparable at
@@ -161,3 +178,6 @@ The previous studio remains available (`classic.html`) until its parts are moved
 - Which checks per exercise are automatic, which need judgement?
 - How should alternatives be stored so they stay small but useful as preference data?
 - Perception in the browser (MediaPipe, small SAM) versus a local server (SAM 3, depth, YOLO).
+- Which questions belong in a step, and when do step types need their own questions? Should
+  alternatives (preference pairs) be a question type?
+- How much state text can a 350M policy use before its choices stop depending on it?

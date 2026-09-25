@@ -24,7 +24,7 @@ export function mountProcess(el, app) {
         h('button', { class: app.view.mode === 'picture' ? 'on' : '', onclick: () => app.setViewMode('picture'), title: 'The finished picture (construction and notes hidden)' }, 'Picture'),
         h('button', { class: app.view.mode === 'process' ? 'on' : '', onclick: () => app.setViewMode('process'), title: 'Picture plus guides, gestures and notes' }, 'Process')
       ),
-      h('button', { class: 'wb-btn', html: `${icon('play')}<span>Replay</span>`, title: 'Build the picture stage by stage', onclick: () => {
+      h('button', { class: 'wb-btn', 'data-guide': 'button:replay', html: `${icon('play')}<span>Replay</span>`, title: 'Build the picture stage by stage', onclick: () => {
         clearInterval(timer);
         let i = -1;
         timer = setInterval(() => { i++; if (i >= doc.stages.length) { clearInterval(timer); app.setUpTo(Infinity); render(); return; } app.setUpTo(i); }, 700);

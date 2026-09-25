@@ -24,6 +24,8 @@ and collapse, as in underscores:
 | Score | Write or load a score (JS in the point/line/plane vocabulary). **Cmd+Enter** runs it. The exercises live here. |
 | Process | Picture or process view, stage scrub and replay, a filmstrip, decisions, reasons, the editing record, and the process sheet. |
 | Generate | Engines and models write scores. Candidates can be opened, saved, or read as scores. |
+| Assistant | Chat with any engine (Ollama, WebGPU, OpenRouter…). It acts through the same tools as an agent, visibly. *How did you do that?* replays its last session. |
+| Decide | The drawing as a sequence of typed decisions, answered by a policy you can train (see below). |
 | Log | What happened, including every agent action (in purple). |
 
 ## Tools
@@ -86,3 +88,40 @@ relay for Claude Code (`.mcp.json` registers `ams`). Start with `ams_vocabulary`
 - **Be the engine:** `ams_generate {engine: "agent"}`, then `ams_pending` (the exact prompts a model
   would get) and `ams_answer {text}`.
 - **Other engines:** `ams_generate {engine, model, count, exercise, withReference}`, then `ams_candidates`.
+- **Decide:** `ams_analyze {mediapipe}`, `ams_decide_step {backend, apply}`, `ams_decision_pending`,
+  `ams_decision_answer {answers, apply}`, `ams_decision_labels {export}`.
+- **Show:** every call moves a visible cursor to the control it uses and narrates. The narration card sets
+  the pace (0 = instant). Strokes are traced, and scores are revealed stage by stage.
+  `ams_sessions {action: "replay"}` replays a recorded session from its starting point, and Undo returns to where you were.
+
+The Assistant panel runs the same loop with the model you load. Its replies are JSON:
+`{say, actions: [{tool, args}], done}`. It is outsourced to Ollama or WebGPU when no harness is attached.
+
+## Decide
+
+A **System One** loop: small, fast, typed decisions, not free text.
+
+1. **Analyse reference** turns the reference into value masses and regions. Each region has a place, size,
+   value, hue, edge activity and direction, plus a polygon. With **MediaPipe** on, you also get a figure
+   region (selfie segmentation) and pose limbs, which you can add as gesture guides.
+2. **Propose step** asks the policy six questions:
+   - *next* (look, block, structure, value, accent, stop),
+   - *region*,
+   - *technique*,
+   - *value* (a score),
+   - *direction*,
+   - *density* (a score).
+
+   The answers come with probabilities.
+3. Click any option to override, then **Apply step**. A small executor realises the step on the region's
+   geometry, and every mark records the decisions behind it as its *why*.
+4. **Run ×8** lets the policy continue. It stops for you when its confidence is below *Ask me*.
+
+Policies:
+- **Rules**: a transparent baseline.
+- **lev / kev**: a local TypeSafe `/v1/systemone` server, proxied at `/__decide`.
+- **Agent**: answers over MCP.
+- **You**.
+
+What you choose and what the agent answers become labels in lev's format. Export them and train a local
+policy with `training/decisions/` (see its README).

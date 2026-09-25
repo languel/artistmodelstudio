@@ -11,7 +11,7 @@ import { BRUSHES, mulberry32, resolveParams } from './brushes.js';
 
 export function renderDocument(ctx, doc, {
   mode = 'process', upTo = Infinity, transform = { x: 0, y: 0, scale: 1 },
-  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false
+  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a'
 } = {}) {
   const { width, height } = doc.artboard;
   ctx.save();
@@ -52,7 +52,7 @@ export function renderDocument(ctx, doc, {
   for (const e of doc.elements) {
     if (!selected.has(e.id) && hovered !== e.id) continue;
     ctx.save();
-    ctx.strokeStyle = selected.has(e.id) ? '#3b82f6' : 'rgba(59,130,246,0.5)';
+    ctx.strokeStyle = selectColor; ctx.globalAlpha = selected.has(e.id) ? 1 : 0.5;
     ctx.lineWidth = 1.5 / transform.scale;
     ctx.setLineDash([4 / transform.scale, 3 / transform.scale]);
     const xs = e.points.map(p => p[0]), ys = e.points.map(p => p[1]);

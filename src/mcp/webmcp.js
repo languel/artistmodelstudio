@@ -956,7 +956,7 @@ export function initWebMCP(studioApp) {
 
   // Dev relay: external MCP clients (src/mcp/mcpServer.js) reach this tab through the
   // dev server (vite.config.js, /__ams/*) by HTTP long-polling.
-  if (import.meta.env?.DEV) {
+  if (import.meta.env?.DEV && typeof document !== 'undefined' && !import.meta.env?.VITEST) {
     const tab = Math.random().toString(36).slice(2);
     const hello = () => fetch('/__ams/hello', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tab, title: document.title, url: location.href, tools: bridge.listTools() }) }).catch(() => {});
     const handle = async ({ id, name, args }) => {

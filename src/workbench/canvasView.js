@@ -111,8 +111,14 @@ export class CanvasView {
     }
     renderDocument(ctx, doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
-      selected: this.selected, hovered: this.hovered, ground: false, screenNotes: true
+      selected: this.selected, hovered: this.hovered, ground: false, screenNotes: true,
+      selectColor: css.getPropertyValue('--wb-select').trim() || '#8a8a8a'
     });
+    if (this.drawOverlay) {
+      ctx.save(); ctx.translate(this.cam.x, this.cam.y); ctx.scale(this.cam.z, this.cam.z);
+      this.drawOverlay(ctx);
+      ctx.restore();
+    }
     if (this.draft) {
       renderDocument(ctx, { ...doc, stages: [{ id: 'draft', visible: true }], elements: [this.draft] }, {
         mode: 'process', transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, ground: false
@@ -121,7 +127,7 @@ export class CanvasView {
     if (this.marquee) {
       const [x0, y0] = this.toScreen(this.marquee.x0, this.marquee.y0), [x1, y1] = this.toScreen(this.marquee.x1, this.marquee.y1);
       ctx.save();
-      ctx.strokeStyle = '#3b82f6'; ctx.fillStyle = 'rgba(59,130,246,0.08)';
+      ctx.strokeStyle = css.getPropertyValue('--wb-select').trim(); ctx.fillStyle = css.getPropertyValue('--wb-on').trim();
       ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
       ctx.restore();
     }

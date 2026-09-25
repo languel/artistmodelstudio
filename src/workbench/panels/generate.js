@@ -8,14 +8,14 @@ import { generateScore } from '../../process/prompt.js';
 import { EXERCISES } from '../../process/exercises.js';
 import { renderToCanvas } from '../../process/render.js';
 
-const ENGINES = [
-  ['agent', 'Agent (MCP)'], ['openrouter', 'OpenRouter'], ['openai', 'OpenAI-compatible'], ['ollama', 'Ollama (local)'], ['webgpu', 'In-browser (WebGPU)']
-];
-const MODEL_KEYS = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model' };
+import { modelPicker } from '../modelPicker.js';
 const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return v; };
 
-export function mountGenerate(el, app) {
-  let engineId = store('ams_wb_engine') || 'agent';
+export function mountGenerate(root, app) {
+  const picker = modelPicker({ app, storageKey: 'ams_wb_engine', onChange: ({ engine, model }) => { app.log(`Generate: ${engine} · ${model}`); render(); } });
+  const el = h('div', { class: 'wb-col' });
+  root.append(picker, el);
+  let engineId = picker.engine();
   let saved = [];
   try { saved = JSON.parse(sessionStorage.getItem('ams_wb_candidates') || '[]'); } catch { /* ignore */ }
   const candidates = app.candidates = app.candidates || saved;
@@ -24,18 +24,8 @@ export function mountGenerate(el, app) {
 
   const render = () => {
     el.innerHTML = '';
+    engineId = picker.engine();
     const artist = app.artists.get(engineId);
-    const models = (() => { try { return artist?.getAvailableModels?.() || []; } catch { return []; } })();
-    const currentModel = artist?.getModel?.() || '';
-    const modelInput = h('input', { class: 'wb-inline', list: 'wb-models', value: currentModel, placeholder: 'model id', title: 'Pick or type a model id' });
-    const datalist = h('datalist', { id: 'wb-models' }, ...models.slice(0, 300).map(m => h('option', { value: m.id }, m.name || m.id)));
-    modelInput.addEventListener('change', () => {
-      artist?.setModel?.(modelInput.value.trim());
-      if (MODEL_KEYS[engineId]) store(MODEL_KEYS[engineId], modelInput.value.trim());
-      app.log(`Model: ${modelInput.value.trim()} (${engineId})`);
-    });
-    modelInput.addEventListener('keydown', e => e.stopPropagation());
-
     const prompt = h('textarea', { class: 'wb-why', rows: 3, placeholder: 'What to draw…' });
     prompt.value = app.genPrompt || '';
     prompt.addEventListener('input', () => { app.genPrompt = prompt.value; });
@@ -85,8 +75,6 @@ export function mountGenerate(el, app) {
 
     app.startGenerate = go;
     el.append(
-      row('Engine', selectField(ENGINES, engineId, v => { engineId = v; store('ams_wb_engine', v); render(); })),
-      row('Model', h('div', { style: { display: 'flex', flex: 1, gap: '4px' } }, modelInput, datalist)),
       keys(engineId, app) || '',
       prompt,
       row('Exercise', exercise),
@@ -96,7 +84,7 @@ export function mountGenerate(el, app) {
         h('span', { class: 'wb-muted' }, 'temp'), temp,
         busy
           ? h('button', { class: 'wb-btn', onclick: () => { busy.ctrl.abort(); app.artists.get('agent')?.answer?.(''); } }, 'Stop')
-          : h('button', { class: 'wb-btn primary', html: `${icon('sparkles')}<span>Generate</span>`, title: 'Cmd+Enter', onclick: go })
+          : h('button', { class: 'wb-btn primary', 'data-guide': 'button:generate', html: `${icon('sparkles')}<span>Generate</span>`, title: 'Cmd+Enter', onclick: go })
       ),
       status,
       listBox
@@ -128,11 +116,7 @@ export function mountGenerate(el, app) {
       );
     }));
   };
-  app.setGenerateEngine = (v, model) => {
-    engineId = v; store('ams_wb_engine', v);
-    if (model) { app.artists.get(v)?.setModel?.(model); if (MODEL_KEYS[v]) store(MODEL_KEYS[v], model); }
-    render();
-  };
+  app.setGenerateEngine = (v, model) => { picker.setEngine(v, model); engineId = v; render(); };
   app.on('generate-refresh', render);
   render();
 }
