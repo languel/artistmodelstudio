@@ -4,6 +4,7 @@
  * the reason ("why"), and who made it.
  */
 import { h, row, numberField, selectField, section, esc } from '../ui.js';
+import { colorField } from '../colorPicker.js';
 import { BRUSHES, brushesForRole, resolveParams } from '../../process/brushes.js';
 import { ROLES, BLENDS } from '../../process/document.js';
 import { NOTE_STYLES, NOTE_FONTS, noteProps } from '../../process/notes.js';
@@ -33,14 +34,14 @@ export function mountProperties(el, app) {
         patchAll({ role: v, realize: { brush, params: {} }, closed: v === 'plane' ? true : e.closed }, 'role');
       }), ROLES[e.role]),
       row('Stage', selectField(app.store.doc.stages.map(s => [s.id, s.name]), e.stage, v => patchAll({ stage: v }, 'stage'))),
-      row('Color', h('input', { type: 'color', class: 'wb-color', value: e.color || '#1d1b19', onchange: ev => patchAll({ color: ev.target.value }, 'color') })),
+      row('Color', colorField(e.color, v => patchAll({ color: v }, 'color'), { app })),
       e.role === 'note' ? row('Text', noteText(e, v => patchAll({ text: v }, 'note'))) : null
     ));
     if (e.role === 'note') el.append(noteSection(noteProps(e), patch => {
       const before = JSON.stringify(app.store.doc);
       for (const s of sel) { const t = app.store.doc.elements.find(x => x.id === s.id); if (t?.role === 'note') t.note = { ...(t.note || {}), ...patch }; }
       app.store.commitFrom(before, 'note style');
-    }));
+    }, app));
     else el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc));
     el.append(lookSection(e, patch => patchAll(patch, 'look')));
     el.append(section('Reason', true,
@@ -58,9 +59,9 @@ export function mountProperties(el, app) {
     const d = app.defaults(tool);
     el.append(h('div', { class: 'wb-panel-title' }, `New ${tool}`, h('span', { class: 'wb-muted' }, ' · defaults')));
     el.append(section('Element', true,
-      row('Color', h('input', { type: 'color', class: 'wb-color', value: d.color || '#1d1b19', onchange: ev => app.setDefaults(tool, { color: ev.target.value }) }))
+      row('Color', colorField(d.color, v => app.setDefaults(tool, { color: v }), { app }))
     ));
-    if (tool === 'note') el.append(noteSection(noteProps({ note: d.note, color: d.color, points: [] }), patch => app.setDefaults(tool, { note: patch })));
+    if (tool === 'note') el.append(noteSection(noteProps({ note: d.note, color: d.color, points: [] }), patch => app.setDefaults(tool, { note: patch }), app));
     else el.append(brushSection(tool, d.realize, realize => app.setDefaults(tool, { realize }), app.store.doc));
     el.append(lookSection(d, patch => app.setDefaults(tool, patch)));
     el.append(section('Reason', true, whyField(d.why || '', v => app.setDefaults(tool, { why: v }), 'Why the next marks are made (kept on each one)')));
@@ -80,15 +81,16 @@ function lookSection(e, onChange) {
 }
 
 /** Notes: style, lettering, size, wrap width, background. The text color is the element's color. */
-function noteSection(p, onChange) {
-  const bg = h('input', { type: 'color', class: 'wb-color', value: p.bg || '#fbe9a6', title: 'Background', onchange: ev => onChange({ bg: ev.target.value }) });
+function noteSection(p, onChange, noteApp = null) {
+  const bg = colorField(p.bg || '#fbe9a6', v => { bgValue = v; onChange({ bg: v }); }, { title: 'Paper', fallback: '#fbe9a6', app: noteApp });
+  let bgValue = p.bg || '#fbe9a6';
   return section('Note', true,
     row('Style', selectField(Object.entries(NOTE_STYLES).map(([k, v]) => [k, v.split(':')[0]]), p.style, v => onChange({ style: v, bg: undefined, font: undefined, size: undefined }), 'Notebook writes on the page; sticky, card and plain are other looks')),
     row('Font', selectField(Object.entries(NOTE_FONTS).map(([k, [label]]) => [k, label]), p.font, v => onChange({ font: v }))),
     row('Size', numberField({ value: Math.round(p.size), min: 6, max: 200, step: 1, def: p.size, title: 'Letter size in artboard units', onChange: v => onChange({ size: v }) })),
     row('Width', numberField({ value: Math.round(p.width), min: 40, max: 2000, step: 5, def: 280, title: 'Wrap width; or drag a side of the note', onChange: v => onChange({ width: v }) })),
     row('Paper', h('div', { class: 'wb-row' }, bg,
-      h('label', { class: 'wb-row', title: 'No background: writing straight on the page' }, h('input', { type: 'checkbox', checked: !p.bg, onchange: ev => onChange({ bg: ev.target.checked ? null : bg.value }) }), h('span', {}, 'none')))));
+      h('label', { class: 'wb-row', title: 'No background: writing straight on the page' }, h('input', { type: 'checkbox', checked: !p.bg, onchange: ev => onChange({ bg: ev.target.checked ? null : bgValue }) }), h('span', {}, 'none')))));
 }
 
 function brushSection(role, realize, onChange, doc) {

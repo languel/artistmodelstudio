@@ -109,6 +109,7 @@ Training on finished images teaches surface texture. The studio keeps every step
 | F | Fit the artboard |
 | \\ | Picture / process view |
 | R | Reference underlay on / off |
+| I | Eyedropper: pick a color from anywhere (the reference, the canvas, the whole screen in Chrome); it goes to the open picker, else the selection, else the current tool |
 | Cmd+Z / Shift+Cmd+Z | Undo / redo (everything, including loads and agent actions) |
 | Cmd+S | Save to Assets |
 | Cmd+G / Shift+Cmd+G | Group / ungroup the selection (clicking a grouped mark selects its group; Cmd-click selects one) |
@@ -137,6 +138,9 @@ Construction (guides, gestures, notes) is never part of the picture: it shows in
 
 ## Look
 Every element has an **opacity** and a **blend mode** (multiply, screen, overlay, darken, lighten, difference…) in Properties → Look, on top of its brush. Both carry into SVG exports.
+
+## Color
+Click a color swatch for the picker: a saturation and brightness field, hue and opacity, hex (8-digit hex keeps the opacity), palettes after Klee (Senecio, Castle and Sun, Twittering Machine), Kandinsky, Bauhaus, notebook inks and grays, your recent colors, and your own palette (+ adds the current color; right-click removes). The eyedropper button, or I, samples any pixel.
 
 ## Notes
 Notes are writing on the page, in artboard units. Styles: **notebook** (handwriting straight on the paper), **sticky**, **index card**, **plain**. Choose the font (handwriting, printed hand, serif, sans, mono), size, wrap width and paper color in Properties; the text color is the note's color. On the canvas, drag a side of a note to re-wrap it, a corner to scale the lettering, and just inside a corner to rotate it.`)),

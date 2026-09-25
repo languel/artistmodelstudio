@@ -72,3 +72,4 @@ export function download(data, name, type) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+

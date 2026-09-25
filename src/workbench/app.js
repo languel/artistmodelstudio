@@ -29,6 +29,7 @@ import { mountOutliner } from './panels/outliner.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
 import { openPalette } from './palette.js';
+import { eyedropToTarget } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 import { Guide } from './guide.js';
@@ -364,6 +365,7 @@ export class Workbench {
       if (mod && k === 'k') { e.preventDefault(); openPalette(this); return; }
       if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
       if (k === '?') { this.openDocs(); return; }
+      if (k === 'i' && !mod) { e.preventDefault(); eyedropToTarget(this); return; }
       if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) this.store.redo(); else this.store.undo(); return; }
       if (mod && k === 's') { e.preventDefault(); this.saveToAssets(); return; }
       if (mod && k === 'g') { e.preventDefault(); if (e.shiftKey) this.ungroupSelection(); else this.groupSelection(); return; }

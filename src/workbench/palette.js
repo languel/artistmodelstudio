@@ -14,6 +14,7 @@ export function buildCommands(app) {
     cmd('File', 'Save to Assets', () => app.saveToAssets(), '⌘S'),
     cmd('Edit', 'Undo', () => app.store.undo(), '⌘Z'),
     cmd('Edit', 'Redo', () => app.store.redo(), '⇧⌘Z'),
+    cmd('Edit', 'Pick a color (eyedropper)', () => import('./colorPicker.js').then(m => m.eyedropToTarget(app)), 'I'),
     cmd('Edit', 'Select all', () => app.canvas.select(app.store.doc.elements.filter(e => app.canvas.editable(e)).map(e => e.id)), '⌘A'),
     ...[['png', 'Picture (PNG)'], ['svg', 'SVG with process record'], ['p5', 'p5.js sketch (zip)'], ['sheet', 'Process sheet (PNG)'], ['json', 'Process document (JSON)'], ['excalidraw', 'Excalidraw']]
       .map(([k, l]) => cmd('Export', l, () => app.exportAs(k))),
