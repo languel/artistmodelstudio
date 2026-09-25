@@ -144,7 +144,7 @@ export class Workbench {
     this.docsTopics = () => docsTopicList(this);
     // The Docs panel mounts on first open and then replaces this with its own openDocs.
     const openDocsFirst = id => { this.docks.open('docs'); if (this.openDocs !== openDocsFirst) this.openDocs(id); };
-    this.openDocs = openDocsFirst;
+    this.openDocs ??= openDocsFirst;
     initWorkbenchMCP(this);
     this.log('Workbench ready.');
   }

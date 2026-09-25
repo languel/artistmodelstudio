@@ -11,6 +11,8 @@ export function mountDocs(root, app) {
   let topics = docTopics(app);
   let current = ls('ams_docs_topic') || topics[0].id;
   let query = '';
+  const openSecs = new Set();
+  let closedCurrent = false;
   let size = Number(ls('ams_docs_size') || 13);
   const search = h('input', { type: 'search', class: 'wb-inline wb-docs-search', placeholder: 'Search documentation' });
   const toc = h('nav', { class: 'wb-docs-toc' });
@@ -33,7 +35,9 @@ export function mountDocs(root, app) {
     if (!shown.some(t => t.id === current) && shown[0]) current = shown[0].id;
     toc.replaceChildren(...DOC_SECTIONS.map(sec => {
       const items = shown.filter(t => t.section === sec);
-      return items.length ? h('div', { class: 'wb-docs-sec' }, h('h4', {}, sec), ...items.map(t => h('button', { class: t.id === current ? 'active' : '', title: t.summary, onclick: () => { current = t.id; ls('ams_docs_topic', current); render(); } }, t.title))) : null;
+      if (!items.length) return null;
+      const open = terms.length > 0 || openSecs.has(sec) || items.some(t => t.id === current);
+      return h('div', { class: `wb-docs-sec${open ? ' open' : ''}` }, h('h4', { title: open ? 'Collapse' : 'Expand', onclick: () => { if (openSecs.has(sec) || items.some(t => t.id === current)) { openSecs.delete(sec); if (items.some(t => t.id === current)) closedCurrent = !closedCurrent; } else openSecs.add(sec); render(); } }, h('span', { class: 'wb-docs-caret' }, open && !(closedCurrent && items.some(t => t.id === current) && !terms.length) ? '▾' : '▸'), sec), ...(open && !(closedCurrent && items.some(t => t.id === current) && !terms.length) ? items : []).map(t => h('button', { class: t.id === current ? 'active' : '', title: t.summary, onclick: () => { current = t.id; closedCurrent = false; ls('ams_docs_topic', current); render(); } }, t.title)));
     }).filter(Boolean), shown.length ? '' : h('p', { class: 'wb-muted' }, 'Nothing found.'));
     const t = topics.find(x => x.id === current);
     article.replaceChildren(...(t ? [h('header', {}, h('small', {}, t.section), h('h2', {}, t.title)), t.body()] : []));

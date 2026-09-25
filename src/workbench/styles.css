@@ -302,9 +302,13 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-docs-bar { gap: 6px; flex-wrap: wrap; }
 .wb-docs-size { width: 44px; }
 .wb-docs-search { width: 100%; box-sizing: border-box; }
-.wb-docs-main { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
-@container (min-width: 560px) { .wb-docs-main { flex-direction: row; } .wb-docs-toc { width: 190px; flex: none; overflow-y: auto; } .wb-docs-article { flex: 1; overflow-y: auto; } }
-.wb-docs-toc h4 { margin: 8px 0 3px; font-size: 11px; font-weight: 600; color: var(--wb-muted); text-transform: none; }
+.wb-docs-main { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
+.wb-docs-toc { max-height: 32%; overflow-y: auto; flex: none; border-bottom: 1px solid var(--wb-line); padding-bottom: 4px; }
+.wb-docs-article { flex: 1; min-height: 0; overflow-y: auto; }
+.wb-docs-sec h4 { cursor: pointer; user-select: none; display: flex; gap: 4px; align-items: center; }
+.wb-docs-caret { width: 10px; font-size: 9px; }
+@container (min-width: 560px) { .wb-docs-main { flex-direction: row; } .wb-docs-toc { width: 190px; flex: none; overflow-y: auto; max-height: none; border-bottom: 0; } .wb-docs-article { flex: 1; overflow-y: auto; } }
+.wb-docs-toc h4 { margin: 4px 0 2px; font-size: 11px; font-weight: 600; color: var(--wb-muted); text-transform: none; }
 .wb-docs-toc button { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: var(--wb-text); padding: 3px 8px; border-radius: 5px; cursor: pointer; font: inherit; font-size: 0.93em; }
 .wb-docs-toc button:hover { background: var(--wb-on); }
 .wb-docs-toc button.active { background: var(--wb-on); font-weight: 600; }
@@ -331,3 +335,6 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-doc-est-out p { grid-column: 1 / -1; margin: 2px 0 0; }
 .wb-doc-stat { background: var(--wb-panel-2); border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; }
 .wb-doc-stat small { color: var(--wb-muted); }
+/* Docs fill the dock; the contents and the article scroll on their own. */
+.wb-dock-content:has(> .wb-panel-body > .wb-docs) { overflow: hidden; }
+.wb-panel-body:has(> .wb-docs) { height: 100%; box-sizing: border-box; padding-bottom: 8px; }
