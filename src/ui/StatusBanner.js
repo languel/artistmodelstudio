@@ -22,10 +22,13 @@ export class StatusBanner {
   setDownloadProgress(progressData) {
     this.isDownloading = Boolean(progressData && progressData.progress < 100);
     this.downloadProgress = progressData;
-    this.render();
+    // Progress events arrive many times a second: render at most once per frame.
+    if (this._raf) return;
+    this._raf = requestAnimationFrame(() => { this._raf = 0; this.render(); });
   }
 
   clearDownloadProgress() {
+    if (!this.downloadProgress && !this.isDownloading) return;
     this.isDownloading = false;
     this.downloadProgress = null;
     this.render();

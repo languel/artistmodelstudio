@@ -2037,3 +2037,8 @@ button:focus-visible { outline: none; border-color: var(--border-focus); box-sha
 .assets-grid { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); }
 .asset-card .variant-card-footer { flex-wrap: wrap; gap: 4px; }
 .asset-card .rating-stars { margin-left: auto; }
+
+/* Placeholder / spinner sits over the thumbnail instead of beside it. */
+.variant-thumb-wrap { position: relative; }
+.variant-thumb-wrap .thumb-placeholder { position: absolute; inset: 0; pointer-events: none; }
+.variant-thumb[style*="display: block"] + .thumb-placeholder { background: transparent; }

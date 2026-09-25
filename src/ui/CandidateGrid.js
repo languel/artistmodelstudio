@@ -70,11 +70,36 @@ export class CandidateGrid {
   }
 
   setDownloadProgress(progressData) {
-    this.downloadProgress = progressData;
-    this.render();
+    // Files download in parallel, each with its own %; show the combined bytes instead
+    // so the bar doesn't jump between files.
+    const files = (this.dlFiles ||= {});
+    if (progressData?.file && progressData.totalMB) {
+      files[progressData.file] = { loaded: Number(progressData.loadedMB) || 0, total: Number(progressData.totalMB) || 0 };
+    }
+    const list = Object.values(files).filter(f => f.total > 0);
+    const merged = { ...progressData };
+    if (list.length) {
+      const loaded = list.reduce((a, f) => a + f.loaded, 0), total = list.reduce((a, f) => a + f.total, 0);
+      merged.loadedMB = loaded.toFixed(1);
+      merged.totalMB = total.toFixed(1);
+      merged.progress = Math.round((loaded / total) * 100);
+    }
+    const had = !!this.downloadProgress;
+    this.downloadProgress = merged;
+    // Update the card in place; re-rendering the whole grid on every event made it flash.
+    const card = had && this.container?.querySelector('.model-download-card');
+    if (!card) return this.render();
+    const pct = Math.min(Math.max(merged.progress || 0, 0), 100);
+    card.querySelector('.model-download-sub').textContent = merged.model || 'In-Browser WebGPU Model';
+    card.querySelector('.model-download-pct-badge').textContent = `${pct}%`;
+    card.querySelector('.model-progress-fill').style.width = `${Math.max(pct, 2)}%`;
+    card.querySelector('.model-progress-file').textContent = merged.shardName || (merged.file ? merged.file.split('/').pop() : 'Connecting to Hugging Face CDN...');
+    card.querySelector('.model-progress-bytes').textContent = merged.loadedMB && merged.totalMB ? `${merged.loadedMB} MB / ${merged.totalMB} MB` : (merged.message || '');
   }
 
   clearDownloadProgress() {
+    this.dlFiles = {};
+    if (!this.downloadProgress) return;
     this.downloadProgress = null;
     this.render();
   }

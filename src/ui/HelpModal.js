@@ -560,7 +560,7 @@ export class HelpModal {
             <div style="display: flex; gap: 10px; align-items: flex-start;">
               <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent-indigo); flex-shrink: 0;">3</div>
               <div>
-                <strong style="color: var(--text-primary);">Live Code Editor &amp; Stroke Animation:</strong> Inspect the parsed procedural actions (strokes, washes, splatters, geometry) in the Code Editor pane. Click <em>Animate</em> to replay the painting sequence in real-time.
+                <strong style="color: var(--text-primary);">Live Code Editor &amp; Stroke Animation:</strong> Inspect the parsed procedural actions (strokes, washes, splatters, geometry) in the Code tab. Click <em>Animate</em> to replay the painting sequence in real-time.
               </div>
             </div>
 

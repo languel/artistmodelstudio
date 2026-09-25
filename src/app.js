@@ -225,10 +225,10 @@ export class StudioApp {
                 ${icon('squaresPlus', 'icon-sm')} <span>Variations</span>
               </button>
               <button class="side-tab-btn" id="tab-btn-editor" data-tab="editor">
-                ${icon('codeBracket', 'icon-sm')} <span>Code Editor</span>
+                ${icon('codeBracket', 'icon-sm')} <span>Code</span>
               </button>
               <button class="side-tab-btn" id="tab-btn-log" data-tab="log">
-                ${icon('terminal', 'icon-sm')} <span>Process Log</span>
+                ${icon('terminal', 'icon-sm')} <span>Log</span>
               </button>
               <button class="side-tab-btn" id="tab-btn-reference" data-tab="reference">
                 ${icon('photo', 'icon-sm')} <span>Reference</span>
@@ -490,11 +490,6 @@ export class StudioApp {
     this.processLog.setStatus('streaming');
     this.processLog.log(`Starting generation with ${artist.name} (Medium: ${medium.name}, Canvas: ${this.canvasDims().join('x')}, Variation: ${this.variationLevel})...`, 'info');
 
-    // If local Ollama or WebGPU, automatically switch side tab to Process Log so the user sees live progress
-    if (artist.type === 'ollama' || artist.type === 'webgpu') {
-      const logBtn = this.root.querySelector('#tab-btn-log');
-      if (logBtn && this.rightPaneTab !== 'log') logBtn.click();
-    }
 
     const currentGenerationCandidates = [];
     const count = 4;

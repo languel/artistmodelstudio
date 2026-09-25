@@ -10,6 +10,43 @@ import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
 import { normalizeProgram, parseModelOutput } from '../language/normalize.js';
 
 let pipelineInstance = null;
+
+/**
+ * Vision-language models (LFM2.5-VL) aren't text-generation pipelines: load the
+ * processor and model directly and wrap them in a pipeline-shaped function
+ * (messages, config) => [{ generated_text }]. Prompts here are text-only.
+ */
+async function loadVisionLanguage(modelId, options) {
+  const { AutoProcessor, AutoModelForImageTextToText, RawImage } = await import('@huggingface/transformers');
+  const quant = options.dtype || 'q4f16';
+  const processor = await AutoProcessor.from_pretrained(modelId, { progress_callback: options.progress_callback });
+  const model = await AutoModelForImageTextToText.from_pretrained(modelId, {
+    device: options.device,
+    // Recommended split: small fp16 embeddings and vision encoder, quantized decoder.
+    dtype: { embed_tokens: 'fp16', vision_encoder: 'fp16', decoder_model_merged: quant },
+    progress_callback: options.progress_callback
+  });
+  let blank = null;
+  const run = async (messages, config = {}) => {
+    const prompt = processor.apply_chat_template(messages, { add_generation_prompt: true });
+    let inputs, outputs;
+    try {
+      inputs = processor.tokenizer(prompt, { add_special_tokens: false });
+      outputs = await model.generate({ ...inputs, ...config });
+    } catch (err) {
+      // Some builds need an image input: pass a tiny blank one.
+      blank ||= new RawImage(new Uint8ClampedArray(64 * 64 * 3).fill(255), 64, 64, 3);
+      const withImage = messages.map((m, i) => (i === messages.length - 1 && m.role === 'user'
+        ? { ...m, content: [{ type: 'image' }, { type: 'text', text: m.content }] } : m));
+      const p2 = processor.apply_chat_template(withImage, { add_generation_prompt: true });
+      inputs = await processor(blank, p2, { add_special_tokens: false });
+      outputs = await model.generate({ ...inputs, ...config });
+    }
+    const text = processor.batch_decode(outputs.slice(null, [inputs.input_ids.dims.at(-1), null]), { skip_special_tokens: true })[0];
+    return [{ generated_text: [...messages, { role: 'assistant', content: text }] }];
+  };
+  return run;
+}
 let currentModelId = null;
 
 export const WEBGPU_MODEL_PRESETS = [
@@ -248,14 +285,16 @@ export class WebGPUTransformersArtist extends Artist {
       };
 
       try {
-        pipelineInstance = await pipeline(task, modelId, options);
+        pipelineInstance = preset?.isVL
+          ? await loadVisionLanguage(modelId, options)
+          : await pipeline(task, modelId, options);
       } catch (firstErr) {
         // If q4f16 failed, fallback to standard q4
         if (chosenDtype === 'q4f16') {
           console.warn(`[WebGPU] q4f16 pipeline failed for ${modelId}, falling back to q4:`, firstErr);
           this.activeDtype = 'q4';
           options.dtype = 'q4';
-          pipelineInstance = await pipeline(task, modelId, options);
+          pipelineInstance = preset?.isVL ? await loadVisionLanguage(modelId, options) : await pipeline(task, modelId, options);
         } else {
           throw firstErr;
         }
