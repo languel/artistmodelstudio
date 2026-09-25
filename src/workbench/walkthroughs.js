@@ -7,6 +7,7 @@
  */
 import { h } from './ui.js';
 import { EXERCISES } from '../process/exercises.js';
+import * as SENECIO from './studies/senecio.js';
 
 const call = (name, args) => window.ams.callTool(name, args);
 
@@ -27,7 +28,68 @@ function activeWalk() {
   return pts;
 }
 
+
+/** Type code into an editor as the guide watches (instant at pace 0 or in a hidden tab). */
+async function typeInto(editor, text, g, { append = false } = {}) {
+  const base = append ? editor.value : '';
+  if (!g.active || document.hidden) { editor.value = base + text; return; }
+  const perFrame = Math.max(4, Math.round(16 / Math.max(0.25, g.pace)));
+  for (let i = 0; i <= text.length; i += perFrame) {
+    editor.value = base + text.slice(0, i);
+    editor.view.dispatch({ selection: { anchor: editor.view.state.doc.length }, scrollIntoView: true });
+    await new Promise(r => requestAnimationFrame(r));
+  }
+  editor.value = base + text;
+  editor.view.dispatch({ selection: { anchor: editor.view.state.doc.length }, scrollIntoView: true });
+}
+
 export const WALKTHROUGHS = [
+  {
+    id: 'senecio-study',
+    title: 'Study: Senecio',
+    summary: 'Study a painting, name its methods, write them as brushes and a score, reproduce it, then draw a new subject in its manner.',
+    steps: [
+      { say: 'A full cycle on one painting: look at Klee\'s Senecio (1922), name its methods, write them as code, reproduce it, then use the same methods on a subject it never shows.',
+        run: async ({ save }) => { await save(); } },
+      { say: 'The reference: Senecio, oil on gauze. It goes under the sheet so every step can be checked against it.',
+        run: async ({ app }) => { await call('ams_assets', { open: 'klee:klee-1922-senecio', narrate: 'Opening Senecio as the reference.' }); if (app.reference) { app.reference.opacity = 0.55; app.reference.visible = true; app.canvas.invalidate(); } } },
+      { say: 'First, looking with the studio\'s eyes: value masses and regions. Mostly middle and light values, all warm; few hard edges.',
+        run: () => call('ams_analyze', { narrate: 'Analyzing the reference: values, regions, edges, directions.' }), hold: 800 },
+      { say: 'Its palette, sampled from the painting and named after the nearest pigments.',
+        run: () => call('ams_palette', { action: 'from_image', asset: 'klee:klee-1922-senecio', count: 8, name: 'Klee · Senecio (sampled)', narrate: 'Sampling the palette.' }) },
+      ...SENECIO.OBSERVATIONS.map((say, i) => ({ say: `Method ${i + 1}. ${say}`, target: i === 0 ? 'panel:decide' : undefined, click: false })),
+      { say: 'Methods become code. First a brush for rubbed paint over gauze: an even body, worn patches of light ground or warm underpaint, and the weave of the cloth.',
+        run: async ({ app, g }) => { app.showRegions = false; app.docks.open('brushes'); await typeInto(app.brushesPanel.editor, SENECIO.SCUMBLE, g); app.brushesPanel.save(); }, target: 'panel:brushes', click: false },
+      { say: 'Then a brush for the incised line: a dark cut with a light lip beside it, slightly unsteady.',
+        run: async ({ app, g }) => { await typeInto(app.brushesPanel.editor, SENECIO.INCISED, g); app.brushesPanel.save(); } },
+      ...SENECIO.REPRO.map((st, i) => ({
+        say: st.say,
+        target: 'panel:script', click: false,
+        run: async ({ app, g }) => {
+          app.docks.open('script');
+          const ed = app.scriptPanel.editor;
+          await typeInto(ed, st.code, g, { append: i > 0 });
+          app.store.doc.title = 'Senecio: a study';
+          app.scriptPanel.run();
+          if (i === 0 && app.reference) { app.reference.visible = true; app.canvas.invalidate(); }
+        }
+      })),
+      { say: 'Checked against the painting (the reference under the sheet): the construction, the values and the accents hold. What is missing is Klee\'s hand: his planes breathe and overlap, ours stay in their cells.',
+        run: ({ app }) => { if (app.reference) { app.reference.visible = true; app.reference.opacity = 0.5; app.canvas.invalidate(); app.renderChrome(); } }, hold: 1500 },
+      { say: 'The reproduction goes to Assets, with its brushes and its score.',
+        run: async ({ app }) => { if (app.reference) { app.reference.visible = false; app.canvas.invalidate(); app.renderChrome(); } await call('ams_save', { title: 'Senecio: a study', narrate: 'Saving the study.' }); } },
+      { say: SENECIO.NOVEL.say,
+        target: 'panel:script', click: false,
+        run: async ({ app, g }) => {
+          await typeInto(app.scriptPanel.editor, SENECIO.NOVEL.code, g);
+          app.store.doc.title = SENECIO.NOVEL.prompt;
+          app.scriptPanel.run();
+        } },
+      { say: 'What transferred: the circle and grid, the rubbed warm planes, the incised lines, three small accents. The lamp room even kept a face. Saved to Assets beside the study.',
+        run: async () => { await call('ams_save', { title: SENECIO.NOVEL.prompt, narrate: 'Saving the new drawing.' }); } },
+      { say: 'Your turn: give the same task to a model in Generate or the Assistant, with Senecio as the reference, and compare its process with this one.', target: 'panel:generate', click: false }
+    ]
+  },
   {
     id: 'line-walk',
     title: 'Taking a line for a walk',

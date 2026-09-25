@@ -111,6 +111,6 @@ export function mountBrushes(root, app) {
       !builtin && BRUSHES[current]?.scope === 'library' ? h('button', { class: 'wb-btn', title: 'Delete from your library (drawings keep their copies)', onclick: () => { if (confirm(`Delete the brush “${current}” from your library?`)) { deleteLibraryBrush(current); open('ink'); } } }, 'Delete') : null,
       h('span', { class: 'wb-muted wb-small', style: { marginLeft: 'auto' } }, builtin ? 'built-in · fork to edit' : scopeOf(current)));
   };
-  app.brushesPanel = { open, get source() { return editor.value; }, setSource: v => { editor.value = v; check(); }, save };
+  app.brushesPanel = { open, editor, get source() { return editor.value; }, setSource: v => { editor.value = v; check(); }, save };
   renderBar(); check();
 }
