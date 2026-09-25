@@ -372,6 +372,9 @@ export class CanvasView {
     });
 
     c.addEventListener('pointerdown', e => {
+      // Working on the canvas takes the keyboard back from panel fields, so tool keys (V, H, P…) work.
+      const f = document.activeElement;
+      if (f && f !== document.body && f.closest?.('input, textarea, select, [contenteditable]') && !f.classList.contains('wb-note-input')) f.blur();
       if (e.button === 1 || this.space || this.getTool() === 'hand') return this.startPan(e);
       if (e.button !== 0) return;
       c.setPointerCapture(e.pointerId);

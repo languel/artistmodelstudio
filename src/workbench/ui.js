@@ -26,7 +26,7 @@ export function numberField({ value, min = -Infinity, max = Infinity, step = 1, 
   const round = v => Math.round(v / step) * step;
   const set = (v, final) => { const x = +clamp(round(v)).toFixed(6); input.value = String(x); onChange?.(x, { final }); };
   input.addEventListener('change', () => { const v = Number(input.value); if (Number.isFinite(v)) set(v, true); });
-  input.addEventListener('keydown', e => { if (e.key === 'Backspace' && e.shiftKey) { e.preventDefault(); set(def, true); } e.stopPropagation(); });
+  input.addEventListener('keydown', e => { if (e.key === 'Backspace' && e.shiftKey) { e.preventDefault(); set(def, true); } if (e.key === 'Enter' || e.key === 'Escape') input.blur(); e.stopPropagation(); });
   input.addEventListener('pointerdown', e => {
     if (document.activeElement === input) return;
     e.preventDefault();
@@ -51,7 +51,7 @@ export function numberField({ value, min = -Infinity, max = Infinity, step = 1, 
 export function selectField(options, value, onChange, title = '') {
   const sel = h('select', { class: 'wb-select', title });
   for (const [v, label] of options) sel.append(h('option', { value: v, selected: v === value }, label));
-  sel.addEventListener('change', () => onChange(sel.value));
+  sel.addEventListener('change', () => { onChange(sel.value); sel.blur(); });
   return sel;
 }
 
