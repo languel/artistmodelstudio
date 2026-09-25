@@ -177,7 +177,11 @@ export function summarize(take, { maxGap = 350, drawMax = 2200, analysisSpeed = 
     prevEnd = Math.max(prevEnd, n.start + (c.track === 'say' ? n.dur : Math.min(n.dur, 600)));
     if (c.track === 'draw' || c.track === 'say') t = Math.max(t, n.start + Math.min(n.dur, c.track === 'say' ? n.dur * 0.7 : n.dur));
   }
-  const end = Math.max(0, ...out.map(c => c.start + c.dur));
+  // A summary is never longer than half its source (at least 10 s): compress evenly if needed.
+  const srcEnd = Math.max(0, ...take.clips.map(c => c.start + c.dur));
+  let end = Math.max(0, ...out.map(c => c.start + c.dur));
+  const target = Math.max(10000, srcEnd * 0.5);
+  if (end > target) { const k = target / end; for (const c of out) { c.start = Math.round(c.start * k); c.dur = Math.max(200, Math.round(c.dur * k)); } end = target; }
   out.push({ id: clipId(), track: 'title', start: end + 200, dur: hold, text: take.title, sub: 'Summary', fx: { fade: 400 } });
   return { ...createTake({ title: `${take.title} (summary)`, baseline: take.baseline, clips: out }), source: take.title };
 }

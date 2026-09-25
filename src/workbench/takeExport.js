@@ -127,8 +127,15 @@ export function downloadProject(take) {
   download(new Blob([zip], { type: 'application/zip' }), `${slug(take.title)}-project.zip`, 'application/zip');
 }
 
-/** Record the take to video in real time (divided by rate). Resolves when the file is downloaded. */
-export async function downloadVideo(take, { rate = 1, width = 1280, fps = 30, mode = 'process', app = null } = {}) {
+/** Record the take to video and download it. */
+export async function downloadVideo(take, opts = {}) {
+  const { blob, ext } = await videoBlob(take, opts);
+  download(blob, `${slug(take.title)}${(opts.rate || 1) !== 1 ? `-${opts.rate}x` : ''}.${ext}`, blob.type);
+  opts.app?.log(`Video saved (${ext}).`);
+}
+
+/** Record the take to video in real time (divided by rate): { blob, ext }. Keep the tab visible while it runs. */
+export async function videoBlob(take, { rate = 1, width = 1280, fps = 30, mode = 'process', app = null } = {}) {
   touch(take);
   const ab = take.baseline.artboard;
   const W = width, H = Math.round((width * ab.height) / ab.width / 2) * 2;
@@ -159,6 +166,5 @@ export async function downloadVideo(take, { rate = 1, width = 1280, fps = 30, mo
   rec.stop();
   await done;
   const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-  download(new Blob(chunks, { type: mimeType.split(';')[0] }), `${slug(take.title)}${rate !== 1 ? `-${rate}x` : ''}.${ext}`, mimeType.split(';')[0]);
-  app?.log(`Video saved (${ext}).`);
+  return { blob: new Blob(chunks, { type: mimeType.split(';')[0] }), ext };
 }

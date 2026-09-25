@@ -9,7 +9,8 @@ function probeSavePlugin() {
     seeds: set => path.resolve('fixtures/seeds', set),
     distill: set => path.resolve('training', set, 'data'),
     report: set => path.resolve('training', set, 'reports'),
-    decisions: set => path.resolve('training/decisions', set)
+    decisions: set => path.resolve('training/decisions', set),
+    exports: set => path.resolve('exports', set)
   };
   return {
     name: 'ams-probe-save',
@@ -27,9 +28,9 @@ function probeSavePlugin() {
             fs.mkdirSync(dir, { recursive: true });
             for (const [name, content] of Object.entries(files)) {
               if (!/^[a-z0-9.-]+$/.test(name)) throw new Error(`bad file name ${name}`);
-              const data = content.startsWith('data:image/png;base64,')
-                ? Buffer.from(content.slice(22), 'base64')
-                : content;
+              // data: URLs (images, video) are written as binary; anything else as text.
+              const m = /^data:[^;,]+;base64,/.exec(content);
+              const data = m ? Buffer.from(content.slice(m[0].length), 'base64') : content;
               fs.writeFileSync(path.join(dir, name), data);
             }
             res.setHeader('Content-Type', 'application/json');

@@ -48,6 +48,13 @@ describe('takes', () => {
     expect(docAt(s, duration(s)).elements.map(e => e.id)).toEqual(expect.arrayContaining(['G', 'L']));
   });
 
+  it('a summary of dense narration is still shorter than the source', () => {
+    const clips = Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, track: 'say', start: i * 1800, dur: 1800, text: 'Step: block the large mass on the left, middle value, following its direction.', fx: {} }));
+    const take = createTake({ title: 'Dense', baseline: base, clips });
+    const s = summarize(take);
+    expect(duration(s)).toBeLessThanOrEqual(duration(take) * 0.5 + 2800);   // plus the closing hold
+  });
+
   it('camera eases between keyframes', () => {
     const take = createTake({ baseline: base, clips: [{ id: 'k1', track: 'camera', start: 0, dur: 0, cx: 0.5, cy: 0.5, z: 1 }, { id: 'k2', track: 'camera', start: 2000, dur: 1000, cx: 0.2, cy: 0.2, z: 2 }] });
     expect(cameraAt(take, 500).z).toBe(1);

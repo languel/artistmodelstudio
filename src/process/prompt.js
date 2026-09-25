@@ -48,7 +48,8 @@ stage('Marks', 'marks')
 point(0.72, 0.28, { size: 18, color: '#b83a22', why: 'a small warm accent against the mass' })`;
 
 export function brushSummary() {
-  return Object.entries(BRUSHES).filter(([id]) => id !== 'none').map(([id, b]) =>
+  // Built-in brushes only: a model should not borrow brushes someone wrote in their library.
+  return Object.entries(BRUSHES).filter(([id, b]) => id !== 'none' && !b.custom).map(([id, b]) =>
     `${id} (${b.roles.join('/')}): ${b.doc} Params: ${b.params.map(p => `${p.key} ${p.min}–${p.max} (default ${p.default})`).join(', ') || 'none'}`).join('\n');
 }
 
