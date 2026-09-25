@@ -68,15 +68,25 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-dock[data-dock="left"] { border-right: 1px solid var(--wb-line); }
 .wb-dock[data-dock="right"] { border-left: 1px solid var(--wb-line); }
 .wb-dock[data-dock="bottom"] { border-top: 1px solid var(--wb-line); }
-.wb-dock.collapsed { width: 0 !important; height: 0 !important; border: 0; }
+/* Collapsed: only the thickness goes to zero, so the grab edge keeps the dock's full length. */
+.wb-dock.collapsed { border: 0; z-index: 20; }
+.wb-dock.collapsed[data-dock="left"], .wb-dock.collapsed[data-dock="right"] { width: 0 !important; }
+.wb-dock.collapsed[data-dock="bottom"] { height: 0 !important; }
 .wb-dock-edge { position: absolute; z-index: 5; background: transparent; transition: background .12s; }
 .wb-dock-edge:hover { background: var(--wb-muted); }
 .wb-dock-edge-left { top: 0; bottom: 0; right: -3px; width: 5px; cursor: ew-resize; }
 .wb-dock-edge-right { top: 0; bottom: 0; left: -3px; width: 5px; cursor: ew-resize; }
 .wb-dock-edge-bottom { left: 0; right: 0; top: -3px; height: 5px; cursor: ns-resize; }
-.wb-dock.collapsed .wb-dock-edge-left { right: -5px; width: 6px; background: var(--wb-line); }
-.wb-dock.collapsed .wb-dock-edge-right { left: -5px; width: 6px; background: var(--wb-line); }
-.wb-dock.collapsed .wb-dock-edge-bottom { top: -5px; height: 6px; background: var(--wb-line); }
+/* A collapsed dock is a hidden 10px strip at the window edge; hovering shows a thick line to drag or double-click. */
+.wb-dock.collapsed .wb-dock-edge, .wb-dock.collapsed .wb-dock-edge:hover { background: transparent; }
+.wb-dock.collapsed .wb-dock-edge-left { right: -10px; width: 10px; }
+.wb-dock.collapsed .wb-dock-edge-right { left: -10px; width: 10px; }
+.wb-dock.collapsed .wb-dock-edge-bottom { top: -10px; height: 10px; }
+.wb-dock.collapsed .wb-dock-edge::after { content: ''; position: absolute; border-radius: 3px; background: var(--wb-muted); opacity: 0; transition: opacity .15s; }
+.wb-dock.collapsed .wb-dock-edge:hover::after { opacity: 0.9; }
+.wb-dock.collapsed .wb-dock-edge-left::after { left: 1px; top: 8px; bottom: 8px; width: 4px; }
+.wb-dock.collapsed .wb-dock-edge-right::after { right: 1px; top: 8px; bottom: 8px; width: 4px; }
+.wb-dock.collapsed .wb-dock-edge-bottom::after { bottom: 1px; left: 8px; right: 8px; height: 4px; }
 .wb-tabs { display: flex; gap: 2px; padding: 4px; border-bottom: 1px solid var(--wb-line); flex: none; overflow-x: auto; }
 .wb-tab { display: inline-flex; align-items: center; gap: 6px; height: var(--ctl); padding: 0 8px; border: 0; border-radius: var(--radius); background: transparent; color: var(--wb-muted); cursor: grab; white-space: nowrap; }
 .wb-tab:hover { background: var(--wb-hover); color: var(--wb-text); }

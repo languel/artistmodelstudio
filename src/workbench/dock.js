@@ -128,7 +128,7 @@ export class DockManager {
     el.innerHTML = '';
     const edge = document.createElement('div');
     edge.className = `wb-dock-edge wb-dock-edge-${dock}`;
-    edge.title = collapsed ? 'Drag or double-click to open' : 'Drag to resize; drag past the edge to collapse';
+    edge.title = collapsed ? 'Drag or double-click to open the panels' : 'Drag to resize; drag past the edge to collapse; double-click to collapse';
     this.bindEdge(edge, dock);
     el.appendChild(edge);
     if (collapsed) return;
