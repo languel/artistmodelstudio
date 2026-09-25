@@ -2,7 +2,7 @@
  * Brushes: how a path becomes marks.
  *
  * Every brush is an honest, small algorithm with explicit, bounded parameters.
- * They realise decisions; they do not make them (no composition, no colour choices
+ * They realize decisions; they do not make them (no composition, no color choices
  * beyond what the element asks for). Each parameter carries a range and a one-line
  * meaning, so the same schema drives UI controls, MCP tools and model outputs.
  *

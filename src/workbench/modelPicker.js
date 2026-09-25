@@ -29,7 +29,7 @@ async function loadModels(engineId, artist) {
     return {
       ready: Boolean(key), status: key ? `${list.length} models` : 'API key missing (Keys below)',
       groups: [
-        ['Favourites', list.filter(m => fav.has(m.id)).map(m => ({ id: m.id, name: label(m) }))],
+        ['Favorites', list.filter(m => fav.has(m.id)).map(m => ({ id: m.id, name: label(m) }))],
         ['Free', free.map(m => ({ id: m.id, name: label(m) }))],
         ['All', list.filter(m => !free.includes(m)).map(m => ({ id: m.id, name: label(m) }))]
       ]

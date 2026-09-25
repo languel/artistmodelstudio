@@ -6,7 +6,7 @@
   --ui-small: 10px;
   --ctl: 26px;
   --radius: 4px;
-  /* dark: near-greyscale */
+  /* dark: near-grayscale */
   --wb-canvas: #1b1b1b;
   --wb-grid: rgba(255, 255, 255, 0.09);
   --wb-panel: #222222;
@@ -361,7 +361,7 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-outliner-input { flex: 1; height: 20px; min-width: 0; }
 .wb-outliner-bar { margin-bottom: 4px; }
 
-/* Checkboxes: a quiet square; checked shows a filled dot in the theme colours. */
+/* Checkboxes: a quiet square; checked shows a filled dot in the theme colors. */
 input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; margin: 0 4px 0 2px; border: 1px solid var(--wb-muted); border-radius: 3px; background: transparent; display: inline-grid; place-content: center; cursor: pointer; flex: none; vertical-align: middle; }
 input[type="checkbox"]::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--wb-accent); transform: scale(0); transition: transform .1s; }
 input[type="checkbox"]:checked { border-color: var(--wb-accent); }

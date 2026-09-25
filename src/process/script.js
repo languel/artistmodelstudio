@@ -7,7 +7,7 @@
  *
  *   artboard(1000, 1000, '#f3efe6')
  *   stage('Construction', 'construction')           // later calls land in this stage
- *   decide('Where does the weight sit?', ['low left', 'centre'], 'low left', 'lower left feels heavy')
+ *   decide('Where does the weight sit?', ['low left', 'center'], 'low left', 'lower left feels heavy')
  *   guide([[0, 620], [1000, 620]], { why: 'horizon' })
  *   const path = walk({ from: [120, 700], heading: -20, steps: 60, step: 12, turn: i => sin(i / 6) * 9 })
  *   line(path, { width: 3, why: 'the active line walks toward the light' })

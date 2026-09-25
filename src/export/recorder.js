@@ -85,7 +85,7 @@ export function saveBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-// ---- GIF89a encoder (global 6×7×6 colour cube, LZW) ------------------------
+// ---- GIF89a encoder (global 6×7×6 color cube, LZW) ------------------------
 
 function gifPalette() {
   const pal = [];
@@ -151,7 +151,7 @@ export function encodeGif(frames) {
     push(0x2C); word(0); word(0); word(w); word(h); push(0);
     const idx = new Uint8Array(w * h);
     for (let i = 0, p = 0; p < idx.length; i += 4, p++) {
-      // Ordered 2×2 dither softens the colour cube's banding.
+      // Ordered 2×2 dither softens the color cube's banding.
       const x = p % w, y = (p / w) | 0;
       const dth = [0, 0.5, 0.75, 0.25][(y & 1) * 2 + (x & 1)] - 0.375;
       const a = data[i + 3] / 255;

@@ -2,12 +2,12 @@
  * Perception: what is on the reference, as structure a decision model can read.
  *
  * Deterministic computer vision, no learning:
- *   value masses   k-means on Lab colour (seeded), smoothed
+ *   value masses   k-means on Lab color (seeded), smoothed
  *   regions        connected components of the masses, small ones merged, outer
  *                  boundary traced (Moore neighbour) and simplified (RDP) to polygons
  *   per region     area, centroid, bbox, mean value (0 dark … 1 light) and class,
- *                  colour and hue name, edge density (Sobel), dominant orientation and
- *                  coherence (structure tensor), and a place name (upper left, centre …)
+ *                  color and hue name, edge density (Sobel), dominant orientation and
+ *                  coherence (structure tensor), and a place name (upper left, center …)
  * Polygons come back in artboard units (fit: cover, like the reference underlay).
  */
 
@@ -28,7 +28,7 @@ function toLab(r, g, b) {
 
 export function hueName(r, g, b) {
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 510, s = mx === mn ? 0 : (mx - mn) / (255 - Math.abs(mx + mn - 255));
-  if (s < 0.18) return l > 0.8 ? 'white' : l < 0.2 ? 'black' : 'grey';
+  if (s < 0.18) return l > 0.8 ? 'white' : l < 0.2 ? 'black' : 'gray';
   let h = 0;
   if (mx === r) h = ((g - b) / (mx - mn)) % 6; else if (mx === g) h = (b - r) / (mx - mn) + 2; else h = (r - g) / (mx - mn) + 4;
   h = (h * 60 + 360) % 360;
@@ -168,12 +168,12 @@ function rdp(pts, eps) {
 
 function place(cx, cy) {
   const v = cy < 0.34 ? 'upper' : cy > 0.66 ? 'lower' : 'middle';
-  const hz = cx < 0.34 ? 'left' : cx > 0.66 ? 'right' : 'centre';
-  return v === 'middle' && hz === 'centre' ? 'centre' : v === 'middle' ? `middle ${hz}` : `${v} ${hz}`;
+  const hz = cx < 0.34 ? 'left' : cx > 0.66 ? 'right' : 'center';
+  return v === 'middle' && hz === 'center' ? 'center' : v === 'middle' ? `middle ${hz}` : `${v} ${hz}`;
 }
 
 /**
- * Analyse an image for an artboard. Returns { masses, regions, field } where regions carry
+ * Analyze an image for an artboard. Returns { masses, regions, field } where regions carry
  * artboard-space polygons.
  */
 export function analyzeImage(img, { width = 1000, height = 1000, k = 5, seed = 7, minArea = 0.01 } = {}) {

@@ -16,7 +16,7 @@ Write a SCORE: a short JavaScript program in the vocabulary below. Running it re
 - Record real choices with decide(question, options, chosen, why).
 - Give every mark a short reason (why). Keep construction (guide, gesture) separate from marks.
 - Use loops, functions and walk() instead of listing coordinates; small rules make rich drawings.
-- The brushes only realise your paths; composition, emphasis, order and value are your decisions.
+- The brushes only realize your paths; composition, emphasis, order and value are your decisions.
 - Coordinates are artboard units, origin top-left, y down. Call artboard(w, h, ground) first.`;
 
 export function brushSummary() {

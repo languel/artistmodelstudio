@@ -27,7 +27,7 @@ const summarize = (name, a) => {
     case 'ams_assets': return a.open ? 'Opening an asset.' : 'Searching Assets.';
     case 'ams_panel': return `Opening the ${a.id} panel.`;
     case 'ams_undo': return a.redo ? 'Redo.' : 'Undo.';
-    case 'ams_analyze': return 'Analysing the reference: value masses, regions, edges and directions.';
+    case 'ams_analyze': return 'Analyzing the reference: value masses, regions, edges and directions.';
     case 'ams_decide_step': return `Asking the ${a.backend || 'current'} policy for the next step.`;
     case 'ams_decision_answer': return `Choosing: ${Object.entries(a.answers || {}).map(([k, v]) => `${k} ${v}`).join(', ')}.`;
     default: return name.replace(/^ams_/, '').replace(/_/g, ' ');
@@ -53,7 +53,7 @@ export const SHOW = {
   async ams_save(g) { await g.moveTo('menu'); },
   async ams_panel(g, a) { await g.moveTo(`tab:${a.id}`); },
   async ams_undo(g) { await g.moveTo('menu', { click: false }); },
-  async ams_analyze(g) { await g.moveTo('panel:decide'); await g.moveTo('button:analyse'); },
+  async ams_analyze(g) { await g.moveTo('panel:decide'); await g.moveTo('button:analyze'); },
   async ams_decide_step(g) { await g.moveTo('panel:decide'); await g.moveTo('button:propose'); },
   async ams_decision_answer(g, a) { await g.moveTo('panel:decide', { click: false }); if (a.apply) await g.moveTo('button:apply-step'); }
 };

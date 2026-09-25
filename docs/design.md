@@ -20,10 +20,10 @@ style and process hold, bend, dissolve, or meet other concepts.
 
 ## 2. What we learned reproducing train-to-paint
 
-The first phase of AMS reproduced *Train to paint with code* (p5.brush watercolours, a model writes the
+The first phase of AMS reproduced *Train to paint with code* (p5.brush watercolors, a model writes the
 drawing code, rewards judge the final image). Our experiments showed its limits:
 
-- **The library paints.** p5.brush supplies the watercolour look. The model only places filled shapes.
+- **The library paints.** p5.brush supplies the watercolor look. The model only places filled shapes.
 - **Only outcomes are rewarded.** A judge sees the final image. Construction is never represented or
   rewarded, so it cannot be learned.
 - **Coordinates are expensive.** Without loops, functions, or parts, a model spends its budget spelling
@@ -41,12 +41,12 @@ The infrastructure built along the way stays: the studio shell, engines and mode
 1. **Everything is a process, and processes stack.** A picture is a sequence of stages (analysis,
    concept, construction, blocking, structure, value, marks, accents). Each stage consumes and
    produces paths and fields.
-2. **Paths and realisations are different things.** A *path* is a 2D curve with a role: a stroke, a
-   region boundary, a guide, a gesture, a timeline. A *brush* realises a path through a painting
-   algorithm (flat, ink, hatching, watercolour, pixel), and can itself be a process built on paths.
+2. **Paths and realizations are different things.** A *path* is a 2D curve with a role: a stroke, a
+   region boundary, a guide, a gesture, a timeline. A *brush* realizes a path through a painting
+   algorithm (flat, ink, hatching, watercolor, pixel), and can itself be a process built on paths.
    (From AutoPaint2 / Studio Artist and the underscores modifier stack.)
 3. **The harness does not paint.** The harness provides perception (what is there) and honest
-   brushes (paths realised with explicit, bounded parameters). Composition, emphasis, order, and
+   brushes (paths realized with explicit, bounded parameters). Composition, emphasis, order, and
    value decisions come from the process. Test: remove the decisions, and the harness alone should
    produce nothing interesting.
 4. **Decisions are the data.** Every node records its stage, role, parameters, seed, a one-line
@@ -135,7 +135,7 @@ Free-form generation hides the process. Training on outcomes teaches surface tex
 - **A decision policy** answers typed questions at each step. These are TypeSafe System One questions:
   `choice`, `score` and `noul`, with calibrated probabilities. lev (LFM2.5-350M with a LoRA and a pointer
   head) is small enough to train locally in under an hour.
-- **Executors** realise each decision with brushes. They decide nothing themselves, and every mark
+- **Executors** realize each decision with brushes. They decide nothing themselves, and every mark
   carries the decisions behind it.
 - **You and the agent** confirm or override. Overrides are the labels, so taste is taught one decision at
   a time, and low confidence is where the model asks.
@@ -153,9 +153,9 @@ algorists (Mohr, Verostko).
    balance, and clusters.
 2. **Line walk**: the active line with a goal, the medial and passive lines, the line that encloses.
 3. **Line to plane**: planes by hatching, by enclosure, by fields. Brushes appear here as ways of
-   realising a plane.
+   realizing a plane.
 4. **Structural rhythm**: repetition, gradation, weight.
-5. **Algorists**: a rule system produces a family of forms, and a brush realises them.
+5. **Algorists**: a rule system produces a family of forms, and a brush realizes them.
 6. **Seeing**: gesture from pose, envelope from a mask, 3-value notan from value masses.
 
 Each exercise has a brief, constraints, checks (automatic where possible), and variations.

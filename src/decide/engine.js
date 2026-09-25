@@ -8,7 +8,7 @@
  *   agent   an external agent answers over MCP (ams_decision_pending / ams_decision_answer)
  *   you     no model: you choose every answer
  */
-import { stateText, stepQuestions, labelledRequest, STEPS } from './questions.js';
+import { stateText, stepQuestions, labeledRequest, STEPS } from './questions.js';
 
 const LABELS_KEY = 'ams_decision_labels_v1';
 const URL_KEY = 'ams_decision_url';
@@ -75,7 +75,7 @@ export class DecisionEngine {
 
   /** Ask a backend for one step's answers. */
   async propose(backend, subject) {
-    if (!this.analysis) throw new Error('Analyse a reference first');
+    if (!this.analysis) throw new Error('Analyze a reference first');
     const state = stateText({ subject, analysis: this.analysis, history: this.history });
     const questions = stepQuestions({ analysis: this.analysis, history: this.history });
     let answers = {};
@@ -101,7 +101,7 @@ export class DecisionEngine {
    * 'accepted' (you kept the model's suggestion), 'agent'.
    */
   record(proposal, final, source) {
-    const req = labelledRequest(proposal.state, proposal.questions, final, source);
+    const req = labeledRequest(proposal.state, proposal.questions, final, source);
     this.labels.push({ ...req, meta: { source, backend: proposal.backend, t: Date.now(), subject: this.app.store.doc.title, suggested: Object.fromEntries(Object.entries(proposal.answers || {}).map(([k, v]) => [k, v?.value ?? null])) } });
     this.saveLabels();
   }
@@ -141,7 +141,7 @@ export class DecisionEngine {
     return `${out.dir}/${name}`;
   }
 
-  /** JSONL in lev's labelled-request format (meta kept for bookkeeping; lev ignores extra keys). */
+  /** JSONL in lev's labeled-request format (meta kept for bookkeeping; lev ignores extra keys). */
   exportJSONL({ sources = null } = {}) {
     return this.labels.filter(l => !sources || sources.includes(l.meta?.source)).map(l => JSON.stringify({ state: l.state, questions: l.questions, meta: l.meta })).join('\n') + '\n';
   }

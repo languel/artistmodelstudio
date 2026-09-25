@@ -172,7 +172,7 @@ export class ReferencePanel {
             </select>
             <button id="live-render-opts" class="btn-micro btn-icon-only" title="Render options">${icon('adjustments', 'icon-sm')}</button></span>
           </label>
-          <label class="live-slider" title="Transparent: no ground, strokes fill the picture in. Fixed: the reference's average colour, taken at Play and on every Clear. Follow: the average of each sampled frame (can shift with live sources). Drift: eases toward that average over Ground s seconds.">
+          <label class="live-slider" title="Transparent: no ground, strokes fill the picture in. Fixed: the reference's average color, taken at Play and on every Clear. Follow: the average of each sampled frame (can shift with live sources). Drift: eases toward that average over Ground s seconds.">
             <span>Ground</span>
             <select id="live-ground">
               <option value="transparent">Transparent</option>
@@ -181,7 +181,7 @@ export class ReferencePanel {
               <option value="drift">Drift</option>
             </select>
           </label>
-          <label class="live-slider" id="ground-time-row" hidden title="Drift: seconds for the ground to ease toward the source's average colour">
+          <label class="live-slider" id="ground-time-row" hidden title="Drift: seconds for the ground to ease toward the source's average color">
             <span>Ground s</span>
             <input type="range" id="live-groundtime" min="0.5" max="60" step="0.5" value="${this.live.groundTime}" />
             <input class="num-field" id="live-groundtime-num" inputmode="decimal" value="${this.live.groundTime}" title="Type any value" />
@@ -218,7 +218,7 @@ export class ReferencePanel {
             <input type="range" id="live-opacity" min="0.1" max="1" step="0.05" value="${this.live.opacity}" />
             <input class="num-field" id="live-opacity-num" inputmode="decimal" value="${this.live.opacity}" title="Type any value from 0 to 1" />
           </label>
-          <label class="live-slider" title="Watercolor only: 0 keeps p5.brush's pale wash colour, 1 uses each stroke's fitted colour (texture is kept either way)">
+          <label class="live-slider" title="Watercolor only: 0 keeps p5.brush's pale wash color, 1 uses each stroke's fitted color (texture is kept either way)">
             <span>Pigment</span>
             <input type="range" id="live-pigment" min="0" max="1" step="0.05" value="${this.live.pigment}" />
             <input class="num-field" id="live-pigment-num" inputmode="decimal" value="${this.live.pigment}" title="Type any value from 0 to 1" />

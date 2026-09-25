@@ -70,8 +70,8 @@ export function stepQuestions({ analysis, history }) {
   };
 }
 
-/** A labelled request (lev / kev training format). */
-export function labelledRequest(state, questions, answers, src = 'ams') {
+/** A labeled request (lev / kev training format). */
+export function labeledRequest(state, questions, answers, src = 'ams') {
   const q = {};
   for (const [id, spec] of Object.entries(questions)) {
     if (answers[id] === undefined || answers[id] === null) continue;

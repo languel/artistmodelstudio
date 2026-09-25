@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { analyzeImage, describeRegion } from '../src/perception/analyze.js';
-import { stateText, stepQuestions, labelledRequest, STEPS } from '../src/decide/questions.js';
+import { stateText, stepQuestions, labeledRequest, STEPS } from '../src/decide/questions.js';
 import { BACKENDS } from '../src/decide/engine.js';
 import { applyStep } from '../src/decide/executors.js';
 import { ProcessStore, createDocument } from '../src/process/document.js';
 
-/** A 64×64 grid: dark left half, light right half, a mid-grey square in the right half. */
+/** A 64×64 grid: dark left half, light right half, a mid-gray square in the right half. */
 function grid() {
   const w = 64, h = 64, data = new Uint8ClampedArray(w * h * 4);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -55,7 +55,7 @@ describe('decisions', () => {
 
   it('writes labels in lev format, skipping unanswered questions', () => {
     const q = stepQuestions({ analysis, history: [] });
-    const req = labelledRequest('s', q, { next: 'block', value: 2, region: null }, 'you');
+    const req = labeledRequest('s', q, { next: 'block', value: 2, region: null }, 'you');
     expect(req.questions.next).toMatchObject({ type: 'choice', label: 'block', src: 'you_next' });
     expect(req.questions.value.label).toBe(2);
     expect(req.questions.region).toBeUndefined();

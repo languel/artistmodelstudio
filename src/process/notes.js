@@ -3,8 +3,8 @@
  * like handwriting in a notebook, rather than a screen overlay.
  *
  * e.note = { style: notebook | sticky | card | plain, font: hand | print | serif | sans | mono,
- *            size (artboard units), width (wrap width), bg (colour or null), angle (radians) }
- * The text colour is the element's colour.
+ *            size (artboard units), width (wrap width), bg (color or null), angle (radians) }
+ * The text color is the element's color.
  */
 export const NOTE_STYLES = {
   notebook: 'Notebook: handwriting on the page',

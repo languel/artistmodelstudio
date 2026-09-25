@@ -4,7 +4,7 @@
 
 ## Layout
 
-An infinite canvas with the artboard at its centre. Panels dock left, right or bottom, float,
+An infinite canvas with the artboard at its center. Panels dock left, right or bottom, float,
 and collapse, as in underscores:
 
 - **Tab icon:** click to activate. Drag it past a small threshold to float the panel, and drop it at an
@@ -20,7 +20,7 @@ and collapse, as in underscores:
 |---|---|
 | Stages | The process as ordered layers: show, lock, rename, kind, reorder. New marks go to the active stage. |
 | Assets | Saved processes, earlier generations, imports, and the Klee references (search, folders, stars, tags). |
-| Properties | The selection, or the current tool's defaults: role, stage, brush and its parameters, colour, the reason (why), the author. |
+| Properties | The selection, or the current tool's defaults: role, stage, brush and its parameters, color, the reason (why), the author. |
 | Score | Write or load a score (JS in the point/line/plane vocabulary). **Cmd+Enter** runs it. The exercises live here. |
 | Process | Picture or process view, stage scrub and replay, a filmstrip, decisions, reasons, the editing record, and the process sheet. |
 | Generate | Engines and models write scores. Candidates can be opened, saved, or read as scores. |
@@ -122,7 +122,7 @@ The Assistant panel runs the same loop with the model you load. Its replies are 
 
 A **System One** loop: small, fast, typed decisions, not free text.
 
-1. **Analyse reference** turns the reference into value masses and regions. Each region has a place, size,
+1. **Analyze reference** turns the reference into value masses and regions. Each region has a place, size,
    value, hue, edge activity and direction, plus a polygon. With **MediaPipe** on, you also get a figure
    region (selfie segmentation) and pose limbs, which you can add as gesture guides.
 2. **Propose step** asks the policy six questions:
@@ -134,7 +134,7 @@ A **System One** loop: small, fast, typed decisions, not free text.
    - *density* (a score).
 
    The answers come with probabilities.
-3. Click any option to override, then **Apply step**. A small executor realises the step on the region's
+3. Click any option to override, then **Apply step**. A small executor realizes the step on the region's
    geometry, and every mark records the decisions behind it as its *why*.
 4. **Run ×8** lets the policy continue. It stops for you when its confidence is below *Ask me*.
 

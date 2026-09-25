@@ -64,7 +64,7 @@ export class ContinuousFitter {
   }
 
   /**
-   * Swap in a new target (a live source frame). The ground colour changes only
+   * Swap in a new target (a live source frame). The ground color changes only
    * with ground 'follow', and then only when the mean moves noticeably, so
    * watercolor paper is not rebuilt every frame.
    */
@@ -113,7 +113,7 @@ export class ContinuousFitter {
     this.fitter.mask = mask;
   }
 
-  /** Set the ground colour to the target's mean (if it moved more than `threshold`). */
+  /** Set the ground color to the target's mean (if it moved more than `threshold`). */
   updateBackground(threshold = 0) {
     const target = this.fitter.target;
     const n = target.length / 3;
@@ -131,7 +131,7 @@ export class ContinuousFitter {
   clear() {
     this.alive = [];
     this.spawnDebt = 0;
-    this.updateBackground(); // fixed ground: re-take the colour on every Clear
+    this.updateBackground(); // fixed ground: re-take the color on every Clear
     this.driftRGB = null;
   }
 

@@ -90,7 +90,7 @@ export const WALKTHROUGHS = [
   {
     id: 'decide',
     title: 'Teaching a decision policy',
-    summary: 'Analyse a reference, let a policy propose, override it, and keep your choices as training labels.',
+    summary: 'Analyze a reference, let a policy propose, override it, and keep your choices as training labels.',
     steps: [
       { say: 'Decide treats drawing as small typed decisions: what next, where, which technique, how dark, which direction, how dense.', target: 'panel:decide', click: false },
       { say: 'First the studio looks: the reference becomes value masses and regions, each with a place, a value, a hue, edges and a direction.',

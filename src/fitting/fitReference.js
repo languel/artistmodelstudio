@@ -70,7 +70,7 @@ export class ReferenceFitter {
    * @param {Object} [opts]
    * @param {string[]} [opts.shapes] subset of SHAPE_TYPES to use
    * @param {Float32Array} [opts.start] starting canvas (e.g. a parent program's render)
-   * @param {string} [opts.background] background colour to emit when `start` is given
+   * @param {string} [opts.background] background color to emit when `start` is given
    * @param {number} [opts.precision] decimals kept in emitted coordinates (search accounts for rounding)
    * Set `mask` (Uint8Array, one entry per pixel, 0 = ignore) to fit only part of the canvas.
    */
@@ -183,13 +183,13 @@ export class ReferenceFitter {
     return { bx, by, bw, bh, a };
   }
 
-  /** Best opaque colour for this shape and the resulting change in squared error. */
+  /** Best opaque color for this shape and the resulting change in squared error. */
   score(shape) {
     const cov = this.coverage(shape);
     if (!cov) return { delta: Infinity };
     const { bx, by, bw, bh, a } = cov;
     const { target: T, current: C, w } = this;
-    // Colour minimising sum a^2 (c - (T - (1-a)C)/a)^2  → weighted mean of target under coverage
+    // Color minimising sum a^2 (c - (T - (1-a)C)/a)^2  → weighted mean of target under coverage
     const M = this.mask;
     let sw = 0, sr = 0, sg = 0, sb = 0;
     for (let y = 0; y < bh; y++) {
@@ -206,7 +206,7 @@ export class ReferenceFitter {
       }
     }
     if (sw < 1) return { delta: Infinity };
-    // Emitted colour is 8-bit hex, so score with the rounded colour.
+    // Emitted color is 8-bit hex, so score with the rounded color.
     const col = [sr / sw, sg / sw, sb / sw].map(v => clamp(Math.round(v), 0, 255));
     let delta = 0;
     for (let y = 0; y < bh; y++) {

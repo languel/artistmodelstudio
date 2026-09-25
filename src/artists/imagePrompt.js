@@ -21,7 +21,7 @@ export const usesImage = mode => mode === 'text+image' || mode === 'image' || mo
 
 export const IMAGE_ONLY_PROMPT = 'the attached reference image';
 
-export const DESCRIBE_INSTRUCTION = 'Describe this image as a prompt for an artist who will redraw it with simple shapes: subject, composition (what is where), main colours, and style, in one or two sentences. Reply with the prompt only.';
+export const DESCRIBE_INSTRUCTION = 'Describe this image as a prompt for an artist who will redraw it with simple shapes: subject, composition (what is where), main colors, and style, in one or two sentences. Reply with the prompt only.';
 
 export const IMAGE_NOTE = 'A reference image is attached: use its composition, placement and palette (in the canvas coordinates above) while following the text.';
 

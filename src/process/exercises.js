@@ -19,9 +19,9 @@ guide([[400, 0], [400, 800]], { why: 'vertical axis: warm/cold, left/right' })
 guide([[0, 400], [800, 400]], { why: 'horizontal axis: light above, heavy below' })
 
 stage('Concept', 'concept')
-const where = decide('Where does the weight sit?', ['high right', 'centre', 'low left'], 'low left',
+const where = decide('Where does the weight sit?', ['high right', 'center', 'low left'], 'low left',
   'below and left the point sinks and gathers weight')
-const [x, y] = { 'high right': [560, 230], centre: [400, 400], 'low left': [250, 590] }[where]
+const [x, y] = { 'high right': [560, 230], center: [400, 400], 'low left': [250, 590] }[where]
 
 stage('Marks', 'marks')
 point(x, y, { size: 90, why: 'the only element: its size and place are the whole composition' })
@@ -111,7 +111,7 @@ note(20, 20, 'Line becomes plane when it closes. Change seed(3) and compare shap
   {
     id: 'value-by-hatching',
     title: 'Line to plane: three values by hatching',
-    brief: 'State three values (light, middle, dark) using only lines. Value comes from spacing and crossing, not from colour.',
+    brief: 'State three values (light, middle, dark) using only lines. Value comes from spacing and crossing, not from color.',
     source: `artboard(1000, 420, '#f4f0e8')
 
 stage('Construction', 'construction')
@@ -151,7 +151,7 @@ note(60, 40, 'Change the law of change: what happens to the reading speed?')`
   {
     id: 'algorist-family',
     title: 'Algorist: a family of forms',
-    brief: 'After Mohr and Verostko: one rule produces a family of forms; the realisation (the brush) is separate from the rule. Vary the seed, keep the rule.',
+    brief: 'After Mohr and Verostko: one rule produces a family of forms; the realization (the brush) is separate from the rule. Vary the seed, keep the rule.',
     source: `artboard(1000, 1000, '#f3efe6')
 
 stage('Rule', 'concept')

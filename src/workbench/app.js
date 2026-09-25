@@ -1,6 +1,6 @@
 /**
  * Artist Model Studio workbench: an infinite canvas with an artboard, dockable panels,
- * and the process document at the centre. Everything the user can do is also a
+ * and the process document at the center. Everything the user can do is also a
  * command (see mcp.js), so agents drive the same surface.
  */
 import { ProcessStore, createDocument, normalizeDocument, DEFAULT_REALIZE, ROLES } from '../process/document.js';

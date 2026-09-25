@@ -4,7 +4,7 @@
  */
 import { ASCII_RAMPS, PIXEL_PALETTES, RAMP_LABELS, ASCII_FONTS } from '../fitting/stylize.js';
 
-const PALETTE_LABELS = { full: 'Full colour', pico8: 'PICO-8', gameboy: 'Game Boy', cga: 'CGA', bit1: '1-bit', gray8: 'Grayscale 8' };
+const PALETTE_LABELS = { full: 'Full color', pico8: 'PICO-8', gameboy: 'Game Boy', cga: 'CGA', bit1: '1-bit', gray8: 'Grayscale 8' };
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
@@ -48,7 +48,7 @@ export class MediumOptions {
         <label class="live-slider" title="Cells on the long side"><span>Cells</span>
           <input type="range" id="mo-cells" min="8" max="256" step="1" value="${s.pixelCells}" />
           <input class="num-field" id="mo-cells-num" inputmode="numeric" value="${s.pixelCells}" /></label>
-        <label class="live-slider" title="Snap colours to a palette"><span>Palette</span>
+        <label class="live-slider" title="Snap colors to a palette"><span>Palette</span>
           <select id="mo-palette">${Object.keys(PIXEL_PALETTES).map(k => `<option value="${k}" ${k === s.pixelPalette ? 'selected' : ''}>${PALETTE_LABELS[k]}</option>`).join('')}</select></label>
         <label class="live-slider" title="Faint cell grid, for reference only (not saved)"><span>Grid</span>
           <input type="checkbox" id="mo-pgrid" ${s.pixelGrid ? 'checked' : ''} /></label>
@@ -65,8 +65,8 @@ export class MediumOptions {
         <label class="live-slider" title="Characters across"><span>Columns</span>
           <input type="range" id="mo-cols" min="16" max="240" step="1" value="${s.asciiCols}" />
           <input class="num-field" id="mo-cols-num" inputmode="numeric" value="${s.asciiCols}" /></label>
-        <label class="live-slider" title="Colour: characters tinted by the picture. Mono: one ink colour."><span>Colour</span>
-          <select id="mo-color"><option value="color" ${s.asciiColor === 'color' ? 'selected' : ''}>Colour</option><option value="mono" ${s.asciiColor === 'mono' ? 'selected' : ''}>Mono</option></select></label>
+        <label class="live-slider" title="Color: characters tinted by the picture. Mono: one ink color."><span>Color</span>
+          <select id="mo-color"><option value="color" ${s.asciiColor === 'color' ? 'selected' : ''}>Color</option><option value="mono" ${s.asciiColor === 'mono' ? 'selected' : ''}>Mono</option></select></label>
         <label class="live-slider" title="On: bright areas get dense characters (dark ground). Off: dark areas do (light ground)."><span>Invert</span>
           <select id="mo-invert"><option value="1" ${s.asciiInvert ? 'selected' : ''}>On (dark ground)</option><option value="0" ${s.asciiInvert ? '' : 'selected'}>Off (light ground)</option></select></label>
         <label class="live-slider" title="Faint character-cell grid, for reference only (not saved)"><span>Grid</span>

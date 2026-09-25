@@ -30,7 +30,7 @@ export function buildCommands(app) {
   for (const w of app.walkthroughs.list()) out.push(cmd('Walkthrough', w.title, () => app.walkthroughs.start(w.id), '', w.summary));
   for (const t of app.docsTopics?.() || []) out.push(cmd('Docs', t.title, () => app.openDocs(t.id), '', t.summary));
   out.push(
-    cmd('Decide', 'Analyse reference', () => { app.docks.open('decide'); app.decidePanel?.analyse(); }),
+    cmd('Decide', 'Analyze reference', () => { app.docks.open('decide'); app.decidePanel?.analyze(); }),
     cmd('Decide', 'Propose step', () => { app.docks.open('decide'); app.decidePanel?.propose(); }),
     cmd('Agent', 'How did you do that? (replay last agent session)', () => window.ams.callTool('ams_sessions', { action: 'replay' }))
   );

@@ -1,10 +1,10 @@
 /**
  * Decide: the process as a sequence of typed decisions.
  *
- * 1. Analyse the reference (value masses, regions, edges, directions; optional MediaPipe).
+ * 1. Analyze the reference (value masses, regions, edges, directions; optional MediaPipe).
  * 2. A backend (lev, rules, agent, or you) answers the step questions with probabilities.
  * 3. Low confidence → the card waits for you; otherwise it can run on its own.
- * 4. The step is realised by an executor, and your final choices become training labels.
+ * 4. The step is realized by an executor, and your final choices become training labels.
  */
 import { h, row, numberField, section, download } from '../ui.js';
 import { icon } from '../icons.js';
@@ -43,11 +43,11 @@ export function mountDecide(root, app) {
     ctx.restore();
   };
 
-  const analyse = async ({ k = 5, mediapipe = false } = {}) => {
+  const analyze = async ({ k = 5, mediapipe = false } = {}) => {
     if (!app.reference?.img) throw new Error('Open an image as the reference first (Assets, or Menu → Open)');
     const ab = app.store.doc.artboard;
     eng.analysis = analyzeImage(app.reference.img, { width: ab.width, height: ab.height, k });
-    // Keep the step history when re-analysing the same reference for the same drawing.
+    // Keep the step history when re-analyzing the same reference for the same drawing.
     let saved = null;
     try { saved = JSON.parse(ls(SESSION_KEY) || 'null'); } catch { /* ignore */ }
     eng.history = saved && saved.ref === app.reference.title && saved.title === app.store.doc.title ? saved.history : [];
@@ -61,7 +61,7 @@ export function mountDecide(root, app) {
     }
     app.showRegions = true;
     app.canvas.invalidate();
-    app.log(`Analysed the reference: ${eng.analysis.regions.length} regions, ${eng.analysis.masses.length} value masses.`);
+    app.log(`Analyzed the reference: ${eng.analysis.regions.length} regions, ${eng.analysis.masses.length} value masses.`);
     render();
     return eng.analysis;
   };
@@ -134,7 +134,7 @@ export function mountDecide(root, app) {
         h('div', { class: 'wb-opts' }, ...opts)));
     }
     box.append(h('div', { class: 'wb-row wb-row-actions' },
-      h('button', { class: 'wb-btn primary', 'data-guide': 'button:apply-step', title: 'Realise the step. Your choices are kept as training labels.', onclick: () => apply() }, 'Apply step'),
+      h('button', { class: 'wb-btn primary', 'data-guide': 'button:apply-step', title: 'Realize the step. Your choices are kept as training labels.', onclick: () => apply() }, 'Apply step'),
       h('button', { class: 'wb-btn', onclick: () => { proposal = null; final = {}; render(); } }, 'Skip')));
     return box;
   };
@@ -150,10 +150,10 @@ export function mountDecide(root, app) {
     const mp = h('input', { type: 'checkbox', title: 'Also run MediaPipe pose and figure segmentation' });
     body.replaceChildren(...[
       h('div', { class: 'wb-row wb-row-actions' },
-        h('button', { class: 'wb-btn', 'data-guide': 'button:analyse', html: `${icon('picture')}<span>Analyse reference</span>`, onclick: () => analyse({ mediapipe: mp.checked }).catch(e => status(e.message)) }),
+        h('button', { class: 'wb-btn', 'data-guide': 'button:analyze', html: `${icon('picture')}<span>Analyze reference</span>`, onclick: () => analyze({ mediapipe: mp.checked }).catch(e => status(e.message)) }),
         h('label', { class: 'wb-row' }, mp, h('span', {}, 'MediaPipe')),
         a ? h('label', { class: 'wb-row' }, h('input', { type: 'checkbox', checked: app.showRegions, onchange: e => { app.showRegions = e.target.checked; app.canvas.invalidate(); } }), h('span', {}, 'Regions')) : null),
-      a ? h('div', { class: 'wb-muted wb-small' }, `${a.regions.length} regions · masses ${a.masses.map(m => `${Math.round(m.lightness * 100)}:${Math.round(m.share * 100)}%`).join(' ')}${a.poses?.length ? ` · ${a.poses.length} pose(s)` : ''}`) : h('div', { class: 'wb-muted wb-small', title: 'Open an image from Assets as the reference, then Analyse' }, app.reference ? app.reference.title : 'No reference'),
+      a ? h('div', { class: 'wb-muted wb-small' }, `${a.regions.length} regions · masses ${a.masses.map(m => `${Math.round(m.lightness * 100)}:${Math.round(m.share * 100)}%`).join(' ')}${a.poses?.length ? ` · ${a.poses.length} pose(s)` : ''}`) : h('div', { class: 'wb-muted wb-small', title: 'Open an image from Assets as the reference, then Analyze' }, app.reference ? app.reference.title : 'No reference'),
       a?.poses?.length ? h('button', { class: 'wb-btn', onclick: () => addPoseGuides(app, a) }, 'Add pose as gesture guides') : null,
       row('Policy', backendSel),
       backend === 'lev' ? row('Server', urlInput) : null,
@@ -174,7 +174,7 @@ export function mountDecide(root, app) {
           h('button', { class: 'wb-btn', onclick: () => { if (confirm('Delete all decision labels?')) { eng.labels = []; eng.saveLabels(); render(); } } }, 'Clear')))
     ].filter(Boolean));
   };
-  app.decidePanel = { analyse, propose, apply, runAuto, setBackend: b => { backend = b; ls('ams_decide_backend', b); render(); }, get proposal() { return proposal; }, setFinal: (v) => { Object.assign(final, v); render(); } };
+  app.decidePanel = { analyze, propose, apply, runAuto, setBackend: b => { backend = b; ls('ams_decide_backend', b); render(); }, get proposal() { return proposal; }, setFinal: (v) => { Object.assign(final, v); render(); } };
   app.on('decision-pending', () => render());
   render();
 }

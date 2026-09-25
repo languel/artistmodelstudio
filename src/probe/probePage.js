@@ -1,7 +1,7 @@
 /**
  * Reference probe page: fits each reference with Core DSL shapes, verifies the
  * program through the real FlatCanvasMedium, and compares against a flat
- * mean-colour baseline and the text-only procedural artist.
+ * mean-color baseline and the text-only procedural artist.
  *
  * URL params: ?set=klee&shapes=300&size=200&seed=1&only=<reference id>&save=1
  * (save=1 writes programs, images and report.json to fixtures/seeds/<set>/ via the dev server)
@@ -124,7 +124,7 @@ async function runOne(ref) {
   sctx.drawImage(textRender.canvas, (dw + 8) * 2, 0);
 
   const counts = program.actions.reduce((m, a) => ((m[a.op] = (m[a.op] || 0) + 1), m), {});
-  status.textContent = `${fitter.shapes.length} shapes in ${seconds.toFixed(1)} s. RMSE (0–255, lower is closer): fitted ${finalRMSE.toFixed(1)} · text-only ${text.rmse.toFixed(1)} · flat mean colour ${flatRMSE.toFixed(1)}`;
+  status.textContent = `${fitter.shapes.length} shapes in ${seconds.toFixed(1)} s. RMSE (0–255, lower is closer): fitted ${finalRMSE.toFixed(1)} · text-only ${text.rmse.toFixed(1)} · flat mean color ${flatRMSE.toFixed(1)}`;
 
   const fig = (canvasOrSrc, caption) => {
     const node = canvasOrSrc instanceof HTMLCanvasElement ? canvasOrSrc : el('img', { src: canvasOrSrc, width: dw, height: dh });

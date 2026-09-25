@@ -8,8 +8,8 @@
  *   <g data-ams-op="brush.bleed" data-ams-args='{…}'/>         ops SVG can't draw
  *   pixel-grid ops (pixel, hline, vline) keep their fields in data-ams-args;
  *   their geometry (x, y, width) is read back from the SVG.
- * Geometry and colours always come from the SVG itself, so edits in any SVG
- * editor carry over: moved/resized shapes, new colours, deleted or added shapes
+ * Geometry and colors always come from the SVG itself, so edits in any SVG
+ * editor carry over: moved/resized shapes, new colors, deleted or added shapes
  * (circle, ellipse, rect, line, polygon, polyline, simple M/L/Z paths).
  *
  * svgToProgram: the reverse; returns { program, warnings }. No DOM needed.

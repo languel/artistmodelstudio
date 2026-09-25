@@ -17,7 +17,7 @@ import { SHOW, revealScore, SessionRecorder, summarize, READ_ONLY } from './show
 const S = (properties = {}, required = []) => ({ type: 'object', properties, required });
 const str = d => ({ type: 'string', description: d });
 const num = d => ({ type: 'number', description: d });
-const PRINCIPLES = `You are drawing in Artist Model Studio. The picture is a process: name your stages (analysis → concept → construction → structure → value → marks → notes), record decisions with decide(), and give every mark a short reason (why). The harness does not paint for you: brushes only realise your paths. Keep construction (guides, gestures) separate from marks. Coordinates are artboard units (origin top-left).`;
+const PRINCIPLES = `You are drawing in Artist Model Studio. The picture is a process: name your stages (analysis → concept → construction → structure → value → marks → notes), record decisions with decide(), and give every mark a short reason (why). The harness does not paint for you: brushes only realize your paths. Keep construction (guides, gestures) separate from marks. Coordinates are artboard units (origin top-left).`;
 
 export function workbenchTools(app) {
   const doc = () => app.store.doc;
@@ -51,7 +51,7 @@ export function workbenchTools(app) {
       return f === 'svg' ? { svg: toSVG(doc()) } : f === 'excalidraw' ? toExcalidraw(doc()) : f === 'p5' ? { sketch: toP5(doc()) } : doc();
     } },
     { name: 'ams_set', description: 'Replace the process document (JSON).', inputSchema: S({ doc: { type: 'object' } }, ['doc']), run: (a) => { app.loadDocument(a.doc, 'agent set'); return { ok: true }; } },
-    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color, why, text (notes).', inputSchema: S({ role: str('Role'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Colour'), why: str('Reason'), text: str('Note text'), by: { type: 'object' } }, ['role', 'points']), run: (a) => {
+    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color, why, text (notes).', inputSchema: S({ role: str('Role'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), by: { type: 'object' } }, ['role', 'points']), run: (a) => {
       const st = doc().stages.find(s => s.id === a.stage || s.name === a.stage) || app.activeStage;
       a.points = normalizePoints(a.points);
       const el = app.store.addElement({ role: a.role, stage: st.id, points: a.points.map((p, i) => [p[0], p[1], p[2] ?? i * 16, p[3] ?? 0.5]), realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, why: a.why, text: a.text, by: a.by || { kind: 'model', name: 'agent' } }, { by: 'agent' });
@@ -120,12 +120,12 @@ export function workbenchTools(app) {
       if (a.open !== undefined && list[a.open]?.doc) app.loadDocument(structuredClone(list[a.open].doc), 'open candidate');
       return list.map((c, i) => ({ index: i, prompt: c.prompt, engine: c.engine, model: c.model, exercise: c.exercise, stages: c.doc?.stages.length, elements: c.doc?.elements.length, error: c.error || null, attempts: c.attempts, seconds: c.seconds }));
     } },
-    { name: 'ams_analyze', description: 'Decide panel: analyse the reference image (value masses, regions with place/value/hue/edges/direction, optional MediaPipe pose and figure). Returns a compact description of the regions.', inputSchema: S({ mediapipe: { type: 'boolean' }, k: num('Value/colour clusters (3-8, default 5)') }), run: async (a) => {
+    { name: 'ams_analyze', description: 'Decide panel: analyze the reference image (value masses, regions with place/value/hue/edges/direction, optional MediaPipe pose and figure). Returns a compact description of the regions.', inputSchema: S({ mediapipe: { type: 'boolean' }, k: num('Value/color clusters (3-8, default 5)') }), run: async (a) => {
       const d = decide(app);
-      const an = await d.analyse({ mediapipe: !!a.mediapipe, k: a.k || 5 });
+      const an = await d.analyze({ mediapipe: !!a.mediapipe, k: a.k || 5 });
       return { regions: an.regions.map(describeRegion), masses: an.masses, poses: an.poses?.length || 0 };
     } },
-    { name: 'ams_decide_step', description: 'Decide panel: ask a policy (rules, lev, agent, you) for the next step (next, region, technique, value, direction, density) with probabilities. apply:true realises it at once; otherwise the card waits and you may override with ams_decision_answer. With backend "agent" the questions wait for ams_decision_answer.', inputSchema: S({ backend: str('rules | lev | agent | you'), apply: { type: 'boolean' } }), run: async (a) => {
+    { name: 'ams_decide_step', description: 'Decide panel: ask a policy (rules, lev, agent, you) for the next step (next, region, technique, value, direction, density) with probabilities. apply:true realizes it at once; otherwise the card waits and you may override with ams_decision_answer. With backend "agent" the questions wait for ams_decision_answer.', inputSchema: S({ backend: str('rules | lev | agent | you'), apply: { type: 'boolean' } }), run: async (a) => {
       const d = decide(app);
       if (a.backend) d.setBackend(a.backend);
       if (a.backend === 'agent') { d.propose().catch(e => app.log(e.message, 'error')); await new Promise(r => setTimeout(r, 50)); return pendingView(app); }
@@ -135,7 +135,7 @@ export function workbenchTools(app) {
       return view;
     } },
     { name: 'ams_decision_pending', description: 'The state and typed questions currently waiting for an answer (backend "agent"), or null.', inputSchema: S({}), run: () => pendingView(app) },
-    { name: 'ams_decision_answer', description: 'Answer the step questions: {next, region, technique, value (0 light-2 dark), direction, density (0-4)}. Answers a waiting agent request, or overrides the proposal on the card. apply:true realises the step.', inputSchema: S({ answers: { type: 'object' }, apply: { type: 'boolean' } }, ['answers']), run: async (a) => {
+    { name: 'ams_decision_answer', description: 'Answer the step questions: {next, region, technique, value (0 light-2 dark), direction, density (0-4)}. Answers a waiting agent request, or overrides the proposal on the card. apply:true realizes the step.', inputSchema: S({ answers: { type: 'object' }, apply: { type: 'boolean' } }, ['answers']), run: async (a) => {
       const d = decide(app);
       const eng = app.decider;
       if (eng.pending) { eng.answerPending(a.answers, 'agent'); await new Promise(r => setTimeout(r, 30)); }

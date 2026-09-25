@@ -45,7 +45,7 @@ export function squareTarget(image, size = FIT_SIZE) {
 
 /**
  * Place an image into a w×h canvas (cover / contain / stretch, see
- * referenceSource.letterbox). Contain pads with the image's mean colour.
+ * referenceSource.letterbox). Contain pads with the image's mean color.
  */
 export function fitTarget(image, w, h, fit = 'contain') {
   return letterbox(image, w, h, fit);

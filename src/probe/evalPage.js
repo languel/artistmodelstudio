@@ -9,12 +9,12 @@
  *   oracle       Reference Fitter on the painting itself (sees the image; an upper bound)
  *   random-train a random training-split fit at the same budget (ignores the prompt)
  *   procedural   the text-only MockArtist
- *   flat-mean    one flat colour (the painting's mean)
+ *   flat-mean    one flat color (the painting's mean)
  *
  * Metrics (lower is better unless noted):
  *   rmse         pixel RMSE, 0–255
- *   layout       RMSE after downsampling both images to 8×8 (composition and colour placement)
- *   palette      1 − histogram intersection of 4×4×4 colour histograms (0 = same palette)
+ *   layout       RMSE after downsampling both images to 8×8 (composition and color placement)
+ *   palette      1 − histogram intersection of 4×4×4 color histograms (0 = same palette)
  *   valid        share of non-empty output lines that parse (higher is better)
  *   usable       share of generations with ≥1 shape and ≥90% valid lines (higher is better)
  *   rank         where the true painting ranks among all held-out paintings when sorted by

@@ -251,7 +251,7 @@ export class CanvasView {
         for (const el of this.store.doc.elements) if (notes.has(el.id)) el.note = { ...(el.note || {}), angle: notes.get(el.id).angle + a };
         return;
       }
-      // Scale about the opposite side or corner (Alt: about the centre).
+      // Scale about the opposite side or corner (Alt: about the center).
       const ax = ev.altKey ? cx : hd.hx < 0 ? b.x1 : b.x0, ay = ev.altKey ? cy : hd.hy < 0 ? b.y1 : b.y0;
       const hx0 = hd.hx < 0 ? b.x0 : b.x1, hy0 = hd.hy < 0 ? b.y0 : b.y1;
       // Move the grabbed edge by the pointer's travel (the frame is padded, so not to the pointer itself).

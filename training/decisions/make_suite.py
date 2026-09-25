@@ -2,7 +2,7 @@
 
 A lev suite is a directory with train / calibration / development / test JSONL partitions and a
 manifest.json that lev's loader checks (sha256, record and question counts per file, the pinned base
-revision, and which sources may be trained on). Each record is a labelled request with a _meta block:
+revision, and which sources may be trained on). Each record is a labeled request with a _meta block:
 
     {"state": "...", "questions": {id: {type, instructions, criteria, label, src}}, "_meta": {id, group_id, source, ...}}
 
@@ -122,7 +122,7 @@ def main():
     a = ap.parse_args()
     records = load(a.labels, set(a.sources.split(",")) if a.sources else None)
     if not records:
-        raise SystemExit("No labelled records found (check --sources).")
+        raise SystemExit("No labeled records found (check --sources).")
     out = split(records, [float(x) for x in a.ratios.split(",")], a.seed)
     out["train"] = [dict(r, _meta={**r["_meta"], "id": f'{r["_meta"]["id"]}#{i}' if i else r["_meta"]["id"]}) for i in range(a.repeat) for r in out["train"]]
     trainable = [SOURCE]

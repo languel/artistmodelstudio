@@ -1,6 +1,6 @@
 /**
  * Properties: the selected element(s), or the current tool's defaults when nothing is selected.
- * Every field is part of the record: role, stage, brush and its parameters, colour,
+ * Every field is part of the record: role, stage, brush and its parameters, color,
  * the reason ("why"), and who made it.
  */
 import { h, row, numberField, selectField, section, esc } from '../ui.js';
@@ -33,7 +33,7 @@ export function mountProperties(el, app) {
         patchAll({ role: v, realize: { brush, params: {} }, closed: v === 'plane' ? true : e.closed }, 'role');
       }), ROLES[e.role]),
       row('Stage', selectField(app.store.doc.stages.map(s => [s.id, s.name]), e.stage, v => patchAll({ stage: v }, 'stage'))),
-      row('Colour', h('input', { type: 'color', class: 'wb-color', value: e.color || '#1d1b19', onchange: ev => patchAll({ color: ev.target.value }, 'colour') })),
+      row('Color', h('input', { type: 'color', class: 'wb-color', value: e.color || '#1d1b19', onchange: ev => patchAll({ color: ev.target.value }, 'color') })),
       e.role === 'note' ? row('Text', noteText(e, v => patchAll({ text: v }, 'note'))) : null
     ));
     if (e.role === 'note') el.append(noteSection(noteProps(e), patch => {
@@ -58,7 +58,7 @@ export function mountProperties(el, app) {
     const d = app.defaults(tool);
     el.append(h('div', { class: 'wb-panel-title' }, `New ${tool}`, h('span', { class: 'wb-muted' }, ' · defaults')));
     el.append(section('Element', true,
-      row('Colour', h('input', { type: 'color', class: 'wb-color', value: d.color || '#1d1b19', onchange: ev => app.setDefaults(tool, { color: ev.target.value }) }))
+      row('Color', h('input', { type: 'color', class: 'wb-color', value: d.color || '#1d1b19', onchange: ev => app.setDefaults(tool, { color: ev.target.value }) }))
     ));
     if (tool === 'note') el.append(noteSection(noteProps({ note: d.note, color: d.color, points: [] }), patch => app.setDefaults(tool, { note: patch })));
     else el.append(brushSection(tool, d.realize, realize => app.setDefaults(tool, { realize }), app.store.doc));
@@ -79,7 +79,7 @@ function lookSection(e, onChange) {
     row('Blend', selectField(BLENDS.map(b => [b, b]), e.blend || 'normal', v => onChange({ blend: v }), 'How the element mixes with what is under it')));
 }
 
-/** Notes: style, lettering, size, wrap width, background. The text colour is the element's colour. */
+/** Notes: style, lettering, size, wrap width, background. The text color is the element's color. */
 function noteSection(p, onChange) {
   const bg = h('input', { type: 'color', class: 'wb-color', value: p.bg || '#fbe9a6', title: 'Background', onchange: ev => onChange({ bg: ev.target.value }) });
   return section('Note', true,

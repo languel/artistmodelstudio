@@ -14,13 +14,13 @@ reference ──► perception (regions, values, edges, direction, MediaPipe)
                  ▼                                   ▼
           you confirm / override  ◄──── probabilities, confidence
                  │
-                 ├──► executor realises the step as marks (each with its why)
+                 ├──► executor realizes the step as marks (each with its why)
                  └──► label (ams-decisions.jsonl) ──► make_suite.py ──► lev train
 ```
 
 ## 1. Collect labels
 
-In the workbench: **Decide** → *Analyse reference* → *Propose step* → click options to
+In the workbench: **Decide** → *Analyze reference* → *Propose step* → click options to
 override → *Apply step*. Each applied step is one label:
 
 | source     | meaning                                                         |

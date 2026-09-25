@@ -34,7 +34,7 @@ describe('SVG export', () => {
     expect(svg).toContain('<polyline');
   });
 
-  it('round-trips geometry, colours and unsupported ops', () => {
+  it('round-trips geometry, colors and unsupported ops', () => {
     const { program, warnings } = svgToProgram(programToSvg(prog, { width: 800, height: 600 }));
     expect(warnings).toEqual([]);
     const ops = program.actions.map(a => a.op);

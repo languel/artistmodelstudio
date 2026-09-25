@@ -2,7 +2,7 @@
  * Pixel and ASCII looks for any painting.
  *
  * Both draw the painting small, on a grid shaped to the view, then:
- *   pixel  enlarge with hard edges, optionally snapping colours to a palette
+ *   pixel  enlarge with hard edges, optionally snapping colors to a palette
  *   ascii  map each cell's brightness to a character from a ramp (dark → light
  *          on a light ground is reversed automatically by `invert`), drawn in a
  *          monospace font. Cells are taller than wide (CELL_ASPECT), like real
@@ -201,7 +201,7 @@ function drawGrid(ctx, x, y, w, h, cols, rows) {
 /**
  * Draw a painting at (x, y, w, h) in pixel or ASCII style.
  * @param paint  (ctx, x, y, w, h) => void, draws the painting into the given rect
- * @param ground colour behind ASCII characters (null = leave transparent)
+ * @param ground color behind ASCII characters (null = leave transparent)
  */
 export function drawStylized(ctx, kind, x, y, w, h, paint, style = DEFAULT_STYLE, ground = null) {
   const s = Object.assign({}, DEFAULT_STYLE, style);

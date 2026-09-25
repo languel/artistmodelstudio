@@ -10,7 +10,7 @@
  * Render 'pixel' and 'ascii' draw the flat painting through stylize.js
  * (drawStylized must be in scope; the studio passes it in as opts.stylize).
  *
- * With cf.ground === 'transparent' no ground colour or paper is painted (the
+ * With cf.ground === 'transparent' no ground color or paper is painted (the
  * layered watercolor keeps its paper, which is part of its painting).
  *
  * Shared by the studio's live preview and the continuous p5 export, which

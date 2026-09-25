@@ -4,7 +4,7 @@
  * A full p5.brush repaint of ~150 shapes takes about a second, far too slow to
  * redraw every frame. Instead each stroke is painted once, when it is born
  * (~5 ms), onto p5.brush's canvas, which keeps its paint between calls; old
- * paint fades under a thin wash of paper colour every `washEvery` seconds, set
+ * paint fades under a thin wash of paper color every `washEvery` seconds, set
  * so a stroke keeps `retention` of its strength after one full cycle. If
  * something else painted with p5.brush meanwhile (the studio's watercolor
  * medium), the canvas was discarded, so the layer repaints the living shapes.
@@ -89,7 +89,7 @@ export function retentionFor(fadeOut) {
  * p5.brush cannot fade one stroke inside its canvas, so each stroke is painted
  * once on white paper and once on black with the same seed (p5.brush output
  * is deterministic per seed), and the pair gives exact per-pixel opacity and
- * colour: alpha = 1 - (white - black), colour = black / alpha. The result is
+ * color: alpha = 1 - (white - black), color = black / alpha. The result is
  * cached as a small image covering the stroke's bounds plus a bleed margin,
  * and every frame draws the paper and then each living stroke at its current
  * opacity, the same envelope the flat renderer uses.
@@ -111,7 +111,7 @@ export class WatercolorSprites {
     this.readCtx = this.read.getContext('2d', { willReadFrequently: true });
     this.sprites = new Map(); // stroke id -> { canvas, x, y }
     this.opacity = 1;   // fill opacity passed to p5.brush for new strokes
-    this.pigment = 0.6; // 0 = colour as p5.brush paints it on white, 1 = the stroke's fitted colour
+    this.pigment = 0.6; // 0 = color as p5.brush paints it on white, 1 = the stroke's fitted color
     this.paper = null;
     this.background = null;
   }
@@ -159,8 +159,8 @@ export class WatercolorSprites {
     const black = this.pass('#000000', actions, seed, r);
     const out = new ImageData(r.bw, r.bh);
     const d = out.data;
-    // p5.brush paints a pale, translucent wash of the fill colour; Pigment pulls the
-    // recovered colour back toward the fitted colour while keeping the brush texture.
+    // p5.brush paints a pale, translucent wash of the fill color; Pigment pulls the
+    // recovered color back toward the fitted color while keeping the brush texture.
     const k = Math.min(1, Math.max(0, this.pigment));
     const [fr, fg, fb] = s.rgb;
     for (let i = 0; i < d.length; i += 4) {
@@ -178,7 +178,7 @@ export class WatercolorSprites {
     return { canvas, x: r.bx, y: r.by };
   }
 
-  /** Paper texture in the ground colour; repainted only when that colour moves noticeably. */
+  /** Paper texture in the ground color; repainted only when that color moves noticeably. */
   ensurePaper(cf) {
     if (this.paper && this.background) {
       const a = [1, 3, 5].map(i => parseInt(this.background.slice(i, i + 2), 16));

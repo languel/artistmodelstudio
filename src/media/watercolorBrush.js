@@ -23,7 +23,7 @@ export function paintWatercolor(brush, canvas, actions, { seed = 42, defaultBlee
   const warnings = [];
   const width = canvas.width;
   const height = canvas.height;
-  // p5.brush uses WebGL coordinates: (0, 0) is the centre of the canvas.
+  // p5.brush uses WebGL coordinates: (0, 0) is the center of the canvas.
   const toX = x => x * (width * 0.5);
   const toY = y => y * (height * 0.5);
   const toSize = v => v * 0.5 * Math.min(width, height);

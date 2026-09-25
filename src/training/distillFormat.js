@@ -6,7 +6,7 @@
  * Program text is a strict subset of the AMS text DSL:
  *   background #rrggbb
  *   fill #rrggbb
- *   rect x y w h          (centre, size; canvas spans -1..1)
+ *   rect x y w h          (center, size; canvas spans -1..1)
  *   circle x y d
  *   polygon x1,y1 x2,y2 x3,y3
  */
@@ -18,7 +18,7 @@ export const DISTILL_SYSTEM = [
   'rect x y w h',
   'circle x y d',
   'polygon x1,y1 x2,y2 x3,y3',
-  'The canvas runs from -1 to 1 on both axes (y grows downward). rect and circle take a centre point; w, h and d are sizes on the same scale.',
+  'The canvas runs from -1 to 1 on both axes (y grows downward). rect and circle take a center point; w, h and d are sizes on the same scale.',
   'Start with background, then put a fill before every shape. Paint large shapes first and details last.'
 ].join('\n');
 

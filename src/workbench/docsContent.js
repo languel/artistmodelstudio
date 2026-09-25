@@ -75,7 +75,7 @@ export function docTopics(app) {
     T('start-what', 'Getting started', 'What Artist Model Studio is', 'Creative coding for AI: teaching models to draw the way we teach people.', () => prose(`
 Artist Model Studio is a training ground for **teaching models to draw and paint the way we teach humans**: through process, not finished images. It borrows from Klee's *Pedagogical Sketchbook*, Kandinsky's *Point and Line to Plane*, the algorists (Mohr, Verostko) and William Ngan's *Taking a line for a walk*.
 
-A picture here is a **process document**: stages in order (analysis, concept, construction, structure, value, marks, notes), each mark with a role (point, line, plane, guide, gesture, note), a brush that realises it, a reason (*why*) and an author (you, a script, a model, a policy).
+A picture here is a **process document**: stages in order (analysis, concept, construction, structure, value, marks, notes), each mark with a role (point, line, plane, guide, gesture, note), a brush that realizes it, a reason (*why*) and an author (you, a script, a model, a policy).
 
 ## Three layers
 1. **The process document**: the canonical record, portable as JSON, SVG and p5.js.
@@ -91,7 +91,7 @@ Training on finished images teaches surface texture. The studio keeps every step
 3. **Look at the process.** Process view shows construction and notes; scrub or replay the stages in the Process panel.
 4. **Keep it.** Cmd+S saves to Assets (IndexedDB) with tags and folders; export PNG, SVG, p5.js, Excalidraw or JSON.
 5. **Ask models.** Generate asks an engine (Ollama, WebGPU, OpenRouter, an agent) for scores; the Assistant chats and acts through the studio's tools, visibly.
-6. **Decide.** Analyse a reference and let a policy propose each step; your overrides become training labels.
+6. **Decide.** Analyze a reference and let a policy propose each step; your overrides become training labels.
 7. **Train.** Keep the labels as a dataset in Assets, export JSONL, and train a local lev policy (Seeing and deciding → Training).`)),
 
     T('start-walkthroughs', 'Getting started', 'Walkthroughs', 'Guided lessons and tours, played with the real controls.', () => h('div', {},
@@ -112,7 +112,7 @@ Training on finished images teaches surface texture. The studio keeps every step
 | Cmd+Z / Shift+Cmd+Z | Undo / redo (everything, including loads and agent actions) |
 | Cmd+S | Save to Assets |
 | Cmd+G / Shift+Cmd+G | Group / ungroup the selection (clicking a grouped mark selects its group; Cmd-click selects one) |
-| Drag a frame corner | Scale (Shift keeps proportions, Alt scales from the centre) |
+| Drag a frame corner | Scale (Shift keeps proportions, Alt scales from the center) |
 | Drag a frame side | Stretch in one direction |
 | Just inside (or outside) a corner | Rotate (Shift snaps to 15°) |
 | Cmd+Enter | Run the score |
@@ -128,7 +128,7 @@ The canvas is infinite: doodle around the artboard. Only the artboard is the pic
 |---|---|---|
 | point | a mark at a place: weight, tension, rhythm | dot |
 | line | a point that moved: its time and pressure are recorded | ink |
-| plane | an enclosed area, realised as tone, hatching or stipple | flat |
+| plane | an enclosed area, realized as tone, hatching or stipple | flat |
 | guide | construction: axes, proportions (process view only) | guide |
 | gesture | the movement behind a form (process view only) | guide |
 | note | writing on the process (process view only) | none |
@@ -139,10 +139,10 @@ Construction (guides, gestures, notes) is never part of the picture: it shows in
 Every element has an **opacity** and a **blend mode** (multiply, screen, overlay, darken, lighten, difference…) in Properties → Look, on top of its brush. Both carry into SVG exports.
 
 ## Notes
-Notes are writing on the page, in artboard units. Styles: **notebook** (handwriting straight on the paper), **sticky**, **index card**, **plain**. Choose the font (handwriting, printed hand, serif, sans, mono), size, wrap width and paper colour in Properties; the text colour is the note's colour. On the canvas, drag a side of a note to re-wrap it, a corner to scale the lettering, and just inside a corner to rotate it.`)),
+Notes are writing on the page, in artboard units. Styles: **notebook** (handwriting straight on the paper), **sticky**, **index card**, **plain**. Choose the font (handwriting, printed hand, serif, sans, mono), size, wrap width and paper color in Properties; the text color is the note's color. On the canvas, drag a side of a note to re-wrap it, a corner to scale the lettering, and just inside a corner to rotate it.`)),
 
     T('draw-brushes', 'Drawing', 'Brushes', 'What each brush does, with its parameters.', () => h('div', {},
-      prose('A brush only realises a path: it never decides where marks go. Parameters are in Properties; the same values are options in a score (`line(pts, {brush: "hatch", spacing: 8})`).'),
+      prose('A brush only realizes a path: it never decides where marks go. Parameters are in Properties; the same values are options in a score (`line(pts, {brush: "hatch", spacing: 8})`).'),
       brushTable(['dot', 'ink', 'flat', 'hatch', 'stipple', 'guide']))),
 
     T('draw-lines', 'Drawing', 'Line forms and your own lines', 'After William Ngan: whose line is it? Line forms from the walk\'s speed, and defineLine.', () => h('div', {},
@@ -188,9 +188,9 @@ The **Process** panel scrubs and replays the stages, shows a filmstrip, the deci
         h('button', { class: 'wb-btn', onclick: () => { app.docks.open('script'); app.scriptPanel?.setSource(e.source); app.scriptPanel?.run(); } }, 'Load'))))),
 
     T('see-perception', 'Seeing and deciding', 'Perception', 'How the studio looks at a reference: values, regions, edges, direction, MediaPipe.', () => prose(`
-**Analyse reference** (Decide panel) reduces the reference to what a drawing teacher points at:
+**Analyze reference** (Decide panel) reduces the reference to what a drawing teacher points at:
 
-- **Value masses**: k-means in Lab colour, the share of the picture at each lightness.
+- **Value masses**: k-means in Lab color, the share of the picture at each lightness.
 - **Regions**: connected areas after smoothing, each with its place (upper left… lower right), size, value (light / middle / dark), hue name, edge activity (Sobel) and direction (structure tensor: orientation and coherence), and an outline polygon on the artboard.
 - **MediaPipe** (optional, loaded from the CDN): a figure region from selfie segmentation and pose limbs, which can become gesture guides.
 
@@ -208,7 +208,7 @@ Each step asks six typed questions, in TypeSafe *System One* form:
 | direction | choice | follow, across, vertical, horizontal, diagonal |
 | density | score | very sparse … very dense |
 
-A **policy** answers with probabilities: **Rules** (a transparent baseline), **lev / kev** (a local server), **Agent** (over MCP), or **You**. Click any option to override, then **Apply step**: a small executor realises the step on the region, and every mark records the decisions behind it. **Run ×8** continues until the policy is less confident than *Ask me*.
+A **policy** answers with probabilities: **Rules** (a transparent baseline), **lev / kev** (a local server), **Agent** (over MCP), or **You**. Click any option to override, then **Apply step**: a small executor realizes the step on the region, and every mark records the decisions behind it. **Run ×8** continues until the policy is less confident than *Ask me*.
 
 ## Labels
 What you choose (*you*), what you accept after looking (*accepted*) and what an agent answers (*agent*) become labels in lev's format. Steps a policy applies alone are not labels. Keep them with **Save to Assets** (a dataset you can reopen and export), **Export JSONL**, or in development **Save to project**.`)),
@@ -242,7 +242,7 @@ The classic studio's estimator for LoRA training of language models (scores, cap
 |---|---|---|
 | Ollama | local server | any model you pulled; thinking is turned off for speed |
 | WebGPU | in the browser | small ONNX models (e.g. LFM2.5) via transformers.js; first use downloads the weights |
-| OpenRouter | hosted | favourites, free models and vision models (marked · image) |
+| OpenRouter | hosted | favorites, free models and vision models (marked · image) |
 | OpenAI-compatible | any server | LM Studio, llama.cpp, vLLM, MLX servers |
 | Agent | an MCP client | Claude Code or another agent writes the answer (ams_pending / ams_answer) |
 

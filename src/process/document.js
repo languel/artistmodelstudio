@@ -2,7 +2,7 @@
  * Process document: the canonical record of how a picture is made.
  *
  * Paths with a role (point, line, plane, guide, gesture, note), grouped into ordered
- * stages, each realised by a brush, each carrying its reason and provenance.
+ * stages, each realized by a brush, each carrying its reason and provenance.
  * Decisions (question, options, chosen, why) are kept alongside.
  *
  * Coordinates are artboard units (0..width, 0..height). Points are [x, y, t, p]:
@@ -20,7 +20,7 @@ export const BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lig
 export const ROLES = Object.freeze({
   point: 'A mark at a place: tension depends on where it sits (Kandinsky).',
   line: 'A point that moved (Klee: a line going for a walk).',
-  plane: 'An enclosed area: realised by fill, hatching, or a field.',
+  plane: 'An enclosed area: realized by fill, hatching, or a field.',
   guide: 'Construction that is not part of the picture: axes, horizons, envelopes.',
   gesture: 'The movement behind a form: often drawn first, often hidden later.',
   note: 'A written annotation: reasons, critique, questions.'

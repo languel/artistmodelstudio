@@ -216,7 +216,7 @@ export class SourceSampler {
 /**
  * Place a drawable into a w×h canvas when aspects differ:
  *   cover    crop to fill (nothing outside the reference is sampled)
- *   contain  whole reference, padded with its mean colour; the returned canvas
+ *   contain  whole reference, padded with its mean color; the returned canvas
  *            has `contentRect` {x, y, w, h} (0–1) marking the reference area
  *   stretch  fill by distorting
  */

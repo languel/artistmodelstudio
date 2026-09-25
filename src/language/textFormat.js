@@ -144,7 +144,7 @@ export function textToProgram(text) {
     // Whole-line comments ("# …" or "// …") become comment actions, kept in the program.
     const whole = line.match(/^(?:#|\/\/)\s?(.*)$/);
     if (whole) { actions.push({ op: 'comment', text: whole[1].trim() }); continue; }
-    // Inline notes: "circle 0 0 0.3  # the sun" (a # followed by a space, so colours are safe).
+    // Inline notes: "circle 0 0 0.3  # the sun" (a # followed by a space, so colors are safe).
     let note = null;
     const inline = line.match(/\s(?:#|\/\/)\s+(.*)$/);
     if (inline) { note = inline[1].trim(); line = line.slice(0, inline.index).trim(); }

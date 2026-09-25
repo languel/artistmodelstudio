@@ -154,8 +154,8 @@ function toX(x) { return view.x + (x + 1) * 0.5 * view.w; }
 function toY(y) { return view.y + (y + 1) * 0.5 * view.h; }
 function toSize(s) { return s * 0.5 * Math.min(view.w, view.h); }
 
-// Invalid colours (e.g. a stray edit) are skipped, as the studio's canvas does.
-// p5 2.x only throws when a bad colour is drawn, so check the string up front.
+// Invalid colors (e.g. a stray edit) are skipped, as the studio's canvas does.
+// p5 2.x only throws when a bad color is drawn, so check the string up front.
 function isValidColor(value) {
   return typeof value === 'string' && typeof CSS !== 'undefined' && CSS.supports('color', value);
 }
@@ -344,7 +344,7 @@ export function buildIndexHtml(title, { brush = true } = {}) {
     #ams-panel button:hover { background: #2f323a; }
     #ams-panel button:disabled { opacity: 0.4; cursor: default; }
     #ams-panel span { min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
-    /* Continuous player: a card of labelled controls, like the studio's Reference tab */
+    /* Continuous player: a card of labeled controls, like the studio's Reference tab */
     #ams-panel:has(.ams-control) { left: auto; right: 14px; transform: none; width: 300px; flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 12px; }
     .ams-row { display: flex; gap: 6px; }
     .ams-control { display: grid; grid-template-columns: 72px 1fr 80px; align-items: center; gap: 8px; }
@@ -726,16 +726,16 @@ function keyPressed() {
 const CONTROLS = [
   ['render', 'Render', 'select', [['flat', 'Flat'], ['watercolor', 'Watercolor'], ['layered', 'Watercolor, layered'], ['pixel', 'Pixel'], ['ascii', 'ASCII']], 'W'],
   ['pixelCells', 'Cells', 'range', [8, 256, 1, 2, 1024], 'Pixel cells on the long side'],
-  ['pixelPalette', 'Palette', 'select', [['full', 'Full colour'], ['pico8', 'PICO-8'], ['gameboy', 'Game Boy'], ['cga', 'CGA'], ['bit1', '1-bit'], ['gray8', 'Grayscale 8']], 'Snap pixel colours to a palette'],
+  ['pixelPalette', 'Palette', 'select', [['full', 'Full color'], ['pico8', 'PICO-8'], ['gameboy', 'Game Boy'], ['cga', 'CGA'], ['bit1', '1-bit'], ['gray8', 'Grayscale 8']], 'Snap pixel colors to a palette'],
   ['pixelGrid', 'Grid', 'select', [['false', 'Off'], ['true', 'On']], 'Faint cell grid for reference'],
   ['asciiRamp', 'Chars', 'select', [['standard', 'Standard'], ['detailed', 'Detailed (70)'], ['blocks', 'Blocks'], ['dots', 'Dots'], ['minimal', 'Minimal'], ['binary', 'Binary'], ['box', 'Box lines'], ['slashes', 'Slashes'], ['tetragram', 'Tetragrams'], ['cp437', 'Code page 437'], ['petscii', 'PETSCII blocks'], ['braille', 'Braille (2x4)'], ['sextants', 'Teletext sextants (2x3)'], ['quadrants', 'Quadrants (2x2)'], ['custom', 'Custom']], 'Characters from sparse to dense'],
   ['asciiCustom', 'Custom', 'text', null, 'Your own characters, sparse to dense (start with a space)'],
   ['asciiFont', 'Font', 'select', [['system', 'System mono'], ['jetbrains', 'JetBrains Mono'], ['ibmplex', 'IBM Plex Mono'], ['firacode', 'Fira Code'], ['sourcecode', 'Source Code Pro'], ['spacemono', 'Space Mono'], ['courier', 'Courier Prime'], ['vt323', 'VT323 (terminal)'], ['pressstart', 'Press Start 2P (8-bit)'], ['menlo', 'Menlo'], ['courierNew', 'Courier New']], 'Monospace font (web fonts need a connection)'],
   ['asciiCols', 'Columns', 'range', [16, 240, 1, 4, 600], 'Characters across'],
-  ['asciiColor', 'Colour', 'select', [['color', 'Colour'], ['mono', 'Mono']], 'Tinted characters or one ink colour'],
+  ['asciiColor', 'Color', 'select', [['color', 'Color'], ['mono', 'Mono']], 'Tinted characters or one ink color'],
   ['asciiGrid', 'Grid', 'select', [['false', 'Off'], ['true', 'On']], 'Faint character-cell grid for reference'],
   ['asciiInvert', 'Invert', 'select', [['true', 'On (dark ground)'], ['false', 'Off (light ground)']], 'On: bright areas get dense characters'],
-  ['ground', 'Ground', 'select', [['transparent', 'Transparent'], ['fixed', 'Fixed'], ['follow', 'Follow'], ['drift', 'Drift']], 'Transparent: no ground. Fixed: average colour at start and on Clear. Follow: tracks the source. Drift: eases toward it over Ground s'],
+  ['ground', 'Ground', 'select', [['transparent', 'Transparent'], ['fixed', 'Fixed'], ['follow', 'Follow'], ['drift', 'Drift']], 'Transparent: no ground. Fixed: average color at start and on Clear. Follow: tracks the source. Drift: eases toward it over Ground s'],
   ['groundTime', 'Ground s', 'range', [0.5, 60, 0.5, 0.05, Infinity], 'Drift: seconds to ease toward the source average'],
   ['mode', 'Style', 'select', [['strokes', 'Strokes'], ['fade', 'Fade']], 'M'],
   ['density', 'Density', 'range', [10, 800, 10, 1, Infinity], 'Shapes alive at once ([ ])'],
@@ -743,7 +743,7 @@ const CONTROLS = [
   ['fadeIn', 'Fade in', 'range', [0, 0.5, 0.05, 0, 1], 'How gradually each shape appears'],
   ['fadeOut', 'Fade out', 'range', [0, 0.5, 0.05, 0, 1], 'How gradually each shape disappears'],
   ['opacity', 'Opacity', 'range', [0.1, 1, 0.05, 0, 1], 'Stroke strength at full life'],
-  ['pigment', 'Pigment', 'range', [0, 1, 0.05, 0, 1], 'Watercolor: 0 pale wash, 1 fitted colour'],
+  ['pigment', 'Pigment', 'range', [0, 1, 0.05, 0, 1], 'Watercolor: 0 pale wash, 1 fitted color'],
   ['shapes', 'Shapes', 'select', [['mixed', 'Mixed'], ['rect', 'Rectangles'], ['circle', 'Circles'], ['triangle', 'Triangles']], 'Shape vocabulary'],
   ['overlay', 'Overlay', 'select', [['off', 'Off'], ['under', 'Under'], ['over', 'Over'], ['solo', 'Solo']], 'Reference (O)'],
   ['refOpacity', 'Ref opacity', 'range', [0, 1, 0.05, 0, 1], 'Reference opacity for Under and Over']

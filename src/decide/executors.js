@@ -1,7 +1,7 @@
 /**
  * Executors: turn one step's answers into marks. They are honest and small: the
  * decisions (what, where, how, how dark, which way, how dense) come from the policy;
- * the executor only realises them on the chosen region's geometry. Every mark records
+ * the executor only realizes them on the chosen region's geometry. Every mark records
  * the decisions that produced it as its reason.
  */
 import { VALUES, DENSITIES } from './questions.js';
