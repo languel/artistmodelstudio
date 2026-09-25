@@ -111,9 +111,15 @@ Training on finished images teaches surface texture. The studio keeps every step
 | R | Reference underlay on / off |
 | Cmd+Z / Shift+Cmd+Z | Undo / redo (everything, including loads and agent actions) |
 | Cmd+S | Save to Assets |
+| Cmd+G / Shift+Cmd+G | Group / ungroup the selection (clicking a grouped mark selects its group; Cmd-click selects one) |
+| Drag a frame corner | Scale (Shift keeps proportions, Alt scales from the centre) |
+| Drag a frame side | Stretch in one direction |
+| Just inside (or outside) a corner | Rotate (Shift snaps to 15°) |
 | Cmd+Enter | Run the score |
 | Cmd+B, Opt+Cmd+B, Shift+Cmd+B | Toggle the left, right and bottom docks |
 | ? | Docs |
+
+The **Outliner** lists every mark by stage and group: click to select (Shift for a range, Cmd to toggle), double-click to rename, drag to reorder or move into another stage or group, and hide, lock or delete from the row (acting on the whole selection when the row is part of it).
 
 The canvas is infinite: doodle around the artboard. Only the artboard is the picture. Panels dock left, right or bottom, float and collapse; drag a tab to move it.`)),
 

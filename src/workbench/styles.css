@@ -338,3 +338,25 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 /* Docs fill the dock; the contents and the article scroll on their own. */
 .wb-dock-content:has(> .wb-panel-body > .wb-docs) { overflow: hidden; }
 .wb-panel-body:has(> .wb-docs) { height: 100%; box-sizing: border-box; padding-bottom: 8px; }
+
+/* Outliner (after underscores) */
+.wb-outliner { display: flex; flex-direction: column; outline: none; user-select: none; }
+.wb-outliner-row { display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 4px 0 calc(4px + var(--depth, 0) * 14px); border-radius: 5px; cursor: default; position: relative; }
+.wb-outliner-row:hover { background: var(--wb-on); }
+.wb-outliner-row.selected { background: color-mix(in srgb, var(--wb-select) 22%, transparent); }
+.wb-outliner-row.hidden .wb-outliner-label { opacity: 0.45; }
+.wb-outliner-row.dragging { opacity: 0.4; }
+.wb-outliner-row[data-drop="before"] { box-shadow: inset 0 2px 0 var(--wb-select); }
+.wb-outliner-row[data-drop="after"] { box-shadow: inset 0 -2px 0 var(--wb-select); }
+.wb-outliner-row[data-drop="inside"] { outline: 1px solid var(--wb-select); outline-offset: -1px; }
+.wb-outliner-stage { font-weight: 600; margin-top: 2px; }
+.wb-outliner-stage.active .wb-outliner-stage-name::after { content: ' ●'; font-size: 8px; color: var(--wb-muted); vertical-align: middle; }
+.wb-outliner-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-outliner-glyph { width: 14px; text-align: center; color: var(--wb-muted); flex: none; }
+.wb-outliner-caret { width: 14px; border: 0; background: none; color: var(--wb-muted); padding: 0; cursor: pointer; flex: none; font-size: 10px; }
+.wb-outliner-count { font-size: 11px; min-width: 16px; text-align: right; }
+.wb-outliner-toggle { opacity: 0; width: 20px; height: 20px; }
+.wb-outliner-row:hover .wb-outliner-toggle, .wb-outliner-toggle.off, .wb-outliner-toggle.on { opacity: 0.85; }
+.wb-outliner-toggle.danger:hover { color: #c0563f; }
+.wb-outliner-input { flex: 1; height: 20px; min-width: 0; }
+.wb-outliner-bar { margin-bottom: 4px; }

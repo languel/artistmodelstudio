@@ -62,7 +62,7 @@ export function toSVG(doc, { mode = 'process' } = {}) {
   installLines(doc);
   for (const s of doc.stages) {
     out.push(`  <g data-ams-stage="${esc(s.id)}" data-ams-name="${esc(s.name)}" data-ams-kind="${esc(s.kind)}"${s.visible ? '' : ' display="none"'}>`);
-    for (const e of doc.elements.filter(x => x.stage === s.id)) {
+    for (const e of doc.elements.filter(x => x.stage === s.id && !x.hidden)) {
       const brush = BRUSHES[e.realize.brush] || BRUSHES.ink;
       const construction = brush.construction || e.role === 'guide' || e.role === 'gesture' || e.role === 'note';
       const ctx = new SvgContext();

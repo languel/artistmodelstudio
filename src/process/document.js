@@ -77,6 +77,7 @@ export function normalizeDocument(doc) {
   d.elements = (d.elements || []).map(e => normalizeElement(e, stageIds.has(e.stage) ? e.stage : d.stages[0].id));
   d.decisions = d.decisions || [];
   d.lines = d.lines && typeof d.lines === 'object' ? d.lines : {};
+  d.groups = d.groups && typeof d.groups === 'object' ? d.groups : {};
   installLines(d);
   return d;
 }
@@ -95,7 +96,11 @@ export function normalizeElement(e, stage) {
     why: e.why || '',
     by: e.by || { kind: 'user', name: 'you' },
     seed: e.seed ?? Math.floor(Math.random() * 1e9),
-    created: e.created || Date.now()
+    created: e.created || Date.now(),
+    ...(e.label ? { label: String(e.label) } : {}),
+    ...(e.group ? { group: String(e.group) } : {}),
+    ...(e.hidden ? { hidden: true } : {}),
+    ...(e.locked ? { locked: true } : {})
   };
 }
 
@@ -179,6 +184,57 @@ export class ProcessStore {
       Object.assign(e, patch);
       if (patch.realize) e.realize = { ...e.realize, ...patch.realize, params: { ...e.realize.params, ...(patch.realize.params || {}) } };
       return e;
+    }, opts);
+  }
+
+  /** Set fields (label, hidden, locked, group, stage…) on several elements at once; null removes a field. */
+  patchElements(ids, patch, label = 'edit', opts) {
+    const set = new Set(ids);
+    return this.change(label, d => {
+      for (const e of d.elements) if (set.has(e.id)) for (const [k, v] of Object.entries(patch)) { if (v === null || v === false) delete e[k]; else e[k] = v; }
+    }, opts);
+  }
+
+  /** Group elements under a new group (named); returns the group id. */
+  group(ids, name = null, opts) {
+    return this.change('group', d => {
+      const id = newId('group');
+      d.groups = d.groups || {};
+      d.groups[id] = { name: name || `Group ${Object.keys(d.groups).length + 1}` };
+      const set = new Set(ids);
+      for (const e of d.elements) if (set.has(e.id)) e.group = id;
+      return id;
+    }, opts);
+  }
+
+  ungroup(ids, opts) {
+    const set = new Set(ids);
+    return this.change('ungroup', d => {
+      for (const e of d.elements) if (set.has(e.id)) delete e.group;
+      const used = new Set(d.elements.map(e => e.group).filter(Boolean));
+      for (const g of Object.keys(d.groups || {})) if (!used.has(g)) delete d.groups[g];
+    }, opts);
+  }
+
+  renameGroup(id, name, opts) { return this.change('rename group', d => { if (d.groups?.[id]) d.groups[id].name = name; }, opts); }
+
+  /**
+   * Move elements before another element (or to the end of a stage), optionally into its group.
+   * Order in the elements array is the drawing order within a stage.
+   */
+  reorder(ids, { before = null, stage = null, group } = {}, opts) {
+    return this.change('reorder', d => {
+      const set = new Set(ids);
+      const moving = d.elements.filter(e => set.has(e.id));
+      d.elements = d.elements.filter(e => !set.has(e.id));
+      const target = before ? d.elements.find(e => e.id === before) : null;
+      for (const e of moving) {
+        if (target) e.stage = target.stage; else if (stage) e.stage = stage;
+        if (group !== undefined) { if (group) e.group = group; else delete e.group; }
+      }
+      let at = target ? d.elements.indexOf(target) : -1;
+      if (at < 0) { const st = moving[0]?.stage; const last = d.elements.map(e => e.stage).lastIndexOf(st); at = last + 1; }
+      d.elements.splice(at, 0, ...moving);
     }, opts);
   }
 

@@ -124,6 +124,7 @@ export class CanvasView {
         mode: 'process', transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, ground: false
       });
     }
+    this.drawFrame(ctx, css.getPropertyValue('--wb-select').trim() || '#8a8a8a');
     if (this.marquee) {
       const [x0, y0] = this.toScreen(this.marquee.x0, this.marquee.y0), [x1, y1] = this.toScreen(this.marquee.x1, this.marquee.y1);
       ctx.save();
@@ -159,8 +160,144 @@ export class CanvasView {
   }
 
   editable(e) {
+    if (e.hidden || e.locked) return false;
     const s = this.store.doc.stages.find(x => x.id === e.stage);
     return s && s.visible && !s.locked;
+  }
+
+  // ---- transform frame ---------------------------------------------------------------
+  /** World bounds of the selection (points and notes padded so small marks get a usable frame). */
+  selectionBounds() {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const e of this.store.doc.elements) {
+      if (!this.selected.has(e.id)) continue;
+      for (const [x, y] of e.points) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    }
+    if (!Number.isFinite(x0)) return null;
+    return { x0, y0, x1, y1 };
+  }
+
+  /** Screen-space frame around the selection, with a minimum size so handles stay apart. */
+  frame() {
+    const b = this.selectionBounds();
+    if (!b) return null;
+    let [l, t] = this.toScreen(b.x0, b.y0), [r, btm] = this.toScreen(b.x1, b.y1);
+    const pad = 8;
+    l -= pad; t -= pad; r += pad; btm += pad;
+    if (r - l < 24) { const c = (l + r) / 2; l = c - 12; r = c + 12; }
+    if (btm - t < 24) { const c = (t + btm) / 2; t = c - 12; btm = c + 12; }
+    return { l, t, r, b: btm, world: b };
+  }
+
+  /**
+   * What the pointer is over: a corner (scale both axes), a side (scale one), just inside a
+   * corner (rotate), or nothing. hx / hy: -1 left/top, 1 right/bottom, 0 not on that axis.
+   */
+  handleAt(sx, sy) {
+    if (this.getTool() !== 'select' || !this.selected.size) return null;
+    const f = this.frame();
+    if (!f) return null;
+    const near = 7, ring = 22;
+    for (const hx of [-1, 1]) for (const hy of [-1, 1]) {
+      const cx = hx < 0 ? f.l : f.r, cy = hy < 0 ? f.t : f.b;
+      const dx = (sx - cx) * -hx, dy = (sy - cy) * -hy;   // positive = inside the frame
+      if (Math.abs(dx) <= near && Math.abs(dy) <= near) return { kind: 'scale', hx, hy };
+      if (dx > near * 0.5 && dy > near * 0.5 && dx < ring && dy < ring) return { kind: 'rotate', hx, hy };
+      if (dx < -near * 0.5 && dy < -near * 0.5 && dx > -ring && dy > -ring) return { kind: 'rotate', hx, hy };
+    }
+    if (sy > f.t + near && sy < f.b - near) for (const hx of [-1, 1]) if (Math.abs(sx - (hx < 0 ? f.l : f.r)) <= 5) return { kind: 'scale', hx, hy: 0 };
+    if (sx > f.l + near && sx < f.r - near) for (const hy of [-1, 1]) if (Math.abs(sy - (hy < 0 ? f.t : f.b)) <= 5) return { kind: 'scale', hx: 0, hy };
+    return null;
+  }
+
+  cursorFor(hd) {
+    if (!hd) return null;
+    if (hd.kind === 'rotate') return ROTATE_CURSOR;
+    if (hd.hx && hd.hy) return hd.hx === hd.hy ? 'nwse-resize' : 'nesw-resize';
+    return hd.hx ? 'ew-resize' : 'ns-resize';
+  }
+
+  startTransform(e, hd) {
+    const f = this.frame();
+    const b = f.world;
+    const before = JSON.stringify(this.store.doc);
+    const originals = new Map(this.store.doc.elements.filter(el => this.selected.has(el.id)).map(el => [el.id, el.points.map(p => p.slice())]));
+    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    const [wx0, wy0] = this.toWorld(...this.local(e));
+    const a0 = Math.atan2(wy0 - cy, wx0 - cx);
+    let changed = false;
+    this.pointer = true;
+    this.transforming = hd;
+    const apply = fn => {
+      for (const el of this.store.doc.elements) {
+        const o = originals.get(el.id);
+        if (o) el.points = o.map(([x, y, t, p]) => { const [nx, ny] = fn(x, y); return [nx, ny, t, p]; });
+      }
+      changed = true;
+      this.invalidate();
+    };
+    const mv = ev => {
+      const [x, y] = this.toWorld(...this.local(ev));
+      if (hd.kind === 'rotate') {
+        let a = Math.atan2(y - cy, x - cx) - a0;
+        if (ev.shiftKey) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
+        const c = Math.cos(a), s = Math.sin(a);
+        this.transformLabel = `${Math.round((a * 180) / Math.PI)}°`;
+        apply((px, py) => [cx + (px - cx) * c - (py - cy) * s, cy + (px - cx) * s + (py - cy) * c]);
+        return;
+      }
+      // Scale about the opposite side or corner (Alt: about the centre).
+      const ax = ev.altKey ? cx : hd.hx < 0 ? b.x1 : b.x0, ay = ev.altKey ? cy : hd.hy < 0 ? b.y1 : b.y0;
+      const hx0 = hd.hx < 0 ? b.x0 : b.x1, hy0 = hd.hy < 0 ? b.y0 : b.y1;
+      let sx = hd.hx && hx0 !== ax ? (x - ax) / (hx0 - ax) : 1;
+      let sy = hd.hy && hy0 !== ay ? (y - ay) / (hy0 - ay) : 1;
+      if (hd.hx && hd.hy && ev.shiftKey) { const k = Math.max(Math.abs(sx), Math.abs(sy)); sx = Math.sign(sx || 1) * k; sy = Math.sign(sy || 1) * k; }
+      if (!Number.isFinite(sx)) sx = 1;
+      if (!Number.isFinite(sy)) sy = 1;
+      this.transformLabel = `${Math.round(sx * 100)}% × ${Math.round(sy * 100)}%`;
+      apply((px, py) => [ax + (px - ax) * sx, ay + (py - ay) * sy]);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+      this.pointer = false; this.transforming = null; this.transformLabel = null;
+      if (changed) this.store.commitFrom(before, hd.kind === 'rotate' ? 'rotate' : 'scale');
+      this.invalidate();
+    };
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+  }
+
+  drawFrame(ctx, color) {
+    if (this.getTool() !== 'select' || !this.selected.size || this.marquee) return;
+    const f = this.frame();
+    if (!f) return;
+    const hd = this.transforming || this.hoverHandle;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = hd ? 0.9 : 0.35;
+    if (this.selected.size > 1 || hd) ctx.strokeRect(Math.round(f.l) + 0.5, Math.round(f.t) + 0.5, Math.round(f.r - f.l), Math.round(f.b - f.t));
+    if (hd) {
+      // Only when the pointer is near: small corner ticks, and the active handle filled.
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--wb-panel').trim() || '#222';
+      for (const [x, y, hx, hy] of [[f.l, f.t, -1, -1], [f.r, f.t, 1, -1], [f.l, f.b, -1, 1], [f.r, f.b, 1, 1]]) {
+        const on = hd.hx === hx && hd.hy === hy;
+        ctx.beginPath(); ctx.rect(x - 3.5, y - 3.5, 7, 7);
+        if (on && hd.kind === 'scale') { ctx.fillStyle = color; ctx.fill(); } else { ctx.fill(); ctx.stroke(); }
+      }
+      if (hd.kind === 'scale' && (!hd.hx || !hd.hy)) {
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        if (hd.hx) { const x = hd.hx < 0 ? f.l : f.r; ctx.moveTo(x, f.t + 8); ctx.lineTo(x, f.b - 8); } else { const y = hd.hy < 0 ? f.t : f.b; ctx.moveTo(f.l + 8, y); ctx.lineTo(f.r - 8, y); }
+        ctx.stroke();
+      }
+      if (this.transformLabel) {
+        ctx.font = '11px Inter, sans-serif'; ctx.fillStyle = color;
+        ctx.fillText(this.transformLabel, f.r + 8, f.b + 14);
+      }
+    }
+    ctx.restore();
   }
 
   hitTest(wx, wy) {
@@ -201,9 +338,12 @@ export class CanvasView {
 
     c.addEventListener('pointermove', e => {
       if (this.pointer) return;
-      const [wx, wy] = this.toWorld(...this.local(e));
+      const [sx, sy] = this.local(e);
+      const [wx, wy] = this.toWorld(sx, sy);
       const tool = this.getTool();
-      const h = tool === 'select' ? this.hitTest(wx, wy)?.id || null : null;
+      const hd = this.space ? null : this.handleAt(sx, sy);
+      if (JSON.stringify(hd) !== JSON.stringify(this.hoverHandle)) { this.hoverHandle = hd; this.canvas.style.cursor = this.cursorFor(hd) || ''; if (!hd) this.updateCursor(); this.invalidate(); }
+      const h = tool === 'select' && !hd ? this.hitTest(wx, wy)?.id || null : null;
       if (h !== this.hovered) { this.hovered = h; this.invalidate(); }
     });
 
@@ -214,7 +354,11 @@ export class CanvasView {
       const [sx, sy] = this.local(e);
       const [wx, wy] = this.toWorld(sx, sy);
       const tool = this.getTool();
-      if (tool === 'select') return this.startSelect(e, wx, wy);
+      if (tool === 'select') {
+        const hd = this.handleAt(sx, sy);
+        if (hd) return this.startTransform(e, hd);
+        return this.startSelect(e, wx, wy);
+      }
       const stage = this.getStage();
       if (!stage || stage.locked) { this.flash('This stage is locked'); return; }
       if (tool === 'point') return this.commitNew('point', [[wx, wy, 0, 0.5]]);
@@ -235,7 +379,9 @@ export class CanvasView {
   startSelect(e, wx, wy) {
     const hit = this.hitTest(wx, wy);
     if (hit) {
-      if (!this.selected.has(hit.id)) this.select([hit.id], e.shiftKey);
+      // Clicking a grouped element selects its group; Cmd/Ctrl-click selects just the element.
+      const ids = hit.group && !(e.metaKey || e.ctrlKey) ? this.store.doc.elements.filter(x => x.group === hit.group && this.editable(x)).map(x => x.id) : [hit.id];
+      if (!this.selected.has(hit.id) || (e.metaKey || e.ctrlKey)) this.select(ids, e.shiftKey);
       const before = JSON.stringify(this.store.doc);
       let lx = wx, ly = wy, moved = false;
       this.pointer = true;
@@ -267,7 +413,8 @@ export class CanvasView {
       const [x0, x1] = [Math.min(m.x0, m.x1), Math.max(m.x0, m.x1)], [y0, y1] = [Math.min(m.y0, m.y1), Math.max(m.y0, m.y1)];
       if (x1 - x0 > 2 / this.cam.z || y1 - y0 > 2 / this.cam.z) {
         const ids = this.store.doc.elements.filter(el => this.editable(el) && el.points.every(([x, y]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)).map(el => el.id);
-        this.select(ids, true);
+        const groups = new Set(this.store.doc.elements.filter(el => ids.includes(el.id) && el.group).map(el => el.group));
+        this.select([...ids, ...this.store.doc.elements.filter(el => groups.has(el.group) && this.editable(el)).map(el => el.id)], true);
       }
       this.invalidate();
     };
@@ -368,6 +515,8 @@ export class CanvasView {
 }
 
 // ---- helpers -------------------------------------------------------------------------
+
+const ROTATE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 1 3 5.7" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/><path d="M5 12a7 7 0 1 1 3 5.7" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round"/><path d="M2 9l3 4 3-4" fill="black" stroke="white" stroke-width="1"/></svg>')}") 12 12, crosshair`;
 
 /** Pen pressure when available; for mice, faster movement reads as lighter pressure. */
 function pressureOf(e, speed) {

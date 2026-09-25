@@ -33,7 +33,7 @@ export function renderDocument(ctx, doc, {
   const overlay = [];
   for (const e of ordered) {
     const s = stageOf.get(e.stage);
-    if (!s || !s.visible) continue;
+    if (!s || !s.visible || e.hidden) continue;
     if ((rank.get(e.stage) ?? 0) > upTo) continue;
     const brush = BRUSHES[e.realize?.brush] || BRUSHES.ink;
     const construction = brush.construction || e.role === 'guide' || e.role === 'gesture' || e.role === 'note';

@@ -25,6 +25,7 @@ import { mountLog } from './panels/log.js';
 import { mountGenerate } from './panels/generate.js';
 import { mountAssistant } from './panels/assistant.js';
 import { mountDecide } from './panels/decide.js';
+import { mountOutliner } from './panels/outliner.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
 import { openPalette } from './palette.js';
@@ -82,6 +83,8 @@ export class Workbench {
   setUpTo(i) { this.view.upTo = i; this.canvas.upTo = i; this.canvas.invalidate(); this.emit('view'); }
   selectedElements() { return this.store.doc.elements.filter(e => this.canvas?.selected.has(e.id)); }
   selectIds(ids) { this.canvas.select(ids); }
+  groupSelection() { const ids = [...this.canvas.selected]; if (ids.length > 1) { this.store.group(ids); this.canvas.select(ids); } }
+  ungroupSelection() { const ids = [...this.canvas.selected]; if (ids.length) this.store.ungroup(ids); }
 
   defaults(role) {
     const d = this.toolDefaults[role] || {};
@@ -152,6 +155,7 @@ export class Workbench {
   registerPanels() {
     const reg = (id, title, iconName, natural, mount, extra = {}) => this.docks.register({ id, title, icon: iconName, natural, mount: el => mount(el, this), ...extra });
     reg('stages', 'Stages', 'stages', 'left', mountStages);
+    reg('outliner', 'Outliner', 'layers', 'left', mountOutliner);
     reg('assets', 'Assets', 'assets', 'left', el => this.mountAssets(el));
     reg('properties', 'Properties', 'properties', 'right', mountProperties);
     reg('script', 'Score', 'script', 'right', mountScript);
@@ -360,6 +364,7 @@ export class Workbench {
       if (k === '?') { this.openDocs(); return; }
       if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) this.store.redo(); else this.store.undo(); return; }
       if (mod && k === 's') { e.preventDefault(); this.saveToAssets(); return; }
+      if (mod && k === 'g') { e.preventDefault(); if (e.shiftKey) this.ungroupSelection(); else this.groupSelection(); return; }
       if (mod && k === 'a') { e.preventDefault(); this.canvas.select(this.store.doc.elements.filter(el => this.canvas.editable(el)).map(el => el.id)); return; }
       if (mod) return;
       if (k === 'delete' || k === 'backspace') { const ids = [...this.canvas.selected]; if (ids.length) this.store.removeElements(ids); return; }
