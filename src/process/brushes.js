@@ -305,7 +305,7 @@ export const BRUSHES = {
     ],
     draw(ctx, e, p, k) {
       if (e.points.length < 3) return;
-      const pts = k.smoothPath(e.points, true, 4);
+      const pts = (e.points.length > 12 ? k.smoothPath(e.points, true, 4) : e.points);
       ctx.save();
       ctx.globalAlpha *= p.opacity;
       ctx.fillStyle = e.color || '#8a8175';
@@ -328,7 +328,7 @@ export const BRUSHES = {
     ],
     draw(ctx, e, p, k) {
       if (e.points.length < 3) return;
-      const poly = k.smoothPath(e.points, true, 3);
+      const poly = (e.points.length > 12 ? k.smoothPath(e.points, true, 3) : e.points);
       const cx = poly.reduce((a, q) => a + q[0], 0) / poly.length, cy = poly.reduce((a, q) => a + q[1], 0) / poly.length;
       ctx.save();
       ctx.globalAlpha *= p.opacity;
@@ -367,7 +367,7 @@ export const BRUSHES = {
     ],
     draw(ctx, e, p, k) {
       if (e.points.length < 3) return;
-      const poly = k.smoothPath(e.points, true, 3);
+      const poly = (e.points.length > 12 ? k.smoothPath(e.points, true, 3) : e.points);
       const xs = poly.map(q => q[0]), ys = poly.map(q => q[1]);
       const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
       const n = Math.min(40000, Math.round((x1 - x0) * (y1 - y0) * p.density));
