@@ -1,10 +1,19 @@
 # Artist Model Studio (AMS)
 
-A human-in-the-loop creative coding studio. Models (or procedures) write small drawing programs, the studio renders them in different media, and you judge, edit, animate and export the results. It is built for teaching and for exploring how small models can learn a visual style.
+Can we teach a model to draw and paint the way we teach people, through a visible, staged process of seeing, constructing and making marks, rather than by sampling a finished picture from latent space?
+
+Artist Model Studio is a training ground for that question: *creative coding for AI*. Drawings are **process documents**: named stages, paths with roles (point, line, plane, guide, gesture, note), brushes that realise them, decisions, and a reason and author for every mark. Models write **scores** (small JavaScript programs in a point / line / plane vocabulary) whose runs record that process. So what they learn, and what we can inspect, is how a picture was made, not just what it looks like. See [docs/design.md](docs/design.md) for the direction and [docs/workbench.md](docs/workbench.md) for the workbench.
+
+- **Workbench** (`/`): an infinite canvas with dockable panels (after underscores). Draw with time and pressure, work in stages, write and run scores, study processes (filmstrip, decisions, reasons, process sheets), generate with models or agents, and keep everything in Assets.
+- **Exercises** after Kandinsky, Klee and the algorists: the same briefs for students and models.
+- **Exports**: SVG with the full process record, p5.js sketches that re-run the score, Excalidraw (to underscores), and process sheets.
+- **Agents**: every action is an MCP tool; an agent can be the engine and answer generation requests with its own scores.
+
+The first phase (reproducing *train to paint with code*) is kept as the **classic studio** (`/classic.html`), with the features below. The reasons for moving on are in [docs/design.md](docs/design.md#2-what-we-learned-reproducing-train-to-paint).
 
 ---
 
-## What it does
+## The classic studio
 
 - **Four candidates per prompt** from a choice of engines, rendered as flat shapes, watercolor (`p5.brush`), pixel art or ASCII (character sets including braille, teletext sextants and code page 437; a choice of fonts). Programs are plain JSON / text DSL you can read and edit.
 - **Reference Fitter**: approximates a reference image with a budget of shapes (12 to 800) by greedy search, with no model involved. Candidates A–D use mixed, rectangle, circle and triangle shapes, so one round shows how the shape vocabulary changes the look. See [docs/reference-fitter.md](docs/reference-fitter.md).

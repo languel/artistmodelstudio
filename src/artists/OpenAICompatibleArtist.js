@@ -191,6 +191,22 @@ export class OpenAICompatibleArtist extends Artist {
     return candidates;
   }
 
+  /** One chat completion: { system, user, image?, temperature?, signal } → text. */
+  async complete({ system, user, image = null, temperature = 0.7, signal } = {}) {
+    const apiKey = getStorage('ams_openai_key') || this.apiKey;
+    const headers = { 'Content-Type': 'application/json' };
+    const custom = getStorage('ams_openai_headers') || this.customHeaders;
+    if (custom) { try { Object.assign(headers, typeof custom === 'object' ? custom : JSON.parse(custom)); } catch { /* ignore */ } }
+    if (apiKey) headers.Authorization = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
+    const model = getStorage('ams_openai_model') || this.model || 'gpt-4o';
+    const body = { model, messages: [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: openAIContent(user, image) }] };
+    if (!/^o\d/.test(model)) body.temperature = temperature;
+    const res = await fetch(this.getEndpoint(), { method: 'POST', headers, signal, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+    return String(data.choices?.[0]?.message?.content || '');
+  }
+
   /** Describe an image (data URL) as a drawing prompt with the current model. */
   async describe(image, { signal } = {}) {
     const apiKey = getStorage('ams_openai_key') || this.apiKey;

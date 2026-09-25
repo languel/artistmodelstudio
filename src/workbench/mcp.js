@@ -98,6 +98,24 @@ export function workbenchTools(app) {
       if (!a.to || a.to === 'open') app.docks.open(a.id); else if (a.to === 'close') app.docks.close(a.id); else app.docks.move(a.id, a.to);
       return { ok: true };
     } },
+    { name: 'ams_generate', description: 'Generate panel: ask an engine for scores (agent, openrouter, openai, ollama, webgpu). Returns immediately; candidates appear in the panel and the first opens on the canvas. With engine "agent", answer the waiting request with ams_pending / ams_answer.', inputSchema: S({ prompt: str(''), engine: str(''), model: str(''), count: num('1-8'), exercise: str('Exercise id or empty'), withReference: { type: 'boolean' }, temperature: num('') }, ['prompt']), run: (a) => {
+      app.docks.open('generate');
+      if (a.engine) app.setGenerateEngine(a.engine, a.model);
+      app.genPrompt = a.prompt; app.genCount = a.count || 1; app.genExercise = a.exercise || ''; app.genWithRef = Boolean(a.withReference); if (a.temperature !== undefined) app.genTemp = a.temperature;
+      app.emit('generate-refresh');
+      setTimeout(() => app.startGenerate?.(), 0);
+      return { started: true };
+    } },
+    { name: 'ams_pending', description: 'If a Generate request is waiting for the Agent engine: the exact system and user prompts a model would get, and the reference image if sent. Answer with ams_answer.', inputSchema: S(), run: () => {
+      const a = app.artists.get('agent')?.asking;
+      return a ? { system: a.system, user: a.user, image: a.image || null, waitingSeconds: Math.round((Date.now() - a.t) / 1000) } : null;
+    } },
+    { name: 'ams_answer', description: 'Answer the waiting Generate request with your reply (a score in a ```js block).', inputSchema: S({ text: str('Your reply') }, ['text']), run: (a) => ({ delivered: app.artists.get('agent')?.answer(a.text) || false }) },
+    { name: 'ams_candidates', description: 'Generated candidates this session (newest first): prompt, engine, model, stages, elements, errors; open one by index.', inputSchema: S({ open: num('Index to open') }), run: (a) => {
+      const list = app.candidates || [];
+      if (a.open !== undefined && list[a.open]?.doc) app.loadDocument(structuredClone(list[a.open].doc), 'open candidate');
+      return list.map((c, i) => ({ index: i, prompt: c.prompt, engine: c.engine, model: c.model, exercise: c.exercise, stages: c.doc?.stages.length, elements: c.doc?.elements.length, error: c.error || null, attempts: c.attempts, seconds: c.seconds }));
+    } },
     { name: 'ams_undo', description: 'Undo (or redo with redo:true).', inputSchema: S({ redo: { type: 'boolean' } }), run: (a) => ({ ok: a.redo ? app.store.redo() : app.store.undo() }) }
   ];
 }
@@ -112,7 +130,7 @@ export function initWorkbenchMCP(app) {
   const tools = workbenchTools(app);
   const byName = Object.fromEntries(tools.map(t => [t.name, t]));
   const listTools = () => tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
-  const QUIET = /^ams_(wb_state|vocabulary|get|snapshot|process_sheet|assets)$/;
+  const QUIET = /^ams_(wb_state|vocabulary|get|snapshot|process_sheet|assets|pending|candidates)$/;
   const callTool = async (name, args = {}) => {
     const t = byName[name];
     if (!t) throw new Error(`Unknown tool ${name}`);

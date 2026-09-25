@@ -62,6 +62,25 @@ export class AgentArtist extends Artist {
     return this.waiting ? { type: 'generate', ...AgentArtist.brief(this.waiting.request, this.waiting.request.count || 4) } : null;
   }
 
+  /**
+   * Workbench: a completion request waits for the agent's answer (ams_pending / ams_answer).
+   * The agent sees exactly what a model engine would: system, user, and the image if any.
+   */
+  complete({ system, user, image = null, signal } = {}) {
+    return new Promise((resolve, reject) => {
+      this.asking = { system, user, image, resolve, t: Date.now() };
+      signal?.addEventListener('abort', () => { this.asking = null; reject(new Error('Interrupted while waiting for the agent')); });
+    });
+  }
+
+  answer(text) {
+    if (!this.asking) return false;
+    const a = this.asking;
+    this.asking = null;
+    a.resolve(String(text));
+    return true;
+  }
+
   /** Describe mode: waits for the agent's description (ams_agent_submit_description). */
   describe(image, { signal } = {}) {
     return new Promise((resolve, reject) => {

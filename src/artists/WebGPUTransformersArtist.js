@@ -324,6 +324,17 @@ export class WebGPUTransformersArtist extends Artist {
     }
   }
 
+  /** One completion with the in-browser model: { system, user, image?, temperature } → text. */
+  async complete({ system, user, image = null, temperature = 0.7, maxTokens = 1500 } = {}) {
+    const preset = WEBGPU_MODEL_PRESETS.find(p => p.id === this.modelId);
+    const pipe = await this.initPipeline(this.modelId, this.onProgress);
+    const userMsg = image && preset?.isVL ? { role: 'user', content: [{ type: 'image', image }, { type: 'text', text: user }] } : { role: 'user', content: user };
+    const out = await pipe([...(system ? [{ role: 'system', content: system }] : []), userMsg], { max_new_tokens: maxTokens, temperature, do_sample: temperature > 0 });
+    const gen = out[0]?.generated_text;
+    const last = Array.isArray(gen) ? gen[gen.length - 1] : gen;
+    return String(typeof last === 'object' ? last.content : last || '');
+  }
+
   /** Describe an image with a vision-language model (LFM2.5-VL). */
   async describe(image) {
     const preset = WEBGPU_MODEL_PRESETS.find(p => p.id === this.modelId);

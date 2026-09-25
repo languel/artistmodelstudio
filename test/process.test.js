@@ -125,3 +125,14 @@ describe('exercises', () => {
     });
   }
 });
+
+describe('score robustness', () => {
+  it('lets a score shadow vocabulary names', () => {
+    const { error, doc } = runScript('const walk = (n) => range(n).map(i => [i * 10, 0]); line(walk(5))');
+    expect(error).toBeNull();
+    expect(doc.elements[0].points.length).toBe(5);
+  });
+  it('explains function-valued brush parameters', () => {
+    expect(runScript('line([[0,0],[1,1]], { width: t => t })').error).toMatch(/pressures/);
+  });
+});

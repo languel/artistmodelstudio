@@ -67,7 +67,13 @@ export function runScript(source, { seed = 1, by = { kind: 'script', name: 'scri
     return out;
   };
   const add = (role, pts, opts, defaultBrush) => {
+    if (!Array.isArray(pts) || !pts.length || !pts.every(q => Array.isArray(q) && Number.isFinite(Number(q[0])) && Number.isFinite(Number(q[1])))) {
+      throw new Error(`${role}() needs a list of points like [[x, y], [x, y], ...] (got ${Array.isArray(pts) ? `an array whose items are ${typeof pts[0]}` : typeof pts}). walk(), circle() and rect() return such lists.`);
+    }
     const { el, params } = splitOpts(opts);
+    for (const [k, v] of Object.entries(params)) {
+      if (typeof v !== 'number' && typeof v !== 'string') throw new Error(`Brush parameter "${k}" must be a number (got ${typeof v}). For per-point variation use pressures: t => 0..1, or make several marks.`);
+    }
     const stage = el.stage || ensureStage().id;
     const brush = el.brush || defaultBrush;
     if (!BRUSHES[brush]) throw new Error(`Unknown brush "${brush}" (have: ${Object.keys(BRUSHES).join(', ')})`);
@@ -134,7 +140,8 @@ export function runScript(source, { seed = 1, by = { kind: 'script', name: 'scri
 
   try {
     // eslint-disable-next-line no-new-func
-    new Function(...Object.keys(api), `"use strict";\n${source}`)(...Object.values(api));
+    // The score runs in its own block, so it may declare names that shadow the vocabulary.
+    new Function(...Object.keys(api), `"use strict";\n{\n${source}\n}`)(...Object.values(api));
     if (!doc.stages.length) api.stage('Marks', 'marks');
     doc.meta = { ...(doc.meta || {}), script: source, seed, by, ran: new Date().toISOString() };
     return { doc: normalizeDocument(doc), error: null, logs };

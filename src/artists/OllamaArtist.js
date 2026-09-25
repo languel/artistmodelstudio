@@ -170,6 +170,17 @@ export class OllamaArtist extends Artist {
     return candidates;
   }
 
+  /** One chat completion: { system, user, image?, temperature?, signal } → text. */
+  async complete({ system, user, image = null, temperature = 0.7, signal } = {}) {
+    const res = await fetch(`${this.endpoint}/api/chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+      body: JSON.stringify({ model: this.model, stream: false, think: false, options: { temperature }, messages: [...(system ? [{ role: 'system', content: system }] : []), ollamaMessage(user, image)] })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+    return String(data.message?.content || '');
+  }
+
   /** Describe an image (data URL) as a drawing prompt with the current (vision) model. */
   async describe(image, { signal } = {}) {
     const res = await fetch(`${this.endpoint}/api/chat`, {

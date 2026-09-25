@@ -22,6 +22,8 @@ import { mountProperties } from './panels/properties.js';
 import { mountScript } from './panels/script.js';
 import { mountProcess } from './panels/process.js';
 import { mountLog } from './panels/log.js';
+import { mountGenerate } from './panels/generate.js';
+import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 
 const DOC_KEY = 'ams_process_doc_v1';
@@ -51,6 +53,7 @@ export class Workbench {
     try { this.toolDefaults = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || '{}'); } catch { this.toolDefaults = {}; }
     this.reference = null; // { img, opacity, visible, title }
     this.assetStore = new AssetStore();
+    this.artists = new ArtistRegistry();
     this.store.subscribe((doc, reason) => {
       clearTimeout(this.saveTimer);
       this.saveTimer = setTimeout(() => { try { localStorage.setItem(DOC_KEY, JSON.stringify(this.store.doc)); } catch { /* quota */ } }, 300);
@@ -140,6 +143,7 @@ export class Workbench {
     reg('properties', 'Properties', 'properties', 'right', mountProperties);
     reg('script', 'Score', 'script', 'right', mountScript);
     reg('process', 'Process', 'process', 'right', mountProcess);
+    reg('generate', 'Generate', 'sparkles', 'right', mountGenerate);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }
 
@@ -298,12 +302,24 @@ export class Workbench {
     input.click();
   }
 
-  async saveToAssets() {
-    const doc = this.store.doc;
+  /** The reference underlay as a JPEG data URL (for models with image input). */
+  referenceDataUrl(max = 768) {
+    const img = this.reference?.img;
+    if (!img) return null;
+    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.85);
+  }
+
+  async saveToAssets() { return this.saveDocToAssets(this.store.doc); }
+
+  async saveDocToAssets(doc, { tags = [] } = {}) {
     const blob = await new Promise(r => renderToCanvas(doc, { scale: Math.min(1, 1200 / Math.max(doc.artboard.width, doc.artboard.height)), mode: 'picture' }).toBlob(r, 'image/png'));
     const a = await this.assetStore.add(blob, {
       title: doc.title || 'Untitled', kind: 'process', folder: this.assetPanel?.folder || '',
-      tags: [...new Set(doc.stages.map(s => s.kind))], program: structuredClone(doc),
+      tags: [...new Set([...tags, ...doc.stages.map(s => s.kind)])], program: structuredClone(doc),
       meta: { stages: doc.stages.length, elements: doc.elements.length, decisions: doc.decisions.length }
     });
     this.log(`Saved “${a.title}” to Assets.`);

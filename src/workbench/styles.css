@@ -221,3 +221,11 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .asset-edit { width: 100%; background: var(--wb-panel-2); border: 1px solid var(--wb-line); border-radius: 3px; padding: 1px 4px; }
 .assets-empty { color: var(--wb-muted); text-align: center; grid-column: 1 / -1; }
 .medium-options, .inline-prompt { position: fixed; z-index: 60; background: var(--wb-panel); border: 1px solid var(--wb-line); border-radius: 6px; padding: 8px; box-shadow: var(--wb-shadow); }
+.wb-cands { display: flex; flex-direction: column; gap: 6px; }
+.wb-cand { display: grid; grid-template-columns: 112px 1fr; gap: 8px; padding: 4px; border: 1px solid var(--wb-line); border-radius: var(--radius); background: var(--wb-panel-2); }
+.wb-cand > pre { grid-column: 1 / -1; max-height: 260px; overflow: auto; }
+.wb-cand-thumb { padding: 0; border: 0; background: #fff; cursor: pointer; width: 112px; height: 112px; display: grid; place-items: center; }
+.wb-cand-thumb canvas { max-width: 110px; max-height: 110px; }
+.wb-cand-fail { color: #e5484d; font-size: 20px; }
+.wb-cand-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.wb-cand-meta > div:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
