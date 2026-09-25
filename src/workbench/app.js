@@ -28,6 +28,8 @@ import { mountDecide } from './panels/decide.js';
 import { mountOutliner } from './panels/outliner.js';
 import { mountSettings } from './panels/settings.js';
 import { mountShortcuts } from './panels/shortcuts.js';
+import { mountBrushes } from './panels/brushes.js';
+import { loadLibrary } from '../process/brushes.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
 import { openPalette } from './palette.js';
@@ -149,6 +151,7 @@ export class Workbench {
     // The Docs panel mounts on first open and then replaces this with its own openDocs.
     const openDocsFirst = id => { this.docks.open('docs'); if (this.openDocs !== openDocsFirst) this.openDocs(id); };
     this.openDocs ??= openDocsFirst;
+    loadLibrary();
     this.shortcuts = new Shortcuts(this);
     this.registerPanels();
     const hadCamera = Boolean(localStorage.getItem('ams_workbench_camera_v1'));
@@ -175,6 +178,7 @@ export class Workbench {
     reg('docs', 'Docs', 'book', 'right', mountDocs);
     reg('settings', 'Settings', 'gear', 'right', mountSettings);
     reg('shortcuts', 'Shortcuts', 'keyboard', 'right', mountShortcuts);
+    reg('brushes', 'Brushes', 'brush', 'right', mountBrushes);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }
 

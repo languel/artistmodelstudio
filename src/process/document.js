@@ -10,7 +10,7 @@
  *
  * Pure data + a tiny observable store with undo. No DOM.
  */
-import { installLines } from './brushes.js';
+import { installLines, embedBrushes } from './brushes.js';
 
 export const PROCESS_VERSION = 1;
 
@@ -81,6 +81,7 @@ export function normalizeDocument(doc) {
   d.decisions = d.decisions || [];
   d.lines = d.lines && typeof d.lines === 'object' ? d.lines : {};
   d.groups = d.groups && typeof d.groups === 'object' ? d.groups : {};
+  d.brushes = d.brushes && typeof d.brushes === 'object' ? d.brushes : {};
   installLines(d);
   return d;
 }
@@ -139,6 +140,7 @@ export class ProcessStore {
     if (this.past.length > 200) this.past.shift();
     this.future = [];
     const result = fn(this.doc);
+    embedBrushes(this.doc);
     if (record) this.log.push({ t: Date.now(), label, by });
     this.emit(label);
     return result;

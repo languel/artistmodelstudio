@@ -12,6 +12,7 @@ import { toSVG, toExcalidraw, toP5, processSheet } from '../process/exports.js';
 import { matches } from '../assets/assetStore.js';
 import { describeRegion } from '../perception/analyze.js';
 import { download } from './ui.js';
+import { BRUSHES as BR, brushSource, compileBrush, saveLibraryBrush, deleteLibraryBrush, isBuiltin, registerBrush } from '../process/brushes.js';
 import { allPalettes, savePalette, deletePalette, paletteFromImage, toHex, nameOf } from './palettes.js';
 import { SHOW, revealScore, SessionRecorder, summarize, READ_ONLY } from './showActions.js';
 
@@ -155,6 +156,27 @@ export function workbenchTools(app) {
       if (a.action === 'start') { app.walkthroughs.start(a.id).catch(e => app.log(e.message, 'error')); return { started: a.id }; }
       if (a.action === 'stop') { app.walkthroughs.stop(); return { ok: true }; }
       return app.walkthroughs.list();
+    } },
+    { name: 'ams_brush', description: 'Brushes are code: brush({ id, label, roles, doc, params: { key: [min, max, default, doc] }, draw(ctx, e, p, k) { … } }). k is the brush kit: k.frames(e) → [{ x, y, nx, ny, speed, pressure }], k.smoothPath, k.spans(poly, y), k.rotatePts, k.segment(ctx, x1, y1, x2, y2), k.beginInk(ctx, e, { width, opacity }) … ctx.restore(), k.tracePath, k.draw(id, ctx, e, params), k.rng(), k.noise(x, y). action "list"; "get" {id} returns the source (built-ins too: read them to learn); "save" {source, to: library | drawing} (checked by compiling; built-in ids are refused — fork under a new id); "delete" {id}; "use" {id} on the selection or the current tool.', inputSchema: S({ action: str('list | get | save | delete | use'), id: str('Brush id'), source: str('Brush code'), to: str('library (default) or drawing') }, ['action']), run: (a) => {
+      if (a.action === 'list') return Object.entries(BR).filter(([, b]) => !b.construction || b.custom).map(([id, b]) => ({ id, label: b.label, roles: b.roles, scope: isBuiltin(id) ? 'built-in' : b.scope || 'drawing', doc: b.doc, params: b.params.map(q => q.key) }));
+      if (a.action === 'get') { const src = brushSource(a.id); if (!src) throw new Error(`No brush "${a.id}"`); return { id: a.id, source: src }; }
+      if (a.action === 'save') {
+        const def = compileBrush(a.source);
+        if (a.to === 'drawing') { registerBrush(a.source, 'doc'); app.store.change(`brush ${def.id}`, d => { d.brushes = d.brushes || {}; d.brushes[def.id] = a.source; }, { by: 'agent' }); }
+        else saveLibraryBrush(a.source);
+        app.canvas.invalidate();
+        app.brushesPanel?.open(def.id);
+        return { saved: def.id, to: a.to === 'drawing' ? 'drawing' : 'library', params: def.params.map(q => q.key) };
+      }
+      if (a.action === 'delete') return { deleted: deleteLibraryBrush(a.id) };
+      if (a.action === 'use') {
+        if (!BR[a.id]) throw new Error(`No brush "${a.id}"`);
+        const ids = [...app.canvas.selected];
+        if (ids.length) app.store.change('brush', d => { for (const e of d.elements) if (ids.includes(e.id)) e.realize = { brush: a.id, params: {} }; }, { by: 'agent' });
+        else app.setDefaults(app.tool, { realize: { brush: a.id } });
+        return { brush: a.id, applied: ids.length || `defaults for ${app.tool}` };
+      }
+      throw new Error('Unknown action');
     } },
     { name: 'ams_palette', description: 'Palettes of named colors. action "list"; "get" {name}; "create" {name, colors: [{name, hex}] or ["burnt sienna", "#2e3a52", …]} — to make a palette that evokes something ("a winter storm over craggy shores"), choose the colors yourself and create it; "from_image" {asset (id) or the current reference, count, name} extracts one (k-means in Lab, named after pigments); "delete" {name}; "apply" {color (hex or name) or name+index} sets the selection\'s color. Names accept pigments (payne\'s gray, yellow ochre…) and CSS names.', inputSchema: S({ action: str('list | get | create | from_image | delete | apply'), name: str('Palette name'), colors: { type: 'array' }, asset: str('Asset id for from_image (default: the reference)'), count: num('Colors to extract (default 6)'), color: str('Color for apply: hex or a name'), index: num('Color index in the palette for apply') }, ['action']), run: async (a) => {
       const pals = allPalettes();

@@ -18,7 +18,7 @@
  * Helpers: random(a?, b?), noise(x, y?), seed(n), sin, cos, PI, TAU, lerp, map, range(n).
  */
 import { createDocument, normalizeDocument, newId, STAGE_KINDS } from './document.js';
-import { BRUSHES, mulberry32, installLines } from './brushes.js';
+import { BRUSHES, mulberry32, installLines, defSource, registerBrush, isBuiltin } from './brushes.js';
 
 const ELEMENT_KEYS = new Set(['why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by']);
 
@@ -39,13 +39,30 @@ function makeNoise(rng) {
  * @param source  JS source using the vocabulary above
  * @param opts    { seed, by: { kind, name }, base: document to start from (else a blank one) }
  */
-export function runScript(source, { seed = 1, by = { kind: 'script', name: 'script' }, base = null } = {}) {
+export function runScript(source, opts = {}) {
+  // Fractions of the artboard by default; units('artboard' | 'fraction') decides explicitly. A score
+  // without units() whose coordinates are clearly absolute (beyond 0..1) is rerun in artboard units.
+  const explicit = (String(source).match(/\bunits\(\s*['"](fraction|artboard)['"]\s*\)/) || [])[1];
+  if (explicit) return runOnce(source, { ...opts, units: explicit });
+  const first = runOnce(source, { ...opts, units: 'fraction' });
+  if (first.maxRaw > 2.5) return runOnce(source, { ...opts, units: 'artboard' });
+  return first;
+}
+
+function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, base = null, units = 'fraction' } = {}) {
   const doc = base ? normalizeDocument(base) : createDocument();
   if (!base) doc.stages = [];
   let rng = mulberry32(seed);
   let noise = makeNoise(rng);
   let current = null;
   let clock = 0; // synthetic time so scripted paths carry an order and a duration
+  const abm = String(source).match(/\bartboard\(\s*([\d.]+)\s*,\s*([\d.]+)/);
+  const W = abm ? Number(abm[1]) : doc.artboard.width, H = abm ? Number(abm[2]) : doc.artboard.height;
+  const frac = units === 'fraction';
+  const aspect = W / H;
+  let maxRaw = 0;
+  // Score coordinates → artboard units (fractions are scaled by the artboard's width and height).
+  const toAb = pts => pts.map(q => { maxRaw = Math.max(maxRaw, Math.abs(q[0]), Math.abs(q[1])); return frac ? [q[0] * W, q[1] * H, ...q.slice(2)] : q; });
   const logs = [];
 
   const ensureStage = () => {
@@ -80,7 +97,7 @@ export function runScript(source, { seed = 1, by = { kind: 'script', name: 'scri
     if (!BRUSHES[brush]) throw new Error(`Unknown brush "${brush}" (have: ${Object.keys(BRUSHES).join(', ')})`);
     const e = {
       id: newId(role), stage, role,
-      points: timed(pts, el.pressures),
+      points: timed(toAb(pts), el.pressures),
       closed: role === 'plane' ? true : Boolean(el.closed),
       realize: { brush, params },
       color: el.color || null,
@@ -124,23 +141,38 @@ export function runScript(source, { seed = 1, by = { kind: 'script', name: 'scri
       installLines(doc);
       return name;
     },
+    /**
+     * Define a brush in code (kept in the drawing): brush({ id, label, roles, doc,
+     * params: { key: [min, max, default, doc] }, draw(ctx, e, p, k) { … } }). Then line(pts, { brush: id }).
+     */
+    brush(def) {
+      if (!def || typeof def !== 'object' || typeof def.draw !== 'function') throw new Error('brush({ id, params, draw(ctx, e, p, k) { … } })');
+      if (isBuiltin(def.id)) throw new Error(`"${def.id}" is a built-in brush; give yours its own id`);
+      const src = defSource(def);
+      registerBrush(src, 'doc');
+      doc.brushes = doc.brushes || {};
+      doc.brushes[def.id] = src;
+      return def.id;
+    },
     decide(question, options, chosen, why = '') {
       doc.decisions.push({ id: newId('dec'), stage: ensureStage().id, question, options, chosen, why, by, t: clock });
       return chosen;
     },
     /** A line going for a walk: heading in degrees, turn(i, t) returns degrees to turn each step. */
-    walk({ from = [0, 0], heading = 0, steps = 50, step = 10, turn = () => 0 } = {}) {
+    walk({ from = [0, 0], heading = 0, steps = 50, step = frac ? 0.01 : 10, turn = () => 0 } = {}) {
       const pts = [[from[0], from[1]]];
       let [x, y] = from, h = heading;
       for (let i = 0; i < steps; i++) {
         h += turn(i, i / Math.max(1, steps - 1)) || 0;
         const a = (h * Math.PI) / 180;
-        x += Math.cos(a) * step; y += Math.sin(a) * step;
+        x += Math.cos(a) * step; y += Math.sin(a) * step * (frac ? aspect : 1);   // in fractions, keep the walk's shape
         pts.push([x, y]);
       }
       return pts;
     },
-    circle(cx, cy, r, n = 48) { return Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * r]); },
+    circle(cx, cy, r, n = 48) { const ry = frac ? r * aspect : r; return Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * ry]); },
+    units() { /* read before the run: units('fraction') or units('artboard') */ },
+    width: W, height: H,
     rect(x, y, w, h) { return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]; },
     random(a, b) { const r = rng(); if (a === undefined) return r; if (b === undefined) return r * a; return a + r * (b - a); },
     noise(x, y) { return noise(x, y); },
@@ -159,24 +191,28 @@ export function runScript(source, { seed = 1, by = { kind: 'script', name: 'scri
     new Function(...Object.keys(api), `"use strict";\n{\n${source}\n}`)(...Object.values(api));
     if (!doc.stages.length) api.stage('Marks', 'marks');
     doc.meta = { ...(doc.meta || {}), script: source, seed, by, ran: new Date().toISOString() };
-    return { doc: normalizeDocument(doc), error: null, logs };
+    doc.meta.units = units;
+    return { doc: normalizeDocument(doc), error: null, logs, maxRaw, units };
   } catch (err) {
     // The score's own line: V8 counts the Function header (2 lines) and our wrapper (2 lines).
     const m = String(err.stack || '').match(/<anonymous>:(\d+):(\d+)/);
     const errorLine = m ? Math.max(1, Number(m[1]) - 4) : null;
-    return { doc: null, error: err.message || String(err), errorLine, logs };
+    return { doc: null, error: err.message || String(err), errorLine, logs, maxRaw: 0, units };
   }
 }
 
 /** Short reference shown in the Script panel and given to models. */
-export const SCRIPT_REFERENCE = `artboard(w, h, ground)
+export const SCRIPT_REFERENCE = `// Coordinates are fractions of the artboard (0..1); width and height give its size. units('artboard') for absolute.
+artboard(w, h, ground)
 stage(name, kind)            kind: ${STAGE_KINDS.join(' | ')}
 point(x, y, {size, color, why})
 line(points, {brush, width, pressure, taper, wobble, color, why, pressures: t => 0..1})
 plane(points, {brush: flat | hatch | stipple, angle, spacing, density, color, why})
 guide(points, {why})   gesture(points, {why})   note(x, y, text)
 decide(question, options, chosen, why)
-defineLine(name, {doc, params: {k: [min, max, def]}}, (ctx, frames, p, env) => {...})   then line(pts, {brush: name})
+brush({id, label, roles, doc, params: {k: [min, max, def, doc]}, draw(ctx, e, p, k) {...}})   then line(pts, {brush: id})
+  k: frames(e) smoothPath spans rotatePts segment beginInk tracePath draw(id, ctx, e, p) rng() noise(x, y)
+defineLine(name, {doc, params: {k: [min, max, def]}}, (ctx, frames, p, env) => {...})   (shorthand)
   frames: [{x, y, nx, ny, speed, pressure}]   env: {color, rng, closed}
 walk({from, heading, steps, step, turn: (i, t) => degrees})
 circle(cx, cy, r)   rect(x, y, w, h)
@@ -185,6 +221,10 @@ random(a, b)  noise(x, y)  seed(n)  lerp  map  range(n)  sin cos PI TAU  print(.
 /** The vocabulary as data: completions and hover docs in the editor, and references for models. */
 export const SCRIPT_VOCAB = [
   ['artboard', 'artboard(width, height, ground)', 'Size of the sheet and its paper color.'],
+  ['width', 'width', 'The artboard width in artboard units (coordinates are fractions: 0..1 across).'],
+  ['height', 'height', 'The artboard height in artboard units (coordinates are fractions: 0..1 down).'],
+  ['units', "units('fraction' | 'artboard')", "Coordinates as fractions of the artboard (the default) or in artboard units."],
+  ['brush', "brush({ id, label, roles, doc, params: { key: [min, max, default, doc] }, draw(ctx, e, p, k) { … } })", 'Define a brush in code (the drawing keeps it). k is the brush kit: k.frames, k.smoothPath, k.spans, k.segment, k.beginInk, k.rng, k.noise, k.draw.'],
   ['stage', "stage(name, kind)", `Start a stage; later marks land in it. kind: ${STAGE_KINDS.join(', ')}.`],
   ['point', 'point(x, y, { size, color, why })', 'A mark at a place.'],
   ['points', 'points([[x, y], …], opts)', 'Several points with the same options.'],

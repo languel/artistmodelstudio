@@ -16,6 +16,20 @@ import { SCRIPT_VOCAB } from '../process/script.js';
 import { BRUSHES } from '../process/brushes.js';
 
 const VOCAB = new Map(SCRIPT_VOCAB.map(v => [v.name, v]));
+const KIT_DOCS = [
+  ['frames', '(e, samples, smoothing)', 'The walk: [{ x, y, nx, ny, speed, pressure }] resampled along the stroke.'],
+  ['smoothPath', '(points, closed, samples)', 'Catmull-Rom resampling of [x, y, t, p] points.'],
+  ['tracePath', '(ctx, pts, closed)', 'Begin a path through the points.'],
+  ['spans', '(poly, y)', 'x positions where a horizontal line crosses the polygon (pairs: inside).'],
+  ['rotatePts', '(pts, angle, cx, cy)', 'Rotate points about (cx, cy).'],
+  ['segment', '(ctx, x1, y1, x2, y2)', 'Stroke one segment.'],
+  ['beginInk', '(ctx, e, { width, opacity })', 'ctx.save(), then the element color, width, opacity, round caps. End with ctx.restore().'],
+  ['draw', "(id, ctx, e, params)", 'Draw with another brush.'],
+  ['rng', '()', 'Seeded random 0..1 for this element.'],
+  ['noise', '(x, y)', 'Smooth value noise, about -1..1.'],
+  ['scale', '', 'Screen scale (for hairlines: 1 / k.scale).'],
+  ['INK', '', 'The default ink color.']
+];
 
 // Quiet, near-grayscale highlighting that follows the workbench theme tokens.
 const highlight = HighlightStyle.define([
@@ -62,6 +76,9 @@ function scoreCompletions(getDocLines) {
       const names = [...Object.keys(BRUSHES).filter(k => !BRUSHES[k].custom), ...getDocLines()];
       return { from: context.pos - bm[1].length, options: names.map(n => ({ label: n, type: 'enum', detail: BRUSHES[n]?.label || 'your line', info: BRUSHES[n]?.doc })) };
     }
+    // k. → the brush kit
+    const km = before.match(/\bk\.(\w*)$/);
+    if (km) return { from: context.pos - km[1].length, options: KIT_DOCS.map(([label, detail, info]) => ({ label, type: 'method', detail, info })) };
     const word = context.matchBefore(/[\w$]+/);
     if (!word || (word.from === word.to && !context.explicit)) return null;
     // Inside { … } after a brush: offer that brush's parameters as keys.

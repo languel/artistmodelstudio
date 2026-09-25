@@ -184,13 +184,49 @@ line(walk({ from: [100, 350], steps: 60, step: 14 }), { brush: 'teeth' })
 
 Line definitions are code: open drawings from people you trust.`))),
 
+    T('draw-brushcode', 'Drawing', 'Brushes are code', 'Read, fork, write and share brushes; the brush kit.', () => prose(`
+Every brush, the built-ins included, is a small program. Open **Brushes** to read one; **Fork** a built-in to change it, or **New** to start from a template. The preview redraws as you type (a walk that is slow, then fast, then lingers, and a plane). **Save** (Cmd+Enter) keeps it in your library for every drawing; a drawing carries the code of every brush it uses, so it renders anywhere. **Use** puts it on the selection, or on the current tool.
+
+\`\`\`
+brush({
+  id: 'ticks',
+  label: 'Ticks',
+  roles: ['line', 'gesture'],
+  doc: 'Short marks across the walk, as long as the hand was fast.',
+  params: { len: [1, 40, 10, 'Longest tick'] },
+  draw(ctx, e, p, k) {
+    k.beginInk(ctx, e, { width: 1, opacity: 1 })
+    for (const f of k.frames(e)) {
+      const r = Math.min(p.len, f.speed * 1.5)
+      k.segment(ctx, f.x - f.nx * r, f.y - f.ny * r, f.x + f.nx * r, f.y + f.ny * r)
+    }
+    ctx.restore()
+  }
+})
+\`\`\`
+
+## The brush kit (k)
+| | |
+|---|---|
+| \`k.frames(e)\` | the walk: \`{ x, y, nx, ny, speed, pressure }\` along the stroke |
+| \`k.smoothPath(points, closed, n)\` | Catmull-Rom resampling |
+| \`k.spans(poly, y)\` | where a horizontal line crosses a polygon (for fills) |
+| \`k.rotatePts\`, \`k.tracePath\`, \`k.segment\` | geometry and strokes |
+| \`k.beginInk(ctx, e, { width, opacity })\` | color, width and caps (end with \`ctx.restore()\`) |
+| \`k.draw(id, ctx, e, params)\` | draw with another brush |
+| \`k.rng()\`, \`k.noise(x, y)\` | seeded random and smooth noise |
+
+*e* is the element: \`points\` ([x, y, time, pressure]), \`role\`, \`color\`, \`closed\`. *p* holds the parameters. Scores can define brushes the same way with \`brush({...})\`; agents use \`ams_brush\`.
+
+Brush code runs in the page: open drawings and brushes from people you trust.`)),
+
     T('draw-stages', 'Drawing', 'Stages and the process view', 'Ordering the work, replaying it, and the process sheet.', () => prose(`
 Stages are ordered layers with a kind: **analysis, concept, construction, structure, value, marks, notes**. Show, lock, rename and reorder them in the Stages panel; new marks go to the active stage.
 
 The **Process** panel scrubs and replays the stages, shows a filmstrip, the decisions (question, options, chosen, why), every mark's reason, and the editing record. **Process sheet** exports all of it as one image for critique.`)),
 
     T('score-vocab', 'Scores', 'Score vocabulary', 'The point / line / plane language for writing processes as code.', () => h('div', {},
-      prose('A score is JavaScript with a small vocabulary. It runs in its own block, is seeded (the same seed gives the same drawing), and records its process: stages, decisions, reasons and the time order of its marks.'),
+      prose('Coordinates are **fractions of the artboard** (0..1 across and down) by default, so a score works at any size; \`width\` and \`height\` give the artboard's size, as in p5. \`units('artboard')\` switches to absolute units; older scores in absolute units are recognized and still run. A score is JavaScript with a small vocabulary. It runs in its own block, is seeded (the same seed gives the same drawing), and records its process: stages, decisions, reasons and the time order of its marks.'),
       h('pre', {}, h('code', {}, SCRIPT_REFERENCE)),
       prose('Options that are not element fields (`stage, brush, color, why, closed, pressures, seed`) are brush parameters. Scripted paths get synthetic time (16 ms per point) unless the point carries its own `[x, y, t]`.'))),
 

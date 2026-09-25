@@ -143,6 +143,17 @@ Free-form generation hides the process. Training on outcomes teaches surface tex
 A frontier model (or the Assistant with a local LLM) can play the policy through MCP to bootstrap labels.
 A trained lev then takes over, and the rules baseline is the bar it has to clear.
 
+### 5.2 Everything becomes a process
+
+A brush is code: a function of the walk (points with time and pressure) and a few parameters, written against a small kit. The built-ins are written the same way, so they can be read, forked and edited by a person, a model or an agent. A drawing carries the code of the brushes it uses.
+
+The same move applies further out: any parameter can be replaced by a process.
+- **1D processes:** a value over time or along the walk (pressure, width, spacing).
+- **2D processes:** a field over the plane (direction for hatching, density for stipple, value).
+- **3D processes:** fields over space and time.
+
+Brushes come first. Fills and parameters follow as processes of their own. Coordinates in scores are fractions of the artboard, so processes compose at any size.
+
 ## 6. The syllabus
 
 AMS doubles as *creative coding for AI*: the same exercises for students and models, comparable at

@@ -27,6 +27,7 @@ const summarize = (name, a) => {
     case 'ams_assets': return a.open ? 'Opening an asset.' : 'Searching Assets.';
     case 'ams_panel': return `Opening the ${a.id} panel.`;
     case 'ams_undo': return a.redo ? 'Redo.' : 'Undo.';
+    case 'ams_brush': return a.action === 'save' ? 'Writing a brush.' : a.action === 'get' ? `Reading the brush “${a.id}”.` : a.action === 'use' ? `Using the brush “${a.id}”.` : 'Brushes.';
     case 'ams_palette': return a.action === 'create' ? `Making the palette “${a.name}”.` : a.action === 'from_image' ? 'Drawing a palette from the image.' : a.action === 'apply' ? `Using ${a.color || `${a.name} ${a.index ?? 0}`}.` : 'Palettes.';
     case 'ams_analyze': return 'Analyzing the reference: value masses, regions, edges and directions.';
     case 'ams_decide_step': return `Asking the ${a.backend || 'current'} policy for the next step.`;
@@ -53,6 +54,7 @@ export const SHOW = {
   async ams_generate(g) { await g.moveTo('panel:generate'); await g.moveTo('button:generate'); },
   async ams_save(g) { await g.moveTo('menu'); },
   async ams_panel(g, a) { await g.moveTo(`tab:${a.id}`); },
+  async ams_brush(g, a) { if (a.action === 'save' || a.action === 'get') await g.moveTo('panel:brushes', { click: false }); },
   async ams_undo(g) { await g.moveTo('menu', { click: false }); },
   async ams_analyze(g) { await g.moveTo('panel:decide'); await g.moveTo('button:analyze'); },
   async ams_decide_step(g) { await g.moveTo('panel:decide'); await g.moveTo('button:propose'); },

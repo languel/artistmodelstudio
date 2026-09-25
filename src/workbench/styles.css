@@ -429,3 +429,6 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-sc-row:hover .wb-sc-add, .wb-sc-add.recording { opacity: 1; }
 .wb-sc-reset { width: 20px; height: 20px; }
 .wb-sc-status { min-height: 14px; }
+
+.wb-brush-preview { width: 100%; height: auto; aspect-ratio: 600 / 220; border-radius: 6px; border: 1px solid var(--wb-line); }
+.wb-brush-code { height: 38vh; }

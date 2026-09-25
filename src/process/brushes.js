@@ -103,14 +103,14 @@ export const BRUSHES = {
     label: 'Guide', roles: ['guide', 'gesture', 'line', 'plane'], doc: 'Construction line: shown as an overlay, left out of the finished picture.',
     construction: true,
     params: [param('dash', 'Dash', 0, 40, 1, 8, 'Dash length in artboard units (0 = solid).')],
-    draw(ctx, e, p, env) {
-      const pts = smoothPath(e.points, e.closed);
+    draw(ctx, e, p, k) {
+      const pts = k.smoothPath(e.points, e.closed);
       ctx.save();
       ctx.strokeStyle = e.color || (e.role === 'gesture' ? '#d9480f' : '#2f6fdd');
       ctx.globalAlpha *= 0.7;
-      ctx.lineWidth = 1.25 / env.scale;
+      ctx.lineWidth = 1.25 / k.scale;
       if (p.dash > 0) ctx.setLineDash([p.dash, p.dash * 0.7]);
-      tracePath(ctx, pts, e.closed);
+      k.tracePath(ctx, pts, e.closed);
       ctx.stroke();
       ctx.restore();
     }
@@ -122,10 +122,10 @@ export const BRUSHES = {
       param('size', 'Size', 1, 200, 1, 12, 'Diameter in artboard units.'),
       param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
     ],
-    draw(ctx, e, p) {
+    draw(ctx, e, p, k) {
       ctx.save();
       ctx.globalAlpha *= p.opacity;
-      ctx.fillStyle = e.color || INK;
+      ctx.fillStyle = e.color || k.INK;
       for (const [x, y] of e.points) { ctx.beginPath(); ctx.arc(x, y, p.size / 2, 0, Math.PI * 2); ctx.fill(); }
       ctx.restore();
     }
@@ -140,9 +140,9 @@ export const BRUSHES = {
       param('wobble', 'Wobble', 0, 1, 0.05, 0, 'Seeded hand tremor, in widths.'),
       param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
     ],
-    draw(ctx, e, p, env) {
-      const pts = smoothPath(e.points, e.closed);
-      if (pts.length < 2) return BRUSHES.dot.draw(ctx, e, { size: p.width, opacity: p.opacity });
+    draw(ctx, e, p, k) {
+      const pts = k.smoothPath(e.points, e.closed);
+      if (pts.length < 2) return k.draw('dot', ctx, e, { size: p.width, opacity: p.opacity });
       // Arc length for taper.
       const len = [0];
       for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
@@ -158,13 +158,13 @@ export const BRUSHES = {
         const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
         let dx = b[0] - a[0], dy = b[1] - a[1];
         const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
-        const w = half[i] + (p.wobble ? (env.rng() - 0.5) * p.wobble * p.width : 0);
+        const w = half[i] + (p.wobble ? (k.rng() - 0.5) * p.wobble * p.width : 0);
         L.push([pts[i][0] - dy * w, pts[i][1] + dx * w]);
         R.push([pts[i][0] + dy * w, pts[i][1] - dx * w]);
       }
       ctx.save();
       ctx.globalAlpha *= p.opacity;
-      ctx.fillStyle = e.color || INK;
+      ctx.fillStyle = e.color || k.INK;
       ctx.beginPath();
       L.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       for (let i = R.length - 1; i >= 0; i--) ctx.lineTo(R[i][0], R[i][1]);
@@ -180,12 +180,12 @@ export const BRUSHES = {
   speed: {
     label: 'Speed lines', roles: ['line', 'gesture'], doc: 'After Ngan: short lines across the walk, as long as the hand was fast. Slow passages stay thin and dense.',
     params: [...speedParams(1.2, 60), param('every', 'Every', 1, 12, 1, 1, 'Draw one mark every n samples.'), ...lineParams(0.75)],
-    draw(ctx, e, p) {
-      beginInk(ctx, e, p);
-      walkFrames(e).forEach((f, i) => {
+    draw(ctx, e, p, k) {
+      k.beginInk(ctx, e, p);
+      k.frames(e).forEach((f, i) => {
         if (i % p.every) return;
         const L = Math.min(p.max, 0.5 + f.speed * p.gain) / 2;
-        strokeSegment(ctx, f.x - f.nx * L, f.y - f.ny * L, f.x + f.nx * L, f.y + f.ny * L);
+        k.segment(ctx, f.x - f.nx * L, f.y - f.ny * L, f.x + f.nx * L, f.y + f.ny * L);
       });
       ctx.restore();
     }
@@ -193,14 +193,14 @@ export const BRUSHES = {
   restate: {
     label: 'Restated line', roles: ['line', 'gesture'], doc: 'After Ngan and the life-drawing habit of restating: the walk drawn several times, the passes drifting apart where the hand was fast.',
     params: [param('times', 'Times', 1, 12, 1, 4, 'How many passes.'), param('spread', 'Spread', 0, 40, 0.5, 6, 'How far the passes drift, per unit of speed.'), ...lineParams(0.8, 0.6)],
-    draw(ctx, e, p, env) {
-      beginInk(ctx, e, p);
-      const fr = walkFrames(e);
-      for (let k = 0; k < p.times; k++) {
-        const phase = env.rng() * Math.PI * 2, freq = 0.02 + env.rng() * 0.05;
+    draw(ctx, e, p, k) {
+      k.beginInk(ctx, e, p);
+      const fr = k.frames(e);
+      for (let kk = 0; kk < p.times; kk++) {
+        const phase = k.rng() * Math.PI * 2, freq = 0.02 + k.rng() * 0.05;
         ctx.beginPath();
         fr.forEach((f, i) => {
-          const o = Math.sin(phase + i * freq * 6) * p.spread * (0.3 + Math.min(3, f.speed / 8)) * (k ? 1 : 0.2);
+          const o = Math.sin(phase + i * freq * 6) * p.spread * (0.3 + Math.min(3, f.speed / 8)) * (kk ? 1 : 0.2);
           const x = f.x + f.nx * o, y = f.y + f.ny * o;
           i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
         });
@@ -212,11 +212,11 @@ export const BRUSHES = {
   zigzag: {
     label: 'Zigzag', roles: ['line', 'gesture'], doc: 'After Ngan: the walk as a zigzag whose amplitude follows the speed. The rhythm of the hand made visible.',
     params: [...speedParams(1, 50), param('every', 'Every', 1, 12, 1, 2, 'Samples per zig.'), ...lineParams(1)],
-    draw(ctx, e, p) {
-      beginInk(ctx, e, p);
+    draw(ctx, e, p, k) {
+      k.beginInk(ctx, e, p);
       ctx.beginPath();
       let n = 0;
-      walkFrames(e).forEach((f, i) => {
+      k.frames(e).forEach((f, i) => {
         if (i % p.every) return;
         const L = Math.min(p.max, 1 + f.speed * p.gain) / 2 * (n++ % 2 ? 1 : -1);
         n === 1 ? ctx.moveTo(f.x + f.nx * L, f.y + f.ny * L) : ctx.lineTo(f.x + f.nx * L, f.y + f.ny * L);
@@ -228,11 +228,11 @@ export const BRUSHES = {
   inner: {
     label: 'Inner lines', roles: ['line', 'gesture'], doc: 'After Ngan: parallel lines inside the walk that open where the hand speeds up and close where it slows. A line becoming a plane.',
     params: [param('lines', 'Lines', 2, 16, 1, 5, 'How many parallel lines.'), ...speedParams(1.5, 80), ...lineParams(0.6)],
-    draw(ctx, e, p) {
-      beginInk(ctx, e, p);
-      const fr = walkFrames(e, 4, 0.8);
-      for (let k = 0; k < p.lines; k++) {
-        const u = p.lines === 1 ? 0 : k / (p.lines - 1) - 0.5;
+    draw(ctx, e, p, k) {
+      k.beginInk(ctx, e, p);
+      const fr = k.frames(e, 4, 0.8);
+      for (let kk = 0; kk < p.lines; kk++) {
+        const u = p.lines === 1 ? 0 : kk / (p.lines - 1) - 0.5;
         ctx.beginPath();
         fr.forEach((f, i) => {
           const o = u * Math.min(p.max, 1 + f.speed * p.gain);
@@ -247,10 +247,10 @@ export const BRUSHES = {
   dotted: {
     label: 'Dotted walk', roles: ['line', 'gesture'], doc: 'After Ngan: a line of points. Where the hand lingered the dots swell, like ink pooling; fast passages leave specks.',
     params: [param('spacing', 'Spacing', 2, 60, 1, 10, 'Distance between dots.'), param('size', 'Size', 0.5, 30, 0.5, 6, 'Largest dot.'), param('gain', 'Speed gain', 0, 3, 0.05, 0.6, 'How strongly speed shrinks the dots.'), param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')],
-    draw(ctx, e, p) {
-      ctx.save(); ctx.globalAlpha *= p.opacity; ctx.fillStyle = e.color || INK;
+    draw(ctx, e, p, k) {
+      ctx.save(); ctx.globalAlpha *= p.opacity; ctx.fillStyle = e.color || k.INK;
       let acc = p.spacing, px = null, py = null;
-      for (const f of walkFrames(e)) {
+      for (const f of k.frames(e)) {
         if (px !== null) acc += Math.hypot(f.x - px, f.y - py);
         px = f.x; py = f.y;
         if (acc < p.spacing) continue;
@@ -264,16 +264,16 @@ export const BRUSHES = {
   arcs: {
     label: 'Arcs', roles: ['line', 'gesture'], doc: 'After Ngan: small arcs swung from the walk, their radius from the speed. The line as a sequence of gestures.',
     params: [...speedParams(0.8, 60), param('every', 'Every', 1, 24, 1, 4, 'One arc every n samples.'), param('sweep', 'Sweep', 10, 360, 5, 140, 'Arc angle in degrees.'), ...lineParams(0.6)],
-    draw(ctx, e, p) {
-      beginInk(ctx, e, p);
-      walkFrames(e).forEach((f, i) => {
+    draw(ctx, e, p, k) {
+      k.beginInk(ctx, e, p);
+      k.frames(e).forEach((f, i) => {
         if (i % p.every) return;
         const r = Math.min(p.max, 1 + f.speed * p.gain), a0 = Math.atan2(f.ny, f.nx), sweep = (p.sweep * Math.PI) / 180;
         ctx.beginPath();
-        for (let k = 0; k <= 16; k++) {
-          const a = a0 - sweep / 2 + (sweep * k) / 16;
+        for (let kk = 0; kk <= 16; kk++) {
+          const a = a0 - sweep / 2 + (sweep * kk) / 16;
           const x = f.x + Math.cos(a) * r, y = f.y + Math.sin(a) * r;
-          k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+          kk ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
         }
         ctx.stroke();
       });
@@ -286,15 +286,15 @@ export const BRUSHES = {
       param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.'),
       param('edge', 'Edge', 0, 20, 0.5, 0, 'Outline width (0 = no outline).')
     ],
-    draw(ctx, e, p) {
+    draw(ctx, e, p, k) {
       if (e.points.length < 3) return;
-      const pts = smoothPath(e.points, true, 4);
+      const pts = k.smoothPath(e.points, true, 4);
       ctx.save();
       ctx.globalAlpha *= p.opacity;
       ctx.fillStyle = e.color || '#8a8175';
-      tracePath(ctx, pts, true);
+      k.tracePath(ctx, pts, true);
       ctx.fill();
-      if (p.edge > 0) { ctx.strokeStyle = INK; ctx.lineWidth = p.edge; ctx.stroke(); }
+      if (p.edge > 0) { ctx.strokeStyle = k.INK; ctx.lineWidth = p.edge; ctx.stroke(); }
       ctx.restore();
     }
   },
@@ -309,28 +309,28 @@ export const BRUSHES = {
       param('jitter', 'Jitter', 0, 1, 0.05, 0.15, 'Seeded irregularity of spacing and ends.'),
       param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
     ],
-    draw(ctx, e, p, env) {
+    draw(ctx, e, p, k) {
       if (e.points.length < 3) return;
-      const poly = smoothPath(e.points, true, 3);
+      const poly = k.smoothPath(e.points, true, 3);
       const cx = poly.reduce((a, q) => a + q[0], 0) / poly.length, cy = poly.reduce((a, q) => a + q[1], 0) / poly.length;
       ctx.save();
       ctx.globalAlpha *= p.opacity;
-      ctx.strokeStyle = e.color || INK;
+      ctx.strokeStyle = e.color || k.INK;
       ctx.lineWidth = p.width;
       ctx.lineCap = 'round';
       const sets = p.cross >= 1 ? [p.angle, p.angle + 90] : [p.angle];
       for (const deg of sets) {
         const a = (deg * Math.PI) / 180;
-        const rp = rotatePts(poly, -a, cx, cy); // rotate so hatching is horizontal
+        const rp = k.rotatePts(poly, -a, cx, cy); // rotate so hatching is horizontal
         const ys = rp.map(q => q[1]);
         const y0 = Math.min(...ys), y1 = Math.max(...ys);
         ctx.beginPath();
-        for (let y = y0 + p.spacing / 2; y < y1; y += p.spacing * (1 + (env.rng() - 0.5) * p.jitter)) {
-          const xs = spans(rp, y);
-          for (let k = 0; k + 1 < xs.length; k += 2) {
+        for (let y = y0 + p.spacing / 2; y < y1; y += p.spacing * (1 + (k.rng() - 0.5) * p.jitter)) {
+          const xs = k.spans(rp, y);
+          for (let kk = 0; kk + 1 < xs.length; kk += 2) {
             const j = p.jitter * p.spacing;
-            const a1 = rotatePts([[xs[k] + (env.rng() - 0.5) * j, y]], a, cx, cy)[0];
-            const b1 = rotatePts([[xs[k + 1] + (env.rng() - 0.5) * j, y]], a, cx, cy)[0];
+            const a1 = k.rotatePts([[xs[kk] + (k.rng() - 0.5) * j, y]], a, cx, cy)[0];
+            const b1 = k.rotatePts([[xs[kk + 1] + (k.rng() - 0.5) * j, y]], a, cx, cy)[0];
             ctx.moveTo(a1[0], a1[1]);
             ctx.lineTo(b1[0], b1[1]);
           }
@@ -348,20 +348,20 @@ export const BRUSHES = {
       param('size', 'Size', 0.5, 12, 0.25, 2, 'Dot diameter.'),
       param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
     ],
-    draw(ctx, e, p, env) {
+    draw(ctx, e, p, k) {
       if (e.points.length < 3) return;
-      const poly = smoothPath(e.points, true, 3);
+      const poly = k.smoothPath(e.points, true, 3);
       const xs = poly.map(q => q[0]), ys = poly.map(q => q[1]);
       const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
       const n = Math.min(40000, Math.round((x1 - x0) * (y1 - y0) * p.density));
       ctx.save();
       ctx.globalAlpha *= p.opacity;
-      ctx.fillStyle = e.color || INK;
+      ctx.fillStyle = e.color || k.INK;
       for (let i = 0; i < n; i++) {
-        const x = x0 + env.rng() * (x1 - x0), y = y0 + env.rng() * (y1 - y0);
-        const sp = spans(poly, y);
+        const x = x0 + k.rng() * (x1 - x0), y = y0 + k.rng() * (y1 - y0);
+        const sp = k.spans(poly, y);
         let inside = false;
-        for (let k = 0; k + 1 < sp.length; k += 2) if (x >= sp[k] && x <= sp[k + 1]) inside = true;
+        for (let kk = 0; kk + 1 < sp.length; kk += 2) if (x >= sp[kk] && x <= sp[kk + 1]) inside = true;
         if (!inside) continue;
         ctx.beginPath(); ctx.arc(x, y, p.size / 2, 0, Math.PI * 2); ctx.fill();
       }
@@ -369,6 +369,154 @@ export const BRUSHES = {
     }
   }
 };
+
+/**
+ * The brush kit: what a brush's draw(ctx, e, p, k) can use. Brushes are code: the built-ins are
+ * written against this kit only, so their source can be shown, forked and edited.
+ *   k.smoothPath(points, closed, samples)   Catmull-Rom resampling
+ *   k.frames(e, samples, smoothing)         the walk: [{ x, y, nx, ny, speed, pressure }]
+ *   k.tracePath(ctx, pts, closed)           begin a path through pts
+ *   k.spans(poly, y)                        scanline crossings of a polygon (hatching, stipple)
+ *   k.rotatePts(pts, angle, cx, cy)         rotate points
+ *   k.segment(ctx, x1, y1, x2, y2)          one stroked segment
+ *   k.beginInk(ctx, e, p)                   save + color, width (p.width), opacity (p.opacity), round caps
+ *   k.draw(id, ctx, e, params)              draw with another brush
+ *   k.rng()                                 seeded random 0..1 (per element)
+ *   k.noise(x, y)                           smooth value noise, about -1..1
+ *   k.scale                                 screen scale (for hairlines)
+ *   k.INK                                   the default ink color
+ */
+function valueNoise(x, y) {
+  const h = (i, j) => { const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return n - Math.floor(n); };
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = h(xi, yi), b = h(xi + 1, yi), c = h(xi, yi + 1), d = h(xi + 1, yi + 1);
+  return (a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v) * 2 - 1;
+}
+export const KIT = {
+  smoothPath, tracePath, spans, rotatePts, frames: walkFrames, segment: strokeSegment, beginInk, INK, noise: valueNoise,
+  draw(id, ctx, e, params = {}) { const b = BRUSHES[id]; if (b) b.draw(ctx, e, resolveParams(id, params), this); }
+};
+export function kitFor(env = {}) { if (env && env.smoothPath) return env; const k = Object.create(KIT); k.rng = env?.rng || Math.random; k.scale = env?.scale || 1; return k; }
+
+// Every brush's draw gets a kit, whatever the caller passes; the raw function is its source.
+for (const b of Object.values(BRUSHES)) wrapDraw(b);
+function wrapDraw(b) {
+  if (b.rawDraw) return b;
+  b.rawDraw = b.draw;
+  b.draw = function (ctx, e, p, env) { return b.rawDraw(ctx, e, p, kitFor(env)); };
+  return b;
+}
+
+const q = v => JSON.stringify(v);
+/** A brush as code: the snippet that defines it (built-ins included). */
+export function brushSource(id) {
+  const b = BRUSHES[id];
+  if (!b) return null;
+  if (b.source) return b.source;
+  const params = b.params.map(p => `    ${p.key}: [${p.min}, ${p.max}, ${p.default}${p.doc ? `, ${q(p.doc)}` : ''}]`).join(',\n');
+  let fn = b.rawDraw.toString();
+  if (!/^draw\s*\(/.test(fn)) fn = `draw${fn.replace(/^function\s*\w*\s*/, '')}`;
+  // Re-indent the method body to sit inside brush({ … }).
+  const lines = fn.split('\n');
+  const base = lines.length > 1 ? lines[lines.length - 1].match(/^ */)[0].length : 0;   // the closing brace
+  fn = [lines[0], ...lines.slice(1).map(l => `  ${l.slice(Math.min(base, l.match(/^ */)[0].length))}`)].join('\n');
+  return `brush({
+  id: ${q(id)},
+  label: ${q(b.label)},
+  roles: ${q(b.roles)},
+  doc: ${q(b.doc || '')},${b.construction ? '\n  construction: true,' : ''}
+  params: {
+${params}
+  },
+  ${fn}
+})
+`;
+}
+
+/** Code for a brush definition given as an object (brush({...}) in a score). */
+export function defSource(def) {
+  const params = Object.entries(def.params || {}).map(([key, v]) => `    ${key}: ${q(Array.isArray(v) ? v : [v.min, v.max, v.default, v.doc].filter(x => x !== undefined))}`).join(',\n');
+  let fn = def.draw.toString();
+  const method = /^draw\s*\(/.test(fn) ? fn : /^(async\s+)?function\b/.test(fn) ? `draw${fn.replace(/^function\s*\w*\s*/, '')}` : `draw: ${fn}`;
+  return `brush({
+  id: ${q(def.id)},
+  label: ${q(def.label || def.id)},
+  roles: ${q(def.roles || ['line', 'gesture', 'plane'])},
+  doc: ${q(def.doc || '')},${def.construction ? '\n  construction: true,' : ''}
+  params: {
+${params}
+  },
+  ${method}
+})
+`;
+}
+
+/**
+ * Compile brush code: brush({ id, label, roles, doc, params: { key: [min, max, default, doc] }, draw(ctx, e, p, k) { … } }).
+ * Returns the definition (not yet registered). Throws with a readable message.
+ */
+export function compileBrush(source) {
+  let def = null;
+  // eslint-disable-next-line no-new-func
+  new Function('brush', `"use strict";\n${source}`)(d => { def = d; });
+  if (!def) throw new Error('The code must call brush({ id, draw(ctx, e, p, k) { … } })');
+  if (!/^[a-z][\w-]*$/i.test(def.id || '')) throw new Error('brush id must be a word like "teeth"');
+  if (typeof def.draw !== 'function') throw new Error('brush needs draw(ctx, e, p, k) { … }');
+  const params = Object.entries(def.params || {}).map(([key, v]) => {
+    const [min, max, dflt, doc] = Array.isArray(v) ? v : [v.min ?? 0, v.max ?? 1, v.default ?? 0, v.doc];
+    return param(key, key, Number(min), Number(max), Math.abs(Number(max) - Number(min)) / 100 || 0.01, Number(dflt), doc || '');
+  });
+  return wrapDraw({
+    label: def.label || def.id, roles: def.roles || ['line', 'gesture', 'plane'], doc: def.doc || '', construction: Boolean(def.construction),
+    params, draw: def.draw, source, custom: true, id: def.id
+  });
+}
+
+// ---- where brushes live: built-in, your library (browser), or a drawing ----------------------
+const LIB_KEY = 'ams_brushes_v1';
+const BUILTIN_IDS = new Set(Object.keys(BRUSHES));
+export const isBuiltin = id => BUILTIN_IDS.has(id);
+export function libraryBrushes() { try { return JSON.parse(globalThis.localStorage?.getItem(LIB_KEY) || '{}'); } catch { return {}; } }
+function saveLibrary(lib) { try { globalThis.localStorage?.setItem(LIB_KEY, JSON.stringify(lib)); } catch { /* ignore */ } }
+
+/** Register compiled brush code under its id (built-ins cannot be replaced: fork them under a new id). */
+export function registerBrush(source, scope = 'library') {
+  const def = compileBrush(source);
+  if (isBuiltin(def.id)) throw new Error(`"${def.id}" is a built-in brush: give your version its own id`);
+  def.scope = scope;
+  BRUSHES[def.id] = def;
+  return def;
+}
+
+/** Save brush code to your library (and register it). Returns the definition. */
+export function saveLibraryBrush(source) {
+  const def = registerBrush(source, 'library');
+  const lib = libraryBrushes(); lib[def.id] = source; saveLibrary(lib);
+  return def;
+}
+
+export function deleteLibraryBrush(id) {
+  const lib = libraryBrushes(); const had = id in lib; delete lib[id]; saveLibrary(lib);
+  if (BRUSHES[id]?.scope === 'library') delete BRUSHES[id];
+  return had;
+}
+
+/** Load your library once (browser). */
+export function loadLibrary() {
+  for (const src of Object.values(libraryBrushes())) { try { registerBrush(src, 'library'); } catch (err) { console.warn('brush library:', err.message); } }
+}
+
+/** A drawing carries every non-built-in brush it uses, so it renders anywhere. */
+export function embedBrushes(doc) {
+  if (!doc?.elements) return doc;
+  doc.brushes = doc.brushes || {};
+  for (const e of doc.elements) {
+    const id = e.realize?.brush;
+    const b = BRUSHES[id];
+    if (b?.custom && b.source && !doc.brushes[id] && !doc.lines?.[id]) doc.brushes[id] = b.source;
+  }
+  return doc;
+}
 
 /** Full parameter set for an element: brush defaults overlaid with the element's params. */
 export function resolveParams(brushId, params = {}) {
@@ -383,7 +531,7 @@ export function resolveParams(brushId, params = {}) {
 
 /** Brushes for a role; lines a document defined itself are listed only for that document. */
 export function brushesForRole(role, doc = null) {
-  return Object.entries(BRUSHES).filter(([id, b]) => b.roles.includes(role) && (!b.custom || doc?.lines?.[id])).map(([id, b]) => ({ id, label: b.label }));
+  return Object.entries(BRUSHES).filter(([id, b]) => b.roles.includes(role) && (!b.custom || b.scope === 'library' || doc?.lines?.[id] || doc?.brushes?.[id])).map(([id, b]) => ({ id, label: b.label }));
 }
 
 /**
@@ -394,6 +542,10 @@ export function brushesForRole(role, doc = null) {
  */
 const compiled = new Map();
 export function installLines(doc) {
+  for (const [id, src] of Object.entries(doc?.brushes || {})) {
+    if (isBuiltin(id) || compiled.get(id) === src) continue;
+    try { registerBrush(src, 'doc'); compiled.set(id, src); } catch (err) { console.warn(`brush "${id}":`, err.message); }
+  }
   for (const [name, spec] of Object.entries(doc?.lines || {})) {
     if (!spec?.source || (BRUSHES[name] && !BRUSHES[name].custom)) continue;
     const key = `${name}\n${spec.source}\n${JSON.stringify(spec.params || {})}`;
