@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Artist-Model Studio - Standalone MCP Server
+ * Artist Model Studio - Standalone MCP Server
  *
  * Implements the standard Model Context Protocol (MCP) JSON-RPC 2.0 interface
  * over stdio for external AI coding assistants, agents, and desktop clients.

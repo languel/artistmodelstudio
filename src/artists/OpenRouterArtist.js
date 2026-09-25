@@ -154,7 +154,7 @@ export class OpenRouterArtist extends Artist {
       const res = await fetch('https://openrouter.ai/api/v1/models', {
         headers: {
           'HTTP-Referer': typeof window !== 'undefined' ? (window.location?.origin || 'http://localhost:3000') : 'http://localhost:3000',
-          'X-Title': 'Artist-Model Studio'
+          'X-Title': 'Artist Model Studio'
         }
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -514,7 +514,7 @@ export class OpenRouterArtist extends Artist {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
         'HTTP-Referer': typeof window !== 'undefined' ? (window.location?.origin || 'http://localhost:3000') : 'http://localhost:3000',
-        'X-Title': 'Artist-Model Studio'
+        'X-Title': 'Artist Model Studio'
       },
       body: JSON.stringify(payload),
       // Give up on a candidate after 4 minutes (reasoning models can stall silently).

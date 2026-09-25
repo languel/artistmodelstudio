@@ -80,7 +80,7 @@ export class Controls {
 
     this.container.innerHTML = `
       <header class="studio-header">
-        <div class="studio-brand" title="Artist–Model Studio">
+        <div class="studio-brand" title="Artist Model Studio">
           <span class="brand-badge">${icon('sparkles', 'icon-sm')}</span>
         </div>
 

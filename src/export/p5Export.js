@@ -311,7 +311,7 @@ export async function buildP5Sketch(program, { mediumId = 'flat', medium = null,
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ams-sketch';
   const header = [
     `// ${title}`,
-    `// Exported from Artist–Model Studio on ${new Date().toISOString().slice(0, 10)}${source ? ` · ${source}` : ''}`,
+    `// Exported from Artist Model Studio on ${new Date().toISOString().slice(0, 10)}${source ? ` · ${source}` : ''}`,
     `// Medium: ${mediumId}`,
     '// Press U for controls: re-render, animate, loop, fit/fill, renderer (flat/watercolor/pixel/ASCII), save PNG.',
     ''
@@ -381,7 +381,7 @@ export async function buildP5ProjectZip(program, options = {}) {
   ]);
   const readme = `# ${title}
 
-A self-contained p5.js sketch exported from Artist–Model Studio.
+A self-contained p5.js sketch exported from Artist Model Studio.
 
 Open \`index.html\` in a browser (no server needed). Press **U** for controls:
 re-render (R), animate (A), loop (L), fit or fill the window (X),
@@ -883,7 +883,7 @@ export function buildContinuousSketch(target, params, { title = 'AMS continuous'
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ams-continuous';
   const header = [
     `// ${title}: continuous Reference Fitter`,
-    `// Exported from Artist–Model Studio on ${new Date().toISOString().slice(0, 10)}${source ? ` · ${source}` : ''}`,
+    `// Exported from Artist Model Studio on ${new Date().toISOString().slice(0, 10)}${source ? ` · ${source}` : ''}`,
     '// Shapes live, fade and are replaced by new fits, repainting the reference forever.',
     '// Press U for controls.',
     ''
@@ -926,7 +926,7 @@ export async function buildContinuousZip(target, params, options = {}) {
   ]);
   const readme = `# ${title}
 
-A self-contained p5.js sketch exported from Artist–Model Studio. It repaints
+A self-contained p5.js sketch exported from Artist Model Studio. It repaints
 the reference forever: each shape fades in, lives for a while, fades out, and is
 replaced by a new shape fitted to what is left.
 

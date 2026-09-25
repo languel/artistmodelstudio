@@ -1,6 +1,6 @@
 # Architecture Overview
 
-**Artist–Model Studio** is built upon four primary abstractions:
+**Artist Model Studio** is built upon four primary abstractions:
 
 ```text
                   ┌──────────────┐

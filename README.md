@@ -1,4 +1,4 @@
-# Artist–Model Studio (AMS)
+# Artist Model Studio (AMS)
 
 A human-in-the-loop creative coding studio. Models (or procedures) write small drawing programs, the studio renders them in different media, and you judge, edit, animate and export the results. It is built for teaching and for exploring how small models can learn a visual style.
 
@@ -53,4 +53,4 @@ Pick **Reference Fitter** as the engine, choose a reference in the **Reference**
 
 ## Licenses
 
-MIT © 2026 Artist–Model Studio contributors. Exported sketches vendor p5.js (LGPL-2.1) and p5.brush (MIT) unmodified; bundled reference images are public domain (see `fixtures/references/*/sources.json`).
+MIT © 2026 Artist Model Studio contributors. Exported sketches vendor p5.js (LGPL-2.1) and p5.brush (MIT) unmodified; bundled reference images are public domain (see `fixtures/references/*/sources.json`).

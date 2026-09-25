@@ -28,7 +28,7 @@ from PIL import Image
 
 HERE = Path(__file__).parent
 IMG_DIR = HERE / "images"
-UA = {"User-Agent": "AMS-research/0.1 (Artist-Model Studio; contact liuboto@gmail.com)"}
+UA = {"User-Agent": "AMS-research/0.1 (Artist Model Studio; contact liuboto@gmail.com)"}
 YEARS = range(1912, 1931)  # mature style; <=1930 keeps every work PD in the US too
 WIDTH = 640
 TEST_FRACTION = 0.15

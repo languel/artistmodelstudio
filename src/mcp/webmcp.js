@@ -1,5 +1,5 @@
 /**
- * WebMCP - Browser Agent & Programmatic Bridge for Artist-Model Studio
+ * WebMCP - Browser Agent & Programmatic Bridge for Artist Model Studio
  *
  * Exposes window.ams with full studio automation, program rendering,
  * candidate selection, reward evaluation, and standard Model Context Protocol

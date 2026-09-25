@@ -470,7 +470,7 @@ export class HelpModal {
             In-Browser LoRA Fine-Tuning Architecture
           </h3>
           <p style="margin: 0 0 10px 0;">
-            Artist–Model Studio includes a self-contained LoRA (Low-Rank Adaptation) training engine that runs entirely inside your browser (or headless Node.js). No model weights or user artworks are uploaded to remote servers.
+            Artist Model Studio includes a self-contained LoRA (Low-Rank Adaptation) training engine that runs entirely inside your browser (or headless Node.js). No model weights or user artworks are uploaded to remote servers.
           </p>
 
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
@@ -539,7 +539,7 @@ export class HelpModal {
             The Studio Workflow
           </h3>
           <p style="margin: 0 0 12px 0;">
-            Artist–Model Studio bridges prompt-based generative code with an RLHF/RLAIF human-in-the-loop training and evaluation lab:
+            Artist Model Studio bridges prompt-based generative code with an RLHF/RLAIF human-in-the-loop training and evaluation lab:
           </p>
 
           <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -591,7 +591,7 @@ export class HelpModal {
             WebMCP &amp; External Agent API
           </h3>
           <p style="margin: 0 0 10px 0;">
-            Artist–Model Studio exposes a comprehensive programmatic interface on <code>window.ams</code> (and <code>window.__artistStudioAPI</code>) allowing external AI coding agents to control generation, evaluate visual candidates, fine-tune models, and export artifacts.
+            Artist Model Studio exposes a comprehensive programmatic interface on <code>window.ams</code> (and <code>window.__artistStudioAPI</code>) allowing external AI coding agents to control generation, evaluate visual candidates, fine-tune models, and export artifacts.
           </p>
 
           <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem; text-align: left;">

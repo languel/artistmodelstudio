@@ -1,12 +1,12 @@
-# Artist–Model Studio: Training, Fine-Tuning & Hardware Guide
+# Artist Model Studio: Training, Fine-Tuning & Hardware Guide
 
-This document covers the end-to-end training and fine-tuning architecture of **Artist–Model Studio**, empirical benchmark measurements on Apple Silicon (**Apple M5 Max, 18 Cores, 128 GB Unified Memory**), multi-model resource estimates, dataset formatting, the `.ams-model.json` portable adapter specification, output uniformity troubleshooting, and autonomous agent orchestration via WebMCP.
+This document covers the end-to-end training and fine-tuning architecture of **Artist Model Studio**, empirical benchmark measurements on Apple Silicon (**Apple M5 Max, 18 Cores, 128 GB Unified Memory**), multi-model resource estimates, dataset formatting, the `.ams-model.json` portable adapter specification, output uniformity troubleshooting, and autonomous agent orchestration via WebMCP.
 
 ---
 
 ## 1. Overview & Core Philosophy
 
-Traditional generative image systems (e.g. Diffusion models or autoregressive pixel generators) generate raster pixels directly. In contrast, **Artist–Model Studio** trains models to output **creative coding programs** adhering to a strictly typed, sandboxed visual domain language (JSON / DSL actions):
+Traditional generative image systems (e.g. Diffusion models or autoregressive pixel generators) generate raster pixels directly. In contrast, **Artist Model Studio** trains models to output **creative coding programs** adhering to a strictly typed, sandboxed visual domain language (JSON / DSL actions):
 
 ```text
 Prompt ──> [Fine-Tuned LLM / LoRA] ──> DrawingProgram (JSON) ──> [Medium Renderer] ──> Image
@@ -140,7 +140,7 @@ Fine-tuned models and adapters can be exported as self-contained JSON files. Thi
 
 ## 6. WebMCP & Autonomous Agent Automation
 
-Artist–Model Studio includes a built-in WebMCP bridge exposed at `window.ams` and `window.webmcp`. This allows autonomous agents to run end-to-end generation, evaluation, grading, and training cycles.
+Artist Model Studio includes a built-in WebMCP bridge exposed at `window.ams` and `window.webmcp`. This allows autonomous agents to run end-to-end generation, evaluation, grading, and training cycles.
 
 ### Agent Workflow Example
 
@@ -200,4 +200,4 @@ To train natively outside the browser using Apple Silicon MLX:
      --lora-layers 16 \
      --iters 500
    ```
-4. Load the resulting adapter directly into Artist–Model Studio or serve it via Ollama/vLLM.
+4. Load the resulting adapter directly into Artist Model Studio or serve it via Ollama/vLLM.

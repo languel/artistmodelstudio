@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RL / GRPO Policy Training Scaffolding for Artist–Model Studio.
+RL / GRPO Policy Training Scaffolding for Artist Model Studio.
 Applies deterministic reward scoring across N drawing rollouts to update policy weights.
 """
 
@@ -17,7 +17,7 @@ def parse_args():
 def main():
     args = parse_args()
     print("=" * 60)
-    print(" Artist–Model Studio : RL / GRPO Policy Training")
+    print(" Artist Model Studio : RL / GRPO Policy Training")
     print("=" * 60)
     print(f"Policy Model : {args.model}")
     print(f"Rollouts/Step: {args.rollouts}")

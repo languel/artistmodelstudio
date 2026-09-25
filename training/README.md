@@ -1,6 +1,6 @@
-# Artist–Model Studio: Training Scaffolding
+# Artist Model Studio: Training Scaffolding
 
-This directory contains standalone Python training scripts designed to train local models on datasets exported from **Artist–Model Studio**.
+This directory contains standalone Python training scripts designed to train local models on datasets exported from **Artist Model Studio**.
 
 The browser application remains local-first and lightweight; its responsibility ends at dataset export and inference. Downstream training occurs externally using standard tooling (MLX on Apple Silicon, PyTorch, Hugging Face TRL).
 
@@ -82,4 +82,4 @@ Once LoRA weights or merged models are exported:
    ```bash
    ollama create studio-painter -f Modelfile
    ```
-3. In **Artist–Model Studio**, select `studio-painter` from the Model dropdown!
+3. In **Artist Model Studio**, select `studio-painter` from the Model dropdown!

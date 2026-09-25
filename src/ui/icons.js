@@ -1,6 +1,6 @@
 /**
  * Heroicons SVG Helper (24x24 outline / 20x20 mini)
- * High-quality, clean SVG icons for Artist-Model Studio
+ * High-quality, clean SVG icons for Artist Model Studio
  */
 
 export const ICONS = {

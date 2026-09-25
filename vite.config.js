@@ -125,6 +125,7 @@ export default defineConfig({
     exclude: ['@huggingface/transformers']
   },
   build: {
-    target: 'esnext'
+    target: 'esnext',
+    rollupOptions: { input: { main: 'index.html', classic: 'classic.html' } }
   }
 });

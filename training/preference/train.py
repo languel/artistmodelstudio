@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DPO (Direct Preference Optimization) Training Scaffolding for Artist–Model Studio.
+DPO (Direct Preference Optimization) Training Scaffolding for Artist Model Studio.
 Loads pairwise chosen vs rejected drawing programs exported from the preference loop.
 """
 
@@ -19,7 +19,7 @@ def parse_args():
 def main():
     args = parse_args()
     print("=" * 60)
-    print(" Artist–Model Studio : DPO Preference Training")
+    print(" Artist Model Studio : DPO Preference Training")
     print("=" * 60)
     if not os.path.exists(args.data):
         print(f"Error: {args.data} not found", file=sys.stderr)

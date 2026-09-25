@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SFT / LoRA Training CLI Scaffolding for Artist–Model Studio.
+SFT / LoRA Training CLI Scaffolding for Artist Model Studio.
 Demonstrates training a small causal language model on exported SFT JSONL datasets.
 Supports MLX-LM on Apple Silicon and Hugging Face PEFT/TRL.
 """
@@ -37,7 +37,7 @@ def validate_dataset(filepath):
 def main():
     args = parse_args()
     print("=" * 60)
-    print(" Artist–Model Studio : SFT / LoRA Training Pipeline")
+    print(" Artist Model Studio : SFT / LoRA Training Pipeline")
     print("=" * 60)
     print(f"Base Model : {args.model}")
     print(f"Dataset    : {args.data}")

@@ -1,6 +1,6 @@
 # Experimental Matrix & Research Questions
 
-The core objective of **Artist–Model Studio** is to make the generative art matrix observable and controllable:
+The core objective of **Artist Model Studio** is to make the generative art matrix observable and controllable:
 
 ```text
                            MODEL
