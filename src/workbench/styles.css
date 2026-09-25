@@ -402,3 +402,7 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-cp-preset .wb-cp-chip { display: block; width: 100%; height: 100%; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
 .wb-cp-add { color: var(--wb-muted); font-size: 14px; line-height: 1; border: 1px dashed var(--wb-line); }
 .wb-cp-head { font-size: 10.5px; color: var(--wb-muted); margin-top: 2px; }
+
+/* No browser focus rings on mouse clicks; a quiet ring for keyboard focus only. */
+.wb button:focus, .wb-menu button:focus, .wb-palette-overlay button:focus, .wb-cp-pop button:focus, .wb-guide-card button:focus, .wb [tabindex]:focus, .wb canvas:focus { outline: none; }
+.wb button:focus-visible, .wb-menu button:focus-visible, .wb-cp-pop button:focus-visible, .wb-guide-card button:focus-visible, .wb [tabindex]:focus-visible { outline: 1px solid var(--wb-muted); outline-offset: 1px; }
