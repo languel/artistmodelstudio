@@ -403,7 +403,18 @@ for (const b of Object.values(BRUSHES)) wrapDraw(b);
 function wrapDraw(b) {
   if (b.rawDraw) return b;
   b.rawDraw = b.draw;
-  b.draw = function (ctx, e, p, env) { return b.rawDraw(ctx, e, p, kitFor(env)); };
+  b.draw = function (ctx, e, p, env) {
+    if (!b.custom) return b.rawDraw(ctx, e, p, kitFor(env));
+    // Code from people and models can fail: fall back to a plain brush for this element, warn once.
+    ctx.save();
+    try { b.rawDraw(ctx, e, p, kitFor(env)); ctx.restore(); }
+    catch (err) {
+      ctx.restore();
+      if (!b.warned) { b.warned = true; b.lastError = err.message; console.warn(`brush "${b.id || b.label}" failed (drawn plainly instead): ${err.message}`); }
+      const fb = e.role === 'plane' ? 'flat' : e.role === 'point' ? 'dot' : 'ink';
+      BRUSHES[fb].draw(ctx, e, resolveParams(fb, {}), env);
+    }
+  };
   return b;
 }
 

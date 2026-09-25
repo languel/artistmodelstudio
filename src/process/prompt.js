@@ -17,7 +17,35 @@ Write a SCORE: a short JavaScript program in the vocabulary below. Running it re
 - Give every mark a short reason (why). Keep construction (guide, gesture) separate from marks.
 - Use loops, functions and walk() instead of listing coordinates; small rules make rich drawings.
 - The brushes only realize your paths; composition, emphasis, order and value are your decisions.
-- Coordinates are artboard units, origin top-left, y down. Call artboard(w, h, ground) first.`;
+- Coordinates are FRACTIONS of the artboard: x 0..1 across, y 0..1 down (width and height give its size in units). Call artboard(w, h, ground) first.
+- Brushes are code. Use the built-ins, or define your own when a technique needs it: brush({ id, label, roles, doc, params: { key: [min, max, default, doc] }, draw(ctx, e, p, k) { … } }), then plane(pts, { brush: id }). In draw, e.points are [x, y, t, p] in artboard units and k is the kit (k.frames, k.spans, k.segment, k.beginInk … ctx.restore(), k.rng, k.noise).`;
+
+const FRACTION_EXAMPLE = `artboard(800, 800, '#f2ede3')
+
+// A technique as code: short strokes across a plane, like a dry brush
+brush({
+  id: 'drybrush', label: 'Dry brush', roles: ['plane'], doc: 'Short strokes inside a plane, leaving paper between them',
+  params: { length: [2, 40, 12, 'Stroke length'], gap: [2, 20, 6, 'Distance between rows'] },
+  draw(ctx, e, p, k) {
+    k.beginInk(ctx, e, { width: 2, opacity: 0.8 })
+    const ys = e.points.map(q => q[1])
+    for (let y = Math.min(...ys); y < Math.max(...ys); y += p.gap) {
+      const xs = k.spans(e.points, y)
+      for (let i = 0; i + 1 < xs.length; i += 2) for (let x = xs[i]; x < xs[i + 1] - p.length; x += p.length * (1 + k.rng())) k.segment(ctx, x, y, x + p.length, y + (k.rng() - 0.5) * 3)
+    }
+    ctx.restore()
+  }
+})
+
+stage('Analysis', 'analysis')
+guide([[0.5, 0], [0.5, 1]], { why: 'the axis' })
+const where = decide('Where does the weight sit?', ['high', 'low'], 'low', 'a low mass feels settled')
+
+stage('Value', 'value')
+plane(circle(0.5, where === 'low' ? 0.62 : 0.38, 0.22), { brush: 'drybrush', color: '#3f3a34', why: 'the one mass, dry-brushed' })
+
+stage('Marks', 'marks')
+point(0.72, 0.28, { size: 18, color: '#b83a22', why: 'a small warm accent against the mass' })`;
 
 export function brushSummary() {
   return Object.entries(BRUSHES).filter(([id]) => id !== 'none').map(([id, b]) =>
@@ -36,9 +64,9 @@ ${SCRIPT_REFERENCE}
 BRUSHES
 ${brushSummary()}
 
-EXAMPLE SCORE (${example.title})
+EXAMPLE SCORE (fractions, a brush written as code)
 \`\`\`js
-${example.source}
+${FRACTION_EXAMPLE}
 \`\`\`
 
 Reply with ONE score in a \`\`\`js code block. No other text is needed; reasons belong in why and note().`;
