@@ -360,3 +360,12 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-outliner-toggle.danger:hover { color: #c0563f; }
 .wb-outliner-input { flex: 1; height: 20px; min-width: 0; }
 .wb-outliner-bar { margin-bottom: 4px; }
+
+/* Checkboxes: a quiet square; checked shows a filled dot in the theme colours. */
+input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; margin: 0 4px 0 2px; border: 1px solid var(--wb-muted); border-radius: 3px; background: transparent; display: inline-grid; place-content: center; cursor: pointer; flex: none; vertical-align: middle; }
+input[type="checkbox"]::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--wb-accent); transform: scale(0); transition: transform .1s; }
+input[type="checkbox"]:checked { border-color: var(--wb-accent); }
+input[type="checkbox"]:checked::before { transform: scale(1); }
+input[type="checkbox"]:hover { border-color: var(--wb-text); }
+input[type="checkbox"]:focus-visible { outline: 1px solid var(--wb-select); outline-offset: 2px; }
+input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
