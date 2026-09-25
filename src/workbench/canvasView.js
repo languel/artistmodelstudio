@@ -65,7 +65,7 @@ export class CanvasView {
     this.canvas.style.height = `${this.h}px`;
     this.dpr = dpr;
     if (this.raf) { cancelAnimationFrame(this.raf); this.raf = 0; }
-    this.draw();
+    if (this.cam) this.draw(); else this.invalidate();
   }
 
   fit(pad = 60) {
