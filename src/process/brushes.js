@@ -93,6 +93,23 @@ const speedParams = (gain, max) => [param('gain', 'Speed gain', 0, 6, 0.05, gain
 const beginInk = (ctx, e, p) => { ctx.save(); ctx.globalAlpha *= p.opacity; ctx.strokeStyle = e.color || INK; ctx.fillStyle = e.color || INK; ctx.lineWidth = p.width; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; };
 
 export const BRUSHES = {
+  image: {
+    label: 'Image', roles: ['image'], doc: 'A placed picture, drawn through its four corners (so it moves, scales and rotates like any mark).',
+    params: [param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Opacity of the picture.')],
+    draw(ctx, e, p, k) {
+      const [a, b, , d] = e.points;
+      if (!a || !b || !d) return;
+      const im = k.image(e.src);
+      ctx.save();
+      ctx.globalAlpha *= p.opacity;
+      // The unit square mapped onto the corners: top-left a, top-right b, bottom-left d.
+      ctx.transform(b[0] - a[0], b[1] - a[1], d[0] - a[0], d[1] - a[1], a[0], a[1]);
+      if (im) ctx.drawImage(im, 0, 0, 1, 1);
+      else { ctx.fillStyle = 'rgba(128,128,128,0.15)'; ctx.fillRect(0, 0, 1, 1); }
+      ctx.restore();
+    }
+  },
+
   none: {
     label: 'None', roles: ['note'], doc: 'Not drawn in the picture.',
     params: [],
@@ -392,7 +409,16 @@ function valueNoise(x, y) {
   const a = h(xi, yi), b = h(xi + 1, yi), c = h(xi, yi + 1), d = h(xi + 1, yi + 1);
   return (a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v) * 2 - 1;
 }
+const images = new Map();
+/** A loaded image for a src (data URL or URL), or null while it loads (the canvas redraws when it arrives). */
+function getImage(src) {
+  if (!src || typeof Image === 'undefined') return null;
+  let im = images.get(src);
+  if (!im) { im = new Image(); im.onload = () => KIT.onImageLoad?.(); im.src = src; images.set(src, im); }
+  return im.complete && im.naturalWidth ? im : null;
+}
 export const KIT = {
+  image: getImage,
   smoothPath, tracePath, spans, rotatePts, frames: walkFrames, segment: strokeSegment, beginInk, INK, noise: valueNoise,
   draw(id, ctx, e, params = {}) { const b = BRUSHES[id]; if (b) b.draw(ctx, e, resolveParams(id, params), this); }
 };

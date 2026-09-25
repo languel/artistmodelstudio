@@ -6,7 +6,7 @@
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
 
-const ROLE_GLYPH = { point: '•', line: '∿', plane: '▰', guide: '┼', gesture: '〰', note: '¶' };
+const ROLE_GLYPH = { point: '•', line: '∿', plane: '▰', guide: '┼', gesture: '〰', note: '¶', image: '▣' };
 
 export function labelOf(e, doc) {
   if (e.label) return e.label;

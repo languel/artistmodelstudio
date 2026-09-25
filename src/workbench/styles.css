@@ -432,3 +432,15 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 
 .wb-brush-preview { width: 100%; height: auto; aspect-ratio: 600 / 220; border-radius: 6px; border: 1px solid var(--wb-line); }
 .wb-brush-code { height: 38vh; }
+
+/* Scrollbars: thin and quiet everywhere (the tab strip gets a hairline that thickens on hover). */
+.wb *, .wb-menu, .wb-palette-card, .wb-cp-pop { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--wb-muted) 45%, transparent) transparent; }
+.wb ::-webkit-scrollbar, .wb-menu ::-webkit-scrollbar, .wb-palette-card ::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+.wb ::-webkit-scrollbar-track { background: transparent; }
+.wb ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--wb-muted) 40%, transparent); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+.wb ::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--wb-muted) 70%, transparent); }
+.wb ::-webkit-scrollbar-corner { background: transparent; }
+.wb .wb-tabs { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--wb-muted) 35%, transparent) transparent; }
+.wb .wb-tabs::-webkit-scrollbar { height: 3px; }
+.wb .wb-tabs:hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--wb-muted) 55%, transparent); }
+.wb .wb-tabs::-webkit-scrollbar-thumb { border: 0; border-radius: 2px; }

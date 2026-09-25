@@ -51,9 +51,13 @@ export const WALKTHROUGHS = [
     steps: [
       { say: 'A full cycle on one painting: look at Klee\'s Senecio (1922), name its methods, write them as code, reproduce it, then use the same methods on a subject it never shows.',
         run: async ({ save }) => { await save(); } },
+      { say: 'The painting is in Assets, with the other Klee references. Found by searching for it.',
+        layout: { open: ['assets'], find: 'senecio' }, target: 'panel:assets', click: false, hold: 1200 },
       { say: 'The reference: Senecio, oil on gauze. It goes under the sheet so every step can be checked against it.',
+        layout: { find: '' },
         run: async ({ app }) => { await call('ams_assets', { open: 'klee:klee-1922-senecio', narrate: 'Opening Senecio as the reference.' }); if (app.reference) { app.reference.opacity = 0.55; app.reference.visible = true; app.canvas.invalidate(); } } },
       { say: 'First, looking with the studio\'s eyes: value masses and regions. Mostly middle and light values, all warm; few hard edges.',
+        layout: { open: ['decide'], reference: { visible: true, opacity: 0.55 } },
         run: () => call('ams_analyze', { narrate: 'Analyzing the reference: values, regions, edges, directions.' }), hold: 800 },
       { say: 'Its palette, sampled from the painting and named after the nearest pigments.',
         run: () => call('ams_palette', { action: 'from_image', asset: 'klee:klee-1922-senecio', count: 8, name: 'Klee · Senecio (sampled)', narrate: 'Sampling the palette.' }) },
@@ -176,7 +180,7 @@ export class Walkthroughs {
     if (!wt) throw new Error(`No walkthrough "${id}"`);
     this.stop();
     const g = this.app.guide;
-    const run = this.run = { wt, i: 0, paused: false, stopped: false, state: {}, pace: g.pace, jump: null };
+    const run = this.run = { wt, i: 0, paused: false, stopped: false, state: {}, pace: g.pace, jump: null, layout: this.app.layoutSnapshot() };
     if (g.pace === 0) g.pace = 1;
     this.app.log(`Walkthrough: ${wt.title}`);
     const btn = (label, title, fn) => h('button', { class: 'wb-btn', title, onclick: fn }, label);
@@ -194,6 +198,10 @@ export class Walkthroughs {
       g.say(step.say);
       run.jump = null;
       try {
+        // Make sure what the step shows is visible, whatever the layout or pace.
+        if (step.layout) await call('ams_layout', { ...step.layout, narrate: step.say });
+        const panel = String(step.target || '').match(/^panel:(.+)$/)?.[1];
+        if (panel) this.app.setLayout({ open: [panel] });
         if (step.target) await g.moveTo(step.target, { click: step.click !== false });
         if (step.run) await step.run(ctx);
         g.label = `${wt.title} · ${run.i + 1}/${wt.steps.length}`;
@@ -221,6 +229,7 @@ export class Walkthroughs {
     const g = this.app.guide;
     g.label = null;
     g.pace = run.pace;
+    if (run.wt.restoreLayout !== false) this.app.restoreLayout(run.layout);
     if (finished) g.say(`${run.wt.title}: done.`, 'Walkthrough');
     g.setControls(null);
   }

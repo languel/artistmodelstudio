@@ -124,6 +124,10 @@ Every key can be changed in **Shortcuts** (menu, or Shift+Cmd+/): search, click 
 | Cmd+B, Opt+Cmd+B, Shift+Cmd+B | Toggle the left, right and bottom docks |
 | ? | Docs |
 
+**Right-click** a mark for its operations: arrange (front, forward, backward, back), move to stage, brush, simplify (fewer points, same shape), duplicate, group, lock, hide, delete. Right-click the empty canvas for select all, fit, grid, snap, and a note there.
+
+**Drag an asset** from Assets anywhere on the canvas: a picture becomes an image layer (move, scale and rotate it like any mark; it travels inside the drawing), a saved drawing comes in as a group of its marks. Image files can be dropped from the desktop too.
+
 The **Outliner** lists every mark by stage and group: click to select (Shift for a range, Cmd to toggle), double-click to rename, drag to reorder or move into another stage or group, and hide, lock or delete from the row (acting on the whole selection when the row is part of it).
 
 **Grid** (Settings → Grid): on the paper or everywhere, lines or dots, spacing and subdivisions (anchored at the artboard's corner), color, and **snap**: points, notes, guides and moved selections land on the subdivisions. Freehand lines stay free.

@@ -33,6 +33,8 @@ import { loadLibrary } from '../process/brushes.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
 import { openPalette } from './palette.js';
+import { showMenu } from './menu.js';
+import { brushesForRole, KIT } from '../process/brushes.js';
 import { Shortcuts } from './shortcuts.js';
 import { eyedropToTarget } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
@@ -138,6 +140,10 @@ export class Workbench {
       viewMode: () => this.view.mode
     });
     this.canvas.drawReference = ctx => this.drawReference(ctx);
+    this.canvas.onContext = (e, hit, at) => showMenu(this.contextItems(hit, at), e.clientX, e.clientY);
+    this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
+    this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));
+    KIT.onImageLoad = () => this.canvas.invalidate();
     this.canvas.onCamera = () => { const z = this.zoomIsland?.querySelector('span'); if (z) z.textContent = `${Math.round(this.canvas.cam.z * 100)}%`; };
     this.topbar = h('div', { class: 'wb-topbar' });
     this.zoomIsland = h('div', { class: 'wb-island wb-zoom' });
@@ -277,36 +283,143 @@ export class Workbench {
     this.renderChrome();
   }
 
-  openMenu(anchor) {
-    document.querySelectorAll('.wb-menu').forEach(m => m.remove());
-    const r = anchor.getBoundingClientRect();
-    const menus = [];
-    const build = (items, x, y, level = 0) => {
-      menus.slice(level).forEach(m => m.remove()); menus.length = level;
-      const m = h('div', { class: 'wb-menu', style: { left: `${x}px`, top: `${y}px` } });
-      menus.push(m);
-      for (const it of items) {
-        if (it === '-') { m.append(h('hr')); continue; }
-        if (it.label && !it.run && !it.items) { m.append(h('div', { class: 'wb-menu-label' }, it.label)); continue; }
-        const b = h('button', { title: it.hint || '', class: it.items ? 'wb-menu-sub' : '' },
-          h('span', {}, it.label), it.keys ? h('kbd', {}, it.keys) : it.items ? h('span', { class: 'wb-menu-arrow' }, '›') : null);
-        if (it.items) {
-          const open = () => { const br = b.getBoundingClientRect(); build(it.items, br.right + 2, br.top - 4, level + 1); };
-          b.addEventListener('pointerenter', open); b.addEventListener('click', open);
-        } else {
-          b.addEventListener('pointerenter', () => { menus.slice(level + 1).forEach(x => x.remove()); menus.length = level + 1; });
-          b.addEventListener('click', () => { close(); it.run(); });
+  /** Layout control (ams_layout, walkthroughs): panels, docks, reference, view, fit, finding assets. */
+  setLayout({ open = [], close = [], expand = [], collapse = [], reference, view, fit, find } = {}) {
+    for (const id of open) if (this.docks.panels.has(id)) this.docks.open(id);
+    for (const id of close) if (this.docks.panels.has(id)) this.docks.close(id);
+    for (const d of expand) if (this.docks.state.collapsed[d]) this.docks.toggleDock(d);
+    for (const d of collapse) if (!this.docks.state.collapsed[d]) this.docks.toggleDock(d);
+    if (reference && this.reference) { if ('visible' in reference) this.reference.visible = Boolean(reference.visible); if ('opacity' in reference) this.reference.opacity = Number(reference.opacity); }
+    if (view) this.setViewMode(view);
+    if (fit) this.canvas.fit();
+    if (find !== undefined && this.assetPanel) {
+      this.docks.open('assets');
+      const q = document.getElementById('assets-q');
+      if (q) { q.value = find; q.dispatchEvent(new Event('input')); }
+    }
+    this.canvas.invalidate(); this.renderChrome();
+    return { panels: Object.fromEntries(Object.entries(this.docks.state.active)), collapsed: { ...this.docks.state.collapsed }, reference: this.reference ? { title: this.reference.title, visible: this.reference.visible, opacity: this.reference.opacity } : null, view: this.view.mode };
+  }
+
+  /** The layout as it is, to restore later (walkthroughs put things back as they found them). */
+  layoutSnapshot() { return { docks: structuredClone(this.docks.state), view: this.view.mode, reference: this.reference ? { visible: this.reference.visible, opacity: this.reference.opacity } : null, regions: this.showRegions }; }
+  restoreLayout(snap) {
+    if (!snap) return;
+    this.docks.state = snap.docks; this.docks.save?.(); this.docks.render();
+    this.setViewMode(snap.view);
+    if (snap.reference && this.reference) Object.assign(this.reference, snap.reference);
+    this.showRegions = snap.regions;
+    this.canvas.resize(); this.canvas.invalidate(); this.renderChrome();
+  }
+
+  /** An image as a layer: downscaled into the drawing (so it travels with it), placed at a point. */
+  async placeImage(blob, [wx, wy], { title = 'image', asset = null } = {}) {
+    const url = URL.createObjectURL(blob);
+    const img = new Image(); img.src = url; await img.decode();
+    const max = 1600, k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    const src = c.toDataURL(blob.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.88);
+    const ab = this.store.doc.artboard;
+    const w = ab.width * 0.4, h = w * (img.naturalHeight / img.naturalWidth);
+    const x = wx - w / 2, y = wy - h / 2;
+    const el = this.store.addElement({ role: 'image', stage: this.activeStage.id, src, asset, label: title, points: [[x, y, 0, 0.5], [x + w, y, 0, 0.5], [x + w, y + h, 0, 0.5], [x, y + h, 0, 0.5]], why: `placed: ${title}` });
+    this.canvas.select([el.id]);
+    this.log(`Placed “${title}” as an image layer.`);
+    return el;
+  }
+
+  /** Drop from Assets: pictures become image layers; saved drawings come in as a group of their marks. */
+  async placeAsset(id, at) {
+    const a = await this.assetStore.get(id);
+    if (!a) throw new Error('Asset not found');
+    if (a.program?.type === 'ams-process') {
+      const src = a.program, ab = this.store.doc.artboard;
+      const k = (ab.width * 0.5) / (src.artboard?.width || ab.width);
+      const ox = at[0] - (src.artboard.width * k) / 2, oy = at[1] - (src.artboard.height * k) / 2;
+      const ids = this.store.change(`place ${a.title}`, d => {
+        const gid = `group-${Math.random().toString(36).slice(2, 8)}`;
+        d.groups = d.groups || {}; d.groups[gid] = { name: a.title };
+        Object.assign(d.brushes = d.brushes || {}, src.brushes || {});
+        Object.assign(d.lines = d.lines || {}, src.lines || {});
+        const out = [];
+        for (const e of src.elements || []) {
+          if (e.role === 'note') continue;
+          const c = structuredClone(e);
+          c.id = `${e.role}-${Math.random().toString(36).slice(2, 9)}`;
+          c.stage = this.activeStage.id; c.group = gid;
+          c.points = c.points.map(([x, y, ...r]) => [ox + x * k, oy + y * k, ...r]);
+          d.elements.push(c); out.push(c.id);
         }
-        m.append(b);
-      }
-      document.body.append(m);
-      const mr = m.getBoundingClientRect();
-      if (mr.bottom > window.innerHeight - 8) m.style.top = `${Math.max(8, window.innerHeight - 8 - mr.height)}px`;
-      if (mr.right > window.innerWidth - 8) m.style.left = `${Math.max(8, x - mr.width - (level ? r.width + 4 : 0))}px`;
-    };
-    const close = () => { menus.forEach(m => m.remove()); window.removeEventListener('pointerdown', off, true); };
-    const off = ev => { if (!menus.some(m => m.contains(ev.target))) close(); };
-    build([
+        return out;
+      });
+      this.normalizeAfterPlace();
+      this.canvas.select(ids);
+      this.log(`Placed the drawing “${a.title}” as a group (${ids.length} marks).`);
+      return;
+    }
+    if (!a.blob) throw new Error('This asset has no picture');
+    await this.placeImage(a.blob, at, { title: a.title, asset: a.id });
+  }
+
+  async placeFiles(files, at) {
+    let [x, y] = at;
+    for (const f of files.filter(f => f.type.startsWith('image/'))) { await this.placeImage(f, [x, y], { title: f.name.replace(/\.[^.]+$/, '') }); x += 30; y += 30; }
+  }
+
+  normalizeAfterPlace() { this.store.doc = normalizeDocument(this.store.doc); this.canvas.invalidate(); this.emit('document', 'place'); }
+
+  /** Right-click: operations on the selection (or the canvas, when nothing is under the pointer). */
+  contextItems(hit, [wx, wy] = [0, 0]) {
+    const sc = id => this.shortcuts.label(id);
+    const ids = [...this.canvas.selected];
+    if (!hit || !ids.length) {
+      return [
+        { label: 'Select all', keys: sc('edit.selectAll'), run: () => this.canvas.select(this.store.doc.elements.filter(el => this.canvas.editable(el)).map(el => el.id)) },
+        { label: 'Fit artboard', keys: sc('view.fit'), run: () => { this.canvas.fit(); this.renderChrome(); } },
+        '-',
+        { label: this.canvas.grid.show === 'off' ? 'Show grid' : 'Hide grid', run: () => this.canvas.setGrid({ show: this.canvas.grid.show === 'off' ? 'paper' : 'off' }) },
+        { label: this.canvas.grid.snap ? 'Snap off' : 'Snap to grid', run: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }) },
+        '-',
+        { label: 'Note here', run: () => { this.setTool('note'); const [sx, sy] = this.canvas.toScreen(wx, wy); this.canvas.startNote(sx, sy, wx, wy); } }
+      ];
+    }
+    const els = this.store.doc.elements.filter(el => ids.includes(el.id));
+    const n = els.length, one = n === 1 ? els[0] : null;
+    const grouped = els.some(el => el.group);
+    const lineish = els.some(el => el.points.length > 3 && !['point', 'note', 'image'].includes(el.role));
+    const brushes = one && !['note', 'image'].includes(one.role) ? brushesForRole(one.role, this.store.doc) : [];
+    const z = this.canvas.cam.z;
+    const simplify = tol => { const r = this.store.simplify(ids, tol / z); this.log(`Simplified: ${r.before} → ${r.after} points.`); };
+    return [
+      { label: one ? (one.label || one.role) : `${n} elements` },
+      { label: 'Arrange', items: [
+        { label: 'Bring to front', run: () => this.store.arrange(ids, 'front') },
+        { label: 'Bring forward', run: () => this.store.arrange(ids, 'forward') },
+        { label: 'Send backward', run: () => this.store.arrange(ids, 'backward') },
+        { label: 'Send to back', run: () => this.store.arrange(ids, 'back') }
+      ] },
+      { label: 'Move to stage', items: this.store.doc.stages.map(st => ({ label: st.name, run: () => this.store.patchElements(ids, { stage: st.id }, 'stage') })) },
+      brushes.length ? { label: 'Brush', items: brushes.map(b => ({ label: b.label, run: () => this.store.change('brush', d => { for (const el of d.elements) if (ids.includes(el.id)) el.realize = { brush: b.id, params: {} }; }) })) } : null,
+      lineish ? { label: 'Simplify', hint: 'Fewer points, same shape', items: [
+        { label: 'Lightly', run: () => simplify(1.5) }, { label: 'Moderately', run: () => simplify(4) }, { label: 'Strongly', run: () => simplify(10) }
+      ] } : null,
+      '-',
+      { label: 'Duplicate', run: () => { const out = this.store.duplicate(ids, 20 / z, 20 / z); this.canvas.select(out); } },
+      n > 1 ? { label: 'Group', keys: sc('edit.group'), run: () => this.groupSelection() } : null,
+      grouped ? { label: 'Ungroup', keys: sc('edit.ungroup'), run: () => this.ungroupSelection() } : null,
+      { label: 'Lock', hint: 'Locked marks cannot be picked on the canvas (unlock in the Outliner)', run: () => { this.store.patchElements(ids, { locked: true }, 'lock'); this.canvas.select([]); } },
+      { label: 'Hide', hint: 'Show again from the Outliner', run: () => { this.store.patchElements(ids, { hidden: true }, 'hide'); this.canvas.select([]); } },
+      { label: 'Show in Outliner', run: () => { this.docks.open('outliner'); this.emit('selection'); } },
+      '-',
+      { label: 'Delete', keys: sc('edit.delete'), run: () => this.store.removeElements(ids) }
+    ];
+  }
+
+  openMenu(anchor) {
+    const r = anchor.getBoundingClientRect();
+    showMenu([
       { label: 'New drawing', run: () => { this.loadDocument(createDocument(), 'new'); this.canvas.fit(); } },
       { label: 'Open file', hint: 'Process JSON, SVG with a process record, Excalidraw, or an image as reference', run: () => this.openFile() },
       { label: 'Save to Assets', keys: this.shortcuts.label('file.save'), run: () => this.saveToAssets() },
@@ -330,8 +443,8 @@ export class Workbench {
       '-',
       { label: 'Classic studio', hint: 'The earlier studio (generation, mediums, training)', run: () => { window.location.href = '/classic.html'; } }
     ], r.left, r.bottom + 6);
-    setTimeout(() => window.addEventListener('pointerdown', off, true));
   }
+
 
   slug() { return String(this.store.doc.title || 'drawing').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'drawing'; }
 

@@ -23,7 +23,8 @@ export const ROLES = Object.freeze({
   plane: 'An enclosed area: realized by fill, hatching, or a field.',
   guide: 'Construction that is not part of the picture: axes, horizons, envelopes.',
   gesture: 'The movement behind a form: often drawn first, often hidden later.',
-  note: 'A written annotation: reasons, critique, questions.'
+  note: 'A written annotation: reasons, critique, questions.',
+  image: 'A picture placed on the page: a collage layer, a study, a quotation.'
 });
 
 export const STAGE_KINDS = Object.freeze([
@@ -46,7 +47,8 @@ export const DEFAULT_REALIZE = Object.freeze({
   plane: { brush: 'flat', params: {} },
   guide: { brush: 'guide', params: {} },
   gesture: { brush: 'guide', params: {} },
-  note: { brush: 'none', params: {} }
+  note: { brush: 'none', params: {} },
+  image: { brush: 'image', params: {} }
 });
 
 export function createDocument({ width = 1000, height = 1000, ground = '#f3efe6', title = 'Untitled' } = {}) {
@@ -106,6 +108,8 @@ export function normalizeElement(e, stage) {
     ...(e.hidden ? { hidden: true } : {}),
     ...(e.locked ? { locked: true } : {}),
     ...(e.note && typeof e.note === 'object' ? { note: { ...e.note } } : {}),
+    ...(e.src ? { src: String(e.src) } : {}),
+    ...(e.asset ? { asset: String(e.asset) } : {}),
     ...(Number.isFinite(Number(e.opacity)) && Number(e.opacity) < 1 ? { opacity: Math.max(0, Number(e.opacity)) } : {}),
     ...(e.blend && e.blend !== 'normal' ? { blend: String(e.blend) } : {})
   };
@@ -246,6 +250,54 @@ export class ProcessStore {
     }, opts);
   }
 
+  /** Drawing order within each stage: 'front' | 'back' | 'forward' | 'backward'. */
+  arrange(ids, how, opts) {
+    const set = new Set(ids);
+    return this.change(`arrange ${how}`, d => {
+      for (const st of d.stages) {
+        const inStage = d.elements.filter(e => e.stage === st.id);
+        if (!inStage.some(e => set.has(e.id))) continue;
+        let order = inStage.slice();
+        if (how === 'front') order = [...order.filter(e => !set.has(e.id)), ...order.filter(e => set.has(e.id))];
+        else if (how === 'back') order = [...order.filter(e => set.has(e.id)), ...order.filter(e => !set.has(e.id))];
+        else if (how === 'forward') { for (let i = order.length - 2; i >= 0; i--) if (set.has(order[i].id) && !set.has(order[i + 1].id)) [order[i], order[i + 1]] = [order[i + 1], order[i]]; }
+        else if (how === 'backward') { for (let i = 1; i < order.length; i++) if (set.has(order[i].id) && !set.has(order[i - 1].id)) [order[i], order[i - 1]] = [order[i - 1], order[i]]; }
+        // Put the stage's elements back into their original slots in the array.
+        const slots = d.elements.map((e, i) => (e.stage === st.id ? i : -1)).filter(i => i >= 0);
+        slots.forEach((slot, j) => { d.elements[slot] = order[j]; });
+      }
+    }, opts);
+  }
+
+  /** Copies of elements, offset; returns the new ids. Groups are copied as new groups. */
+  duplicate(ids, dx = 20, dy = 20, opts) {
+    return this.change('duplicate', d => {
+      const set = new Set(ids), groupMap = {}, out = [];
+      for (const e of d.elements.filter(x => set.has(x.id))) {
+        const c = structuredClone(e);
+        c.id = newId(e.role); c.points = c.points.map(([x, y, ...r]) => [x + dx, y + dy, ...r]);
+        if (e.group) { groupMap[e.group] ||= newId('group'); c.group = groupMap[e.group]; d.groups = d.groups || {}; d.groups[c.group] = { name: `${d.groups[e.group]?.name || 'Group'} copy` }; }
+        d.elements.push(c); out.push(c.id);
+      }
+      return out;
+    }, opts);
+  }
+
+  /** Fewer points, same shape (Ramer–Douglas–Peucker; tolerance in artboard units). Time and pressure are kept. */
+  simplify(ids, tolerance, opts) {
+    const set = new Set(ids);
+    return this.change('simplify', d => {
+      let before = 0, after = 0;
+      for (const e of d.elements) {
+        if (!set.has(e.id) || e.points.length < 4 || ['point', 'note', 'image'].includes(e.role)) continue;
+        before += e.points.length;
+        e.points = rdp(e.points, tolerance);
+        after += e.points.length;
+      }
+      return { before, after };
+    }, opts);
+  }
+
   removeElements(ids, opts) {
     const set = new Set(ids);
     return this.change('delete', d => { d.elements = d.elements.filter(e => !set.has(e.id)); }, opts);
@@ -293,4 +345,17 @@ export class ProcessStore {
       .sort((a, b) => (rank.get(a[0].stage) ?? 0) - (rank.get(b[0].stage) ?? 0) || a[1] - b[1])
       .map(([e]) => e);
   }
+}
+
+function rdp(pts, eps) {
+  if (pts.length < 3) return pts;
+  const [ax, ay] = pts[0], [bx, by] = pts[pts.length - 1];
+  const L = Math.hypot(bx - ax, by - ay) || 1;
+  let far = 0, at = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const d = Math.abs((by - ay) * pts[i][0] - (bx - ax) * pts[i][1] + bx * ay - by * ax) / L;
+    if (d > far) { far = d; at = i; }
+  }
+  if (far <= eps) return [pts[0], pts[pts.length - 1]];
+  return [...rdp(pts.slice(0, at + 1), eps).slice(0, -1), ...rdp(pts.slice(at), eps)];
 }

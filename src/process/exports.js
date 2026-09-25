@@ -68,7 +68,10 @@ export function toSVG(doc, { mode = 'process' } = {}) {
       const construction = brush.construction || e.role === 'guide' || e.role === 'gesture' || e.role === 'note';
       const ctx = new SvgContext();
       if (!construction || mode === 'process') {
-        if (e.role === 'note') {
+        if (e.role === 'image') {
+          const [a, b, , d] = e.points;
+          if (a && b && d && e.src) ctx.out.push(`<image href="${esc(e.src)}" x="0" y="0" width="1" height="1" preserveAspectRatio="none" transform="matrix(${[b[0] - a[0], b[1] - a[1], d[0] - a[0], d[1] - a[1], a[0], a[1]].map(r2).join(' ')})"${(e.realize.params?.opacity ?? 1) < 1 ? ` opacity="${e.realize.params.opacity}"` : ''}/>`);
+        } else if (e.role === 'note') {
           ctx.out.push(noteSVG(e, esc, r2));
         } else {
           const id = construction && !brush.construction ? 'guide' : e.realize.brush;

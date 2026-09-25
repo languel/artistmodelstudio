@@ -383,6 +383,8 @@ export class CanvasView {
         if (e.points.some(([x, y]) => Math.hypot(x - wx, y - wy) < (params.size || 10) / 2 + tol)) return e;
       } else if (e.role === 'note') {
         if (inside(noteCorners(e), wx, wy)) return e;
+      } else if (e.role === 'image') {
+        if (inside(e.points, wx, wy)) return e;
       } else {
         if (e.role === 'plane' && inside(e.points, wx, wy)) return e;
         const w = (params.width || 2) / 2 + tol;
@@ -419,6 +421,25 @@ export class CanvasView {
       if (h !== this.hovered) { this.hovered = h; this.invalidate(); }
     });
 
+    // Drop an asset (from the Assets panel) or image files anywhere on the canvas: it becomes a layer.
+    c.addEventListener('dragover', e => { if ([...e.dataTransfer.types].some(t => t === 'text/asset-id' || t === 'Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+    c.addEventListener('drop', e => {
+      e.preventDefault();
+      const at = this.toWorld(...this.local(e));
+      const id = e.dataTransfer.getData('text/asset-id');
+      if (id) this.onDropAsset?.(id, at);
+      else if (e.dataTransfer.files?.length) this.onDropFiles?.([...e.dataTransfer.files], at);
+    });
+    c.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      const [wx, wy] = this.toWorld(...this.local(e));
+      const hit = this.hitTest(wx, wy);
+      if (hit && !this.selected.has(hit.id)) {
+        const ids = hit.group && !(e.metaKey || e.ctrlKey) ? this.store.doc.elements.filter(x => x.group === hit.group && this.editable(x)).map(x => x.id) : [hit.id];
+        this.select(ids);
+      }
+      this.onContext?.(e, hit, [wx, wy]);
+    });
     c.addEventListener('pointerdown', e => {
       // Working on the canvas takes the keyboard back from panel fields, so tool keys (V, H, P…) work.
       const f = document.activeElement;

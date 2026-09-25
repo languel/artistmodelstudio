@@ -204,6 +204,7 @@ export function workbenchTools(app) {
       }
       throw new Error('Unknown action');
     } },
+    { name: 'ams_layout', description: 'Control the workbench layout so actions can be seen: open {panels: [...]} (expands their docks), close {panels}, expand / collapse {docks: [left, right, bottom]}, reference {visible, opacity}, view {mode: picture | process}, fit, find {query} in Assets (shows the matching cards), get (current layout).', inputSchema: S({ open: { type: 'array', items: { type: 'string' } }, close: { type: 'array', items: { type: 'string' } }, expand: { type: 'array', items: { type: 'string' } }, collapse: { type: 'array', items: { type: 'string' } }, reference: { type: 'object' }, view: str('picture | process'), fit: { type: 'boolean' }, find: str('Search Assets for this') }), run: (a) => app.setLayout(a) },
     { name: 'ams_undo', description: 'Undo (or redo with redo:true).', inputSchema: S({ redo: { type: 'boolean' } }), run: (a) => ({ ok: a.redo ? app.store.redo() : app.store.undo() }) }
   ];
 }
