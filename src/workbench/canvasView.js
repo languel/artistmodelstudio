@@ -422,8 +422,19 @@ export class CanvasView {
     });
 
     // Drop an asset (from the Assets panel) or image files anywhere on the canvas: it becomes a layer.
-    c.addEventListener('dragover', e => { if ([...e.dataTransfer.types].some(t => t === 'text/asset-id' || t === 'Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
-    c.addEventListener('drop', e => {
+    // Listen on the whole stage area (islands and overlays sit above the canvas element).
+    const zone = this.host;
+    zone.addEventListener('dragover', e => {
+      if (![...e.dataTransfer.types].some(t => t === 'text/asset-id' || t === 'Files')) return;
+      e.preventDefault();
+      // The effect must be one the source allows (asset cards allow copy and move).
+      const allowed = e.dataTransfer.effectAllowed;
+      e.dataTransfer.dropEffect = allowed === 'move' ? 'move' : 'copy';
+      zone.classList.add('wb-drop-target');
+    });
+    zone.addEventListener('dragleave', e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('wb-drop-target'); });
+    zone.addEventListener('drop', e => {
+      zone.classList.remove('wb-drop-target');
       e.preventDefault();
       const at = this.toWorld(...this.local(e));
       const id = e.dataTransfer.getData('text/asset-id');

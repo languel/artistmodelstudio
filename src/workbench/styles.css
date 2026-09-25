@@ -444,3 +444,4 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb .wb-tabs::-webkit-scrollbar { height: 3px; }
 .wb .wb-tabs:hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--wb-muted) 55%, transparent); }
 .wb .wb-tabs::-webkit-scrollbar-thumb { border: 0; border-radius: 2px; }
+.wb-drop-target { outline: 2px dashed color-mix(in srgb, var(--wb-select) 70%, transparent); outline-offset: -6px; }

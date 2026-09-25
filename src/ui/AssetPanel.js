@@ -129,7 +129,7 @@ export class AssetPanel {
     grid.querySelectorAll('.asset-card').forEach(card => {
       const id = card.dataset.id;
       const asset = this.assets.find(a => a.id === id);
-      card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/asset-id', id); e.dataTransfer.effectAllowed = 'move'; });
+      card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/asset-id', id); e.dataTransfer.effectAllowed = 'copyMove'; });
       card.querySelectorAll('.star').forEach(st => st.addEventListener('click', () => {
         const r = Number(st.dataset.star);
         this.store.update(id, { rating: asset.rating === r ? 0 : r });
