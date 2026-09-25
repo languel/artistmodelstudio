@@ -19,6 +19,7 @@ and collapse, as in underscores:
 | Panel | What it holds |
 |---|---|
 | Stages | The process as ordered layers: show, lock, rename, kind, reorder. New marks go to the active stage. |
+| Outliner | Every mark by stage and group: select (Shift for a range, Cmd to toggle), rename, drag to reorder or move between stages and groups, hide, lock, delete. Cmd+G / Shift+Cmd+G group and ungroup. |
 | Assets | Saved processes, earlier generations, imports, and the Klee references (search, folders, stars, tags). |
 | Properties | The selection, or the current tool's defaults: role, stage, brush and its parameters, color, the reason (why), the author. |
 | Score | Write or load a score (JS in the point/line/plane vocabulary). **Cmd+Enter** runs it. The exercises live here. |
@@ -26,7 +27,11 @@ and collapse, as in underscores:
 | Generate | Engines and models write scores. Candidates can be opened, saved, or read as scores. |
 | Assistant | Chat with any engine (Ollama, WebGPU, OpenRouter…). It acts through the same tools as an agent, visibly. *How did you do that?* replays its last session. |
 | Decide | The drawing as a sequence of typed decisions, answered by a policy you can train (see below). |
-| Docs | The documentation, with search and a table of contents. Parts are generated from the code: brushes, vocabulary, exercises, tools. It also holds the walkthroughs and the training estimator. |
+| Brushes | Every brush is code: read the built-ins, fork them, write new ones, with a live preview. Saved brushes go to your library; a drawing carries the brushes it uses. |
+| Docs | The documentation, with search and collapsible contents. Parts are generated from the code: brushes, vocabulary, exercises, tools. It also holds the walkthroughs and the training estimator. |
+| Settings | Artboard size (presets, rotate) and paper, theme, grid (on the paper or everywhere, lines or dots, spacing, subdivisions, color, snap), reference opacity, the guide. Cmd+, |
+| Shortcuts | Every command and its keys, searchable. Click a key to reassign it; a key taken from another command moves. Shift+Cmd+/ |
+| Log | What happened, including every agent action (in purple). |
 
 **Cmd+K** opens the command palette, which finds every command, panel, exercise, walkthrough and docs topic by name. Anything else you type goes to the Assistant. **?** opens the Docs.
 
@@ -34,7 +39,9 @@ and collapse, as in underscores:
 - *Taking a line for a walk*, a lesson after Klee and William Ngan.
 - *Tour of the workbench*.
 - *Teaching a decision policy*.
-| Log | What happened, including every agent action (in purple). |
+- *Study: Senecio*: study a painting, write its methods as brushes and a score (typed live), reproduce it, then draw a new subject in its manner.
+
+Walkthroughs set the layout they need (through `ams_layout`) and put yours back when they end.
 
 ## Tools
 
@@ -57,6 +64,34 @@ and collapse, as in underscores:
 Opening an image asset (or an image file) puts it under the artboard as a reference. It isn't part
 of the picture, and the Generate panel can send it to vision models.
 
+## Editing
+
+- **Transforms:** select, then hover near the frame. A corner scales (Shift keeps proportions, Alt from the center), a side stretches, just inside (or outside) a corner rotates (Shift snaps to 15°).
+- **Right-click** a mark: arrange, move to stage, brush, simplify (fewer points, same shape), duplicate, group, lock, hide, delete. Right-click the empty canvas: select all, fit, grid, snap, a note there.
+- **Image layers:** drag an asset from Assets (or image files from the desktop) onto the canvas. Pictures become image layers that move, scale and rotate like any mark and travel inside the drawing; a saved drawing comes in as a group of its marks.
+- **Look:** every element has an opacity and a blend mode (Properties → Look).
+- **Notes:** notebook (handwriting on the page), sticky, index card or plain; font, size, width, paper. Drag a side to re-wrap, a corner to scale the lettering. A new note starts from the last note you styled.
+- **Color:** the picker has a saturation/brightness field, hue, opacity, hex or a color's name (pigments such as *payne's gray*, CSS names), palettes (Klee, Kandinsky, Bauhaus, inks, grays, pigments, your own, or sampled from the reference), recent colors, and an eyedropper (I).
+
+## Brushes are code
+
+Every brush, the built-ins included, is a small program written against a kit:
+
+```js
+brush({
+  id: 'ticks', label: 'Ticks', roles: ['line', 'gesture'],
+  doc: 'Short marks across the walk, as long as the hand was fast.',
+  params: { len: [1, 40, 10, 'Longest tick'] },
+  draw(ctx, e, p, k) {
+    k.beginInk(ctx, e, { width: 1, opacity: 1 })
+    for (const f of k.frames(e)) { const r = Math.min(p.len, f.speed * 1.5); k.segment(ctx, f.x - f.nx * r, f.y - f.ny * r, f.x + f.nx * r, f.y + f.ny * r) }
+    ctx.restore()
+  }
+})
+```
+
+The kit: `k.frames(e)` (the walk with normals, speed and pressure), `k.smoothPath`, `k.spans` (for fills), `k.rotatePts`, `k.tracePath`, `k.segment`, `k.beginInk`, `k.draw(id, …)` (another brush), `k.rng()`, `k.noise(x, y)`, `k.image(src)`. The Brushes panel lists built-in, library and drawing brushes; scores define brushes with the same `brush({...})`; agents use `ams_brush`. A brush that fails draws plainly (and warns once) instead of breaking the drawing. Brush code runs in the page: open drawings from people you trust.
+
 ## Lines
 
 Every line records its walk: points with time and pressure. Six line forms after William Ngan's *Taking a line for a walk* read the hand's speed from it: speed lines, restated, zigzag, inner lines, dotted walk, arcs.
@@ -72,22 +107,23 @@ The definition is stored in the drawing (`doc.lines`). It renders on the canvas 
 
 ## Scores
 
-A score is JavaScript that uses the vocabulary. Running it records the process document:
+A score is JavaScript that uses the vocabulary. Running it records the process document. Coordinates are **fractions of the artboard** (0..1), with `width` and `height` for its size, as in p5; `units('artboard')` switches to absolute units, and older absolute scores are recognized and still run:
 
 ```js
 artboard(1000, 600, '#f3efe6')
 stage('Construction', 'construction')
-guide([[0, 400], [1000, 400]], { why: 'horizon' })
+guide([[0, 0.66], [1, 0.66]], { why: 'horizon' })
 stage('Marks', 'marks')
-const path = walk({ from: [80, 420], heading: -10, steps: 200, step: 4, turn: i => sin(i / 13) * 5 })
+const path = walk({ from: [0.08, 0.7], heading: -10, steps: 200, step: 0.004, turn: i => sin(i / 13) * 5 })
 line(path, { width: 4, taper: 0.4, pressures: t => 0.3 + 0.6 * sin(t * PI), why: 'an active line' })
-plane(rect(600, 120, 200, 140), { brush: 'hatch', angle: 30, spacing: 8, why: 'a light plane, high right' })
+plane(rect(0.6, 0.2, 0.2, 0.23), { brush: 'hatch', angle: 30, spacing: 8, why: 'a light plane, high right' })
 decide('Where does the weight sit?', ['low left', 'high right'], 'low left', 'below and left feels heavy')
-note(20, 20, 'A note shown in the process view')
+note(0.02, 0.03, 'A note shown in the process view')
 ```
 
-The full vocabulary is in the Score panel (**Vocabulary**), and in `ams_vocabulary` for agents. Brushes and their
-parameter ranges are in `src/process/brushes.js`.
+The Score panel is a code editor (CodeMirror): line numbers, wrapping, folding, search, Cmd+/ comments, completion of the vocabulary, brush names and a brush's parameters, hover docs, and the failing line marked after a run.
+
+The full vocabulary is in the Score panel (**Vocabulary**), in the Docs, and in `ams_vocabulary` for agents.
 
 ## Exports
 

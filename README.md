@@ -4,7 +4,10 @@ Can we teach a model to draw and paint the way we teach people, through a visibl
 
 Artist Model Studio is a training ground for that question: *creative coding for AI*. Drawings are **process documents**: named stages, paths with roles (point, line, plane, guide, gesture, note), brushes that realize them, decisions, and a reason and author for every mark. Models write **scores** (small JavaScript programs in a point / line / plane vocabulary) whose runs record that process. So what they learn, and what we can inspect, is how a picture was made, not just what it looks like. See [docs/design.md](docs/design.md) for the direction and [docs/workbench.md](docs/workbench.md) for the workbench.
 
-- **Workbench** (`/`): an infinite canvas with dockable panels (after underscores). Draw with time and pressure, work in stages, write and run scores, study processes (filmstrip, decisions, reasons, process sheets), generate with models or agents, and keep everything in Assets.
+- **Workbench** (`/`): an infinite canvas with dockable panels (after underscores). Draw with time and pressure, work in stages, edit with an outliner, transforms and a right-click menu, place images as layers, write and run scores in a real code editor, study processes (filmstrip, decisions, reasons, process sheets), generate with models or agents, and keep everything in Assets. A command palette (Cmd+K), searchable docs, reassignable shortcuts and walkthroughs come with it.
+- **Brushes are code**: every brush, the built-ins included, is a small program you (or a model, or an agent) can read, fork and write, with a live preview; drawings carry the brushes they use.
+- **Studies**: *Study: Senecio* walks through studying a painting, writing its methods as brushes and a score, reproducing it, and drawing a new subject in its manner.
+- **Decisions**: the Decide panel turns drawing into typed decisions a small local model (lev) can learn from your choices.
 - **Exercises** after Kandinsky, Klee and the algorists: the same briefs for students and models.
 - **Exports**: SVG with the full process record, p5.js sketches that re-run the score, Excalidraw (to underscores), and process sheets.
 - **Agents**: every action is an MCP tool; an agent can be the engine and answer generation requests with its own scores.

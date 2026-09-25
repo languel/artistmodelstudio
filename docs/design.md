@@ -154,6 +154,15 @@ The same move applies further out: any parameter can be replaced by a process.
 
 Brushes come first. Fills and parameters follow as processes of their own. Coordinates in scores are fractions of the artboard, so processes compose at any size.
 
+### 5.3 First full cycle: Senecio (September 2026)
+
+The *Study: Senecio* walkthrough is a worked example of the loop the studio is for. Four methods were named (a head from a circle and a grid; paint rubbed over gauze; incised lines; a few small complementary accents), written as two brushes (`scumble`, `incised`) and a staged score, then carried to a subject the painting never shows (a lighthouse at dusk). The same task given to models showed where they stand:
+
+- **Gemma 4 12B** (local, with the image) named the methods well but reproduced only a disc on a neck; its own brush was invalid (the fail-safe drew it plainly), and it never cut the face into planes.
+- **lev** (350M, trained on 750 decisions of the rules policy; development accuracy 0.66 against 0.17 untrained) followed the rules' plan confidently but has neither your taste (no human labels yet) nor executors that know methods like these.
+
+Next: human labels in Decide; executors that can use written methods (brushes, grid cuts); models given the observations as the brief, to separate seeing from writing code; drawing brushes scoped per drawing.
+
 ## 6. The syllabus
 
 AMS doubles as *creative coding for AI*: the same exercises for students and models, comparable at
