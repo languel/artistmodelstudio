@@ -117,6 +117,8 @@ Training on finished images teaches surface texture. The studio keeps every step
 | Drag a frame side | Stretch in one direction |
 | Just inside (or outside) a corner | Rotate (Shift snaps to 15°) |
 | Cmd+Enter | Run the score |
+| Ctrl+Space | Complete (vocabulary, brush names in brush: '…', a brush's parameters) |
+| Cmd+/ · Cmd+F | Comment lines · search in the score |
 | Cmd+B, Opt+Cmd+B, Shift+Cmd+B | Toggle the left, right and bottom docks |
 | ? | Docs |
 

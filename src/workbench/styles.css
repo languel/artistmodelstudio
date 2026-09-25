@@ -407,3 +407,9 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 /* No browser focus rings on mouse clicks; a quiet ring for keyboard focus only. */
 .wb button:focus, .wb-menu button:focus, .wb-palette-overlay button:focus, .wb-cp-pop button:focus, .wb-guide-card button:focus, .wb [tabindex]:focus, .wb canvas:focus { outline: none; }
 .wb button:focus-visible, .wb-menu button:focus-visible, .wb-cp-pop button:focus-visible, .wb-guide-card button:focus-visible, .wb [tabindex]:focus-visible { outline: 1px solid var(--wb-muted); outline-offset: 1px; }
+
+/* Code editor (CodeMirror) */
+.wb-code-host { flex: 1; min-height: 220px; height: 46vh; resize: vertical; overflow: hidden; }
+.wb-code-host .cm-editor { height: 100%; }
+:root { --cm-keyword: #b9b3a8; --cm-string: #a8b596; --cm-number: #c9a57a; --cm-comment: #7a756d; --cm-fn: #e4e0d8; --cm-prop: #aab4c2; --cm-punct: #8f8a82; }
+:root[data-theme="light"] { --cm-keyword: #5b5249; --cm-string: #4f6a3a; --cm-number: #8a5a2b; --cm-comment: #9a9186; --cm-fn: #1d1b19; --cm-prop: #3f5670; --cm-punct: #7a7268; }

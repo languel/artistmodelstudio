@@ -161,7 +161,10 @@ export function runScript(source, { seed = 1, by = { kind: 'script', name: 'scri
     doc.meta = { ...(doc.meta || {}), script: source, seed, by, ran: new Date().toISOString() };
     return { doc: normalizeDocument(doc), error: null, logs };
   } catch (err) {
-    return { doc: null, error: err.message || String(err), logs };
+    // The score's own line: V8 counts the Function header (2 lines) and our wrapper (2 lines).
+    const m = String(err.stack || '').match(/<anonymous>:(\d+):(\d+)/);
+    const errorLine = m ? Math.max(1, Number(m[1]) - 4) : null;
+    return { doc: null, error: err.message || String(err), errorLine, logs };
   }
 }
 
@@ -178,3 +181,30 @@ defineLine(name, {doc, params: {k: [min, max, def]}}, (ctx, frames, p, env) => {
 walk({from, heading, steps, step, turn: (i, t) => degrees})
 circle(cx, cy, r)   rect(x, y, w, h)
 random(a, b)  noise(x, y)  seed(n)  lerp  map  range(n)  sin cos PI TAU  print(...)`;
+
+/** The vocabulary as data: completions and hover docs in the editor, and references for models. */
+export const SCRIPT_VOCAB = [
+  ['artboard', 'artboard(width, height, ground)', 'Size of the sheet and its paper color.'],
+  ['stage', "stage(name, kind)", `Start a stage; later marks land in it. kind: ${STAGE_KINDS.join(', ')}.`],
+  ['point', 'point(x, y, { size, color, why })', 'A mark at a place.'],
+  ['points', 'points([[x, y], …], opts)', 'Several points with the same options.'],
+  ['line', "line(points, { brush, width, pressure, taper, wobble, color, why, pressures: t => 0..1 })", 'A point that moved. Brushes: ink, speed, restate, zigzag, inner, dotted, arcs, or your own (defineLine).'],
+  ['plane', "plane(points, { brush: 'flat' | 'hatch' | 'stipple', angle, spacing, density, color, why })", 'An enclosed area.'],
+  ['guide', 'guide(points, { why })', 'Construction: axes, proportions (process view only).'],
+  ['gesture', 'gesture(points, { why })', 'The movement behind a form (process view only).'],
+  ['note', 'note(x, y, text)', 'Writing on the process.'],
+  ['decide', 'decide(question, options, chosen, why)', 'Record a decision; returns the chosen option.'],
+  ['defineLine', 'defineLine(name, { doc, params: { key: [min, max, default] } }, (ctx, frames, p, env) => { … })', 'Create your own line. frames: [{ x, y, nx, ny, speed, pressure }]; env: { color, rng, closed }. Then line(pts, { brush: name }).'],
+  ['walk', 'walk({ from: [x, y], heading, steps, step, turn: (i, t) => degrees })', 'A line going for a walk: returns its points.'],
+  ['circle', 'circle(cx, cy, r, n = 48)', 'Points around a circle.'],
+  ['rect', 'rect(x, y, w, h)', 'The four corners of a rectangle.'],
+  ['random', 'random(a, b)', 'Seeded random: random() 0..1, random(b) 0..b, random(a, b).'],
+  ['noise', 'noise(x, y)', 'Seeded smooth noise, about -1..1.'],
+  ['seed', 'seed(n)', 'Reseed random() and noise().'],
+  ['lerp', 'lerp(a, b, t)', 'Linear interpolation.'],
+  ['map', 'map(v, a, b, c, d)', 'Map v from a..b to c..d.'],
+  ['range', 'range(n)', '[0, 1, …, n-1]'],
+  ['print', 'print(...values)', 'Write to the output under the editor.'],
+  ['sin', 'sin(a)', ''], ['cos', 'cos(a)', ''], ['abs', 'abs(v)', ''], ['min', 'min(...v)', ''], ['max', 'max(...v)', ''],
+  ['sqrt', 'sqrt(v)', ''], ['floor', 'floor(v)', ''], ['round', 'round(v)', ''], ['PI', 'PI', 'π'], ['TAU', 'TAU', '2π']
+].map(([name, signature, doc]) => ({ name, signature, doc }));
