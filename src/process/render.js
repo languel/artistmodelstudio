@@ -8,6 +8,7 @@
  * transform:  { x, y, scale }, artboard → screen
  */
 import { BRUSHES, mulberry32, resolveParams, installLines } from './brushes.js';
+import { drawNote, noteCorners } from './notes.js';
 
 export function renderDocument(ctx, doc, {
   mode = 'process', upTo = Infinity, transform = { x: 0, y: 0, scale: 1 },
@@ -39,14 +40,14 @@ export function renderDocument(ctx, doc, {
     const construction = brush.construction || e.role === 'guide' || e.role === 'gesture' || e.role === 'note';
     if (construction) { overlay.push(e); continue; }
     env.rng = mulberry32(e.seed || 1);
-    brush.draw(ctx, e, resolveParams(e.realize.brush, e.realize.params), env);
+    withLook(ctx, e, () => brush.draw(ctx, e, resolveParams(e.realize.brush, e.realize.params), env));
   }
   if (mode === 'process') {
     for (const e of overlay) {
       env.rng = mulberry32(e.seed || 1);
-      if (e.role === 'note') { if (showNotes) drawNote(ctx, e, screenNotes ? transform.scale : 1); continue; }
+      if (e.role === 'note') { if (showNotes) withLook(ctx, e, () => drawNote(ctx, e)); continue; }
       const brushId = BRUSHES[e.realize?.brush]?.construction ? e.realize.brush : 'guide';
-      BRUSHES[brushId].draw(ctx, e, resolveParams(brushId, e.realize.params), env);
+      withLook(ctx, e, () => BRUSHES[brushId].draw(ctx, e, resolveParams(brushId, e.realize.params), env));
     }
   }
   // Selection and hover outlines.
@@ -56,7 +57,8 @@ export function renderDocument(ctx, doc, {
     ctx.strokeStyle = selectColor; ctx.globalAlpha = selected.has(e.id) ? 1 : 0.5;
     ctx.lineWidth = 1.5 / transform.scale;
     ctx.setLineDash([4 / transform.scale, 3 / transform.scale]);
-    const xs = e.points.map(p => p[0]), ys = e.points.map(p => p[1]);
+    const pts = e.role === 'note' ? noteCorners(e) : e.points;
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
     const pad = 6 / transform.scale;
     if (xs.length) ctx.strokeRect(Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) - Math.min(...xs) + pad * 2, Math.max(...ys) - Math.min(...ys) + pad * 2);
     ctx.restore();
@@ -65,34 +67,14 @@ export function renderDocument(ctx, doc, {
 }
 
 /** scale: screen px per unit when notes should keep a readable screen size (canvas view), else 1. */
-function drawNote(ctx, e, scale) {
-  const [x, y] = e.points[0] || [0, 0];
-  const text = e.text || e.why || '';
-  if (!text) return;
+/** An element's own opacity and blend mode, on top of whatever its brush does. */
+function withLook(ctx, e, draw) {
+  if ((e.opacity ?? 1) >= 1 && (!e.blend || e.blend === 'normal')) return draw();
   ctx.save();
-  const fs = 13 / scale;
-  ctx.font = `${fs}px Inter, system-ui, sans-serif`;
-  const lines = wrap(ctx, text, 220 / scale);
-  const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 12 / scale;
-  const h = lines.length * fs * 1.3 + 10 / scale;
-  ctx.fillStyle = e.color || 'rgba(255, 236, 150, 0.92)';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#2b2620';
-  lines.forEach((l, i) => ctx.fillText(l, x + 6 / scale, y + 5 / scale + fs * (i + 0.95) * 1.3 - fs * 0.25));
+  ctx.globalAlpha *= e.opacity ?? 1;
+  if (e.blend && e.blend !== 'normal') ctx.globalCompositeOperation = e.blend;
+  draw();
   ctx.restore();
-}
-
-function wrap(ctx, text, maxW) {
-  const out = [];
-  for (const para of String(text).split('\n')) {
-    let line = '';
-    for (const w of para.split(' ')) {
-      const t = line ? `${line} ${w}` : w;
-      if (ctx.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t;
-    }
-    out.push(line);
-  }
-  return out;
 }
 
 /** Render to an offscreen canvas at the artboard's size (or scaled), for exports and thumbnails. */

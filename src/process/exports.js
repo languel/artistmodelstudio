@@ -12,6 +12,7 @@
  *   Sheet      a PNG "process sheet": the picture built up stage by stage, with decisions.
  */
 import { BRUSHES, mulberry32, resolveParams, installLines } from './brushes.js';
+import { noteSVG } from './notes.js';
 import { normalizeDocument, normalizeElement, createDocument } from './document.js';
 import { renderToCanvas } from './render.js';
 import documentSrc from './document.js?raw';
@@ -68,15 +69,14 @@ export function toSVG(doc, { mode = 'process' } = {}) {
       const ctx = new SvgContext();
       if (!construction || mode === 'process') {
         if (e.role === 'note') {
-          const [x, y] = e.points[0] || [0, 0];
-          ctx.out.push(`<text x="${r2(x)}" y="${r2(y + 14)}" font-family="Inter, sans-serif" font-size="13" fill="#2b2620">${esc(e.text || e.why)}</text>`);
+          ctx.out.push(noteSVG(e, esc, r2));
         } else {
           const id = construction && !brush.construction ? 'guide' : e.realize.brush;
           BRUSHES[id].draw(ctx, e, resolveParams(id, e.realize.params), { rng: mulberry32(e.seed || 1), scale: 1 });
         }
       }
       const rec = { ...e };
-      out.push(`    <g data-ams-id="${esc(e.id)}" data-ams-role="${e.role}" data-ams-brush="${esc(e.realize.brush)}" data-ams-record='${esc(JSON.stringify(rec))}'${e.why ? ` data-ams-why="${esc(e.why)}"` : ''}>`);
+      out.push(`    <g data-ams-id="${esc(e.id)}" data-ams-role="${e.role}" data-ams-brush="${esc(e.realize.brush)}" data-ams-record='${esc(JSON.stringify(rec))}'${e.why ? ` data-ams-why="${esc(e.why)}"` : ''}${(e.opacity ?? 1) < 1 ? ` opacity="${e.opacity}"` : ''}${e.blend && e.blend !== 'normal' ? ` style="mix-blend-mode:${esc(e.blend)}"` : ''}>`);
       if (e.why) out.push(`      <title>${esc(e.why)}</title>`);
       for (const line of ctx.out) out.push(`      ${line}`);
       out.push('    </g>');

@@ -11,6 +11,7 @@
 import { renderDocument } from '../process/render.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
 import { BRUSHES, resolveParams } from '../process/brushes.js';
+import { noteCorners, noteProps } from '../process/notes.js';
 
 const CAMERA_KEY = 'ams_workbench_camera_v1';
 export const TOOL_KEYS = { v: 'select', h: 'hand', p: 'line', e: 'gesture', a: 'plane', g: 'guide', o: 'point', t: 'note' };
@@ -33,6 +34,8 @@ export class CanvasView {
     this.hovered = null;
     this.draft = null;      // element being drawn
     this.marquee = null;
+    // Note fonts are drawn on the canvas, so ask for them explicitly and redraw when they arrive.
+    Promise.all(['22px Caveat', '17px "Patrick Hand"', '17px Newsreader'].map(f => document.fonts?.load(f).catch(() => null))).then(() => this.invalidate());
     this.upTo = Infinity;   // stage scrub
     this.space = false;
     try { this.cam = JSON.parse(localStorage.getItem(CAMERA_KEY)) || null; } catch { this.cam = null; }
@@ -171,7 +174,7 @@ export class CanvasView {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const e of this.store.doc.elements) {
       if (!this.selected.has(e.id)) continue;
-      for (const [x, y] of e.points) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+      for (const [x, y] of e.role === 'note' ? noteCorners(e) : e.points) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
     }
     if (!Number.isFinite(x0)) return null;
     return { x0, y0, x1, y1 };
@@ -222,6 +225,7 @@ export class CanvasView {
     const b = f.world;
     const before = JSON.stringify(this.store.doc);
     const originals = new Map(this.store.doc.elements.filter(el => this.selected.has(el.id)).map(el => [el.id, el.points.map(p => p.slice())]));
+    const notes = new Map(this.store.doc.elements.filter(el => this.selected.has(el.id) && el.role === 'note').map(el => [el.id, noteProps(el)]));
     const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
     const [wx0, wy0] = this.toWorld(...this.local(e));
     const a0 = Math.atan2(wy0 - cy, wx0 - cx);
@@ -244,18 +248,32 @@ export class CanvasView {
         const c = Math.cos(a), s = Math.sin(a);
         this.transformLabel = `${Math.round((a * 180) / Math.PI)}°`;
         apply((px, py) => [cx + (px - cx) * c - (py - cy) * s, cy + (px - cx) * s + (py - cy) * c]);
+        for (const el of this.store.doc.elements) if (notes.has(el.id)) el.note = { ...(el.note || {}), angle: notes.get(el.id).angle + a };
         return;
       }
       // Scale about the opposite side or corner (Alt: about the centre).
       const ax = ev.altKey ? cx : hd.hx < 0 ? b.x1 : b.x0, ay = ev.altKey ? cy : hd.hy < 0 ? b.y1 : b.y0;
       const hx0 = hd.hx < 0 ? b.x0 : b.x1, hy0 = hd.hy < 0 ? b.y0 : b.y1;
-      let sx = hd.hx && hx0 !== ax ? (x - ax) / (hx0 - ax) : 1;
-      let sy = hd.hy && hy0 !== ay ? (y - ay) / (hy0 - ay) : 1;
+      // Move the grabbed edge by the pointer's travel (the frame is padded, so not to the pointer itself).
+      const ex = hx0 + (x - wx0), ey = hy0 + (y - wy0);
+      let sx = hd.hx && hx0 !== ax ? (ex - ax) / (hx0 - ax) : 1;
+      let sy = hd.hy && hy0 !== ay ? (ey - ay) / (hy0 - ay) : 1;
       if (hd.hx && hd.hy && ev.shiftKey) { const k = Math.max(Math.abs(sx), Math.abs(sy)); sx = Math.sign(sx || 1) * k; sy = Math.sign(sy || 1) * k; }
       if (!Number.isFinite(sx)) sx = 1;
       if (!Number.isFinite(sy)) sy = 1;
       this.transformLabel = `${Math.round(sx * 100)}% × ${Math.round(sy * 100)}%`;
       apply((px, py) => [ax + (px - ax) * sx, ay + (py - ay) * sy]);
+      // Notes: a side re-wraps the text (width); a corner, or the top/bottom, scales the lettering too.
+      for (const el of this.store.doc.elements) {
+        const o = notes.get(el.id);
+        if (!o) continue;
+        const k = hd.hx && hd.hy ? Math.abs(sx) : hd.hy ? Math.abs(sy) : 1;
+        el.note = { ...(el.note || {}), width: Math.max(40, o.width * (hd.hx ? Math.abs(sx) : 1)), size: Math.max(4, o.size * k) };
+        if (hd.hy && !hd.hx) el.note.width = o.width * k;
+        // Keep the note's top-left at the scaled corner of its box, not flipped.
+        if (sx < 0 || sy < 0) { const [px, py] = el.points[0]; el.points[0] = [px - (sx < 0 ? el.note.width : 0), py, el.points[0][2], el.points[0][3]]; }
+        this.transformLabel = hd.hx && !hd.hy ? `width ${Math.round(el.note.width)}` : `${Math.round(el.note.size)} pt`;
+      }
     };
     const up = () => {
       window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
@@ -309,8 +327,7 @@ export class CanvasView {
       if (e.role === 'point') {
         if (e.points.some(([x, y]) => Math.hypot(x - wx, y - wy) < (params.size || 10) / 2 + tol)) return e;
       } else if (e.role === 'note') {
-        const [x, y] = e.points[0];
-        if (wx >= x && wx <= x + 230 / this.cam.z && wy >= y && wy <= y + 60 / this.cam.z) return e;
+        if (inside(noteCorners(e), wx, wy)) return e;
       } else {
         if (e.role === 'plane' && inside(e.points, wx, wy)) return e;
         const w = (params.width || 2) / 2 + tol;
@@ -484,7 +501,9 @@ export class CanvasView {
     const stage = this.getStage();
     const e = this.store.addElement({
       role, stage: stage.id, points, realize: structuredClone(d.realize || DEFAULT_REALIZE[role]),
-      color: d.color || null, why: d.why || '', by: { kind: 'user', name: 'you' }, ...extra
+      color: d.color || null, why: d.why || '', by: { kind: 'user', name: 'you' },
+      ...(d.opacity < 1 ? { opacity: d.opacity } : {}), ...(d.blend && d.blend !== 'normal' ? { blend: d.blend } : {}),
+      ...(role === 'note' ? { note: structuredClone(d.note || {}) } : {}), ...extra
     });
     if (d.sticky === false || role === 'note') this.onTool?.('select');
     this.select([e.id]);

@@ -88,7 +88,7 @@ export class Workbench {
 
   defaults(role) {
     const d = this.toolDefaults[role] || {};
-    return { color: d.color || null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line) };
+    return { color: d.color || null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...(role === 'note' ? { note: d.note || {} } : {}) };
   }
 
   setDefaults(role, patch) {
@@ -96,6 +96,8 @@ export class Workbench {
     if (patch.realize) d.realize = { brush: patch.realize.brush || d.realize.brush, params: patch.realize.brush && patch.realize.brush !== d.realize.brush ? {} : { ...d.realize.params, ...(patch.realize.params || {}) } };
     if ('color' in patch) d.color = patch.color;
     if ('why' in patch) d.why = patch.why;
+    for (const k of ['opacity', 'blend']) if (k in patch) d[k] = patch[k];
+    if (patch.note) d.note = { ...(d.note || {}), ...patch.note };
     this.toolDefaults[role] = d;
     try { localStorage.setItem(DEFAULTS_KEY, JSON.stringify(this.toolDefaults)); } catch { /* ignore */ }
     this.emit('tool');

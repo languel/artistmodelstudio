@@ -90,7 +90,7 @@ function strokeSegment(ctx, x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1
 
 const lineParams = (width, opacity = 1) => [param('width', 'Width', 0.25, 20, 0.25, width, 'Stroke width.'), param('opacity', 'Opacity', 0, 1, 0.05, opacity, 'Paint opacity.')];
 const speedParams = (gain, max) => [param('gain', 'Speed gain', 0, 6, 0.05, gain, 'How much the hand\'s speed changes the mark.'), param('max', 'Max', 1, 200, 1, max, 'The largest mark, in artboard units.')];
-const beginInk = (ctx, e, p) => { ctx.save(); ctx.globalAlpha = p.opacity; ctx.strokeStyle = e.color || INK; ctx.fillStyle = e.color || INK; ctx.lineWidth = p.width; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; };
+const beginInk = (ctx, e, p) => { ctx.save(); ctx.globalAlpha *= p.opacity; ctx.strokeStyle = e.color || INK; ctx.fillStyle = e.color || INK; ctx.lineWidth = p.width; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; };
 
 export const BRUSHES = {
   none: {
@@ -107,7 +107,7 @@ export const BRUSHES = {
       const pts = smoothPath(e.points, e.closed);
       ctx.save();
       ctx.strokeStyle = e.color || (e.role === 'gesture' ? '#d9480f' : '#2f6fdd');
-      ctx.globalAlpha = 0.7;
+      ctx.globalAlpha *= 0.7;
       ctx.lineWidth = 1.25 / env.scale;
       if (p.dash > 0) ctx.setLineDash([p.dash, p.dash * 0.7]);
       tracePath(ctx, pts, e.closed);
@@ -124,7 +124,7 @@ export const BRUSHES = {
     ],
     draw(ctx, e, p) {
       ctx.save();
-      ctx.globalAlpha = p.opacity;
+      ctx.globalAlpha *= p.opacity;
       ctx.fillStyle = e.color || INK;
       for (const [x, y] of e.points) { ctx.beginPath(); ctx.arc(x, y, p.size / 2, 0, Math.PI * 2); ctx.fill(); }
       ctx.restore();
@@ -163,7 +163,7 @@ export const BRUSHES = {
         R.push([pts[i][0] + dy * w, pts[i][1] - dx * w]);
       }
       ctx.save();
-      ctx.globalAlpha = p.opacity;
+      ctx.globalAlpha *= p.opacity;
       ctx.fillStyle = e.color || INK;
       ctx.beginPath();
       L.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
@@ -248,7 +248,7 @@ export const BRUSHES = {
     label: 'Dotted walk', roles: ['line', 'gesture'], doc: 'After Ngan: a line of points. Where the hand lingered the dots swell, like ink pooling; fast passages leave specks.',
     params: [param('spacing', 'Spacing', 2, 60, 1, 10, 'Distance between dots.'), param('size', 'Size', 0.5, 30, 0.5, 6, 'Largest dot.'), param('gain', 'Speed gain', 0, 3, 0.05, 0.6, 'How strongly speed shrinks the dots.'), param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')],
     draw(ctx, e, p) {
-      ctx.save(); ctx.globalAlpha = p.opacity; ctx.fillStyle = e.color || INK;
+      ctx.save(); ctx.globalAlpha *= p.opacity; ctx.fillStyle = e.color || INK;
       let acc = p.spacing, px = null, py = null;
       for (const f of walkFrames(e)) {
         if (px !== null) acc += Math.hypot(f.x - px, f.y - py);
@@ -290,7 +290,7 @@ export const BRUSHES = {
       if (e.points.length < 3) return;
       const pts = smoothPath(e.points, true, 4);
       ctx.save();
-      ctx.globalAlpha = p.opacity;
+      ctx.globalAlpha *= p.opacity;
       ctx.fillStyle = e.color || '#8a8175';
       tracePath(ctx, pts, true);
       ctx.fill();
@@ -314,7 +314,7 @@ export const BRUSHES = {
       const poly = smoothPath(e.points, true, 3);
       const cx = poly.reduce((a, q) => a + q[0], 0) / poly.length, cy = poly.reduce((a, q) => a + q[1], 0) / poly.length;
       ctx.save();
-      ctx.globalAlpha = p.opacity;
+      ctx.globalAlpha *= p.opacity;
       ctx.strokeStyle = e.color || INK;
       ctx.lineWidth = p.width;
       ctx.lineCap = 'round';
@@ -355,7 +355,7 @@ export const BRUSHES = {
       const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
       const n = Math.min(40000, Math.round((x1 - x0) * (y1 - y0) * p.density));
       ctx.save();
-      ctx.globalAlpha = p.opacity;
+      ctx.globalAlpha *= p.opacity;
       ctx.fillStyle = e.color || INK;
       for (let i = 0; i < n; i++) {
         const x = x0 + env.rng() * (x1 - x0), y = y0 + env.rng() * (y1 - y0);

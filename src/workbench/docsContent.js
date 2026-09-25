@@ -133,7 +133,13 @@ The canvas is infinite: doodle around the artboard. Only the artboard is the pic
 | gesture | the movement behind a form (process view only) | guide |
 | note | writing on the process (process view only) | none |
 
-Construction (guides, gestures, notes) is never part of the picture: it shows in Process view and in the process sheet. Every mark also carries a *why* and a *by* (who made it).`)),
+Construction (guides, gestures, notes) is never part of the picture: it shows in Process view and in the process sheet. Every mark also carries a *why* and a *by* (who made it).
+
+## Look
+Every element has an **opacity** and a **blend mode** (multiply, screen, overlay, darken, lighten, difference…) in Properties → Look, on top of its brush. Both carry into SVG exports.
+
+## Notes
+Notes are writing on the page, in artboard units. Styles: **notebook** (handwriting straight on the paper), **sticky**, **index card**, **plain**. Choose the font (handwriting, printed hand, serif, sans, mono), size, wrap width and paper colour in Properties; the text colour is the note's colour. On the canvas, drag a side of a note to re-wrap it, a corner to scale the lettering, and just inside a corner to rotate it.`)),
 
     T('draw-brushes', 'Drawing', 'Brushes', 'What each brush does, with its parameters.', () => h('div', {},
       prose('A brush only realises a path: it never decides where marks go. Parameters are in Properties; the same values are options in a score (`line(pts, {brush: "hatch", spacing: 8})`).'),

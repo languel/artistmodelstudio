@@ -14,6 +14,9 @@ import { installLines } from './brushes.js';
 
 export const PROCESS_VERSION = 1;
 
+/** Blend modes (canvas globalCompositeOperation / CSS mix-blend-mode names). */
+export const BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-burn', 'color-dodge', 'soft-light', 'hard-light', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity'];
+
 export const ROLES = Object.freeze({
   point: 'A mark at a place: tension depends on where it sits (Kandinsky).',
   line: 'A point that moved (Klee: a line going for a walk).',
@@ -100,7 +103,10 @@ export function normalizeElement(e, stage) {
     ...(e.label ? { label: String(e.label) } : {}),
     ...(e.group ? { group: String(e.group) } : {}),
     ...(e.hidden ? { hidden: true } : {}),
-    ...(e.locked ? { locked: true } : {})
+    ...(e.locked ? { locked: true } : {}),
+    ...(e.note && typeof e.note === 'object' ? { note: { ...e.note } } : {}),
+    ...(Number.isFinite(Number(e.opacity)) && Number(e.opacity) < 1 ? { opacity: Math.max(0, Number(e.opacity)) } : {}),
+    ...(e.blend && e.blend !== 'normal' ? { blend: String(e.blend) } : {})
   };
 }
 
