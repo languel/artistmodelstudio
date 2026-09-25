@@ -142,7 +142,7 @@ Every element has an **opacity** and a **blend mode** (multiply, screen, overlay
 ## Color
 Click a color swatch for the picker: a saturation and brightness field, hue and opacity, hex (8-digit hex keeps the opacity), palettes after Klee (Senecio, Castle and Sun, Twittering Machine), Kandinsky, Bauhaus, notebook inks and grays, your recent colors, and your own palette (+ adds the current color; right-click removes). The eyedropper button, or I, samples any pixel. The image button makes a palette from the reference (named after the nearest pigments). The hex field also takes names: *burnt sienna*, *payne's gray*, *crimson*, or any palette color's name.
 
-Agents make palettes with `ams_palette`: *from_image* extracts one from the reference or an asset; *create* saves colors an agent chose, e.g. for "a palette that evokes a winter storm over craggy shores".
+Agents make palettes with \`ams_palette\`: *from_image* extracts one from the reference or an asset; *create* saves colors an agent chose, e.g. for "a palette that evokes a winter storm over craggy shores".
 
 ## Notes
 Notes are writing on the page, in artboard units. Styles: **notebook** (handwriting straight on the paper), **sticky**, **index card**, **plain**. Choose the font (handwriting, printed hand, serif, sans, mono), size, wrap width and paper color in Properties; the text color is the note's color. On the canvas, drag a side of a note to re-wrap it, a corner to scale the lettering, and just inside a corner to rotate it.`)),

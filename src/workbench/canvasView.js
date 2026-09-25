@@ -55,12 +55,17 @@ export class CanvasView {
     const r = this.host.getBoundingClientRect();
     this.w = Math.max(1, r.width); this.h = Math.max(1, r.height);
     const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = Math.round(this.w * dpr);
-    this.canvas.height = Math.round(this.h * dpr);
+    const W = Math.round(this.w * dpr), H = Math.round(this.h * dpr);
+    if (W === this.canvas.width && H === this.canvas.height && dpr === this.dpr) return;
+    // Resizing clears the canvas; redraw now (ResizeObserver runs before paint) so a dragged
+    // dock edge never shows a blank frame.
+    this.canvas.width = W;
+    this.canvas.height = H;
     this.canvas.style.width = `${this.w}px`;
     this.canvas.style.height = `${this.h}px`;
     this.dpr = dpr;
-    this.invalidate();
+    if (this.raf) { cancelAnimationFrame(this.raf); this.raf = 0; }
+    this.draw();
   }
 
   fit(pad = 60) {
