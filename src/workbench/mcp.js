@@ -12,6 +12,7 @@ import { toSVG, toExcalidraw, toP5, processSheet } from '../process/exports.js';
 import { matches } from '../assets/assetStore.js';
 import { describeRegion } from '../perception/analyze.js';
 import { download } from './ui.js';
+import { allPalettes, savePalette, deletePalette, paletteFromImage, toHex, nameOf } from './palettes.js';
 import { SHOW, revealScore, SessionRecorder, summarize, READ_ONLY } from './showActions.js';
 
 const S = (properties = {}, required = []) => ({ type: 'object', properties, required });
@@ -154,6 +155,32 @@ export function workbenchTools(app) {
       if (a.action === 'start') { app.walkthroughs.start(a.id).catch(e => app.log(e.message, 'error')); return { started: a.id }; }
       if (a.action === 'stop') { app.walkthroughs.stop(); return { ok: true }; }
       return app.walkthroughs.list();
+    } },
+    { name: 'ams_palette', description: 'Palettes of named colors. action "list"; "get" {name}; "create" {name, colors: [{name, hex}] or ["burnt sienna", "#2e3a52", …]} — to make a palette that evokes something ("a winter storm over craggy shores"), choose the colors yourself and create it; "from_image" {asset (id) or the current reference, count, name} extracts one (k-means in Lab, named after pigments); "delete" {name}; "apply" {color (hex or name) or name+index} sets the selection\'s color. Names accept pigments (payne\'s gray, yellow ochre…) and CSS names.', inputSchema: S({ action: str('list | get | create | from_image | delete | apply'), name: str('Palette name'), colors: { type: 'array' }, asset: str('Asset id for from_image (default: the reference)'), count: num('Colors to extract (default 6)'), color: str('Color for apply: hex or a name'), index: num('Color index in the palette for apply') }, ['action']), run: async (a) => {
+      const pals = allPalettes();
+      if (a.action === 'list') return Object.entries(pals).map(([name, cols]) => ({ name, colors: cols.length }));
+      if (a.action === 'get') { if (!pals[a.name]) throw new Error(`No palette "${a.name}"`); return { name: a.name, colors: pals[a.name] }; }
+      if (a.action === 'create') return savePalette(a.name, a.colors || []);
+      if (a.action === 'delete') return { deleted: deletePalette(a.name) };
+      if (a.action === 'from_image') {
+        let img = app.reference?.img, title = app.reference?.title;
+        if (a.asset) {
+          const asset = await app.assetStore.get(a.asset);
+          if (!asset?.blob) throw new Error('Asset not found');
+          img = new Image(); img.src = URL.createObjectURL(asset.blob); await img.decode(); title = asset.title;
+        }
+        if (!img) throw new Error('No reference: open an image (ams_assets {open}) or pass an asset id');
+        const colors = paletteFromImage(img, Math.max(2, Math.min(16, a.count || 6)));
+        return savePalette(a.name || `From ${title}`.slice(0, 48), colors);
+      }
+      if (a.action === 'apply') {
+        const c = a.color ? toHex(a.color) : pals[a.name]?.[a.index ?? 0]?.hex;
+        if (!c) throw new Error('Unknown color');
+        const ids = [...app.canvas.selected];
+        if (ids.length) app.store.patchElements(ids, { color: c }, 'color', { by: 'agent' }); else app.setDefaults(app.tool, { color: c });
+        return { color: c, name: nameOf(c), applied: ids.length || `defaults for ${app.tool}` };
+      }
+      throw new Error('Unknown action');
     } },
     { name: 'ams_undo', description: 'Undo (or redo with redo:true).', inputSchema: S({ redo: { type: 'boolean' } }), run: (a) => ({ ok: a.redo ? app.store.redo() : app.store.undo() }) }
   ];

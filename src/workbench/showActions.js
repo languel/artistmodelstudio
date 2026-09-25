@@ -27,6 +27,7 @@ const summarize = (name, a) => {
     case 'ams_assets': return a.open ? 'Opening an asset.' : 'Searching Assets.';
     case 'ams_panel': return `Opening the ${a.id} panel.`;
     case 'ams_undo': return a.redo ? 'Redo.' : 'Undo.';
+    case 'ams_palette': return a.action === 'create' ? `Making the palette “${a.name}”.` : a.action === 'from_image' ? 'Drawing a palette from the image.' : a.action === 'apply' ? `Using ${a.color || `${a.name} ${a.index ?? 0}`}.` : 'Palettes.';
     case 'ams_analyze': return 'Analyzing the reference: value masses, regions, edges and directions.';
     case 'ams_decide_step': return `Asking the ${a.backend || 'current'} policy for the next step.`;
     case 'ams_decision_answer': return `Choosing: ${Object.entries(a.answers || {}).map(([k, v]) => `${k} ${v}`).join(', ')}.`;

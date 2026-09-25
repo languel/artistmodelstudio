@@ -4,16 +4,8 @@
  * Values are '#rrggbb' or '#rrggbbaa' (canvas and SVG both read 8-digit hex).
  */
 import { h } from './ui.js';
+import { allPalettes, toHex, nameOf, paletteFromImage, savePalette } from './palettes.js';
 
-export const PALETTES = {
-  'Klee · Senecio': ['#e59b3a', '#d9713c', '#c8472f', '#f2d28a', '#e8c26b', '#9a4b2f', '#f4e3c1', '#5b3a2a'],
-  'Klee · Castle and Sun': ['#c8473a', '#e6a23c', '#e8d27a', '#7a9c4a', '#3d5a8a', '#6d3f6e', '#2f2a4a', '#f0e6cf'],
-  'Klee · Twittering Machine': ['#7d8aa6', '#a9b4c6', '#c9a9b0', '#b9a58d', '#e0d8c5', '#3b3b52', '#5a4e5e', '#8c3b3b'],
-  'Kandinsky': ['#f2c230', '#e07a2e', '#c8322d', '#8e2f6b', '#2a4f9a', '#3aa0c8', '#6b8f3e', '#1a1a1a'],
-  'Bauhaus': ['#d12a2a', '#f2c230', '#1f4fa3', '#111111', '#f3efe6', '#8a8a8a'],
-  'Notebook inks': ['#1d1b19', '#3b3a5a', '#2e3a52', '#704214', '#a33b2b', '#2f5a3a', '#555555', '#fbe9a6'],
-  'Grays': ['#000000', '#1d1b19', '#3f3a34', '#6d665c', '#9b9184', '#c9c1b4', '#e6e0d6', '#ffffff']
-};
 
 const RECENT_KEY = 'ams_colors_recent';
 const MINE_KEY = 'ams_colors_mine';
@@ -109,11 +101,14 @@ function openPicker(anchor, start, onChange, app) {
   const sv = h('canvas', { class: 'wb-cp-sv', width: 200, height: 130 });
   const hue = h('input', { type: 'range', class: 'wb-cp-hue', min: 0, max: 360, step: 1, value: hsv.h, title: 'Hue' });
   const alp = h('input', { type: 'range', class: 'wb-cp-alpha', min: 0, max: 100, step: 1, value: Math.round(alpha * 100), title: 'Opacity' });
-  const hexIn = h('input', { class: 'wb-inline wb-cp-hex', spellcheck: 'false', title: 'Hex (#rrggbb or #rrggbbaa)' });
+  const hexIn = h('input', { class: 'wb-inline wb-cp-hex', spellcheck: 'false', title: 'Hex (#rrggbb or #rrggbbaa), or a name: burnt sienna, crimson…' });
   const pctIn = h('input', { type: 'number', class: 'wb-inline wb-cp-pct', min: 0, max: 100, title: 'Opacity %' });
   const preview = h('span', { class: 'wb-cp-chip' });
-  const paletteSel = h('select', { class: 'wb-select wb-cp-palette' }, ...Object.keys(PALETTES).map(k => h('option', { value: k }, k)));
-  paletteSel.value = load(PALETTE_KEY, 'Klee · Senecio');
+  const paletteSel = h('select', { class: 'wb-select wb-cp-palette' });
+  const fillPalettes = () => { paletteSel.replaceChildren(...Object.keys(allPalettes()).map(k => h('option', { value: k }, k))); paletteSel.value = allPalettes()[load(PALETTE_KEY, '')] ? load(PALETTE_KEY, '') : 'Klee · Senecio'; };
+  fillPalettes();
+  const fromRef = app?.reference ? h('button', { class: 'wb-cp-drop wb-cp-fromref', type: 'button', title: 'Make a palette from the reference image', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg>',
+    onclick: () => { const cols = paletteFromImage(app.reference.img, 8); const name = `From ${app.reference.title}`.slice(0, 48); savePalette(name, cols); store(PALETTE_KEY, name); fillPalettes(); renderRows(); } }) : null;
   const presets = h('div', { class: 'wb-cp-row' });
   const recents = h('div', { class: 'wb-cp-row' });
   const mine = h('div', { class: 'wb-cp-row' });
@@ -135,13 +130,17 @@ function openPicker(anchor, start, onChange, app) {
     if (document.activeElement !== hexIn) hexIn.value = formatColor(hex(), alpha).slice(1);
     if (document.activeElement !== pctIn) pctIn.value = Math.round(alpha * 100);
     preview.style.background = formatColor(hex(), alpha);
+    preview.title = nameOf(hex());
     dirty = true;
     onChange({ hex: hex(), alpha }, final);
   };
   const choose = c => { const p = parseColor(c); hsv = hexHsv(p.hex); alpha = p.alpha; sync(true); };
-  const chipBtn = (c, extra = {}) => h('button', { class: 'wb-cp-preset', type: 'button', title: c, onclick: () => choose(c), ...extra }, h('span', { class: 'wb-cp-chip', style: { background: c } }));
+  const chipBtn = (c, extra = {}) => {
+    const hexv = typeof c === 'string' ? c : c.hex, name = typeof c === 'string' ? nameOf(c) : c.name || nameOf(c.hex);
+    return h('button', { class: 'wb-cp-preset', type: 'button', title: `${name} · ${hexv}`, onclick: () => choose(hexv), ...extra }, h('span', { class: 'wb-cp-chip', style: { background: hexv } }));
+  };
   const renderRows = () => {
-    presets.replaceChildren(...PALETTES[paletteSel.value].map(c => chipBtn(c)));
+    presets.replaceChildren(...(allPalettes()[paletteSel.value] || []).map(c => chipBtn(c)));
     const r = load(RECENT_KEY, []);
     recents.replaceChildren(...(r.length ? r.map(c => chipBtn(c)) : [h('span', { class: 'wb-muted wb-small' }, '—')]));
     const m = load(MINE_KEY, []);
@@ -162,7 +161,8 @@ function openPicker(anchor, start, onChange, app) {
   hue.addEventListener('change', () => sync(true));
   alp.addEventListener('input', () => { alpha = Number(alp.value) / 100; sync(); });
   alp.addEventListener('change', () => sync(true));
-  hexIn.addEventListener('change', () => { const v = `#${hexIn.value.replace(/^#/, '')}`; if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v)) choose(v); });
+  // Hex, or a name: "burnt sienna", "payne's gray", "crimson", or a palette color's name.
+  hexIn.addEventListener('change', () => { const raw = hexIn.value.trim(); const v = toHex(/^[0-9a-f]{3,8}$/i.test(raw) ? `#${raw}` : raw); if (v) choose(v); else hexIn.value = formatColor(hex(), alpha).slice(1); });
   pctIn.addEventListener('change', () => { alpha = Math.max(0, Math.min(100, Number(pctIn.value) || 0)) / 100; sync(true); });
   for (const i of [hexIn, pctIn]) i.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') i.blur(); });
 
@@ -170,7 +170,7 @@ function openPicker(anchor, start, onChange, app) {
     sv, hue, alp,
     h('div', { class: 'wb-cp-row wb-cp-inputs' }, h('span', { class: 'wb-cp-checker wb-cp-big' }, preview),
       app ? h('button', { class: 'wb-cp-drop', type: 'button', title: 'Pick a color from the screen (I)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5l4 4M4 20l1-4 9.5-9.5 3 3L8 19z"/><path d="M16 4l4 4"/></svg>', onclick: () => eyedrop(app).then(c => c && choose(c)) }) : null, h('span', { class: 'wb-muted' }, '#'), hexIn, pctIn, h('span', { class: 'wb-muted' }, '%')),
-    paletteSel, presets,
+    h('div', { class: 'wb-cp-row wb-cp-inputs' }, paletteSel, fromRef), presets,
     h('div', { class: 'wb-cp-head' }, 'Recent'), recents,
     h('div', { class: 'wb-cp-head' }, 'Mine'), mine);
   document.body.append(pop);
