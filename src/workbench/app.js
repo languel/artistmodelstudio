@@ -27,9 +27,11 @@ import { mountAssistant } from './panels/assistant.js';
 import { mountDecide } from './panels/decide.js';
 import { mountOutliner } from './panels/outliner.js';
 import { mountSettings } from './panels/settings.js';
+import { mountShortcuts } from './panels/shortcuts.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
 import { openPalette } from './palette.js';
+import { Shortcuts } from './shortcuts.js';
 import { eyedropToTarget } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
@@ -147,6 +149,7 @@ export class Workbench {
     // The Docs panel mounts on first open and then replaces this with its own openDocs.
     const openDocsFirst = id => { this.docks.open('docs'); if (this.openDocs !== openDocsFirst) this.openDocs(id); };
     this.openDocs ??= openDocsFirst;
+    this.shortcuts = new Shortcuts(this);
     this.registerPanels();
     const hadCamera = Boolean(localStorage.getItem('ams_workbench_camera_v1'));
     this.docks.render();
@@ -171,6 +174,7 @@ export class Workbench {
     reg('decide', 'Decide', 'exercise', 'right', mountDecide);
     reg('docs', 'Docs', 'book', 'right', mountDocs);
     reg('settings', 'Settings', 'gear', 'right', mountSettings);
+    reg('shortcuts', 'Shortcuts', 'keyboard', 'right', mountShortcuts);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }
 
@@ -301,7 +305,7 @@ export class Workbench {
     build([
       { label: 'New drawing', run: () => { this.loadDocument(createDocument(), 'new'); this.canvas.fit(); } },
       { label: 'Open file', hint: 'Process JSON, SVG with a process record, Excalidraw, or an image as reference', run: () => this.openFile() },
-      { label: 'Save to Assets', keys: '⌘S', run: () => this.saveToAssets() },
+      { label: 'Save to Assets', keys: this.shortcuts.label('file.save'), run: () => this.saveToAssets() },
       { label: 'Export', items: [
         { label: 'PNG', hint: 'The picture (or the process view, if shown)', run: () => this.exportAs('png') },
         { label: 'SVG', hint: 'With the full process record inside; opens again as a process', run: () => this.exportAs('svg') },
@@ -311,12 +315,13 @@ export class Workbench {
         { label: 'Excalidraw', run: () => this.exportAs('excalidraw') }
       ] },
       '-',
-      { label: 'Settings', keys: '⌘,', run: () => this.docks.open('settings') },
-      { label: 'Command palette', keys: '⌘K', run: () => openPalette(this) },
-      { label: 'Docs', keys: '?', run: () => this.openDocs() },
+      { label: 'Settings', keys: this.shortcuts.label('app.settings'), run: () => this.docks.open('settings') },
+      { label: 'Shortcuts', keys: this.shortcuts.label('app.shortcuts'), run: () => this.docks.open('shortcuts') },
+      { label: 'Command palette', keys: this.shortcuts.label('app.palette'), run: () => openPalette(this) },
+      { label: 'Docs', keys: this.shortcuts.label('app.docs'), run: () => this.openDocs() },
       '-',
       { label: 'Panels' },
-      ...[...this.docks.panels.values()].filter(p => p.id !== 'settings').map(p => ({ label: p.title, run: () => this.docks.open(p.id) })),
+      ...[...this.docks.panels.values()].filter(p => !['settings', 'shortcuts'].includes(p.id)).map(p => ({ label: p.title, run: () => this.docks.open(p.id) })),
       { label: 'Reset layout', run: () => this.docks.reset() },
       '-',
       { label: 'Classic studio', hint: 'The earlier studio (generation, mediums, training)', run: () => { window.location.href = '/classic.html'; } }
@@ -388,28 +393,8 @@ export class Workbench {
   }
 
   // ---- keys ------------------------------------------------------------------------
-  bindKeys() {
-    window.addEventListener('keydown', e => {
-      const k = e.key.toLowerCase();
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod && k === 'k') { e.preventDefault(); openPalette(this); return; }
-      if (mod && k === ',') { e.preventDefault(); this.docks.open('settings'); return; }
-      if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
-      if (k === '?') { this.openDocs(); return; }
-      if (k === 'i' && !mod) { e.preventDefault(); eyedropToTarget(this); return; }
-      if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) this.store.redo(); else this.store.undo(); return; }
-      if (mod && k === 's') { e.preventDefault(); this.saveToAssets(); return; }
-      if (mod && k === 'g') { e.preventDefault(); if (e.shiftKey) this.ungroupSelection(); else this.groupSelection(); return; }
-      if (mod && k === 'a') { e.preventDefault(); this.canvas.select(this.store.doc.elements.filter(el => this.canvas.editable(el)).map(el => el.id)); return; }
-      if (mod) return;
-      if (k === 'delete' || k === 'backspace') { const ids = [...this.canvas.selected]; if (ids.length) this.store.removeElements(ids); return; }
-      if (k === 'escape') { this.canvas.select([]); this.setTool('select'); return; }
-      if (k === 'f') { this.canvas.fit(); this.renderChrome(); return; }
-      if (k === '\\') { this.setViewMode(this.view.mode === 'picture' ? 'process' : 'picture'); return; }
-      if (k === 'r' && this.reference) { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); return; }
-      if (TOOL_KEYS[k]) this.setTool(TOOL_KEYS[k]);
-    });
-  }
+  bindKeys() { /* keys live in this.shortcuts (see shortcuts.js) */ }
+
 }
 
 export { ROLES };

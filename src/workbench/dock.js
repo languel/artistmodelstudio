@@ -32,11 +32,6 @@ export class DockManager {
       bottom: root.querySelector('[data-dock="bottom"]'),
       floating: root.querySelector('[data-floating]')
     };
-    window.addEventListener('keydown', e => {
-      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'b') return;
-      e.preventDefault();
-      this.toggleDock(e.shiftKey ? 'bottom' : e.altKey ? 'right' : 'left');
-    });
   }
 
   load() {

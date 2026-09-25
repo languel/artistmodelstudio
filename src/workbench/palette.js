@@ -37,6 +37,13 @@ export function buildCommands(app) {
     cmd('Decide', 'Propose step', () => { app.docks.open('decide'); app.decidePanel?.propose(); }),
     cmd('Agent', 'How did you do that? (replay last agent session)', () => window.ams.callTool('ams_sessions', { action: 'replay' }))
   );
+  // Show the keys as currently assigned (Shortcuts panel), not the defaults.
+  const K = { 'File:Save to Assets': 'file.save', 'Edit:Undo': 'edit.undo', 'Edit:Redo': 'edit.redo', 'Edit:Select all': 'edit.selectAll', 'Edit:Pick a color (eyedropper)': 'edit.eyedropper', 'View:Picture view': 'view.toggle', 'View:Process view': 'view.toggle', 'View:Fit artboard': 'view.fit', 'View:Toggle reference': 'view.reference', 'View:Toggle grid': 'view.grid', 'View:Toggle snap to grid': 'view.snap' };
+  for (const c of out) {
+    const id = K[c.id] || (c.category === 'Tool' ? `tool.${(app.toolList || []).find(t => t[1] === c.name)?.[0]}` : null);
+    if (id && app.shortcuts) c.keys = app.shortcuts.label(id);
+  }
+  out.push({ id: 'Panel:Shortcuts', category: 'App', name: 'Shortcuts', hint: 'Search and reassign keys', keys: app.shortcuts?.label('app.shortcuts') || '', run: () => app.docks.open('shortcuts') });
   return out;
 }
 

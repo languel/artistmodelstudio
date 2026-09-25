@@ -413,3 +413,19 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-code-host .cm-editor { height: 100%; }
 :root { --cm-keyword: #b9b3a8; --cm-string: #a8b596; --cm-number: #c9a57a; --cm-comment: #7a756d; --cm-fn: #e4e0d8; --cm-prop: #aab4c2; --cm-punct: #8f8a82; }
 :root[data-theme="light"] { --cm-keyword: #5b5249; --cm-string: #4f6a3a; --cm-number: #8a5a2b; --cm-comment: #9a9186; --cm-fn: #1d1b19; --cm-prop: #3f5670; --cm-punct: #7a7268; }
+
+/* Shortcuts */
+.wb-sc-list { display: flex; flex-direction: column; gap: 6px; }
+.wb-sc-cat h4 { margin: 6px 0 2px; font-size: 11px; color: var(--wb-muted); font-weight: 600; }
+.wb-sc-row { display: flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 4px; border-radius: 5px; }
+.wb-sc-row:hover { background: var(--wb-on); }
+.wb-sc-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-sc-row.custom .wb-sc-label::after { content: ' •'; color: var(--wb-muted); }
+.wb-sc-keys { display: flex; gap: 3px; align-items: center; }
+.wb-sc-key { font: 11px var(--font-mono, ui-monospace, monospace); color: var(--wb-text); background: var(--wb-panel-2); border: 1px solid var(--wb-line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; min-width: 22px; cursor: pointer; }
+.wb-sc-key:hover { border-color: var(--wb-muted); }
+.wb-sc-key.recording { border-color: var(--wb-text); color: var(--wb-muted); }
+.wb-sc-add { color: var(--wb-muted); border-style: dashed; opacity: 0; }
+.wb-sc-row:hover .wb-sc-add, .wb-sc-add.recording { opacity: 1; }
+.wb-sc-reset { width: 20px; height: 20px; }
+.wb-sc-status { min-height: 14px; }

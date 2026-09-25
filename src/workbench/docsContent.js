@@ -100,6 +100,8 @@ Training on finished images teaches surface texture. The studio keeps every step
         h('button', { class: 'wb-btn primary', onclick: () => app.walkthroughs.start(w.id) }, 'Start'))))),
 
     T('start-keys', 'Getting started', 'Keys and the palette', 'Shortcuts, the command palette, and the canvas.', () => prose(`
+Every key can be changed in **Shortcuts** (menu, or Shift+Cmd+/): search, click a key and press a new one, + to add another, ↺ for the default. A key taken from another command moves.
+
 | Key | Action |
 |---|---|
 | Cmd+K | Command palette: every command, panel, exercise, walkthrough and doc by name; or ask the Assistant |
