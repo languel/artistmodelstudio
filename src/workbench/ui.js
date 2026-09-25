@@ -73,3 +73,12 @@ export function download(data, name, type) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+
+/** A canvas as a PNG blob, made synchronously (toBlob can stall in background tabs). */
+export function canvasBlob(c, type = 'image/png', quality) {
+  const url = c.toDataURL(type, quality);
+  const bin = atob(url.slice(url.indexOf(',') + 1));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
+}

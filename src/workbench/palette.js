@@ -24,6 +24,9 @@ export function buildCommands(app) {
     cmd('View', 'Toggle reference', () => { if (app.reference) { app.reference.visible = !app.reference.visible; app.canvas.invalidate(); app.renderChrome(); } }, 'R'),
     cmd('View', 'Toggle grid', () => app.canvas.setGrid({ show: app.canvas.grid.show === 'off' ? 'paper' : 'off' })),
     cmd('View', 'Toggle snap to grid', () => { app.canvas.setGrid({ snap: !app.canvas.grid.snap }); app.log(`Snap ${app.canvas.grid.snap ? 'on' : 'off'}.`); }),
+    cmd('Record', 'Start recording', () => app.recorder.start()),
+    cmd('Record', 'Stop recording', () => app.recorder.stop()),
+    cmd('Record', 'Timeline', () => app.docks.open('timeline')),
     cmd('View', 'Reset layout', () => app.docks.reset()),
     cmd('View', 'Classic studio', () => { window.location.href = '/classic.html'; })
   ];

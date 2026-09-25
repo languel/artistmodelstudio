@@ -12,6 +12,7 @@ import { NOTE_STYLES, NOTE_FONTS, noteProps } from '../../process/notes.js';
 export function mountProperties(el, app) {
   const render = () => {
     el.innerHTML = '';
+    if (app.selectedClip && app.player?.take?.clips.includes(app.selectedClip)) return renderClip(app.selectedClip);
     const sel = app.selectedElements();
     if (!sel.length) return renderDefaults();
     const e = sel[0];
@@ -70,8 +71,37 @@ export function mountProperties(el, app) {
     el.append(section('Reason', true, whyField(d.why || '', v => app.setDefaults(tool, { why: v }), 'Why the next marks are made (kept on each one)')));
   };
 
+  /** A timeline clip: when it plays, how long, and what it says or does. */
+  const renderClip = c => {
+    const edited = () => app.timelineEdited?.();
+    const set = patch => { Object.assign(c, patch); edited(); };
+    const fx = patch => { c.fx = { ...(c.fx || {}), ...patch }; edited(); };
+    const d = c.diff || {};
+    el.append(h('div', { class: 'wb-panel-title' }, `${c.track} clip`, h('span', { class: 'wb-muted' }, ` · ${(c.start / 1000).toFixed(1)} s`)));
+    el.append(section('Timing', true,
+      row('Start (s)', numberField({ value: +(c.start / 1000).toFixed(2), min: 0, max: 36000, step: 0.1, def: 0, onChange: v => set({ start: Math.round(v * 1000) }) })),
+      row('Length (s)', numberField({ value: +(c.dur / 1000).toFixed(2), min: 0, max: 3600, step: 0.1, def: 1, onChange: v => set({ dur: Math.round(v * 1000) }) })),
+      (c.track === 'say' || c.track === 'title') ? row('Fade (ms)', numberField({ value: c.fx?.fade ?? 250, min: 0, max: 3000, step: 50, def: 250, onChange: v => fx({ fade: v }) })) : null,
+      c.track === 'draw' ? row('Reveal', selectField([['on', 'Stroke by stroke'], ['off', 'All at once']], c.fx?.drawOn === false ? 'off' : 'on', v => fx({ drawOn: v === 'on' }))) : null));
+    if (c.track === 'say' || c.track === 'title') {
+      const ta = h('textarea', { class: 'wb-why', rows: 3 }); ta.value = c.text || '';
+      ta.addEventListener('change', () => set({ text: ta.value }));
+      ta.addEventListener('keydown', e => e.stopPropagation());
+      el.append(section(c.track === 'say' ? 'Narration' : 'Title', true, ta,
+        c.track === 'title' ? row('Subtitle', (() => { const i = h('input', { class: 'wb-inline', value: c.sub || '' }); i.addEventListener('change', () => set({ sub: i.value })); i.addEventListener('keydown', e => e.stopPropagation()); return i; })()) : null));
+    }
+    if (c.track === 'draw') el.append(section('Change', true, h('div', { class: 'wb-small' }, `${c.label || 'change'} · by ${c.by || 'user'}`), h('div', { class: 'wb-muted wb-small' }, [d.add?.length && `${d.add.length} added`, d.update?.length && `${d.update.length} changed`, d.remove?.length && `${d.remove.length} removed`].filter(Boolean).join(' · ') || 'document settings')));
+    if (c.track === 'camera') el.append(section('View', true,
+      row('Zoom', numberField({ value: +(c.z || 1).toFixed(2), min: 0.2, max: 20, step: 0.05, def: 1, onChange: v => set({ z: v }) })),
+      row('Center x', numberField({ value: +(c.cx ?? 0.5).toFixed(3), min: -1, max: 2, step: 0.01, def: 0.5, onChange: v => set({ cx: v }) })),
+      row('Center y', numberField({ value: +(c.cy ?? 0.5).toFixed(3), min: -1, max: 2, step: 0.01, def: 0.5, onChange: v => set({ cy: v }) }))));
+    if (c.track === 'action') el.append(section('Action', true, h('div', { class: 'wb-small' }, c.label || c.name), h('pre', { class: 'wb-ref' }, JSON.stringify(c.args || {}, null, 1).slice(0, 800))));
+    if (c.track === 'audio') el.append(section('Audio', true, h('div', { class: 'wb-small' }, c.label || 'audio')));
+  };
+
   app.store.subscribe(render);
-  app.on('selection', render);
+  app.on('clip-select', render);
+  app.on('selection', () => { if (app.canvas?.selected.size) app.selectedClip = null; render(); });
   app.on('tool', render);
   render();
 }

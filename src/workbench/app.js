@@ -6,6 +6,7 @@
 import { ProcessStore, createDocument, normalizeDocument, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
 import { dslToProcess } from '../process/fromDsl.js';
+import { canvasBlob } from './ui.js';
 import { renderToCanvas } from '../process/render.js';
 import { EXERCISES } from '../process/exercises.js';
 import { runScript } from '../process/script.js';
@@ -29,6 +30,9 @@ import { mountOutliner } from './panels/outliner.js';
 import { mountSettings } from './panels/settings.js';
 import { mountShortcuts } from './panels/shortcuts.js';
 import { mountBrushes } from './panels/brushes.js';
+import { mountTimeline } from './panels/timeline.js';
+import { Recorder } from './recorder.js';
+import { TakePlayer } from './takePlayer.js';
 import { loadLibrary } from '../process/brushes.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
@@ -157,7 +161,12 @@ export class Workbench {
     // The Docs panel mounts on first open and then replaces this with its own openDocs.
     const openDocsFirst = id => { this.docks.open('docs'); if (this.openDocs !== openDocsFirst) this.openDocs(id); };
     this.openDocs ??= openDocsFirst;
+    // Likewise the Timeline: opening a take mounts it first.
+    const openTakeFirst = async id => { this.docks.open('timeline'); if (this.openTake !== openTakeFirst) return this.openTake(id); throw new Error('Timeline unavailable'); };
+    this.openTake ??= openTakeFirst;
     loadLibrary();
+    this.recorder = new Recorder(this);
+    this.player = new TakePlayer(this);
     this.shortcuts = new Shortcuts(this);
     this.registerPanels();
     const hadCamera = Boolean(localStorage.getItem('ams_workbench_camera_v1'));
@@ -185,6 +194,7 @@ export class Workbench {
     reg('settings', 'Settings', 'gear', 'right', mountSettings);
     reg('shortcuts', 'Shortcuts', 'keyboard', 'right', mountShortcuts);
     reg('brushes', 'Brushes', 'brush', 'right', mountBrushes);
+    reg('timeline', 'Timeline', 'film', 'bottom', mountTimeline);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }
 
@@ -201,6 +211,8 @@ export class Workbench {
   }
 
   async openAsset(a) {
+    if (a.kind === 'take' && a.program?.clips) { await this.openTake(a.id); return; }
+    if (a.kind === 'walkthrough' && a.program?.steps) { await this.walkthroughs.loadUser(); this.walkthroughs.start(a.program.id); return; }
     if (a.kind === 'dataset' && a.program?.jsonl) {
       this.docks.open('decide');
       const added = this.decider.importJSONL(a.program.jsonl);
@@ -499,7 +511,7 @@ export class Workbench {
   async saveToAssets() { return this.saveDocToAssets(this.store.doc); }
 
   async saveDocToAssets(doc, { tags = [] } = {}) {
-    const blob = await new Promise(r => renderToCanvas(doc, { scale: Math.min(1, 1200 / Math.max(doc.artboard.width, doc.artboard.height)), mode: 'picture' }).toBlob(r, 'image/png'));
+    const blob = canvasBlob(renderToCanvas(doc, { scale: Math.min(1, 1200 / Math.max(doc.artboard.width, doc.artboard.height)), mode: 'picture' }));
     const a = await this.assetStore.add(blob, {
       title: doc.title || 'Untitled', kind: 'process', folder: this.assetPanel?.folder || '',
       tags: [...new Set([...tags, ...doc.stages.map(s => s.kind)])], program: structuredClone(doc),

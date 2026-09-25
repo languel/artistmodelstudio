@@ -8,6 +8,8 @@
 import { h } from './ui.js';
 import { EXERCISES } from '../process/exercises.js';
 import * as SENECIO from './studies/senecio.js';
+import { applyDiff } from '../process/take.js';
+import { normalizeElement } from '../process/document.js';
 
 const call = (name, args) => window.ams.callTool(name, args);
 
@@ -170,19 +172,72 @@ export const WALKTHROUGHS = [
   }
 ];
 
-export class Walkthroughs {
-  constructor(app) { this.app = app; this.run = null; }
+/**
+ * A walkthrough made from a take: each narration starts a step; the drawing's changes until the
+ * next narration are replayed in that step (a single stroke traced by the guide); the first step
+ * restores the take's starting drawing. Kept in Assets (kind walkthrough).
+ */
+export function walkthroughFromTake(take) {
+  const clips = take.clips.filter(c => ['say', 'title', 'draw'].includes(c.track)).slice().sort((a, b) => a.start - b.start);
+  const steps = [{ say: take.title, load: take.baseline, apply: [] }];
+  for (const c of clips) {
+    if (c.track === 'say' || c.track === 'title') steps.push({ say: c.text, apply: [] });
+    else steps[steps.length - 1].apply.push({ diff: c.diff, label: c.label || 'change' });
+  }
+  if (steps.length === 1) for (const d of steps[0].apply.splice(0)) steps.push({ say: d.label, apply: [d] });
+  return { id: `take-${Date.now().toString(36)}`, title: take.title, summary: `From a recording (${steps.length} steps)`, user: true, steps };
+}
 
-  list() { return WALKTHROUGHS.map(({ id, title, summary, steps }) => ({ id, title, summary, steps: steps.length })); }
+/** Run one data step: restore a drawing, replay changes (tracing single strokes). */
+async function runDataStep(step, { app, g }) {
+  if (step.load) app.loadDocument(structuredClone(step.load), 'walkthrough start');
+  for (const a of step.apply || []) {
+    const adds = a.diff?.add || [];
+    if (adds.length === 1 && adds[0].points?.length > 1 && g.active) {
+      const e = adds[0];
+      await g.trace(e.points, n => { app.canvas.draft = normalizeElement({ ...e, id: 'draft', stage: 'draft', points: e.points.slice(0, n) }, 'draft'); app.canvas.invalidate(); });
+      app.canvas.draft = null;
+    }
+    app.store.change(a.label || 'walkthrough', d => { const next = applyDiff(d, a.diff); for (const k of Object.keys(next)) d[k] = next[k]; });
+    await g.wait(adds.length > 1 ? 500 : 150);
+  }
+}
+
+export class Walkthroughs {
+  constructor(app) {
+    this.app = app; this.run = null; this.user = [];
+    // Your walkthroughs (made from takes) live in Assets.
+    setTimeout(() => this.loadUser(), 50);
+  }
+
+  async loadUser() {
+    try { this.user = (await this.app.assetStore.all()).filter(a => a.kind === 'walkthrough' && a.program?.steps).map(a => ({ ...a.program, assetId: a.id })); } catch { this.user = []; }
+  }
+
+  all() { return [...WALKTHROUGHS, ...this.user]; }
+
+  list() { return this.all().map(({ id, title, summary, steps, user }) => ({ id, title, summary, steps: steps.length, user: Boolean(user) })); }
+
+  /** Make a walkthrough from a take and keep it in Assets. */
+  async fromTake(take) {
+    const wt = walkthroughFromTake(take);
+    const blob = await new Promise(r => { const c = document.createElement('canvas'); c.width = 320; c.height = 200; const x = c.getContext('2d'); x.fillStyle = '#f3efe6'; x.fillRect(0, 0, 320, 200); x.fillStyle = '#1d1b19'; x.font = '600 16px Inter, sans-serif'; x.fillText(wt.title.slice(0, 32), 16, 40); x.font = '13px Inter, sans-serif'; x.fillText(`Walkthrough · ${wt.steps.length} steps`, 16, 66); r(c); }).then(c => canvasBlobLocal(c));
+    const a = await this.app.assetStore.add(blob, { title: wt.title, kind: 'walkthrough', folder: 'Walkthroughs', tags: ['walkthrough', 'from-take'], program: JSON.parse(JSON.stringify(wt)) });
+    wt.assetId = a.id;
+    this.user.push(wt);
+    return wt;
+  }
 
   async start(id) {
-    const wt = WALKTHROUGHS.find(w => w.id === id);
+    const wt = this.all().find(w => w.id === id);
     if (!wt) throw new Error(`No walkthrough "${id}"`);
     this.stop();
     const g = this.app.guide;
     const run = this.run = { wt, i: 0, paused: false, stopped: false, state: {}, pace: g.pace, jump: null, layout: this.app.layoutSnapshot() };
     if (g.pace === 0) g.pace = 1;
     this.app.log(`Walkthrough: ${wt.title}`);
+    const rec = this.app.recorder;
+    if (rec?.settings.autoWalkthroughs && !rec.recording) { rec.start({ title: wt.title, source: 'walkthrough' }); run.recording = true; }
     const btn = (label, title, fn) => h('button', { class: 'wb-btn', title, onclick: fn }, label);
     const pauseBtn = btn('Pause', 'Pause or continue', () => { run.paused = !run.paused; pauseBtn.textContent = run.paused ? 'Continue' : 'Pause'; run.wake?.(); });
     g.setControls([
@@ -204,6 +259,7 @@ export class Walkthroughs {
         if (panel) this.app.setLayout({ open: [panel] });
         if (step.target) await g.moveTo(step.target, { click: step.click !== false });
         if (step.run) await step.run(ctx);
+        if (step.load || step.apply) await runDataStep(step, ctx);
         g.label = `${wt.title} · ${run.i + 1}/${wt.steps.length}`;
         g.say(step.say);
       } catch (err) { this.app.log(`Walkthrough step failed: ${err.message}`, 'error'); }
@@ -230,6 +286,7 @@ export class Walkthroughs {
     g.label = null;
     g.pace = run.pace;
     if (run.wt.restoreLayout !== false) this.app.restoreLayout(run.layout);
+    if (run.recording) this.app.recorder.stop();
     if (finished) g.say(`${run.wt.title}: done.`, 'Walkthrough');
     g.setControls(null);
   }
@@ -241,3 +298,6 @@ export class Walkthroughs {
     return this.app.saveDocToAssets(structuredClone(doc), { tags: ['before-walkthrough'] });
   }
 }
+
+/** Synchronous PNG (toBlob can stall in background tabs). */
+function canvasBlobLocal(c) { const u = c.toDataURL('image/png'), b = atob(u.slice(u.indexOf(',') + 1)), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return new Blob([a], { type: 'image/png' }); }

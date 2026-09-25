@@ -18,6 +18,7 @@ import { renderToCanvas } from './render.js';
 import documentSrc from './document.js?raw';
 import brushesSrc from './brushes.js?raw';
 import renderSrc from './render.js?raw';
+import notesSrc from './notes.js?raw';
 import scriptSrc from './script.js?raw';
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -231,6 +232,7 @@ function keyPressed() {
 // ---- Artist Model Studio process runtime (unchanged library code) ----
 ${strip(documentSrc)}
 ${strip(brushesSrc)}
+${strip(notesSrc)}
 ${strip(renderSrc)}
 ${strip(scriptSrc)}
 `;

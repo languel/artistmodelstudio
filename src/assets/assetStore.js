@@ -45,7 +45,9 @@ export async function blobToImage(blob) {
 }
 
 async function makeThumb(blob) {
-  const img = await blobToImage(blob);
+  // createImageBitmap works in background tabs too (img.decode() can wait until the tab is shown).
+  const img = typeof createImageBitmap === 'function' ? await createImageBitmap(blob).catch(() => blobToImage(blob)) : await blobToImage(blob);
+  if (img.naturalWidth === undefined) { img.naturalWidth = img.width; img.naturalHeight = img.height; }
   const k = Math.min(1, THUMB / Math.max(img.naturalWidth, img.naturalHeight));
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.round(img.naturalWidth * k));

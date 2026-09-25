@@ -205,6 +205,31 @@ export function workbenchTools(app) {
       throw new Error('Unknown action');
     } },
     { name: 'ams_layout', description: 'Control the workbench layout so actions can be seen: open {panels: [...]} (expands their docks), close {panels}, expand / collapse {docks: [left, right, bottom]}, reference {visible, opacity}, view {mode: picture | process}, fit, find {query} in Assets (shows the matching cards), get (current layout).', inputSchema: S({ open: { type: 'array', items: { type: 'string' } }, close: { type: 'array', items: { type: 'string' } }, expand: { type: 'array', items: { type: 'string' } }, collapse: { type: 'array', items: { type: 'string' } }, reference: { type: 'object' }, view: str('picture | process'), fit: { type: 'boolean' }, find: str('Search Assets for this') }), run: (a) => app.setLayout(a) },
+    { name: 'ams_record', description: 'Record what happens as a take (a timeline of drawing changes, narration and actions) to review later: action "start" {title}, "stop" (saves to Assets), "status". Agent activity is recorded automatically unless turned off (auto: false).', inputSchema: S({ action: str('start | stop | status'), title: str(''), auto: { type: 'boolean' } }, ['action']), run: async (a) => {
+      const r = app.recorder;
+      if (a.auto !== undefined) r.setSettings({ autoAgents: a.auto });
+      if (a.action === 'start') { r.start({ title: a.title || undefined, source: 'agent' }); return { recording: true }; }
+      if (a.action === 'stop') { const t = await r.stop(); return t ? { saved: t.title, clips: t.clips.length, seconds: Math.round(t.duration / 1000), asset: t.assetId } : { saved: null }; }
+      return { recording: r.recording, clips: r.take?.clips.length || 0, auto: r.settings };
+    } },
+    { name: 'ams_timeline', description: 'Takes on the timeline: action "list" (takes in Assets), "open" {id}, "play", "pause", "seek" {ms}, "summary" (a short-form cut of the open take, saved), "walkthrough" (make a live walkthrough from it), "export" {format: html | project | video | json, rate}.', inputSchema: S({ action: str('list | open | play | pause | seek | summary | walkthrough | export'), id: str('Take asset id'), ms: num('Time in ms'), format: str('html | project | video | json'), rate: num('Video speed') }, ['action']), run: async (a) => {
+      const p = app.player;
+      if (a.action === 'list') return (await app.assetStore.all()).filter(x => x.kind === 'take').map(x => ({ id: x.id, title: x.title, seconds: Math.round((x.meta?.duration || 0) / 1000), clips: x.meta?.clips }));
+      if (a.action === 'open') { await app.openTake(a.id); return { open: p.take.title, seconds: Math.round(p.duration / 1000) }; }
+      if (!p.take) throw new Error('No take open: ams_timeline {action: "open", id}');
+      if (a.action === 'play') { p.play(); return { playing: true }; }
+      if (a.action === 'pause') { p.pause(); return { t: Math.round(p.t) }; }
+      if (a.action === 'seek') { p.seek(a.ms || 0); return { t: Math.round(p.t) }; }
+      if (a.action === 'summary') { const { summarize, duration: dur } = await import('../process/take.js'); const s2 = summarize(p.take); s2.duration = dur(s2); await app.recorder.saveTake(s2, { title: s2.title }); p.load(s2); return { title: s2.title, seconds: Math.round(s2.duration / 1000) }; }
+      if (a.action === 'walkthrough') { const w = await app.walkthroughs.fromTake(p.take); return { walkthrough: w.id, steps: w.steps.length }; }
+      if (a.action === 'export') {
+        const m = await import('./takeExport.js');
+        if (a.format === 'video') { m.downloadVideo(p.take, { rate: a.rate || 1, app }); return { recording: true }; }
+        ({ html: m.downloadHTML, project: m.downloadProject, json: m.downloadJSON }[a.format || 'html'] || m.downloadHTML)(p.take);
+        return { exported: a.format || 'html' };
+      }
+      throw new Error('Unknown action');
+    } },
     { name: 'ams_undo', description: 'Undo (or redo with redo:true).', inputSchema: S({ redo: { type: 'boolean' } }), run: (a) => ({ ok: a.redo ? app.store.redo() : app.store.undo() }) }
   ];
 }
@@ -247,13 +272,16 @@ export function initWorkbenchMCP(app) {
     if (!t) throw new Error(`Unknown tool ${name}`);
     const { narrate, ...rest } = args || {};
     const g = app.guide;
+    app.emit('tool', name, rest, { replay, summary: summarize(name, rest) });
     const visible = !READ_ONLY.test(name) || rest.open;
     const tabsBefore = { ...app.docks.state.active };
     if (visible) {
       const brief = JSON.stringify(rest, (k, v) => (typeof v === 'string' && v.length > 60 ? v.slice(0, 57) + '…' : Array.isArray(v) && v.length > 4 ? `[${v.length}]` : v));
       app.log(`Agent → ${name.replace(/^ams_/, '')} ${brief === '{}' ? '' : brief}`, 'agent');
       if (!replay) app.sessions.record(name, args);
+      app.sayAuto = !narrate;   // automatic lines label the action; only real narration becomes a caption
       g?.say(narrate || summarize(name, rest), replay ? 'Replay' : 'Agent');
+      app.sayAuto = false;
       try { await SHOW[name]?.(g, rest, app); } catch { /* showing is best effort */ }
     }
     try {

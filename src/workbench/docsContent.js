@@ -305,6 +305,26 @@ Pick the engine and model in Generate or the Assistant; *Custom…* takes any mo
 
 **Assistant** chats with any engine and acts: its replies are JSON (\`{say, actions: [{tool, args}], done}\`) and every action runs through the same tools as an agent, with the guide showing it. Ask *How did you do that?* to replay the last session step by step.`)),
 
+    T('record-timeline', 'Agents', 'Recording and the timeline', 'Record runs and walkthroughs as takes; review, edit, summarize, export.', () => prose(`
+A **take** is a recording of how a drawing was made: the starting drawing, then clips on tracks.
+
+| Track | What it holds |
+|---|---|
+| Titles | title cards over the picture |
+| Narration | captions |
+| Drawing | each change to the drawing, revealed stroke by stroke (a hand-drawn stroke keeps its own timing) |
+| Actions | the tools that were used |
+| Camera | view keyframes (zoom and position), eased between |
+| Audio | a sound or voiceover (played in the standalone player) |
+
+**Recording.** Press record in the Timeline (or the palette, or \`ams_record\`). Walkthroughs record themselves, and so does agent activity (it stops after a quiet spell), so you can leave a run going and review it later. Takes are saved in Assets → Takes.
+
+**Reviewing and editing.** Open a take from the Timeline's list (or double-click it in Assets): the canvas shows the drawing at the playhead, the pen at work and the captions. Clips are rectangles: drag to move, drag the right edge to retime (Shift for fine steps), double-click narration or titles to edit, right-click for speed, reveal and delete. The selected clip's timing, text, reveal and fades are in Properties. **+ Add** puts a title, a line of narration, a camera keyframe (the current view), a hold or an audio file at the playhead. Space plays; ⌘-wheel zooms.
+
+**Summary** makes a short-form cut: narration kept at reading pace, the drawing appearing briskly, analysis and waiting sped through, tool chatter dropped, and a hold on the result. **Walkthrough** turns a take into a live walkthrough (each line of narration a step; the drawing replayed, strokes traced by the guide).
+
+**Export:** a **playable HTML** file (one file, no libraries; \`window.amsPlayer.seek(ms)\` and \`frame(ms)\` drive it for frame-by-frame capture), a **project** zip (index.html, player.js, take.json), a **video** (MP4 where the browser supports it, else WebM; recorded in real time at 1×, 2× or 4×), or the take as JSON.`)),
+
     T('agents-mcp', 'Agents', 'MCP tools', 'Every studio action as a tool for agents (WebMCP and the dev relay).', () => h('div', {},
       prose('The tools are on `window.ams`, on WebMCP where the browser supports it, and over the dev relay for Claude Code (`.mcp.json` registers `ams`). Start with `ams_vocabulary` and `ams_wb_state`. Any call may carry `narrate`: the text the guide shows.'),
       h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Tool'), h('th', {}, 'What it does'))),

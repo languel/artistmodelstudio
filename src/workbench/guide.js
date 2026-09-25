@@ -115,6 +115,7 @@ export class Guide {
   }
 
   say(text, meta = 'Agent', { sticky = this.sticky } = {}) {
+    if (text) this.app.emit('say', text, this.label || meta);   // the recorder keeps narration even when the guide is hidden
     if (!this.enabled || !text) return;
     this.text.textContent = text;
     this.meta.textContent = this.label || meta;

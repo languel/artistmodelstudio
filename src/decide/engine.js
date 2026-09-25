@@ -165,5 +165,8 @@ async function datasetCard(title, n, bySource) {
   }
   ctx.fillStyle = '#4d4740'; ctx.font = '11px Inter, sans-serif';
   ctx.fillText(Object.entries(bySource).map(([k, v]) => `${k} ${v}`).join(' · '), 16, 178);
-  return new Promise(r => c.toBlob(r, 'image/png'));
+  return canvasBlobLocal(c);
 }
+
+/** Synchronous PNG (toBlob can stall in background tabs). */
+function canvasBlobLocal(c) { const u = c.toDataURL('image/png'), b = atob(u.slice(u.indexOf(',') + 1)), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return new Blob([a], { type: 'image/png' }); }

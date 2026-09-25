@@ -105,7 +105,7 @@ export class CanvasView {
     ctx.fillStyle = css.getPropertyValue('--wb-canvas').trim() || '#1b1c1f';
     ctx.fillRect(0, 0, this.w, this.h);
     this.drawGrid(false);
-    const doc = this.store.doc;
+    const doc = this.previewDoc || this.store.doc;   // a take being played shows its own document
     const [ax, ay] = this.toScreen(0, 0);
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
@@ -124,7 +124,7 @@ export class CanvasView {
     }
     renderDocument(ctx, doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
-      selected: this.selected, hovered: this.hovered, ground: false, screenNotes: true,
+      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true,
       selectColor: css.getPropertyValue('--wb-select').trim() || '#8a8a8a'
     });
     if (this.drawOverlay) {
@@ -137,6 +137,7 @@ export class CanvasView {
         mode: 'process', transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, ground: false
       });
     }
+    if (this.previewDoc) { this.drawPreviewOverlay?.(ctx, { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, this.w, this.h); return; }
     this.drawFrame(ctx, css.getPropertyValue('--wb-select').trim() || '#8a8a8a');
     if (this.marquee) {
       const [x0, y0] = this.toScreen(this.marquee.x0, this.marquee.y0), [x1, y1] = this.toScreen(this.marquee.x1, this.marquee.y1);
@@ -455,7 +456,7 @@ export class CanvasView {
       // Working on the canvas takes the keyboard back from panel fields, so tool keys (V, H, P…) work.
       const f = document.activeElement;
       if (f && f !== document.body && f.closest?.('input, textarea, select, [contenteditable]') && !f.classList.contains('wb-note-input')) f.blur();
-      if (e.button === 1 || this.space || this.getTool() === 'hand') return this.startPan(e);
+      if (e.button === 1 || this.space || this.getTool() === 'hand' || this.previewDoc) return this.startPan(e);
       if (e.button !== 0) return;
       c.setPointerCapture(e.pointerId);
       const [sx, sy] = this.local(e);
