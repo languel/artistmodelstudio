@@ -123,7 +123,8 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-zoom { position: absolute; left: 10px; bottom: 10px; z-index: 10; }
 .wb-zoom span { min-width: 44px; text-align: center; color: var(--wb-muted); font: var(--ui-small) var(--font-mono); }
 .wb-flash { position: absolute; left: 50%; top: 60px; transform: translateX(-50%); z-index: 20; background: var(--wb-panel); border: 1px solid var(--wb-line); padding: 6px 10px; border-radius: 6px; box-shadow: var(--wb-shadow); }
-.wb-note-input { position: absolute; z-index: 20; width: 220px; min-height: 48px; background: #fff3a8; color: #2b2620; border: 1px solid #d8c56a; border-radius: 3px; padding: 5px; font: 13px var(--font-sans); resize: both; }
+.wb-note-input { position: absolute; z-index: 20; box-sizing: border-box; border: 1px dashed rgba(120, 110, 95, 0.55); border-radius: 2px; outline: none; resize: horizontal; overflow: hidden; }
+.wb-note-input::placeholder { color: rgba(90, 80, 70, 0.45); }
 .wb-reference-img { position: absolute; pointer-events: none; transform-origin: 0 0; }
 
 /* ---- controls ---- */

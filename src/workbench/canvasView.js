@@ -11,19 +11,20 @@
 import { renderDocument } from '../process/render.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
 import { BRUSHES, resolveParams } from '../process/brushes.js';
-import { noteCorners, noteProps } from '../process/notes.js';
+import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
 
 const CAMERA_KEY = 'ams_workbench_camera_v1';
 export const TOOL_KEYS = { v: 'select', h: 'hand', p: 'line', e: 'gesture', a: 'plane', g: 'guide', o: 'point', t: 'note' };
 
 export class CanvasView {
-  constructor(host, store, { getTool, getStage, getDefaults, onSelect, onTool, viewMode }) {
+  constructor(host, store, { getTool, getStage, getDefaults, onSelect, onTool, onNoteStyled, viewMode }) {
     this.host = host;
     this.store = store;
     this.getTool = getTool;
     this.getStage = getStage;
     this.getDefaults = getDefaults;
     this.onSelect = onSelect;
+    this.onNoteStyled = onNoteStyled;
     this.onTool = onTool;
     this.viewMode = viewMode;
     this.canvas = document.createElement('canvas');
@@ -286,6 +287,11 @@ export class CanvasView {
       window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
       this.pointer = false; this.transforming = null; this.transformLabel = null;
       if (changed) this.store.commitFrom(before, hd.kind === 'rotate' ? 'rotate' : 'scale');
+      // A resized note sets the size and width of the next one (not its angle).
+      if (changed && hd.kind !== 'rotate' && notes.size === 1) {
+        const n = this.store.doc.elements.find(el => notes.has(el.id));
+        if (n) { const { angle, ...rest } = n.note || {}; this.onNoteStyled?.(rest); }
+      }
       this.invalidate();
     };
     window.addEventListener('pointermove', mv);
@@ -491,7 +497,14 @@ export class CanvasView {
   startNote(sx, sy, wx, wy) {
     const ta = document.createElement('textarea');
     ta.className = 'wb-note-input';
-    Object.assign(ta.style, { left: `${sx}px`, top: `${sy}px` });
+    // Look like the note it will become (the note tool's current style), at the current zoom.
+    const np = noteProps({ note: this.getDefaults('note').note, color: this.getDefaults('note').color, points: [] });
+    const z = this.cam.z;
+    Object.assign(ta.style, {
+      left: `${sx}px`, top: `${sy}px`, width: `${np.width * z}px`, minHeight: `${np.size * 1.6 * z}px`,
+      font: `${np.size * z}px ${NOTE_FONTS[np.font][1]}`, lineHeight: np.font === 'hand' ? '1.15' : '1.32',
+      color: np.ink, background: np.bg || 'transparent', padding: `${(np.bg ? np.size * 0.55 : np.size * 0.15) * z}px`
+    });
     ta.placeholder = 'Note…';
     this.host.appendChild(ta);
     setTimeout(() => ta.focus());

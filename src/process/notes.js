@@ -22,7 +22,7 @@ export const NOTE_FONTS = {
 };
 
 const STYLE_DEFAULTS = {
-  notebook: { font: 'hand', size: 22, bg: null, ink: '#3a332b' },
+  notebook: { font: 'print', size: 20, bg: null, ink: '#2b2620' },
   sticky: { font: 'print', size: 17, bg: '#fbe9a6', ink: '#2b2620' },
   card: { font: 'print', size: 17, bg: '#fbfaf5', ink: '#2b2620' },
   plain: { font: 'sans', size: 15, bg: null, ink: '#2b2620' }

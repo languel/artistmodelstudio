@@ -129,6 +129,7 @@ export class Workbench {
       getStage: () => this.activeStage,
       getDefaults: r => this.defaults(r),
       onSelect: () => this.emit('selection'),
+      onNoteStyled: note => this.setDefaults('note', { note }),
       onTool: t => this.setTool(t),
       viewMode: () => this.view.mode
     });

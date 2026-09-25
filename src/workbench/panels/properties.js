@@ -34,13 +34,16 @@ export function mountProperties(el, app) {
         patchAll({ role: v, realize: { brush, params: {} }, closed: v === 'plane' ? true : e.closed }, 'role');
       }), ROLES[e.role]),
       row('Stage', selectField(app.store.doc.stages.map(s => [s.id, s.name]), e.stage, v => patchAll({ stage: v }, 'stage'))),
-      row('Color', colorField(e.color, v => patchAll({ color: v }, 'color'), { app })),
+      row('Color', colorField(e.color, v => { patchAll({ color: v }, 'color'); if (e.role === 'note') app.setDefaults('note', { color: v }); }, { app })),
       e.role === 'note' ? row('Text', noteText(e, v => patchAll({ text: v }, 'note'))) : null
     ));
     if (e.role === 'note') el.append(noteSection(noteProps(e), patch => {
       const before = JSON.stringify(app.store.doc);
       for (const s of sel) { const t = app.store.doc.elements.find(x => x.id === s.id); if (t?.role === 'note') t.note = { ...(t.note || {}), ...patch }; }
       app.store.commitFrom(before, 'note style');
+      // The next note starts from the last one you styled.
+      const t = app.store.doc.elements.find(x => x.id === e.id);
+      if (t) app.setDefaults('note', { note: { ...(t.note || {}) }, color: t.color });
     }, app));
     else el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc));
     el.append(lookSection(e, patch => patchAll(patch, 'look')));
