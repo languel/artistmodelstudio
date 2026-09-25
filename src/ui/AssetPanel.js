@@ -85,10 +85,11 @@ export class AssetPanel {
     crumbs.innerHTML = `
       <span class="crumb ${parts.length ? '' : 'current'}" data-path="">Assets</span>
       ${parts.map((p, i) => `<span class="crumb-sep">/</span><span class="crumb ${i === parts.length - 1 ? 'current' : ''}" data-path="${esc(parts.slice(0, i + 1).join('/'))}" title="Double-click to rename">${esc(p)}</span>`).join('')}
+      ${parts.length ? `<button class="folder-chip folder-up" data-path="${esc(parts.slice(0, -1).join('/'))}" title="Up to ${esc(parts.slice(0, -1).join('/') || 'Assets')} · drop a card here to move it up">↑</button>` : ''}
       <span class="crumb-subs">${subs.map(p => `<button class="folder-chip" data-path="${esc(p)}" title="Open · drop a card here to move it">${icon('folder', 'icon-sm')}${esc(p.split('/').pop())}<span class="folder-count">${count(p)}</span></button>`).join('')}</span>`;
     crumbs.querySelectorAll('[data-path]').forEach(el => {
       el.addEventListener('click', () => { this.folder = el.dataset.path; this.draw(); });
-      el.addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('text/asset-id')) { e.preventDefault(); el.classList.add('drop'); } });
+      el.addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('text/asset-id')) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drop'); } });
       el.addEventListener('dragleave', () => el.classList.remove('drop'));
       el.addEventListener('drop', e => {
         const id = e.dataTransfer.getData('text/asset-id');
