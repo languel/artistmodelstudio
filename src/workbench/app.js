@@ -247,9 +247,7 @@ export class Workbench {
       tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) }));
     }
     const right = h('div', { class: 'wb-island' },
-      h('div', { class: 'wb-seg' },
-        h('button', { class: this.view.mode === 'picture' ? 'on' : '', 'data-guide': 'view:picture', title: 'The finished picture (\\ toggles)', onclick: () => this.setViewMode('picture') }, 'Picture'),
-        h('button', { class: this.view.mode === 'process' ? 'on' : '', 'data-guide': 'view:process', title: 'Picture with guides, gestures and notes (\\ toggles)', onclick: () => this.setViewMode('process') }, 'Process')),
+      h('button', { class: 'wb-tool', 'data-guide': 'view', title: this.view.mode === 'process' ? 'Process: guides, gestures and notes shown (\\ for the picture)' : 'Picture: the finished picture (\\ for the process)', html: icon(this.view.mode === 'process' ? 'viewProcess' : 'viewPicture'), onclick: () => this.setViewMode(this.view.mode === 'picture' ? 'process' : 'picture') }),
       this.reference ? h('button', { class: `wb-tool${this.reference.visible ? ' on' : ''}`, title: `Reference underlay: ${this.reference.title} (R toggles)`, html: icon('picture'), onclick: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } }) : null,
       h('button', { class: 'wb-tool', title: 'Theme', html: icon(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun'), onclick: () => this.toggleTheme() })
     );

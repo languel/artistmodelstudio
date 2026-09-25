@@ -53,6 +53,7 @@ export class Guide {
     if (target.x !== undefined && target.y !== undefined) return { left: target.x, top: target.y, width: 0, height: 0 };
     const [kind, id] = String(target).split(':');
     let el = document.querySelector(`[data-guide="${CSS.escape(String(target))}"]`);
+    if (!el && kind === 'view') el = document.querySelector('[data-guide="view"]');
     if (!el && kind === 'panel') {
       this.app.docks.open(id);
       el = document.querySelector(`[data-guide="tab:${CSS.escape(id)}"]`) || document.querySelector(`[data-panel="${CSS.escape(id)}"]`);
