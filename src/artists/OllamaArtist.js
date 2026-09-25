@@ -5,6 +5,7 @@
  * real-time partial action rendering, throughput calculation, and cancellation support.
  */
 
+import { ollamaMessage, IMAGE_NOTE, DESCRIBE_INSTRUCTION } from './imagePrompt.js';
 import { Artist } from './Artist.js';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
 import { normalizeProgram, parseModelOutput } from '../language/normalize.js';
@@ -127,6 +128,7 @@ export class OllamaArtist extends Artist {
           seed,
           temperature: temp,
           model: targetModel,
+          image: request.image,
           signal: request.signal,
           onProgress: request.onProgress,
           onPartialCandidate: request.onPartialCandidate
@@ -168,6 +170,17 @@ export class OllamaArtist extends Artist {
     return candidates;
   }
 
+  /** Describe an image (data URL) as a drawing prompt with the current (vision) model. */
+  async describe(image, { signal } = {}) {
+    const res = await fetch(`${this.endpoint}/api/chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+      body: JSON.stringify({ model: this.model, stream: false, messages: [ollamaMessage(DESCRIBE_INSTRUCTION, image)] })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+    return String(data.message?.content || '').trim();
+  }
+
   async generateStreamingCandidate({
     candidateIndex,
     systemPrompt,
@@ -175,6 +188,7 @@ export class OllamaArtist extends Artist {
     seed,
     temperature,
     model,
+    image,
     signal,
     onProgress,
     onPartialCandidate
@@ -186,9 +200,10 @@ export class OllamaArtist extends Artist {
       model: model || this.model,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+        ollamaMessage(image ? `${userPrompt}\n\n${IMAGE_NOTE}` : userPrompt, image)
       ],
       format: 'json',
+      think: false, // thinking models (gemma4, qwen3) otherwise reason silently for minutes first
       stream: true,
       options: {
         temperature,
@@ -198,6 +213,7 @@ export class OllamaArtist extends Artist {
 
     let rawResponse = '';
     let tokenCount = 0;
+    let thinkingTokens = 0;
     let lastParsedActionCount = 0;
 
     let res;
@@ -249,6 +265,11 @@ export class OllamaArtist extends Artist {
 
         try {
           const parsedChunk = JSON.parse(trimmed);
+          const thinkingChunk = parsedChunk.message?.thinking || parsedChunk.thinking || '';
+          if (thinkingChunk) {
+            thinkingTokens = (thinkingTokens || 0) + 1;
+            if (thinkingTokens % 8 === 1) onProgress?.({ type: 'thinking', candidateIndex, thinkingTokens, elapsedMs: Math.round(performance.now() - startTime) });
+          }
           const contentChunk = parsedChunk.message?.content || parsedChunk.response || '';
           if (contentChunk) {
             rawResponse += contentChunk;

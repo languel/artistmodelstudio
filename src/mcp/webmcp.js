@@ -774,6 +774,11 @@ export function initWebMCP(studioApp) {
     },
 
     async callTool(name, args = {}) {
+      // Agent actions show up in the Log (read-only queries stay quiet).
+      if (!/^ams_(get_|list_|screenshot|ui_query|agent_pending|assets_list|asset_get|agent_brief|studio_status)/.test(name)) {
+        const brief = JSON.stringify(args || {}, (k, v) => (typeof v === 'string' && v.length > 80 ? v.slice(0, 77) + '…' : Array.isArray(v) && v.length > 6 ? `[${v.length} items]` : v));
+        studioApp.processLog?.log(`Agent → ${name.replace(/^ams_/, '')} ${brief === '{}' ? '' : brief}`, 'agent');
+      }
       if (STUDIO_TOOL_MAP[name]) return STUDIO_TOOL_MAP[name].run(studioApp, args || {});
       switch (name) {
         case 'ams_generate': {
@@ -949,21 +954,33 @@ export function initWebMCP(studioApp) {
     }
   } catch (err) { console.warn('WebMCP registration failed', err); }
 
-  // Dev relay: external MCP clients (src/mcp/mcpServer.js) reach this tab through
-  // the Vite dev server's websocket (see vite.config.js, /__ams/*).
-  if (import.meta.hot) {
-    const hot = import.meta.hot;
-    const hello = () => hot.send('ams:hello', { title: document.title, url: location.href, tools: bridge.listTools() });
-    hello();
-    hot.on('ams:ping', hello);
-    hot.on('ams:call', async ({ id, name, args }) => {
+  // Dev relay: external MCP clients (src/mcp/mcpServer.js) reach this tab through the
+  // dev server (vite.config.js, /__ams/*) by HTTP long-polling.
+  if (import.meta.env?.DEV) {
+    const tab = Math.random().toString(36).slice(2);
+    const hello = () => fetch('/__ams/hello', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tab, title: document.title, url: location.href, tools: bridge.listTools() }) }).catch(() => {});
+    const handle = async ({ id, name, args }) => {
+      let body;
       try {
         const result = name === 'tools/list' ? bridge.listTools() : await bridge.callTool(name, args);
-        hot.send('ams:result', { id, result: JSON.parse(JSON.stringify(result ?? null)) });
+        body = { id, result: JSON.parse(JSON.stringify(result ?? null)) };
       } catch (err) {
-        hot.send('ams:result', { id, error: err?.message || String(err) });
+        body = { id, error: err?.message || String(err) };
       }
-    });
+      fetch('/__ams/result', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+    };
+    (async function poll() {
+      await hello();
+      for (;;) {
+        try {
+          const res = await fetch(`/__ams/poll?tab=${tab}`);
+          if (res.status === 404) { await hello(); continue; }
+          if (res.status === 200) handle(await res.json()); // don't await: calls run concurrently
+        } catch {
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+    })();
   }
 
   // WebMCP PostMessage JSON-RPC 2.0 Dispatcher

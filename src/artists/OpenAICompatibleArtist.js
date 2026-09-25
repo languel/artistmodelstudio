@@ -11,6 +11,7 @@
  * throughput tracking, and cancellation.
  */
 
+import { openAIContent, IMAGE_NOTE, DESCRIBE_INSTRUCTION } from './imagePrompt.js';
 import { Artist } from './Artist.js';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
 import { normalizeProgram, parseModelOutput } from '../language/normalize.js';
@@ -148,6 +149,7 @@ export class OpenAICompatibleArtist extends Artist {
           model: targetModel,
           apiKey,
           customHeaders: parsedCustomHeaders,
+          image: request.image,
           signal: request.signal,
           onProgress: request.onProgress,
           onPartialCandidate: request.onPartialCandidate
@@ -189,6 +191,22 @@ export class OpenAICompatibleArtist extends Artist {
     return candidates;
   }
 
+  /** Describe an image (data URL) as a drawing prompt with the current model. */
+  async describe(image, { signal } = {}) {
+    const apiKey = getStorage('ams_openai_key') || this.apiKey;
+    const headers = { 'Content-Type': 'application/json' };
+    const custom = getStorage('ams_openai_headers') || this.customHeaders;
+    if (custom) { try { Object.assign(headers, typeof custom === 'object' ? custom : JSON.parse(custom)); } catch { /* ignore */ } }
+    if (apiKey) headers.Authorization = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
+    const res = await fetch(this.getEndpoint(), {
+      method: 'POST', headers, signal,
+      body: JSON.stringify({ model: getStorage('ams_openai_model') || this.model || 'gpt-4o', messages: [{ role: 'user', content: openAIContent(DESCRIBE_INSTRUCTION, image) }] })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+    return String(data.choices?.[0]?.message?.content || '').trim();
+  }
+
   async generateStreamingCandidate({
     candidateIndex,
     endpoint,
@@ -199,6 +217,7 @@ export class OpenAICompatibleArtist extends Artist {
     model,
     apiKey,
     customHeaders,
+    image,
     signal,
     onProgress,
     onPartialCandidate
@@ -213,7 +232,7 @@ export class OpenAICompatibleArtist extends Artist {
       model,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+        { role: 'user', content: openAIContent(image ? `${userPrompt}\n\n${IMAGE_NOTE}` : userPrompt, image) }
       ],
       stream: true
     };

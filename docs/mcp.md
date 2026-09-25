@@ -78,3 +78,19 @@ polyline 0.44,-0.56 0.54,-0.44 0.57,-0.24
 ```
 
 In JSON this is `{"op":"comment","text":"bow"}`, and a single action can also carry `"note"`. They are never drawn. They survive the DSL, JSON and SVG round trip, and engine prompts ask for them. They make programs readable, and they give training data a map from words to parts of a drawing.
+
+## Reference as prompt
+
+The **Prompt** menu next to the prompt box chooses what engines receive:
+
+| Mode | What is sent |
+|---|---|
+| Text | the typed prompt |
+| Text + reference | the prompt plus the reference image (cropped to the canvas aspect, JPEG up to 768 px) |
+| Reference only | the image, with a short built-in text |
+| Describe ref → text | the current model describes the reference; the description fills the prompt box (you can edit it), then generates |
+| Describe ref → text + reference | the description plus the image |
+
+- **Engines that take images:** OpenRouter and OpenAI-compatible (vision models), Ollama (vision models), and WebGPU LFM2.5-VL. The Agent engine receives the image as `referenceImage` in its brief.
+- **Describing:** these engines also implement `describe()`. MCP has `ams_set_prompt_mode`, `ams_describe_reference`, and `promptMode` on `ams_generate_round`.
+- **Other engines:** models without image input get the text only. WebGPU logs a warning.

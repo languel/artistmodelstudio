@@ -12,6 +12,7 @@
 import { Artist } from './Artist.js';
 import { normalizeProgram } from '../language/normalize.js';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
+import { DESCRIBE_INSTRUCTION } from './imagePrompt.js';
 
 export class AgentArtist extends Artist {
   constructor() {
@@ -37,7 +38,8 @@ export class AgentArtist extends Artist {
         prompt: request.prompt, previousProgram: request.previousProgram, feedback: request.feedback, candidateIndex: i
       })),
       previousProgram: request.previousProgram || null,
-      feedback: request.feedback || null
+      feedback: request.feedback || null,
+      referenceImage: request.image || null // data URL when the prompt mode sends the reference
     };
   }
 
@@ -56,7 +58,24 @@ export class AgentArtist extends Artist {
   }
 
   pending() {
-    return this.waiting ? AgentArtist.brief(this.waiting.request, this.waiting.request.count || 4) : null;
+    if (this.describing) return { type: 'describe', instruction: this.describing.instruction, referenceImage: this.describing.image };
+    return this.waiting ? { type: 'generate', ...AgentArtist.brief(this.waiting.request, this.waiting.request.count || 4) } : null;
+  }
+
+  /** Describe mode: waits for the agent's description (ams_agent_submit_description). */
+  describe(image, { signal } = {}) {
+    return new Promise((resolve, reject) => {
+      this.describing = { image, instruction: DESCRIBE_INSTRUCTION, resolve };
+      signal?.addEventListener('abort', () => { this.describing = null; reject(new Error('Interrupted while waiting for the agent')); });
+    });
+  }
+
+  submitDescription(text) {
+    if (!this.describing) return false;
+    const d = this.describing;
+    this.describing = null;
+    d.resolve(String(text).trim());
+    return true;
   }
 
   async generate(request) {

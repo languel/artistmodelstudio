@@ -6,6 +6,7 @@
  * canvas iterations, and cancellation support.
  */
 
+import { openAIContent, IMAGE_NOTE, DESCRIBE_INSTRUCTION } from './imagePrompt.js';
 import { Artist } from './Artist.js';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
 import { normalizeProgram, parseModelOutput } from '../language/normalize.js';
@@ -63,6 +64,23 @@ function getStorage(key, fallback = '') {
     return (typeof localStorage !== 'undefined' && localStorage.getItem(key)) || fallback;
   } catch (e) {
     return fallback;
+  }
+}
+
+/**
+ * fetch with retries for rate limits (429) and transient 5xx: waits Retry-After or
+ * 4 s, 8 s, 16 s. Free models are often rate-limited upstream.
+ */
+async function fetchWithRetry(url, init, tries = 4) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, init);
+    if (!(res.status === 429 || res.status >= 500) || attempt >= tries - 1) return res;
+    const after = Number(res.headers.get('retry-after'));
+    const wait = Number.isFinite(after) && after > 0 ? Math.min(60, after) * 1000 : 4000 * 2 ** attempt;
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(resolve, wait);
+      init?.signal?.addEventListener('abort', () => { clearTimeout(t); reject(new Error('Interrupted')); });
+    });
   }
 }
 
@@ -404,6 +422,7 @@ export class OpenRouterArtist extends Artist {
           temperature: temp,
           model: targetModel,
           apiKey,
+          image: request.image,
           signal: request.signal,
           onProgress: request.onProgress,
           onPartialCandidate: request.onPartialCandidate
@@ -445,6 +464,21 @@ export class OpenRouterArtist extends Artist {
     return candidates;
   }
 
+  /** Describe an image (data URL) as a drawing prompt with the current model. */
+  async describe(image, { signal } = {}) {
+    const apiKey = getStorage('ams_openrouter_key') || this.apiKey;
+    if (!apiKey) throw new Error('OpenRouter API key missing');
+    const res = await fetchWithRetry(this.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: getStorage('ams_openrouter_model') || this.model, messages: [{ role: 'user', content: openAIContent(DESCRIBE_INSTRUCTION, image) }], temperature: 0.3 }),
+      signal
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+    return String(data.choices?.[0]?.message?.content || '').trim();
+  }
+
   async generateStreamingCandidate({
     candidateIndex,
     systemPrompt,
@@ -453,6 +487,7 @@ export class OpenRouterArtist extends Artist {
     temperature,
     model,
     apiKey,
+    image,
     signal,
     onProgress,
     onPartialCandidate
@@ -464,7 +499,7 @@ export class OpenRouterArtist extends Artist {
       model,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+        { role: 'user', content: openAIContent(image ? `${userPrompt}\n\n${IMAGE_NOTE}` : userPrompt, image) }
       ],
       response_format: { type: 'json_object' },
       stream: true,
@@ -472,7 +507,8 @@ export class OpenRouterArtist extends Artist {
       seed
     };
 
-    const res = await fetch(this.endpoint, {
+    let thinkingTokens = 0;
+    const res = await fetchWithRetry(this.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -481,7 +517,8 @@ export class OpenRouterArtist extends Artist {
         'X-Title': 'Artist-Model Studio'
       },
       body: JSON.stringify(payload),
-      signal
+      // Give up on a candidate after 4 minutes (reasoning models can stall silently).
+      signal: AbortSignal.any ? AbortSignal.any([signal, AbortSignal.timeout(240000)].filter(Boolean)) : signal
     });
 
     if (!res.ok) {
@@ -525,6 +562,11 @@ export class OpenRouterArtist extends Artist {
         if (trimmed.startsWith('data: ')) {
           try {
             const dataJson = JSON.parse(trimmed.slice(6));
+            const reasoning = dataJson.choices?.[0]?.delta?.reasoning || dataJson.choices?.[0]?.delta?.reasoning_content || '';
+            if (reasoning) {
+              thinkingTokens++;
+              if (thinkingTokens % 8 === 1) onProgress?.({ type: 'thinking', candidateIndex, thinkingTokens, elapsedMs: Math.round(performance.now() - startTime) });
+            }
             const delta = dataJson.choices?.[0]?.delta?.content || '';
             if (delta) {
               rawResponse += delta;

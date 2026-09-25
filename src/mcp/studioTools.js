@@ -254,10 +254,23 @@ export const STUDIO_TOOLS = [
 
   // ---- generation ----------------------------------------------------------
   {
+    name: 'ams_set_prompt_mode',
+    description: 'Prompt mode: text | text+image (prompt + reference image) | image (reference only) | describe (model describes the reference into the prompt) | describe+image. Image modes need a model with image input.',
+    inputSchema: S({ mode: str('Mode', { enum: ['text', 'text+image', 'image', 'describe', 'describe+image'] }) }, ['mode']),
+    run(app, { mode }) { setControl(app.root, '#prompt-mode-select', mode); return { promptMode: app.promptMode }; }
+  },
+  {
+    name: 'ams_describe_reference',
+    description: 'Ask the current engine to describe the reference as a drawing prompt (vision models only). Returns the text without generating.',
+    inputSchema: S(),
+    async run(app) { const img = app.referenceImageDataUrl(); if (!img) throw new Error('No reference'); return { prompt: await app.describeReference(img) }; }
+  },
+  {
     name: 'ams_generate_round',
     description: 'Type a prompt and press Generate; waits for the round and returns the candidates. Uses the current engine unless one is given.',
-    inputSchema: S({ prompt: str('Prompt'), engine: str('Engine id'), model: str('Model id'), timeoutSec: num('Max wait (default 600)') }, ['prompt']),
-    async run(app, { prompt, engine, model, timeoutSec = 600 }) {
+    inputSchema: S({ prompt: str('Prompt (ignored by the image-only and describe modes)'), engine: str('Engine id'), model: str('Model id'), promptMode: str('text | text+image | image | describe | describe+image'), timeoutSec: num('Max wait (default 600)') }),
+    async run(app, { prompt = '', engine, model, promptMode, timeoutSec = 600 }) {
+      if (promptMode) setControl(app.root, '#prompt-mode-select', promptMode);
       if (engine) STUDIO_TOOLS.find(t => t.name === 'ams_set_engine').run(app, { engine, model });
       const input = app.root.querySelector('#studio-prompt-input');
       if (input) { input.value = prompt; input.dispatchEvent(new Event('input', { bubbles: true })); }
@@ -350,8 +363,20 @@ export const STUDIO_TOOLS = [
     }
   },
   {
+    name: 'ams_agent_submit_description',
+    description: 'Answer a waiting describe request (prompt mode Describe with the Agent engine) with your description of the reference.',
+    inputSchema: S({ text: str('Description to use as the prompt') }, ['text']),
+    run(app, { text }) { return { delivered: app.artistRegistry.get('agent').submitDescription(text) }; }
+  },
+  {
+    name: 'ams_set_count',
+    description: 'Candidates per round (1-8, default 4).',
+    inputSchema: S({ count: num('1-8') }, ['count']),
+    run(app, { count }) { setControl(app.root, '#count-select', count); return { count: app.generationCount }; }
+  },
+  {
     name: 'ams_agent_pending',
-    description: 'If a user pressed Generate with the Agent engine, the brief for that waiting request (else null). Answer with ams_agent_submit.',
+    description: 'What the Agent engine is waiting for, else null: {type:"describe", referenceImage} (answer with ams_agent_submit_description) or {type:"generate", …brief} (answer with ams_agent_submit).',
     inputSchema: S(),
     run(app) { return app.artistRegistry.get('agent').pending(); }
   },

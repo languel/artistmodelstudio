@@ -2047,3 +2047,5 @@ button:focus-visible { outline: none; border-color: var(--border-focus); box-sha
 .scrub-tools { gap: 2px; }
 .scrub-btn { padding: 1px 6px; min-width: 0; font-size: 11px; line-height: 1.2; }
 .scrub-pos { font: 11px var(--font-mono, ui-monospace, monospace); color: var(--text-muted); text-align: right; margin: -2px 0 2px; }
+.prompt-mode-select { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0 8px; font-size: 12px; max-width: 190px; }
+.log-entry.agent .log-text { color: #b48cf2; }

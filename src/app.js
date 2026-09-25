@@ -21,6 +21,7 @@ import { ReferencePanel, bundledReferences } from './ui/ReferencePanel.js';
 import { LivePainter } from './ui/LivePainter.js';
 import { buildContinuousZip, downloadBytes } from './export/p5Export.js';
 import { createZip } from './export/zip.js';
+import { PROMPT_MODES, usesImage, imageToDataUrl, IMAGE_ONLY_PROMPT } from './artists/imagePrompt.js';
 import { AssetStore } from './assets/assetStore.js';
 import { AssetPanel } from './ui/AssetPanel.js';
 import { fitTarget } from './artists/ReferenceFitterArtist.js';
@@ -32,6 +33,8 @@ import { icon } from './ui/icons.js';
 
 export class StudioApp {
   constructor() {
+    try { this.generationCount = Number(localStorage.getItem('ams_generation_count')) || 4; } catch { this.generationCount = 4; }
+    try { this.promptMode = localStorage.getItem('ams_prompt_mode') || 'text'; } catch { this.promptMode = 'text'; }
     this.artistRegistry = defaultArtistRegistry;
     this.mediaRegistry = defaultMediaRegistry;
     this.sessionStore = defaultSessionStore;
@@ -159,6 +162,7 @@ export class StudioApp {
       onExportContinuous: (params) => this.exportContinuous(params),
       onOverlayChange: () => this.updateRefOverlay(),
       onLiveClear: () => this.livePainter.clear(),
+      onShowReference: () => this.showRefPreview(false, true),
       // Stopped with a video/animation reference: the preview follows the current frame (scrubbing).
       onSourceFrame: () => { if (!this.livePainter.running && !this.livePainter.cf) this.showRefPreview(); },
       onSaveAsset: (btn) => this.saveToAssets(btn, true),
@@ -203,6 +207,17 @@ export class StudioApp {
       onOpenMediumOptions: (anchor) => this.mediumOptions.toggle(anchor, this.activeMediumId),
       canvasAspect: this.canvasAspect,
       onVariationChange: (level) => this.handleVariationChange(level),
+      generationCount: this.generationCount,
+      onCountChange: (n) => {
+        this.generationCount = n;
+        try { localStorage.setItem('ams_generation_count', String(n)); } catch { /* storage unavailable */ }
+      },
+      promptMode: this.promptMode,
+      onPromptModeChange: (mode) => {
+        this.promptMode = mode;
+        try { localStorage.setItem('ams_prompt_mode', mode); } catch { /* storage unavailable */ }
+        this.processLog?.log(`Prompt mode: ${PROMPT_MODES[mode]}`, 'info');
+      },
       onGenerate: (prompt) => this.handleGenerate(prompt),
       onInterrupt: () => this.handleInterrupt(),
       onLoadExample: (example) => this.handleLoadExample(example),
@@ -334,8 +349,7 @@ export class StudioApp {
           this.root.querySelector(`#side-pane-${other.dataset.tab}`)?.classList.toggle('active', active);
         }
         if (tab === 'log') this.processLog.render();
-        if (tab === 'reference') this.showRefPreview();
-        else if (tab === 'variations') this.livePainter.hide();
+        if (tab === 'variations') this.livePainter.hide();
       });
     }
   }
@@ -482,7 +496,46 @@ export class StudioApp {
     return this.mediaRegistry.get(this.activeMediumId) || this.mediaRegistry.get('watercolor');
   }
 
+  /** The reference at the canvas aspect (as the fitter sees it), as a JPEG data URL. */
+  referenceImageDataUrl() {
+    const ref = this.referencePanel?.current;
+    if (!ref?.image) return null;
+    const [w, h] = this.canvasDims();
+    const k = 768 / Math.max(w, h);
+    const fitted = fitTarget(ref.image, Math.round(w * k), Math.round(h * k), this.referencePanel.fit || 'cover');
+    return imageToDataUrl(fitted, 768);
+  }
+
+  /** Ask the current engine to describe the reference as a drawing prompt. */
+  async describeReference(image) {
+    const artist = this.getActiveArtist();
+    if (typeof artist.describe !== 'function') throw new Error(`${artist.name} cannot describe images; pick a vision model (OpenRouter, OpenAI-compatible, Ollama with a vision model, or WebGPU LFM2.5-VL)`);
+    this.processLog.log(`Describing the reference with ${artist.name}…`, 'info');
+    return artist.describe(image, { signal: this.abortController?.signal });
+  }
+
   async handleGenerate(prompt, previousProgram = null, feedback = null, parentId = null) {
+    // Prompt mode: send the reference image and/or describe it into the prompt first.
+    const mode = this.promptMode || 'text';
+    let referenceImage = null;
+    if (mode !== 'text') {
+      referenceImage = this.referenceImageDataUrl();
+      if (!referenceImage) {
+        this.processLog.log('Prompt mode needs a reference (Reference tab); using text only.', 'warning');
+      } else if (mode.startsWith('describe') && !previousProgram) {
+        try {
+          prompt = await this.describeReference(referenceImage);
+          this.processLog.log(`Reference described: "${prompt}"`, 'success');
+        } catch (err) {
+          this.processLog.log(`Describe failed: ${err.message}`, 'error');
+          return;
+        }
+      } else if (mode === 'image' && !previousProgram) {
+        prompt = `${IMAGE_ONLY_PROMPT} (${this.referencePanel.current?.name || 'reference'})`;
+      }
+      if (!usesImage(mode)) referenceImage = null;
+    }
+    this.lastReferenceImage = referenceImage;
     if (!previousProgram) this.controls?.setPrompt?.(prompt);
     this.livePainter.hide();
     this.abortController = new AbortController();
@@ -495,8 +548,19 @@ export class StudioApp {
     this.processLog.log(`Starting generation with ${artist.name} (Medium: ${medium.name}, Canvas: ${this.canvasDims().join('x')}, Variation: ${this.variationLevel})...`, 'info');
 
 
+    // Heartbeat: say something when the engine is quiet (loading, queued, thinking silently).
+    const roundStart = performance.now();
+    let lastActivity = roundStart, thinkingLogged = false, lastBeat = 0;
+    const heartbeat = setInterval(() => {
+      const quiet = (performance.now() - lastActivity) / 1000, total = Math.round((performance.now() - roundStart) / 1000);
+      if (quiet >= 10 && total - lastBeat >= 15) {
+        lastBeat = total;
+        this.processLog.log(`Still waiting for ${artist.name} (${total} s, no output for ${Math.round(quiet)} s)…`, 'info');
+        this.candidateGrid.setStatusText(`Waiting for ${artist.name}… ${total} s`);
+      }
+    }, 2000);
     const currentGenerationCandidates = [];
-    const count = 4;
+    const count = Math.max(1, Math.min(8, this.generationCount || 4));
 
     // Create preliminary placeholder candidates
     for (let i = 0; i < count; i++) {
@@ -526,8 +590,9 @@ export class StudioApp {
     try {
       const generatedCandidates = await artist.generate({
         prompt,
-        count: 4,
+        count,
         mediumCapabilities: medium.capabilities(),
+        image: referenceImage,
         previousProgram,
         feedback,
         signal: this.abortController.signal,
@@ -562,7 +627,13 @@ export class StudioApp {
             this.processLog.updateMetrics({
               candidate: `${String.fromCharCode(65 + p.candidateIndex)} (${p.candidateIndex + 1}/${count})`
             });
+          } else if (p.type === 'thinking') {
+            lastActivity = performance.now();
+            if (!thinkingLogged) { this.processLog.log(`${artist.name} is thinking before it answers…`, 'info'); thinkingLogged = true; }
+            this.candidateGrid.setStatusText(`Thinking… ${p.thinkingTokens} tokens · ${Math.round(p.elapsedMs / 1000)} s`);
           } else if (p.type === 'stream_token') {
+            lastActivity = performance.now();
+            if (p.tokenCount % 20 === 1) this.candidateGrid.setStatusText(`Writing… ${p.tokenCount} tokens · ${Math.round(p.elapsedMs / 1000)} s`);
             this.processLog.appendToken(p.tokenChunk, p.fullText);
             this.processLog.updateMetrics({
               tokens: p.tokenCount,
@@ -667,6 +738,7 @@ export class StudioApp {
         this.processLog.setDiagnostic(err.message);
       }
     } finally {
+      clearInterval(heartbeat);
       this.candidateGrid.setStreaming(null);
       this.candidateGrid.clearDownloadProgress();
       this.statusBanner.clearDownloadProgress();
@@ -1043,8 +1115,10 @@ export class StudioApp {
   }
 
   /** Reference tab, not playing: the preview shows the reference (or the stopped painting). */
-  showRefPreview(reset = false) {
-    if (this.rightPaneTab !== 'reference' || this.livePainter.running) return;
+  showRefPreview(reset = false, force = false) {
+    // Only when asked (double-click on the reference) or already on screen, so the
+    // candidate and the reference can be compared side by side.
+    if (this.livePainter.running || (!force && !this.livePainter.shown)) return;
     const ref = this.referencePanel?.current;
     if (!ref?.image) return;
     this.livePainter.preview(ref.image, { ...this.referencePanel.liveParams(), style: { ...this.styleSettings } }, this.aspectValue(), reset);

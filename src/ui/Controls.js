@@ -2,6 +2,7 @@
  * Controls Header & Prompt Component with Resolution, Variation, and Interrupt controls
  */
 
+import { PROMPT_MODES } from '../artists/imagePrompt.js';
 import { EXAMPLES } from '../../examples/index.js';
 import { icon } from './icons.js';
 import { getSavedModels } from '../training/modelFormat.js';
@@ -51,6 +52,10 @@ export class Controls {
     this.onModeChange = onModeChange;
     this.onCanvasSizeChange = onCanvasSizeChange;
     this.onVariationChange = onVariationChange;
+    this.onPromptModeChange = arguments[0]?.onPromptModeChange;
+    this.onCountChange = arguments[0]?.onCountChange;
+    this.generationCount = arguments[0]?.generationCount || 4;
+    this.promptMode = arguments[0]?.promptMode || 'text';
     this.onGenerate = onGenerate;
     this.onInterrupt = onInterrupt;
     this.onLoadExample = onLoadExample;
@@ -196,9 +201,17 @@ export class Controls {
             placeholder="Describe what to draw... (e.g. three red flowers bending left)"
             value="${String(this.prompt ?? 'three red flowers bending left').replace(/"/g, '&quot;').replace(/</g, '&lt;')}"
           />
-          
+
+          <select id="prompt-mode-select" class="prompt-mode-select" title="What the engine gets. Text + reference and Reference only send the reference image (Reference tab) to models with image input. Describe asks the current model to describe the reference; the description fills the prompt (you can edit it) and is used for the round.">
+            ${Object.entries(PROMPT_MODES).map(([k, v]) => `<option value="${k}" ${k === (this.promptMode || 'text') ? 'selected' : ''}>${v}</option>`).join('')}
+          </select>
+
+          <select id="count-select" class="prompt-mode-select count-select" title="Candidates per round">
+            ${[1, 2, 3, 4, 6, 8].map(n => `<option value="${n}" ${n === (this.generationCount || 4) ? 'selected' : ''}>×${n}</option>`).join('')}
+          </select>
+
           <button id="generate-btn" class="btn-primary" ${this.isGenerating ? 'disabled' : ''}>
-            ${this.isGenerating ? '<span class="spinner-small"></span><span>Generating...</span>' : icon('sparkles', 'icon-sm') + '<span>Generate 4</span>'}
+            ${this.isGenerating ? '<span class="spinner-small"></span><span>Generating...</span>' : icon('sparkles', 'icon-sm') + `<span>Generate ${this.generationCount || 4}</span>`}
           </button>
 
           <select id="preset-select" class="preset-select" title="Load a preset prompt or an example drawing">
@@ -400,6 +413,17 @@ export class Controls {
     const generateBtn = container.querySelector('#generate-btn');
     const interruptBtn = container.querySelector('#interrupt-btn');
 
+    container.querySelector('#count-select')?.addEventListener('change', (e) => {
+      this.generationCount = Number(e.target.value);
+      this.onCountChange?.(this.generationCount);
+      const label = container.querySelector('#generate-btn span:last-child');
+      if (label && !this.isGenerating) label.textContent = `Generate ${this.generationCount}`;
+    });
+    container.querySelector('#prompt-mode-select')?.addEventListener('change', (e) => {
+      this.promptMode = e.target.value;
+      this.onPromptModeChange?.(this.promptMode);
+    });
+
     // Keep the typed prompt across toolbar re-renders.
     promptInput?.addEventListener('input', () => { this.prompt = promptInput.value; });
 
@@ -467,7 +491,7 @@ export class Controls {
       genBtn.disabled = isGenerating;
       genBtn.innerHTML = isGenerating
         ? '<span class="spinner-small"></span><span>Generating...</span>'
-        : `${icon('sparkles', 'icon-sm')} <span>Generate 4</span>`;
+        : `${icon('sparkles', 'icon-sm')} <span>Generate ${this.generationCount || 4}</span>`;
     }
 
     if (intBtn) {

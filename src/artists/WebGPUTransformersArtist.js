@@ -5,6 +5,7 @@
  * WebGPU acceleration via @huggingface/transformers.
  */
 
+import { IMAGE_NOTE, DESCRIBE_INSTRUCTION } from './imagePrompt.js';
 import { Artist } from './Artist.js';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
 import { normalizeProgram, parseModelOutput } from '../language/normalize.js';
@@ -28,6 +29,18 @@ async function loadVisionLanguage(modelId, options) {
   });
   let blank = null;
   const run = async (messages, config = {}) => {
+    const last = messages[messages.length - 1];
+    const imagePart = Array.isArray(last?.content) ? last.content.find(c => c.type === 'image' && c.image) : null;
+    if (imagePart) {
+      // Image prompt: the processor pairs the image with the {type:'image'} slot in the template.
+      const templ = messages.map(m => (Array.isArray(m.content) ? { ...m, content: m.content.map(c => (c.type === 'image' ? { type: 'image' } : c)) } : m));
+      const prompt = processor.apply_chat_template(templ, { add_generation_prompt: true });
+      const image = await RawImage.fromURL(imagePart.image);
+      const inputs = await processor(image, prompt, { add_special_tokens: false });
+      const outputs = await model.generate({ ...inputs, ...config });
+      const text = processor.batch_decode(outputs.slice(null, [inputs.input_ids.dims.at(-1), null]), { skip_special_tokens: true })[0];
+      return [{ generated_text: [...messages, { role: 'assistant', content: text }] }];
+    }
     const prompt = processor.apply_chat_template(messages, { add_generation_prompt: true });
     let inputs, outputs;
     try {
@@ -311,6 +324,15 @@ export class WebGPUTransformersArtist extends Artist {
     }
   }
 
+  /** Describe an image with a vision-language model (LFM2.5-VL). */
+  async describe(image) {
+    const preset = WEBGPU_MODEL_PRESETS.find(p => p.id === this.modelId);
+    if (!preset?.isVL) throw new Error('Pick a vision-language model (LFM2.5-VL) to describe images');
+    const pipe = await this.initPipeline(this.modelId);
+    const out = await pipe([{ role: 'user', content: [{ type: 'image', image }, { type: 'text', text: DESCRIBE_INSTRUCTION }] }], { max_new_tokens: 120, do_sample: false });
+    return String(out[0].generated_text.at(-1).content || '').trim();
+  }
+
   async preloadModel(modelId = this.modelId, progressCallback = null) {
     return this.initPipeline(modelId, (p) => {
       const shardName = p.file ? p.file.split('/').pop() : '';
@@ -412,9 +434,13 @@ export class WebGPUTransformersArtist extends Artist {
       let program = null;
 
       try {
+        const withImage = Boolean(request.image && preset?.isVL);
+        if (request.image && !preset?.isVL && i === 0) warnings.push('This model has no image input; the reference image was not sent.');
         const messages = [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          withImage
+            ? { role: 'user', content: [{ type: 'image', image: request.image }, { type: 'text', text: `${userPrompt}\n\n${IMAGE_NOTE}` }] }
+            : { role: 'user', content: userPrompt }
         ];
 
         const temperature = isLiquid

@@ -60,6 +60,7 @@ export class ReferencePanel {
     this.onLiveToggle = onLiveToggle;
     this.onLivePause = arguments[0]?.onLivePause;
     this.onLiveSave = arguments[0]?.onLiveSave;
+    this.onShowReference = arguments[0]?.onShowReference;
     this.onSourceFrame = arguments[0]?.onSourceFrame;
     this.onSaveAsset = arguments[0]?.onSaveAsset;
     this.onLiveRecord = arguments[0]?.onLiveRecord;
@@ -89,7 +90,7 @@ export class ReferencePanel {
           </select>
           <input type="file" id="reference-upload" accept="image/*,video/*" hidden />
         </div>
-        <div id="reference-view" class="reference-view"></div>
+        <div id="reference-view" class="reference-view" title="Double-click to show the reference in the main preview"></div>
         <div class="live-controls source-controls" id="source-controls" hidden title="How continuous mode follows a moving reference">
           <label class="live-slider" title="Continuous: refit to every frame. Interval: take a new frame every few seconds. Hold: keep the last frame.">
             <span>Sampling</span>
@@ -392,6 +393,7 @@ export class ReferencePanel {
       this.onRenderChange?.(e.target.value);
       this.onLiveParams?.(liveParams());
     });
+    container.querySelector('#reference-view')?.addEventListener('dblclick', () => this.onShowReference?.());
     container.querySelector('#live-render-opts')?.addEventListener('click', (e) => this.onOpenRenderOptions?.(e.currentTarget));
     container.querySelector('#live-mode')?.addEventListener('change', (e) => {
       this.live.mode = e.target.value;

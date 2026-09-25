@@ -56,6 +56,13 @@ export class CandidateGrid {
     this.render();
   }
 
+  /** Update the status line under the spinner without re-rendering. */
+  setStatusText(text) {
+    this.streamingStatusText = text;
+    const el = this.container?.querySelector('#hero-status-text');
+    if (el) el.textContent = text;
+  }
+
   setStreaming(candidateIndex, statusText = null) {
     if (candidateIndex === 0) {
       this.userPickedDuringStream = false;
@@ -261,7 +268,7 @@ export class CandidateGrid {
               <div class="hero-loading-overlay ${this.downloadProgress || !heroHasImage ? 'centered' : 'floating'}">
                 ${this.downloadProgress ? this.renderDownloadCard() : `
                   <span class="spinner"></span>
-                  <span>${this.streamingStatusText || 'Rendering high-resolution canvas...'}</span>
+                  <span id="hero-status-text">${this.streamingStatusText || 'Rendering high-resolution canvas...'}</span>
                 `}
               </div>
             ` : ''}
