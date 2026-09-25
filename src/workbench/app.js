@@ -139,13 +139,6 @@ export class Workbench {
     this.zoomIsland = h('div', { class: 'wb-island wb-zoom' });
     this.stageArea.append(this.topbar, this.zoomIsland);
 
-    this.registerPanels();
-    const hadCamera = Boolean(localStorage.getItem('ams_workbench_camera_v1'));
-    this.docks.render();
-    requestAnimationFrame(() => { this.canvas.resize(); if (!hadCamera) this.canvas.fit(); this.renderChrome(); });
-    this.bindKeys();
-    this.renderChrome();
-    this.assetStore.seed(bundledReferences()).catch(() => {});
     this.guide = new Guide(this);
     try { if (localStorage.getItem('ams_guide_enabled') === '0') this.guide.enabled = false; } catch { /* ignore */ }
     this.walkthroughs = new Walkthroughs(this);
@@ -154,6 +147,13 @@ export class Workbench {
     // The Docs panel mounts on first open and then replaces this with its own openDocs.
     const openDocsFirst = id => { this.docks.open('docs'); if (this.openDocs !== openDocsFirst) this.openDocs(id); };
     this.openDocs ??= openDocsFirst;
+    this.registerPanels();
+    const hadCamera = Boolean(localStorage.getItem('ams_workbench_camera_v1'));
+    this.docks.render();
+    requestAnimationFrame(() => { this.canvas.resize(); if (!hadCamera) this.canvas.fit(); this.renderChrome(); });
+    this.bindKeys();
+    this.renderChrome();
+    this.assetStore.seed(bundledReferences()).catch(() => {});
     initWorkbenchMCP(this);
     this.log('Workbench ready.');
   }

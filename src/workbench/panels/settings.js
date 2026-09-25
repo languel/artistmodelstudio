@@ -11,6 +11,8 @@ const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k)
 export function mountSettings(root, app) {
   const setArtboard = patch => app.store.change('artboard', d => { d.artboard = { ...d.artboard, ...patch }; });
   const render = () => {
+    // The panel may mount during startup, before the canvas and guide exist.
+    if (!app.canvas || !app.guide) { setTimeout(render, 30); return; }
     const ab = app.store.doc.artboard;
     const preset = PRESETS.find(([, , w, hh]) => (w === ab.width && hh === ab.height) || (w === ab.height && hh === ab.width))?.[0] || 'custom';
     root.replaceChildren(
@@ -29,8 +31,8 @@ export function mountSettings(root, app) {
         row('Paper', colorField(ab.ground, v => setArtboard({ ground: v }), { title: 'Paper', fallback: '#f3efe6', app }))),
       section('Workspace', true,
         row('Theme', selectField([['dark', 'Dark'], ['light', 'Light']], document.documentElement.dataset.theme === 'light' ? 'light' : 'dark', v => { if ((document.documentElement.dataset.theme === 'light') !== (v === 'light')) app.toggleTheme(); })),
-        row('Grid', check(app.canvas.showGrid !== false, v => { app.canvas.showGrid = v; ls('ams_grid', v ? '1' : '0'); app.canvas.invalidate(); }, 'Dot grid on the canvas')),
         row('Reference', numberField({ value: app.reference?.opacity ?? Number(ls('ams_ref_opacity') ?? 0.35), min: 0, max: 1, step: 0.05, def: 0.35, title: 'Reference underlay opacity', onChange: v => { ls('ams_ref_opacity', String(v)); if (app.reference) { app.reference.opacity = v; app.canvas.invalidate(); } } }))),
+      gridSection(app),
       section('Guide', true,
         row('Show agents', check(app.guide.enabled, v => { app.guide.enabled = v; ls('ams_guide_enabled', v ? '1' : '0'); }, 'Move a cursor and narrate when an agent or walkthrough acts')),
         row('Pace', selectField([['0', 'Instant'], ['0.5', 'Fast'], ['1', 'Normal'], ['2', 'Slow']], String(app.guide.pace), v => { app.guide.pace = Number(v); ls('ams_guide_pace', v); })))
@@ -44,4 +46,15 @@ function check(on, onChange, title) {
   const c = h('input', { type: 'checkbox', checked: on, title });
   c.addEventListener('change', () => onChange(c.checked));
   return c;
+}
+
+function gridSection(app) {
+  const g = app.canvas.grid, set = patch => { app.canvas.setGrid(patch); };
+  return section('Grid', true,
+    row('Show', selectField([['off', 'Off'], ['paper', 'On the paper'], ['everywhere', 'Everywhere']], g.show || 'paper', v => set({ show: v }))),
+    row('Style', selectField([['lines', 'Lines'], ['dots', 'Dots']], g.style, v => set({ style: v }))),
+    row('Spacing', numberField({ value: g.spacing, min: 5, max: 1000, step: 5, def: 100, title: 'Between major lines, in artboard units', onChange: v => set({ spacing: v }) })),
+    row('Subdivisions', numberField({ value: g.subdivisions, min: 1, max: 20, step: 1, def: 4, title: 'Minor divisions per major square (1 = none)', onChange: v => set({ subdivisions: Math.round(v) }) })),
+    row('Color', colorField(g.color, v => set({ color: v }), { title: 'Grid color', fallback: '#8a837840', app })),
+    row('Snap', check(g.snap, v => set({ snap: v }), 'Points, notes, guides and moved selections land on the grid (subdivisions)')));
 }

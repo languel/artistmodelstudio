@@ -22,6 +22,8 @@ export function buildCommands(app) {
     cmd('View', 'Process view', () => app.setViewMode('process'), '\\'),
     cmd('View', 'Fit artboard', () => { app.canvas.fit(); app.renderChrome(); }, 'F'),
     cmd('View', 'Toggle reference', () => { if (app.reference) { app.reference.visible = !app.reference.visible; app.canvas.invalidate(); app.renderChrome(); } }, 'R'),
+    cmd('View', 'Toggle grid', () => app.canvas.setGrid({ show: app.canvas.grid.show === 'off' ? 'paper' : 'off' })),
+    cmd('View', 'Toggle snap to grid', () => { app.canvas.setGrid({ snap: !app.canvas.grid.snap }); app.log(`Snap ${app.canvas.grid.snap ? 'on' : 'off'}.`); }),
     cmd('View', 'Reset layout', () => app.docks.reset()),
     cmd('View', 'Classic studio', () => { window.location.href = '/classic.html'; })
   ];

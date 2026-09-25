@@ -122,6 +122,8 @@ Training on finished images teaches surface texture. The studio keeps every step
 
 The **Outliner** lists every mark by stage and group: click to select (Shift for a range, Cmd to toggle), double-click to rename, drag to reorder or move into another stage or group, and hide, lock or delete from the row (acting on the whole selection when the row is part of it).
 
+**Grid** (Settings → Grid): on the paper or everywhere, lines or dots, spacing and subdivisions (anchored at the artboard's corner), color, and **snap**: points, notes, guides and moved selections land on the subdivisions. Freehand lines stay free.
+
 The canvas is infinite: doodle around the artboard. Only the artboard is the picture. Panels dock left, right or bottom, float and collapse; drag a tab to move it.`)),
 
     T('draw-roles', 'Drawing', 'Point, line, plane', 'The roles every mark has, after Kandinsky and Klee.', () => prose(`

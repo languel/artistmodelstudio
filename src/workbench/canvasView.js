@@ -38,7 +38,8 @@ export class CanvasView {
     // Note fonts are drawn on the canvas, so ask for them explicitly and redraw when they arrive.
     Promise.all(['22px Caveat', '17px "Patrick Hand"', '17px Newsreader'].map(f => document.fonts?.load(f).catch(() => null))).then(() => this.invalidate());
     this.upTo = Infinity;   // stage scrub
-    try { this.showGrid = localStorage.getItem('ams_grid') !== '0'; } catch { this.showGrid = true; }
+    this.grid = { show: 'paper', style: 'lines', spacing: 100, subdivisions: 4, color: '#8a837840', snap: false };
+    try { Object.assign(this.grid, JSON.parse(localStorage.getItem('ams_grid_v2')) || {}); } catch { /* defaults */ }
     this.space = false;
     try { this.cam = JSON.parse(localStorage.getItem(CAMERA_KEY)) || null; } catch { this.cam = null; }
     this.resize();
@@ -103,7 +104,7 @@ export class CanvasView {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.fillStyle = css.getPropertyValue('--wb-canvas').trim() || '#1b1c1f';
     ctx.fillRect(0, 0, this.w, this.h);
-    this.drawGrid(css.getPropertyValue('--wb-grid').trim() || 'rgba(255,255,255,0.08)');
+    this.drawGrid(false);
     const doc = this.store.doc;
     const [ax, ay] = this.toScreen(0, 0);
     ctx.save();
@@ -112,6 +113,8 @@ export class CanvasView {
     ctx.fillStyle = doc.artboard.ground;
     ctx.fillRect(ax, ay, doc.artboard.width * this.cam.z, doc.artboard.height * this.cam.z);
     ctx.restore();
+    this.drawGrid(true);
+    if (this.grid.show === 'everywhere') { const keep = this.grid.show; this.grid.show = 'paper'; this.drawGrid(true); this.grid.show = keep; }
     if (this.drawReference) {
       ctx.save();
       ctx.translate(this.cam.x, this.cam.y);
@@ -144,16 +147,55 @@ export class CanvasView {
     }
   }
 
-  drawGrid(color) {
-    if (this.showGrid === false) return;
-    const step = 20 * this.cam.z;
-    if (step < 6) return;
-    const { ctx } = this;
-    ctx.fillStyle = color;
-    const ox = ((this.cam.x % step) + step) % step, oy = ((this.cam.y % step) + step) % step;
-    const r = Math.min(1.2, step / 20);
-    for (let x = ox; x < this.w; x += step) for (let y = oy; y < this.h; y += step) ctx.fillRect(x - r / 2, y - r / 2, r, r);
+  setGrid(patch) {
+    Object.assign(this.grid, patch);
+    try { localStorage.setItem('ams_grid_v2', JSON.stringify(this.grid)); } catch { /* ignore */ }
+    this.invalidate();
   }
+
+  /** Nearest grid point (a subdivision) when snapping is on. */
+  snapPt(x, y, force = false) {
+    if (!this.grid.snap && !force) return [x, y];
+    const q = this.grid.spacing / Math.max(1, this.grid.subdivisions);
+    return [Math.round(x / q) * q, Math.round(y / q) * q];
+  }
+
+  /** The drawing grid, anchored at the artboard's origin: major lines every `spacing`, minor between. */
+  drawGrid(onlyPaper) {
+    const g = this.grid;
+    if (!g.show || g.show === 'off') return;
+    if (onlyPaper !== (g.show === 'paper')) return;
+    const { ctx } = this;
+    const z = this.cam.z, major = g.spacing * z, minor = major / Math.max(1, g.subdivisions);
+    if (major < 4) return;
+    let x0 = 0, y0 = 0, x1 = this.w, y1 = this.h;
+    ctx.save();
+    if (onlyPaper) {
+      const ab = this.store.doc.artboard, [ax, ay] = this.toScreen(0, 0);
+      x0 = Math.max(0, ax); y0 = Math.max(0, ay); x1 = Math.min(this.w, ax + ab.width * z); y1 = Math.min(this.h, ay + ab.height * z);
+      ctx.beginPath(); ctx.rect(ax, ay, ab.width * z, ab.height * z); ctx.clip();
+    }
+    ctx.strokeStyle = ctx.fillStyle = g.color;
+    const lines = (step, alpha, width) => {
+      if (step < 5) return;
+      ctx.globalAlpha = alpha;
+      const ox = this.cam.x - Math.floor((this.cam.x - x0) / step) * step, oy = this.cam.y - Math.floor((this.cam.y - y0) / step) * step;
+      if (g.style === 'dots') {
+        const r = Math.max(1, Math.min(2.2, step / 25)) * width;
+        for (let x = ox; x <= x1; x += step) for (let y = oy; y <= y1; y += step) ctx.fillRect(Math.round(x) - r / 2, Math.round(y) - r / 2, r, r);
+        return;
+      }
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      for (let x = ox; x <= x1; x += step) { const X = Math.round(x) + 0.5; ctx.moveTo(X, y0); ctx.lineTo(X, y1); }
+      for (let y = oy; y <= y1; y += step) { const Y = Math.round(y) + 0.5; ctx.moveTo(x0, Y); ctx.lineTo(x1, Y); }
+      ctx.stroke();
+    };
+    if (g.subdivisions > 1) lines(minor, Math.min(1, (minor - 5) / 10) * 0.55, 1);
+    lines(major, 1, g.style === 'dots' ? 1.4 : 1);
+    ctx.restore();
+  }
+
 
   // ---- selection -------------------------------------------------------------------
   select(ids, additive = false) {
@@ -394,8 +436,8 @@ export class CanvasView {
       }
       const stage = this.getStage();
       if (!stage || stage.locked) { this.flash('This stage is locked'); return; }
-      if (tool === 'point') return this.commitNew('point', [[wx, wy, 0, 0.5]]);
-      if (tool === 'note') return this.startNote(sx, sy, wx, wy);
+      if (tool === 'point') { const [px, py] = this.snapPt(wx, wy); return this.commitNew('point', [[px, py, 0, 0.5]]); }
+      if (tool === 'note') { const [nx, ny] = this.snapPt(wx, wy); const [nsx, nsy] = this.toScreen(nx, ny); return this.startNote(nsx, nsy, nx, ny); }
       this.startStroke(e, tool, wx, wy);
     });
   }
@@ -416,14 +458,18 @@ export class CanvasView {
       const ids = hit.group && !(e.metaKey || e.ctrlKey) ? this.store.doc.elements.filter(x => x.group === hit.group && this.editable(x)).map(x => x.id) : [hit.id];
       if (!this.selected.has(hit.id) || (e.metaKey || e.ctrlKey)) this.select(ids, e.shiftKey);
       const before = JSON.stringify(this.store.doc);
-      let lx = wx, ly = wy, moved = false;
+      let moved = false;
       this.pointer = true;
+      const orig = new Map(this.store.doc.elements.filter(el => this.selected.has(el.id)).map(el => [el.id, el.points.map(p => p.slice())]));
+      const b0 = this.selectionBounds();
       const mv = ev => {
         const [x, y] = this.toWorld(...this.local(ev));
-        const dx = x - lx, dy = y - ly; lx = x; ly = y;
-        if (!dx && !dy) return;
+        let dx = x - wx, dy = y - wy;
+        // With snap on, the selection's top-left corner lands on the grid.
+        if (this.grid.snap && b0) { const [sx0, sy0] = this.snapPt(b0.x0 + dx, b0.y0 + dy); dx = sx0 - b0.x0; dy = sy0 - b0.y0; }
+        if (!dx && !dy && !moved) return;
         moved = true;
-        for (const el of this.store.doc.elements) if (this.selected.has(el.id)) el.points = el.points.map(([px, py, t, p]) => [px + dx, py + dy, t, p]);
+        for (const el of this.store.doc.elements) { const o = orig.get(el.id); if (o) el.points = o.map(([px, py, t, p]) => [px + dx, py + dy, t, p]); }
         this.invalidate();
       };
       const up = () => {
@@ -457,6 +503,7 @@ export class CanvasView {
 
   startStroke(e, tool, wx, wy) {
     const t0 = performance.now();
+    if (tool === 'guide') [wx, wy] = this.snapPt(wx, wy);
     const role = tool;
     const d = this.getDefaults(role);
     this.draft = normalizeElement({ role, stage: 'draft', points: [[wx, wy, 0, pressureOf(e, 0)]], realize: d.realize, color: d.color, seed: 1 }, 'draft');
@@ -469,6 +516,7 @@ export class CanvasView {
       if (straight) {
         let [x1, y1] = [x, y];
         if (ev.shiftKey) { const a = Math.round(Math.atan2(y - wy, x - wx) / (Math.PI / 12)) * (Math.PI / 12), r = Math.hypot(x - wx, y - wy); x1 = wx + Math.cos(a) * r; y1 = wy + Math.sin(a) * r; }
+        else [x1, y1] = this.snapPt(x1, y1);
         this.draft.points = [this.draft.points[0], [x1, y1, now - t0, 0.5]];
       } else {
         const dist = Math.hypot(x - last[0], y - last[1]);
