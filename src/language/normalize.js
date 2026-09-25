@@ -158,6 +158,10 @@ export function normalizeAction(action) {
       act.color = action.color ?? 0;
       break;
 
+    case 'comment':
+      act.text = String(action.text ?? action.comment ?? action.note ?? '');
+      break;
+
     case 'palette':
       act.colors = Array.isArray(action.colors) ? action.colors : [];
       break;
@@ -177,6 +181,8 @@ export function normalizeAction(action) {
       break;
   }
 
+  // Any action may carry a short note (why it is there); renderers ignore it.
+  if (action.note !== undefined && op !== 'comment') act.note = String(action.note);
   return act;
 }
 

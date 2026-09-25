@@ -109,6 +109,48 @@ export class LiveSource {
     }
   }
 
+  /** Timeline position: { frame, frames, time, duration, fraction } (null for webcams). */
+  position() {
+    if (this.video && this.kind === 'video') {
+      const d = this.video.duration || 0, t = this.video.currentTime || 0;
+      const fps = this.fps || 30;
+      return { frame: Math.round(t * fps), frames: Math.max(1, Math.round(d * fps)), time: t, duration: d, fraction: d ? t / d : 0 };
+    }
+    if (this.decoder) {
+      return { frame: this.frameIndex, frames: this.frameCount, fraction: this.frameCount > 1 ? this.frameIndex / (this.frameCount - 1) : 0 };
+    }
+    return null;
+  }
+
+  /** Jump to a point on the timeline (0..1). */
+  seek(fraction) {
+    const f = Math.min(1, Math.max(0, fraction));
+    if (this.video && this.kind === 'video') {
+      if (this.video.duration) this.video.currentTime = f * this.video.duration;
+    } else if (this.decoder) {
+      this.goToFrame(Math.round(f * (this.frameCount - 1)));
+    }
+  }
+
+  /** Step whole frames (negative = back). Videos step at ~30 fps. */
+  step(n) {
+    if (this.video && this.kind === 'video') {
+      const d = this.video.duration || 0;
+      let t = (this.video.currentTime || 0) + n / (this.fps || 30);
+      if (d) t = ((t % d) + d) % d;
+      this.video.currentTime = t;
+    } else if (this.decoder) {
+      this.goToFrame(((this.frameIndex + n) % this.frameCount + this.frameCount) % this.frameCount);
+    }
+  }
+
+  goToFrame(i) {
+    this.frameIndex = i;
+    this.frameClock = 0;
+    this.decoding = true;
+    return this.decode(i).finally(() => { this.decoding = false; });
+  }
+
   /** Advance playback by `dt` seconds and refresh `canvas`. */
   tick(dt) {
     if (!this.ready) return;

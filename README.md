@@ -45,6 +45,7 @@ Pick **Reference Fitter** as the engine, choose a reference in the **Reference**
 ## Documentation
 
 - [Reference Fitter, continuous mode and p5 export](docs/reference-fitter.md)
+- [Driving the studio from agents (MCP / WebMCP), agent as engine](docs/mcp.md)
 - [Klee distillation pipeline and results](training/klee/README.md)
 - [References and rights](fixtures/README.md)
 - [System architecture and drawing language](docs/architecture.md)

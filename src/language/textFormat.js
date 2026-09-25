@@ -10,6 +10,8 @@ export function programToText(program) {
 
   for (const act of program.actions) {
     if (!act || !act.op) continue;
+    if (act.op === 'comment') { lines.push(`# ${act.text || ''}`.trimEnd()); continue; }
+    const before = lines.length;
 
     switch (act.op) {
       case 'background':
@@ -116,10 +118,14 @@ export function programToText(program) {
         lines.push(`mirrorY ${act.enabled ? 'on' : 'off'}`);
         break;
 
-      default:
-        lines.push(`${act.op} ${JSON.stringify(act)}`);
+      default: {
+        const { note, ...rest } = act;
+        lines.push(`${act.op} ${JSON.stringify(rest)}`);
         break;
+      }
     }
+    // Inline note: "circle 0 0 0.3  # the sun"
+    if (act.note && lines.length > before) lines[lines.length - 1] += `  # ${act.note}`;
   }
 
   return lines.join('\n');
@@ -134,11 +140,15 @@ export function textToProgram(text) {
   const actions = [];
 
   for (let rawLine of lines) {
-    // Strip comments (# at start or //)
     let line = rawLine.trim();
-    if (!line || line.startsWith('//') || (line.startsWith('#') && !line.startsWith('#background') && !line.startsWith('#fill'))) {
-      if (line.startsWith('#') && !line.includes(' ')) continue; // comment
-    }
+    // Whole-line comments ("# …" or "// …") become comment actions, kept in the program.
+    const whole = line.match(/^(?:#|\/\/)\s?(.*)$/);
+    if (whole) { actions.push({ op: 'comment', text: whole[1].trim() }); continue; }
+    // Inline notes: "circle 0 0 0.3  # the sun" (a # followed by a space, so colours are safe).
+    let note = null;
+    const inline = line.match(/\s(?:#|\/\/)\s+(.*)$/);
+    if (inline) { note = inline[1].trim(); line = line.slice(0, inline.index).trim(); }
+    const before = actions.length;
     const tokens = line.split(/\s+/).filter(Boolean);
     if (tokens.length === 0) continue;
 
@@ -295,9 +305,13 @@ export function textToProgram(text) {
           } catch (e) {
             // ignore malformed comment/line
           }
+        } else if (line.slice(tokens[0].length).trim().startsWith('{')) {
+          // "<op> {json}" lines, as written for ops without a text form
+          try { actions.push({ ...JSON.parse(line.slice(tokens[0].length).trim()), op: tokens[0] }); } catch { /* ignore */ }
         }
         break;
     }
+    if (note && actions.length > before) actions[actions.length - 1].note = note;
   }
 
   return {

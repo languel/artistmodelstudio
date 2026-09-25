@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ams": {
+      "command": "node",
+      "args": ["src/mcp/mcpServer.js"],
+      "env": { "AMS_STUDIO_URL": "http://localhost:3017" }
+    }
+  }
+}

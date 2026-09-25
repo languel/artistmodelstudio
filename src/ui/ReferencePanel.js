@@ -60,6 +60,7 @@ export class ReferencePanel {
     this.onLiveToggle = onLiveToggle;
     this.onLivePause = arguments[0]?.onLivePause;
     this.onLiveSave = arguments[0]?.onLiveSave;
+    this.onSourceFrame = arguments[0]?.onSourceFrame;
     this.onSaveAsset = arguments[0]?.onSaveAsset;
     this.onLiveRecord = arguments[0]?.onLiveRecord;
     this.onRenderChange = arguments[0]?.onRenderChange;
@@ -108,6 +109,16 @@ export class ReferencePanel {
             <input type="range" id="src-rate" min="0" max="4" step="0.05" value="${this.sourceCfg.rate}" />
             <input class="num-field" id="src-rate-num" inputmode="decimal" value="${this.sourceCfg.rate}" title="Type any value; 0 pauses" />
           </label>
+          <div class="live-slider" id="src-scrub-row" title="Timeline: drag to pick a frame (pauses playback)">
+            <span>Frame</span>
+            <input type="range" id="src-scrub" min="0" max="1000" step="1" value="0" />
+            <span class="num-wrap scrub-tools">
+              <button class="btn-micro scrub-btn" id="src-prev" title="Previous frame (pauses)">‹</button>
+              <button class="btn-micro scrub-btn" id="src-playpause" title="Pause or play (sets Rate to 0 or back)">❚❚</button>
+              <button class="btn-micro scrub-btn" id="src-next" title="Next frame (pauses)">›</button>
+            </span>
+          </div>
+          <div class="scrub-pos" id="src-pos"></div>
         </div>
         <div class="live-controls overlay-controls">
           <label class="live-slider" title="When the reference and canvas aspects differ. Cover: crop to fill (nothing outside the reference is sampled). Contain: show all of it; the padding is ignored by the fitter and left unpainted. Stretch: distort to fill.">
@@ -317,6 +328,28 @@ export class ReferencePanel {
     };
     bindSource('interval', 'interval', { min: 0.05 });
     bindSource('rate', 'rate', { min: 0, max: 16 });
+    // Timeline: scrubbing and stepping pause playback (Rate 0); ❚❚/▶ toggles it back.
+    const liveSrc = () => (this.current?.live && this.current.kind !== 'webcam' ? this.current.live : null);
+    const setRate = (rate) => {
+      this.sourceCfg.rate = rate;
+      const r = container.querySelector('#src-rate'), n = container.querySelector('#src-rate-num');
+      if (r) r.value = String(Math.min(4, rate));
+      if (n) n.value = String(rate);
+      liveSrc()?.setRate(rate);
+      this.onLiveParams?.(liveParams());
+    };
+    const pause = () => { if (this.sourceCfg.rate > 0) { this.lastRate = this.sourceCfg.rate; setRate(0); } };
+    this.scrubbing = false;
+    const scrub = container.querySelector('#src-scrub');
+    scrub?.addEventListener('pointerdown', () => { this.scrubbing = true; pause(); });
+    scrub?.addEventListener('pointerup', () => { this.scrubbing = false; });
+    scrub?.addEventListener('input', () => { pause(); liveSrc()?.seek(Number(scrub.value) / 1000); });
+    container.querySelector('#src-prev')?.addEventListener('click', () => { pause(); liveSrc()?.step(-1); });
+    container.querySelector('#src-next')?.addEventListener('click', () => { pause(); liveSrc()?.step(1); });
+    container.querySelector('#src-playpause')?.addEventListener('click', () => {
+      if (this.sourceCfg.rate > 0) pause(); else setRate(this.lastRate || 1);
+    });
+
     container.querySelector('#src-sampling')?.addEventListener('change', (e) => {
       this.sourceCfg.sampling = e.target.value;
       this.onLiveParams?.(liveParams());
@@ -402,6 +435,25 @@ export class ReferencePanel {
     this.liveRaf = null;
   }
 
+  /** Timeline slider, play/pause icon and position readout for video / animation sources. */
+  updateTimeline(src) {
+    const c = this.container;
+    const pos = src.position?.();
+    const row = c?.querySelector('#src-scrub-row'), out = c?.querySelector('#src-pos');
+    if (row) row.hidden = !pos;
+    if (out) out.hidden = !pos;
+    if (!pos) return;
+    const scrub = c.querySelector('#src-scrub');
+    if (scrub && !this.scrubbing && document.activeElement !== scrub) scrub.value = String(Math.round(pos.fraction * 1000));
+    const pp = c.querySelector('#src-playpause');
+    const label = this.sourceCfg.rate > 0 ? '❚❚' : '▶';
+    if (pp && pp.textContent !== label) pp.textContent = label;
+    const text = pos.duration !== undefined
+      ? `${pos.time.toFixed(2)} / ${pos.duration.toFixed(2)} s · ${pos.frame} / ${pos.frames}`
+      : `${pos.frame + 1} / ${pos.frames}`;
+    if (out && out.textContent !== text) out.textContent = text;
+  }
+
   /** Keep a live source's frame canvas current and mirrored into the preview. */
   runLive(src) {
     let last = performance.now();
@@ -418,6 +470,8 @@ export class ReferencePanel {
         }
         view.getContext('2d').drawImage(src.canvas, 0, 0);
       }
+      this.updateTimeline(src);
+      if (src.version !== this.lastSourceVersion) { this.lastSourceVersion = src.version; this.onSourceFrame?.(src); }
       this.liveRaf = requestAnimationFrame(tick);
     };
     this.liveRaf = requestAnimationFrame(tick);

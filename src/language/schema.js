@@ -20,7 +20,8 @@ export const CORE_OPS = [
   'circle',
   'rect',
   'polygon',
-  'polyline'
+  'polyline',
+  'comment'   // { op: 'comment', text } — notes for people and models; never drawn
 ];
 
 export const WATERCOLOR_OPS = [

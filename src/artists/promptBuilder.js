@@ -76,6 +76,10 @@ AVAILABLE ACTIONS:
 - {"op": "line", "x1": 8, "y1": 10, "x2": 24, "y2": 10, "color": 3}
 - {"op": "rect", "x": 12, "y": 14, "width": 8, "height": 8, "color": 2, "fill": true}
 - {"op": "polygon", "points": [[16, 8], [22, 18], [10, 18]], "color": 3}
+- {"op": "comment", "text": "bow"}  (not drawn: labels the part that follows)
+
+LABEL THE PARTS: put a short comment before each key part or group of actions,
+e.g. "background", "sun", "horse body", "bow", "arrow". Label parts, not every line.
 
 OUTPUT FORMAT:
 Output strictly valid JSON with no markdown outside the JSON block:
@@ -152,6 +156,10 @@ AVAILABLE ACTIONS:
 - {"op": "line", "x1": -0.3, "y1": -0.1, "x2": -0.1, "y2": 0.65}
 - {"op": "polygon", "points": [[-0.2, -0.2], [0.2, -0.2], [0.1, 0.3], [-0.1, 0.3]]}
 - {"op": "polyline", "points": [[-0.3, 0], [0, -0.3], [0.3, 0]]}
+- {"op": "comment", "text": "bow"}  (not drawn: labels the part that follows)
+
+LABEL THE PARTS: put a short comment before each key part or group of actions,
+e.g. "background", "sun", "horse body", "bow", "arrow". Label parts, not every line.
 ${isWatercolor ? `
 WATERCOLOR EXTENSIONS (BRUSH & TEXTURE):
 - {"op": "brush.bleed", "amount": 0.35}   (0.0 to 1.0: pigment diffusion & organic bleeding)

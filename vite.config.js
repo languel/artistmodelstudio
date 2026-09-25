@@ -43,8 +43,60 @@ function probeSavePlugin() {
   };
 }
 
+/**
+ * Dev-only relay so external MCP clients can drive a studio tab.
+ *   GET  /__ams/tabs            connected tabs (newest last)
+ *   GET  /__ams/tools           tool list from the newest tab
+ *   POST /__ams/call            { name, args, timeoutSec? } → { result } | { error }
+ * The tab side lives in src/mcp/webmcp.js (ams:hello / ams:call / ams:result).
+ */
+function amsRelayPlugin() {
+  return {
+    name: 'ams-relay',
+    configureServer(server) {
+      const tabs = new Map(); // client → { title, url, tools, seen }
+      const pending = new Map();
+      let seq = 0;
+      server.ws.on('ams:hello', (data, client) => tabs.set(client, { ...data, seen: Date.now() }));
+      server.ws.on('ams:result', ({ id, result, error }) => {
+        const p = pending.get(id);
+        if (!p) return;
+        pending.delete(id);
+        clearTimeout(p.timer);
+        p.res.end(JSON.stringify(error ? { error } : { result }));
+      });
+      const live = () => [...tabs].filter(([c]) => server.ws.clients.has(c));
+      server.middlewares.use('/__ams', (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        const list = live();
+        if (req.method === 'GET' && req.url.startsWith('/tabs')) {
+          return res.end(JSON.stringify(list.map(([, t], i) => ({ index: i, title: t.title, url: t.url, tools: t.tools?.length || 0 }))));
+        }
+        if (!list.length) { res.statusCode = 503; return res.end(JSON.stringify({ error: 'No studio tab connected. Open the app (npm run dev) in a browser.' })); }
+        const [client, tab] = list[list.length - 1];
+        if (req.method === 'GET' && req.url.startsWith('/tools')) return res.end(JSON.stringify(tab.tools || []));
+        if (req.method !== 'POST' || !req.url.startsWith('/call')) { res.statusCode = 404; return res.end('{}'); }
+        let body = '';
+        req.on('data', c => { body += c; });
+        req.on('end', () => {
+          let msg;
+          try { msg = JSON.parse(body || '{}'); } catch { res.statusCode = 400; return res.end(JSON.stringify({ error: 'Bad JSON' })); }
+          const id = ++seq;
+          const timer = setTimeout(() => {
+            pending.delete(id);
+            res.statusCode = 504;
+            res.end(JSON.stringify({ error: 'Timed out waiting for the studio tab' }));
+          }, (msg.timeoutSec || 900) * 1000);
+          pending.set(id, { res, timer });
+          client.send('ams:call', { id, name: msg.name, args: msg.args || {} });
+        });
+      });
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [probeSavePlugin()],
+  plugins: [probeSavePlugin(), amsRelayPlugin()],
   server: {
     port: 3000,
     open: false,

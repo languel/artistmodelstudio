@@ -275,6 +275,53 @@ const rl = readline.createInterface({
   terminal: false
 });
 
+// ---- Live studio relay (dev server /__ams, see vite.config.js) ----
+const STUDIO_URL = process.env.AMS_STUDIO_URL || 'http://localhost:3017';
+const RELAY_TOOLS = [{
+  name: 'ams_studio_status',
+  description: `Which studio browser tabs are connected to the dev server at ${STUDIO_URL} (tools that drive the app need one).`,
+  inputSchema: { type: 'object', properties: {} }
+}];
+
+async function relay(method, route, body) {
+  const res = await fetch(STUDIO_URL + '/__ams' + route, {
+    method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined
+  });
+  return res.json();
+}
+
+async function studioTools() {
+  try {
+    const tools = await relay('GET', '/tools');
+    return Array.isArray(tools) ? tools : [];
+  } catch { return []; }
+}
+
+function textResult(value) {
+  return { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }] };
+}
+
+/** Images (data URLs) become MCP image content; everything else is JSON text. */
+function toolResult(value) {
+  const content = [];
+  const walk = (v) => {
+    if (v && typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) {
+        if (typeof x === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,/.test(x)) {
+          const [, mime, data] = x.match(/^data:(image\/[a-z]+);base64,(.*)$/s);
+          content.push({ type: 'image', mimeType: mime, data });
+          v[k] = `[image ${mime}, ${Math.round(data.length * 0.75 / 1024)} KB, attached]`;
+        } else if (typeof x === 'string' && x.startsWith('data:') && x.length > 300000) {
+          v[k] = `[${x.slice(5, x.indexOf(';'))} data, ${Math.round(x.length * 0.75 / 1024)} KB; too large to return, use download: true]`;
+        } else walk(x);
+      }
+    }
+  };
+  walk(value);
+  content.unshift({ type: 'text', text: JSON.stringify(value ?? null, null, 2) });
+  return { content };
+}
+
 function sendResponse(id, result, error = null) {
   const resp = { jsonrpc: '2.0', id };
   if (error) {
@@ -309,13 +356,31 @@ rl.on('line', async (line) => {
     }
 
     if (method === 'tools/list') {
-      sendResponse(id, { tools: TOOLS });
+      // A connected studio tab exposes every user action; offline tools stay as fallback.
+      const liveTools = await studioTools();
+      const names = new Set(liveTools.map(t => t.name));
+      sendResponse(id, { tools: [...liveTools, ...TOOLS.filter(t => !names.has(t.name)), ...RELAY_TOOLS] });
       return;
     }
 
     if (method === 'tools/call') {
       const toolName = params?.name;
       const args = params?.arguments || {};
+
+      if (toolName === 'ams_studio_status') {
+        sendResponse(id, textResult(await relay('GET', '/tabs').catch(err => ({ error: err.message, url: STUDIO_URL }))));
+        return;
+      }
+      const liveTools = await studioTools();
+      if (liveTools.some(t => t.name === toolName)) {
+        try {
+          const out = await relay('POST', '/call', { name: toolName, args });
+          sendResponse(id, out.error ? { content: [{ type: 'text', text: `Error: ${out.error}` }], isError: true } : toolResult(out.result));
+        } catch (err) {
+          sendResponse(id, { content: [{ type: 'text', text: `Studio relay failed: ${err.message}` }], isError: true });
+        }
+        return;
+      }
 
       switch (toolName) {
         case 'ams_generate':

@@ -12,6 +12,7 @@ import { OpenAICompatibleArtist } from './OpenAICompatibleArtist.js';
 import { TrainedModelArtist } from './TrainedModelArtist.js';
 import { ReferenceFitterArtist } from './ReferenceFitterArtist.js';
 import { DistilledArtist } from './DistilledArtist.js';
+import { AgentArtist } from './AgentArtist.js';
 
 export class ArtistRegistry {
   constructor() {
@@ -34,6 +35,7 @@ export class ArtistRegistry {
     this.register(webgpu);
     this.register(trained);
     this.register(distilled);
+    this.register(new AgentArtist());
 
     // Default to mock for instant reliability, user or settings can switch
     this.activeId = 'mock';

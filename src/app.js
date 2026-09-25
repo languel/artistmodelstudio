@@ -130,7 +130,8 @@ export class StudioApp {
     this.assetPanel = new AssetPanel({
       store: this.assetStore,
       onUseAsReference: (asset) => this.useAssetAsReference(asset),
-      onExport: (asset) => this.exportAsset(asset)
+      onExport: (asset) => this.exportAsset(asset),
+      onOpen: (asset) => this.openAsset(asset)
     });
     this.livePainter = new LivePainter({
       onFrame: (lp) => {
@@ -158,6 +159,8 @@ export class StudioApp {
       onExportContinuous: (params) => this.exportContinuous(params),
       onOverlayChange: () => this.updateRefOverlay(),
       onLiveClear: () => this.livePainter.clear(),
+      // Stopped with a video/animation reference: the preview follows the current frame (scrubbing).
+      onSourceFrame: () => { if (!this.livePainter.running && !this.livePainter.cf) this.showRefPreview(); },
       onSaveAsset: (btn) => this.saveToAssets(btn, true),
       getStyle: () => this.styleSettings,
       onRenderChange: (id) => { this.controls?.setMedium?.(id); this.handleMediumChange(id); },
@@ -480,6 +483,7 @@ export class StudioApp {
   }
 
   async handleGenerate(prompt, previousProgram = null, feedback = null, parentId = null) {
+    if (!previousProgram) this.controls?.setPrompt?.(prompt);
     this.livePainter.hide();
     this.abortController = new AbortController();
     this.controls.setGenerating(true);
@@ -999,6 +1003,25 @@ export class StudioApp {
     }
   }
 
+  /** Show an asset in the main preview as the active candidate. */
+  async openAsset(asset) {
+    this.livePainter.stop();
+    this.livePainter.hide();
+    this.referencePanel.setLiveRunning?.(false);
+    const program = asset.program || { version: 1, actions: [] };
+    await this.handleLoadExample({ name: asset.title, medium: this.activeMediumId, program, model: 'Asset', image: asset.program ? null : asset.blob });
+    const opened = this.sessionStore.getActiveCandidate();
+    if (opened) { opened.rating = asset.rating || 0; this.candidateGrid.update([opened], opened.id); }
+    if (!asset.program) {
+      // Image-only asset: show the picture itself.
+      const cand = this.sessionStore.getActiveCandidate();
+      const url = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(asset.blob); });
+      cand.renderedImage = url;
+      this.candidateGrid.update([cand], cand.id);
+    }
+    // Stay on the current tab (e.g. Assets) so assets can be reviewed side by side.
+  }
+
   async useAssetAsReference(asset) {
     const ext = (asset.blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
     const file = new File([asset.blob], `${asset.title}.${ext}`, { type: asset.blob.type || 'image/png' });
@@ -1088,7 +1111,7 @@ export class StudioApp {
 
     const cand = this.sessionStore.createCandidate({
       prompt: example.name,
-      model: 'Handcrafted Example',
+      model: example.model || 'Handcrafted Example',
       medium: medium.name,
       program: example.program,
       renderMetadata: {
@@ -1112,7 +1135,7 @@ export class StudioApp {
     this.rewardPanel.update(cand);
 
     this.statusBanner.update({
-      model: 'Handcrafted Example',
+      model: example.model || 'Handcrafted Example',
       medium: medium.name,
       actionCount: example.program.actions?.length || 0,
       generationTimeMs: 0,
@@ -1120,7 +1143,7 @@ export class StudioApp {
       generationIndex: this.sessionStore.currentGeneration
     });
 
-    this.processLog.log(`Loaded example: ${example.name}`, 'info');
+    this.processLog.log(`Loaded ${example.model === 'Asset' ? 'asset' : 'example'}: ${example.name}`, 'info');
   }
 
   async renderCandidates(candidates) {

@@ -8,10 +8,13 @@ import { icon } from './icons.js';
 import { matches } from '../assets/assetStore.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const KIND_ICONS = { variation: 'squaresPlus', painting: 'paintBrush', import: 'arrowUpTray', klee: 'photo' };
+const KIND_TIPS = { variation: 'Variation (generated candidate)', painting: 'Painting (continuous mode)', import: 'Imported image', klee: 'Bundled Klee reference' };
 const KINDS = { all: 'All', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee' };
 
 export class AssetPanel {
-  constructor({ store, onUseAsReference, onExport }) {
+  constructor({ store, onUseAsReference, onExport, onOpen }) {
+    this.onOpen = onOpen;
     this.store = store;
     this.onUseAsReference = onUseAsReference;
     this.onExport = onExport;
@@ -105,15 +108,16 @@ export class AssetPanel {
     grid.innerHTML = list.length ? list.map(a => `
       <div class="variant-card asset-card" data-id="${esc(a.id)}" draggable="true">
         <div class="variant-card-header">
-          <span class="asset-title" title="Double-click to rename">${esc(a.title)}</span>
-          <span class="variant-ops">${esc(a.kind)}</span>
+          <span class="asset-title" title="${esc(a.title)}">${esc(a.title)}</span>
+          <span class="asset-kind" title="${esc(KIND_TIPS[a.kind] || a.kind)}">${icon(KIND_ICONS[a.kind] || 'photo', 'icon-sm')}</span>
         </div>
-        <div class="variant-thumb-wrap" title="Double-click to use as reference">
+        <div class="variant-thumb-wrap" title="Double-click to show in the main preview">
           <img class="variant-thumb" src="${a.thumb}" alt="${esc(a.title)}" draggable="false" />
         </div>
         <div class="asset-tags" title="Double-click to edit tags (comma separated)">${a.tags?.length ? a.tags.map(t => `<span class="asset-tag">#${esc(t)}</span>`).join('') : '<span class="asset-tag muted">#</span>'}${this.query && a.folder !== this.folder ? `<span class="asset-folder">${esc(a.folder || '/')}</span>` : ''}</div>
         <div class="variant-card-footer">
           <div class="asset-actions">
+            <button class="btn-micro btn-icon-only" data-act="open" title="Show in the main preview">${icon('expand', 'icon-sm')}</button>
             <button class="btn-micro btn-icon-only" data-act="ref" title="Use as reference">${icon('photo', 'icon-sm')}</button>
             <button class="btn-micro btn-icon-only" data-act="export" title="Export">${icon('arrowDownTray', 'icon-sm')}</button>
             <button class="btn-micro btn-icon-only" data-act="delete" title="Delete">${icon('trash', 'icon-sm')}</button>
@@ -130,7 +134,8 @@ export class AssetPanel {
         const r = Number(st.dataset.star);
         this.store.update(id, { rating: asset.rating === r ? 0 : r });
       }));
-      card.querySelector('.variant-thumb-wrap').addEventListener('dblclick', () => this.onUseAsReference?.(asset));
+      card.querySelector('.variant-thumb-wrap').addEventListener('dblclick', () => this.onOpen?.(asset));
+      card.querySelector('[data-act="open"]').addEventListener('click', () => this.onOpen?.(asset));
       card.querySelector('[data-act="ref"]').addEventListener('click', () => this.onUseAsReference?.(asset));
       card.querySelector('[data-act="export"]').addEventListener('click', () => this.onExport?.(asset));
       card.querySelector('[data-act="delete"]').addEventListener('click', () => {

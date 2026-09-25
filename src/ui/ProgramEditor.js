@@ -8,11 +8,12 @@ import { validateProgram } from '../language/validate.js';
 import { normalizeProgram } from '../language/normalize.js';
 import { icon } from './icons.js';
 import { buildP5Sketch, buildP5ProjectZip, downloadBytes } from '../export/p5Export.js';
+import { programToSvg, svgToProgram } from '../export/svgExport.js';
 
 export class ProgramEditor {
   constructor({ onProgramChange, onRenderWithOtherMedium, getExportContext }) {
     this.candidate = null;
-    this.activeTab = 'text'; // 'text' | 'json' | 'p5' (p5 is generated, read-only)
+    this.activeTab = 'text'; // 'text' | 'json' | 'p5' | 'svg' (p5 is generated, read-only)
     this.getExportContext = getExportContext;
     this.currentText = '';
     this.currentJson = '';
@@ -56,13 +57,14 @@ export class ProgramEditor {
       <div class="program-editor-panel">
         <div class="editor-header">
           <div class="editor-tabs">
-            <button class="editor-tab-btn ${this.activeTab === 'text' ? 'active' : ''}" data-tab="text">Text DSL</button>
+            <button class="editor-tab-btn ${this.activeTab === 'text' ? 'active' : ''}" data-tab="text" title="Drawing language; # starts a comment line, '  # note' after an action adds a note">DSL</button>
             <button class="editor-tab-btn ${this.activeTab === 'json' ? 'active' : ''}" data-tab="json">JSON</button>
-            <button class="editor-tab-btn ${this.activeTab === 'p5' ? 'active' : ''}" data-tab="p5">p5.js</button>
+            <button class="editor-tab-btn ${this.activeTab === 'p5' ? 'active' : ''}" data-tab="p5" title="Generated p5.js sketch (read-only)">p5.js</button>
+            <button class="editor-tab-btn ${this.activeTab === 'svg' ? 'active' : ''}" data-tab="svg" title="Editable SVG: paste an edited SVG and Re-render to convert it back">SVG</button>
           </div>
           <div class="editor-actions">
             <button id="editor-copy-btn" class="btn-micro" title="Copy this tab's code">Copy</button>
-            <button id="editor-export-btn" class="btn-micro" title="Text DSL: .txt · JSON: .json · p5.js: project .zip">
+            <button id="editor-export-btn" class="btn-micro" title="DSL: .txt · JSON: .json · SVG: .svg · p5.js: project .zip">
               ${icon('arrowDownTray', 'icon-sm')} <span>Export</span>
             </button>
             <button id="editor-rerender-btn" class="btn-primary" style="padding: 4px 10px; font-size: 0.78rem; display: ${this.activeTab === 'p5' ? 'none' : 'inline-flex'}; align-items: center; gap: 4px;">
@@ -77,7 +79,7 @@ export class ProgramEditor {
           spellcheck="false"
           placeholder="Program code..."
           ${this.activeTab === 'p5' ? 'readonly' : ''}
-        >${this.activeTab === 'text' ? this.currentText : this.activeTab === 'json' ? this.currentJson : ''}</textarea>
+        >${this.activeTab === 'text' ? this.currentText : this.activeTab === 'json' ? this.currentJson : this.activeTab === 'svg' ? this.currentSvg().replace(/</g, '&lt;') : ''}</textarea>
 
         <div class="editor-footer">
           <div class="validation-tag ${this.validation.valid ? 'valid' : 'error'}">
@@ -144,6 +146,14 @@ export class ProgramEditor {
     });
   }
 
+  /** SVG of the current program at the canvas size (grid size for pixel programs). */
+  currentSvg() {
+    const prog = this.currentProgram();
+    if (!prog) return '';
+    const m = this.getExportContext?.()?.medium;
+    return programToSvg(prog, { width: m?.outW || m?.width || 1024, height: m?.outH || m?.height || 1024, cols: m?.cols, rows: m?.rows });
+  }
+
   exportTitle() {
     const c = this.candidate;
     return (c?.prompt || 'AMS sketch').slice(0, 60);
@@ -176,6 +186,8 @@ export class ProgramEditor {
     } else if (this.activeTab === 'json') {
       this.syncFromTextarea(textarea.value);
       downloadBytes(this.currentJson, `${slug}.json`, 'application/json');
+    } else if (this.activeTab === 'svg') {
+      downloadBytes(textarea.value, `${slug}.svg`, 'image/svg+xml');
     } else {
       const btn = document.querySelector('#editor-export-btn span');
       if (btn) btn.textContent = 'Zipping…';
@@ -187,6 +199,13 @@ export class ProgramEditor {
   }
 
   syncFromTextarea(value) {
+    if (this.activeTab === 'svg') {
+      const { program, warnings } = svgToProgram(value);
+      this.svgWarnings = warnings;
+      this.currentJson = JSON.stringify(program, null, 2);
+      this.currentText = programToText(normalizeProgram(program));
+      return;
+    }
     if (this.activeTab === 'text') {
       this.currentText = value;
       const prog = textToProgram(value);
@@ -208,6 +227,9 @@ export class ProgramEditor {
 
     if (this.activeTab === 'text') {
       updatedProgram = textToProgram(value);
+    } else if (this.activeTab === 'svg') {
+      updatedProgram = normalizeProgram(JSON.parse(this.currentJson));
+      if (this.svgWarnings?.length) console.info('[SVG import]', this.svgWarnings.join(' · '));
     } else {
       try {
         updatedProgram = normalizeProgram(JSON.parse(value));

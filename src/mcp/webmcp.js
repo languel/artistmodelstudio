@@ -7,6 +7,7 @@
  */
 
 import { evaluateReward } from '../rewards/combine.js';
+import { STUDIO_TOOLS, STUDIO_TOOL_MAP } from './studioTools.js';
 import { normalizeProgram } from '../language/normalize.js';
 import { exportSFTJSONL, exportPreferenceJSONL, exportSessionJSON } from '../sessions/exportDataset.js';
 import { InBrowserTrainer } from '../training/inBrowserTrainer.js';
@@ -245,7 +246,7 @@ export function initWebMCP(studioApp) {
     spec: MCP_TOOLS_SPEC,
 
     listTools() {
-      return MCP_TOOLS_SPEC;
+      return [...MCP_TOOLS_SPEC, ...STUDIO_TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }))];
     },
 
     getStudioState() {
@@ -773,6 +774,7 @@ export function initWebMCP(studioApp) {
     },
 
     async callTool(name, args = {}) {
+      if (STUDIO_TOOL_MAP[name]) return STUDIO_TOOL_MAP[name].run(studioApp, args || {});
       switch (name) {
         case 'ams_generate': {
           const cands = await bridge.generate(args);
@@ -936,6 +938,33 @@ export function initWebMCP(studioApp) {
   // Attach to window for direct console / DevTools / in-page agent scripting
   window.ams = bridge;
   window.webmcp = bridge;
+
+  // WebMCP (navigator.modelContext) where the browser supports it.
+  try {
+    const mc = navigator.modelContext;
+    if (mc?.provideContext) {
+      mc.provideContext({
+        tools: bridge.listTools().map(t => ({ ...t, execute: async (args) => ({ content: [{ type: 'text', text: JSON.stringify(await bridge.callTool(t.name, args)) }] }) }))
+      });
+    }
+  } catch (err) { console.warn('WebMCP registration failed', err); }
+
+  // Dev relay: external MCP clients (src/mcp/mcpServer.js) reach this tab through
+  // the Vite dev server's websocket (see vite.config.js, /__ams/*).
+  if (import.meta.hot) {
+    const hot = import.meta.hot;
+    const hello = () => hot.send('ams:hello', { title: document.title, url: location.href, tools: bridge.listTools() });
+    hello();
+    hot.on('ams:ping', hello);
+    hot.on('ams:call', async ({ id, name, args }) => {
+      try {
+        const result = name === 'tools/list' ? bridge.listTools() : await bridge.callTool(name, args);
+        hot.send('ams:result', { id, result: JSON.parse(JSON.stringify(result ?? null)) });
+      } catch (err) {
+        hot.send('ams:result', { id, error: err?.message || String(err) });
+      }
+    });
+  }
 
   // WebMCP PostMessage JSON-RPC 2.0 Dispatcher
   window.addEventListener('message', async (event) => {

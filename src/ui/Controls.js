@@ -91,8 +91,11 @@ export class Controls {
                 <optgroup label="Cloud">
                   ${this.artists.filter(a => a.type === 'cloud').map(a => `<option value="${a.id}" ${a.id === this.activeArtist ? 'selected' : ''}>${a.name}</option>`).join('')}
                 </optgroup>
+                <optgroup label="Agent">
+                  ${this.artists.filter(a => a.type === 'harness').map(a => `<option value="${a.id}" ${a.id === this.activeArtist ? 'selected' : ''}>${a.name}</option>`).join('')}
+                </optgroup>
                 <optgroup label="Local / Browser">
-                  ${this.artists.filter(a => a.type !== 'procedural' && a.type !== 'cloud').map(a => `<option value="${a.id}" ${a.id === this.activeArtist ? 'selected' : ''}>${a.name}</option>`).join('')}
+                  ${this.artists.filter(a => a.type !== 'procedural' && a.type !== 'cloud' && a.type !== 'harness').map(a => `<option value="${a.id}" ${a.id === this.activeArtist ? 'selected' : ''}>${a.name}</option>`).join('')}
                 </optgroup>
               </select>
             </div>
@@ -191,7 +194,7 @@ export class Controls {
             class="prompt-input"
             type="text"
             placeholder="Describe what to draw... (e.g. three red flowers bending left)"
-            value="three red flowers bending left"
+            value="${String(this.prompt ?? 'three red flowers bending left').replace(/"/g, '&quot;').replace(/</g, '&lt;')}"
           />
           
           <button id="generate-btn" class="btn-primary" ${this.isGenerating ? 'disabled' : ''}>
@@ -397,6 +400,9 @@ export class Controls {
     const generateBtn = container.querySelector('#generate-btn');
     const interruptBtn = container.querySelector('#interrupt-btn');
 
+    // Keep the typed prompt across toolbar re-renders.
+    promptInput?.addEventListener('input', () => { this.prompt = promptInput.value; });
+
     generateBtn?.addEventListener('click', () => {
       const prompt = promptInput?.value?.trim() || 'three red flowers';
       this.onGenerate?.(prompt);
@@ -500,3 +506,10 @@ function inlinePrompt(anchor, label, initial) {
     setTimeout(() => document.addEventListener('pointerdown', outside, true));
   });
 }
+
+/** Show a prompt in the toolbar (e.g. one generated through MCP). */
+Controls.prototype.setPrompt = function (text) {
+  this.prompt = text;
+  const input = document.querySelector('#studio-prompt-input');
+  if (input && input.value !== text) input.value = text;
+};

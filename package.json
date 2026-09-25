@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "mcp": "node src/mcp/mcpServer.js"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.0",

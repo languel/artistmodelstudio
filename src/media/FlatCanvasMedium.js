@@ -245,6 +245,9 @@ export class FlatCanvasMedium extends Medium {
             break;
           }
 
+          case 'comment':
+            break;
+
           default:
             warnings.push(`Ignored unsupported action in FlatCanvas: ${act.op}`);
             break;

@@ -42,7 +42,7 @@ export class PixelMedium extends Medium {
       name: this.name,
       coordinateSystem: 'pixel',
       dimensions: { cols: this.cols, rows: this.rows },
-      core: [...PIXEL_OPS],
+      core: [...PIXEL_OPS, 'comment'],
       extensions: []
     };
   }

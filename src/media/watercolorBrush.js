@@ -202,6 +202,19 @@ export function paintWatercolor(brush, canvas, actions, { seed = 42, defaultBlee
         break;
       }
 
+      case 'polyline': {
+        // Open path: one brush line per segment.
+        if (Array.isArray(act.points) && act.points.length >= 2 && typeof brush.line === 'function') {
+          for (let i = 1; i < act.points.length; i++) {
+            brush.line(toX(act.points[i - 1][0]), toY(act.points[i - 1][1]), toX(act.points[i][0]), toY(act.points[i][1]));
+          }
+        }
+        break;
+      }
+
+      case 'comment':
+        break;
+
       default:
         warnings.push(`Ignored action in Watercolor: ${act.op}`);
         break;
