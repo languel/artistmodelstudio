@@ -155,12 +155,14 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-seg { display: inline-flex; border: 1px solid var(--wb-line); border-radius: var(--radius); overflow: hidden; }
 .wb-seg button { height: calc(var(--ctl) - 2px); border: 0; background: var(--wb-panel-2); padding: 0 10px; cursor: pointer; }
 .wb-seg button.on { background: var(--wb-on); color: var(--wb-text); font-weight: 600; }
-.wb-menu { position: fixed; z-index: 60; min-width: 190px; background: var(--wb-panel); border: 1px solid var(--wb-line); border-radius: 6px; box-shadow: var(--wb-shadow); padding: 4px; display: flex; flex-direction: column; }
-.wb-menu button { text-align: left; background: none; border: 0; height: 26px; padding: 0 10px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; gap: 16px; }
+.wb-menu { position: fixed; z-index: 60; min-width: 170px; background: var(--wb-panel); border: 1px solid var(--wb-line); border-radius: 6px; box-shadow: var(--wb-shadow); padding: 4px; display: flex; flex-direction: column; }
+.wb-menu button { text-align: left; background: none; border: 0; height: 23px; line-height: 23px; padding: 0 8px; margin: 0; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--wb-text); font: inherit; font-size: 12.5px; }
+.wb-menu button > span { line-height: 1; }
+.wb-menu-arrow { color: var(--wb-muted); }
 .wb-menu button:hover { background: var(--wb-hover); }
 .wb-menu button kbd { color: var(--wb-muted); font: var(--ui-small) var(--font-mono); }
-.wb-menu hr { border: 0; border-top: 1px solid var(--wb-line); margin: 4px 2px; }
-.wb-menu .wb-menu-label { color: var(--wb-muted); padding: 4px 10px 2px; font-size: var(--ui-small); }
+.wb-menu hr { border: 0; border-top: 1px solid var(--wb-line); margin: 3px 2px; }
+.wb-menu .wb-menu-label { color: var(--wb-muted); padding: 3px 8px 1px; font-size: 11px; }
 
 /* ---- stages ---- */
 .wb-list { display: flex; flex-direction: column; gap: 2px; }

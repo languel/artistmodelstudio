@@ -26,6 +26,7 @@ import { mountGenerate } from './panels/generate.js';
 import { mountAssistant } from './panels/assistant.js';
 import { mountDecide } from './panels/decide.js';
 import { mountOutliner } from './panels/outliner.js';
+import { mountSettings } from './panels/settings.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
 import { openPalette } from './palette.js';
@@ -145,6 +146,7 @@ export class Workbench {
     this.renderChrome();
     this.assetStore.seed(bundledReferences()).catch(() => {});
     this.guide = new Guide(this);
+    try { if (localStorage.getItem('ams_guide_enabled') === '0') this.guide.enabled = false; } catch { /* ignore */ }
     this.walkthroughs = new Walkthroughs(this);
     this.toolList = TOOLS.filter(Boolean);
     this.docsTopics = () => docsTopicList(this);
@@ -167,6 +169,7 @@ export class Workbench {
     reg('assistant', 'Assistant', 'chat', 'right', mountAssistant);
     reg('decide', 'Decide', 'exercise', 'right', mountDecide);
     reg('docs', 'Docs', 'book', 'right', mountDocs);
+    reg('settings', 'Settings', 'gear', 'right', mountSettings);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }
 
@@ -203,7 +206,7 @@ export class Workbench {
     const img = new Image();
     img.src = URL.createObjectURL(blob);
     await img.decode();
-    this.reference = { img, opacity: this.reference?.opacity ?? 0.35, visible: true, title };
+    this.reference = { img, opacity: this.reference?.opacity ?? (Number(localStorage.getItem('ams_ref_opacity')) || 0.35), visible: true, title };
     this.log(`Reference: ${title} (under the artboard; not part of the picture).`);
     this.canvas.invalidate();
     this.renderChrome();
@@ -268,29 +271,57 @@ export class Workbench {
   }
 
   openMenu(anchor) {
+    document.querySelectorAll('.wb-menu').forEach(m => m.remove());
     const r = anchor.getBoundingClientRect();
-    const m = h('div', { class: 'wb-menu', style: { left: `${r.left}px`, top: `${r.bottom + 6}px` } });
-    const item = (label, fn, key = '') => m.append(h('button', { onclick: () => { m.remove(); fn(); } }, h('span', {}, label), key ? h('kbd', {}, key) : ''));
-    const label = t => m.append(h('div', { class: 'wb-menu-label' }, t));
-    item('New drawing', () => { this.loadDocument(createDocument(), 'new'); this.canvas.fit(); });
-    item('Open file… (JSON, SVG, Excalidraw)', () => this.openFile());
-    item('Save to Assets', () => this.saveToAssets(), '⌘S');
-    m.append(h('hr'));
-    label('Export');
-    item('Picture (PNG)', () => this.exportAs('png'));
-    item('SVG with process record', () => this.exportAs('svg'));
-    item('p5.js sketch (zip)', () => this.exportAs('p5'));
-    item('Process sheet (PNG)', () => this.exportAs('sheet'));
-    item('Process document (JSON)', () => this.exportAs('json'));
-    item('Excalidraw', () => this.exportAs('excalidraw'));
-    m.append(h('hr'));
-    label('Panels');
-    for (const p of this.docks.panels.values()) item(p.title, () => this.docks.open(p.id));
-    item('Reset layout', () => this.docks.reset());
-    m.append(h('hr'));
-    item('Classic studio', () => { window.location.href = '/classic.html'; });
-    document.body.append(m);
-    const off = ev => { if (!m.contains(ev.target)) { m.remove(); window.removeEventListener('pointerdown', off, true); } };
+    const menus = [];
+    const build = (items, x, y, level = 0) => {
+      menus.slice(level).forEach(m => m.remove()); menus.length = level;
+      const m = h('div', { class: 'wb-menu', style: { left: `${x}px`, top: `${y}px` } });
+      menus.push(m);
+      for (const it of items) {
+        if (it === '-') { m.append(h('hr')); continue; }
+        if (it.label && !it.run && !it.items) { m.append(h('div', { class: 'wb-menu-label' }, it.label)); continue; }
+        const b = h('button', { title: it.hint || '', class: it.items ? 'wb-menu-sub' : '' },
+          h('span', {}, it.label), it.keys ? h('kbd', {}, it.keys) : it.items ? h('span', { class: 'wb-menu-arrow' }, '›') : null);
+        if (it.items) {
+          const open = () => { const br = b.getBoundingClientRect(); build(it.items, br.right + 2, br.top - 4, level + 1); };
+          b.addEventListener('pointerenter', open); b.addEventListener('click', open);
+        } else {
+          b.addEventListener('pointerenter', () => { menus.slice(level + 1).forEach(x => x.remove()); menus.length = level + 1; });
+          b.addEventListener('click', () => { close(); it.run(); });
+        }
+        m.append(b);
+      }
+      document.body.append(m);
+      const mr = m.getBoundingClientRect();
+      if (mr.bottom > window.innerHeight - 8) m.style.top = `${Math.max(8, window.innerHeight - 8 - mr.height)}px`;
+      if (mr.right > window.innerWidth - 8) m.style.left = `${Math.max(8, x - mr.width - (level ? r.width + 4 : 0))}px`;
+    };
+    const close = () => { menus.forEach(m => m.remove()); window.removeEventListener('pointerdown', off, true); };
+    const off = ev => { if (!menus.some(m => m.contains(ev.target))) close(); };
+    build([
+      { label: 'New drawing', run: () => { this.loadDocument(createDocument(), 'new'); this.canvas.fit(); } },
+      { label: 'Open file', hint: 'Process JSON, SVG with a process record, Excalidraw, or an image as reference', run: () => this.openFile() },
+      { label: 'Save to Assets', keys: '⌘S', run: () => this.saveToAssets() },
+      { label: 'Export', items: [
+        { label: 'PNG', hint: 'The picture (or the process view, if shown)', run: () => this.exportAs('png') },
+        { label: 'SVG', hint: 'With the full process record inside; opens again as a process', run: () => this.exportAs('svg') },
+        { label: 'p5.js sketch', hint: 'A zip whose sketch re-runs the score', run: () => this.exportAs('p5') },
+        { label: 'Process sheet', hint: 'Stages, decisions and reasons on one page (PNG)', run: () => this.exportAs('sheet') },
+        { label: 'JSON', hint: 'The process document', run: () => this.exportAs('json') },
+        { label: 'Excalidraw', run: () => this.exportAs('excalidraw') }
+      ] },
+      '-',
+      { label: 'Settings', keys: '⌘,', run: () => this.docks.open('settings') },
+      { label: 'Command palette', keys: '⌘K', run: () => openPalette(this) },
+      { label: 'Docs', keys: '?', run: () => this.openDocs() },
+      '-',
+      { label: 'Panels' },
+      ...[...this.docks.panels.values()].filter(p => p.id !== 'settings').map(p => ({ label: p.title, run: () => this.docks.open(p.id) })),
+      { label: 'Reset layout', run: () => this.docks.reset() },
+      '-',
+      { label: 'Classic studio', hint: 'The earlier studio (generation, mediums, training)', run: () => { window.location.href = '/classic.html'; } }
+    ], r.left, r.bottom + 6);
     setTimeout(() => window.addEventListener('pointerdown', off, true));
   }
 
@@ -363,6 +394,7 @@ export class Workbench {
       const k = e.key.toLowerCase();
       const mod = e.metaKey || e.ctrlKey;
       if (mod && k === 'k') { e.preventDefault(); openPalette(this); return; }
+      if (mod && k === ',') { e.preventDefault(); this.docks.open('settings'); return; }
       if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
       if (k === '?') { this.openDocs(); return; }
       if (k === 'i' && !mod) { e.preventDefault(); eyedropToTarget(this); return; }

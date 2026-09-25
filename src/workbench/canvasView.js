@@ -37,6 +37,7 @@ export class CanvasView {
     // Note fonts are drawn on the canvas, so ask for them explicitly and redraw when they arrive.
     Promise.all(['22px Caveat', '17px "Patrick Hand"', '17px Newsreader'].map(f => document.fonts?.load(f).catch(() => null))).then(() => this.invalidate());
     this.upTo = Infinity;   // stage scrub
+    try { this.showGrid = localStorage.getItem('ams_grid') !== '0'; } catch { this.showGrid = true; }
     this.space = false;
     try { this.cam = JSON.parse(localStorage.getItem(CAMERA_KEY)) || null; } catch { this.cam = null; }
     this.resize();
@@ -143,6 +144,7 @@ export class CanvasView {
   }
 
   drawGrid(color) {
+    if (this.showGrid === false) return;
     const step = 20 * this.cam.z;
     if (step < 6) return;
     const { ctx } = this;
