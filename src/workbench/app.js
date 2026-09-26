@@ -591,7 +591,7 @@ export class Workbench {
   registerPanels() {
     const reg = (id, title, iconName, natural, mount, extra = {}) => this.docks.register({ id, title, icon: iconName, natural, mount: el => mount(el, this), ...extra });
     reg('stages', 'Stages', 'stages', 'left', mountStages);
-    reg('scenes', 'Scenes', 'layers', 'left', mountScenes);
+    reg('scenes', 'Scenes', 'scenes', 'left', mountScenes);
     reg('boards', 'Boards', 'board', 'left', mountBoards);
     reg('outliner', 'Outliner', 'layers', 'left', mountOutliner);
     reg('assets', 'Assets', 'assets', 'left', el => this.mountAssets(el));
