@@ -867,6 +867,14 @@ export class Workbench {
       ] } : null,
       '-',
       { label: 'Duplicate', run: () => { const out = this.store.duplicate(ids, 20 / z, 20 / z); this.canvas.select(out); } },
+      { label: 'Copy as', items: [
+        { label: 'SVG', hint: 'The selection as SVG (with its process record), on the clipboard', run: () => this.copySelection('svg', ids) },
+        { label: 'PNG', hint: 'The selection as a picture (transparent), on the clipboard', run: () => this.copySelection('png', ids) }
+      ] },
+      { label: 'Add to Assets', items: [
+        { label: 'As PNG', hint: 'A picture of the selection; opens again as a drawing', run: () => this.selectionToAssets('png', ids) },
+        { label: 'As SVG', hint: 'The selection as an SVG file (with its process record)', run: () => this.selectionToAssets('svg', ids) }
+      ] },
       n > 1 ? { label: 'Group', keys: sc('edit.group'), run: () => this.groupSelection() } : null,
       grouped ? { label: 'Ungroup', keys: sc('edit.ungroup'), run: () => this.ungroupSelection() } : null,
       { label: 'Lock', hint: 'Locked marks cannot be picked on the canvas (unlock in the Outliner)', run: () => { this.store.patchElements(ids, { locked: true }, 'lock'); this.canvas.select([]); } },
@@ -915,6 +923,52 @@ export class Workbench {
 
 
   slug() { return String(this.store.doc.title || 'drawing').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'drawing'; }
+
+  /**
+   * The selected marks as a drawing of their own: cropped to their bounds (with a margin), on a
+   * transparent ground, marks moved to the origin. For copying and adding to Assets.
+   */
+  selectionDoc(ids = [...this.canvas.selected], pad = 12) {
+    const doc = this.store.doc, els = doc.elements.filter(e => ids.includes(e.id));
+    if (!els.length) return null;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const e of els) for (const [x, y] of e.points) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    // Room for stroke widths.
+    const reach = Math.max(pad, ...els.map(e => Number(e.realize?.params?.width ?? e.realize?.params?.size ?? 4) * 2));
+    x0 -= reach; y0 -= reach; x1 += reach; y1 += reach;
+    const moved = els.map(e => { const c = structuredClone(e); delete c.board; c.points = c.points.map(([x, y, t, p]) => [x - x0, y - y0, t, p]); return c; });
+    const { boards, train, ...rest } = doc;
+    return { ...structuredClone(rest), title: `${doc.title || 'Untitled'} · selection`, artboard: { width: Math.ceil(x1 - x0), height: Math.ceil(y1 - y0), ground: 'transparent' }, elements: moved };
+  }
+
+  async selectionBlob(kind, ids) {
+    const d = this.selectionDoc(ids);
+    if (!d) return null;
+    if (kind === 'svg') return new Blob([toSVG(d, { mode: this.view.mode })], { type: 'image/svg+xml' });
+    const scale = Math.min(4, 2000 / Math.max(d.artboard.width, d.artboard.height));
+    return canvasBlob(renderToCanvas(d, { scale, mode: this.view.mode }));
+  }
+
+  async copySelection(kind, ids) {
+    try {
+      const blob = await this.selectionBlob(kind, ids);
+      if (!blob) return;
+      if (kind === 'svg') await navigator.clipboard.writeText(await blob.text());
+      else await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      this.log(`Copied the selection as ${kind.toUpperCase()}.`);
+    } catch (err) { this.log(`Could not copy: ${err.message}`, 'error'); }
+  }
+
+  async selectionToAssets(kind, ids) {
+    const d = this.selectionDoc(ids);
+    if (!d) return;
+    const blob = await this.selectionBlob(kind, ids);
+    const folder = this.assetPanel?.folder || '';
+    const a = kind === 'png'
+      ? await this.assetStore.add(blob, { title: d.title, kind: 'process', folder, tags: ['selection'], program: d, meta: { elements: d.elements.length } })
+      : await this.assetStore.add(blob, { title: d.title, kind: 'import', folder, tags: ['selection', 'svg'], meta: { file: 'selection.svg', type: 'image/svg+xml' } });
+    this.log(`Added “${a.title}” to Assets (${kind.toUpperCase()}).`);
+  }
 
   /** Export a board (the main one unless given) as png, sheet, svg, json, excalidraw or p5. */
   async exportAs(kind, board = this.activeBoard || MAIN) {

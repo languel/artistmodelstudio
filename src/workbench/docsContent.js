@@ -122,7 +122,7 @@ Shift+double-click renames in place anything with a name: marks, groups and stag
 
 **Parameters in code** become controls in the code editor. Each params entry (key: [min, max, default, 'doc']) gets a slider: in Sculpt it sets the value in use, in Brush it rewrites the default. Any number followed by a range comment, like 0.4 /* 0..1 */, gets a slider that rewrites it. Cmd-drag any number in the code to scrub it (Shift for fine steps).
 
-**Right-click** a mark for its operations: arrange (front, forward, backward, back), move to stage, brush, simplify (fewer points, same shape), duplicate, group, lock, hide, delete. Right-click the empty canvas for select all, fit, grid, snap, and a note there.
+**Right-click** a mark for its operations: arrange (front, forward, backward, back), move to stage, copy as SVG or PNG and add to Assets (as PNG, which opens again as a drawing, or SVG; cropped to the selection, transparent), brush, simplify (fewer points, same shape), duplicate, group, lock, hide, delete. Right-click the empty canvas for select all, fit, grid, snap, and a note there.
 
 **Drag an asset** from Assets anywhere on the canvas: a picture becomes an image layer (move, scale and rotate it like any mark; it travels inside the drawing), a saved drawing comes in as a group of its marks. Image files can be dropped from the desktop too.
 

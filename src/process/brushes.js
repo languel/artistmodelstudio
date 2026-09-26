@@ -25,7 +25,7 @@ const INK = '#1d1b19';
 const param = (key, label, min, max, step, def, doc) => ({ key, label, min, max, step, default: def, doc });
 
 /** Catmull-Rom resampling so hand-drawn and scripted paths render smoothly. */
-function smoothPath(points, closed, samplesPerSeg = 6) {
+function smoothPath(points, closed, samplesPerSeg) {
   if (points.length < 3) return points.map(p => p.slice());
   const out = [];
   const n = points.length;
@@ -33,8 +33,11 @@ function smoothPath(points, closed, samplesPerSeg = 6) {
   const segs = closed ? n : n - 1;
   for (let i = 0; i < segs; i++) {
     const p0 = get(i - 1), p1 = get(i), p2 = get(i + 1), p3 = get(i + 2);
-    for (let s = 0; s < samplesPerSeg; s++) {
-      const t = s / samplesPerSeg, t2 = t * t, t3 = t2 * t;
+    // Samples follow the span's length (about one per 3 units, 6 to 96), so few, far-apart points
+    // (a simplified line) still curve smoothly; a caller can ask for a fixed number.
+    const k = samplesPerSeg || Math.max(6, Math.min(96, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 3)));
+    for (let s = 0; s < k; s++) {
+      const t = s / k, t2 = t * t, t3 = t2 * t;
       const f = (a, b, c, d) => 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
       out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1]), p1[2] + (p2[2] - p1[2]) * t, p1[3] + (p2[3] - p1[3]) * t]);
     }
