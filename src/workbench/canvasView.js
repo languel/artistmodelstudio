@@ -556,6 +556,7 @@ export class CanvasView {
     });
     c.addEventListener('contextmenu', e => {
       e.preventDefault();
+      if (this.pointer || this.draft) return;   // Ctrl held while drawing (snap) is not a right-click
       const bh = this.boardHandleAt(...this.local(e));
       if (bh) { this.selectBoard(bh.id); this.onBoardContext?.(bh.id, e); return; }
       const [wx, wy] = this.toWorld(...this.local(e));
@@ -840,6 +841,7 @@ export class CanvasView {
     const t0 = performance.now();
     if (tool === 'guide') [wx, wy] = this.snapPt(wx, wy);
     // The Brush tool draws with the active brush: a line, or a plane for a plane-only brush.
+    if (e.ctrlKey && tool !== 'guide') [wx, wy] = this.snapPt(wx, wy, true);
     const role = tool === 'brush' ? (this.getDefaults('brush').role || 'line') : tool;
     const dkey = tool === 'brush' ? 'brush' : role;
     const d = this.getDefaults(dkey);
@@ -851,7 +853,7 @@ export class CanvasView {
     // Lazy drawing: the pen trails the cursor on a string (screen px), smoothed (an editor setting).
     const lazy = this.getLazy?.() || { radius: 0, smoothing: 0 };
     const lazyOn = !straight && (lazy.radius > 0 || lazy.smoothing > 0);   // (lazy.simplify applies on release)
-    let pen = [wx, wy];
+    let pen = [wx, wy], snapped = Boolean(e.ctrlKey);
     const mv = ev => {
       let [x, y] = this.toWorld(...this.local(ev));
       if (lazyOn) {
@@ -866,8 +868,15 @@ export class CanvasView {
         else [x1, y1] = this.snapPt(x1, y1);
         this.draft.points = [this.draft.points[0], [x1, y1, now - t0, 0.5]];
       } else {
+        // Ctrl held: every point lands on the grid (whether grid snap is on or not).
+        if (ev.ctrlKey) {
+          snapped = true;
+          [x, y] = this.snapPt(x, y, true);
+          const prev = this.draft.points[this.draft.points.length - 1];
+          if (prev && prev[0] === x && prev[1] === y) { this.invalidate(); return; }
+        }
         const dist = Math.hypot(x - last[0], y - last[1]);
-        if (dist < 1.5 / this.cam.z) return;
+        if (dist < 1.5 / this.cam.z && !ev.ctrlKey) return;
         const speed = dist * this.cam.z / Math.max(1, now - last[2]);
         this.draft.points.push([x, y, now - t0, pressureOf(ev, speed)]);
         last = [x, y, now];
@@ -881,9 +890,11 @@ export class CanvasView {
       this.draft = null;
       this.rope = null;
       // A lasso: cut the tails where start and end overshoot, and smooth the seam (no spikes at the closure).
-      if (role === 'plane') pts = closeLasso(decimate(pts, 0.75 / this.cam.z), 6 / this.cam.z);
+      // Snapped strokes keep their grid points (no seam relaxing, no decimation).
+      if (role === 'plane' && !snapped) pts = closeLasso(decimate(pts, 0.75 / this.cam.z), 6 / this.cam.z);
+      else if (role === 'plane' && pts.length > 3 && pts[0][0] === pts.at(-1)[0] && pts[0][1] === pts.at(-1)[1]) pts = pts.slice(0, -1);
       const minPts = role === 'plane' ? 3 : 2;
-      if (!straight && role !== 'plane') pts = decimate(pts, 0.75 / this.cam.z);
+      if (!straight && role !== 'plane' && !snapped) pts = decimate(pts, 0.75 / this.cam.z);
       // Auto simplify: fewer points within a tolerance (screen px), same shape; ends and time kept.
       if (!straight && lazy.simplify > 0 && pts.length > 3) { const out = rdp(pts, lazy.simplify / this.cam.z); if (out.length >= minPts) pts = out; }
       if (pts.length >= minPts) this.commitNew(role, pts, {}, dkey);

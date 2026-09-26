@@ -96,6 +96,8 @@ Every key can be changed in **Shortcuts** (menu, or Shift+Cmd+/): search, click 
 
 Shift+double-click renames in place anything with a name: marks, groups and stages in the Outliner, boards (panel and canvas), stages, timeline tracks, and asset titles and folders (Enter keeps it, Esc puts it back). In the Outliner and the Boards panel a plain double-click frames the item on the canvas.
 
+**Snap while drawing**: hold Ctrl while drawing (line, plane, gesture, brush) and every point lands on the grid (its finest lines, major ÷ divisions), whether grid snap is on or not; repeated points are dropped and the points stay exactly on the grid.
+
 **Performance**: right-click the zoom control (or the command palette: performance readout) for frames per second while the canvas redraws, the last redraw in milliseconds, and the number of marks; a redraw slower than 16 ms shows in the accent color. ams_ui reports the last redraw too.
 
 **The interface** is kept minimal: the tools island (top centre) and the menu island (top left: the menu, view, points, present, theme). Drag an island by its grip to move it; double-click the grip to put it back. Cmd+. hides all of the interface, leaving only the drawing (again to bring it back); the command palette (and ams_ui) shows or hides the tools, the menu island, the zoom controls or the panels one by one. Scenes, boards and stages live in their panels; right-click and Opt+right-click for properties.
