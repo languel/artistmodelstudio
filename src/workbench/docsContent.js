@@ -96,6 +96,8 @@ Every key can be changed in **Shortcuts** (menu, or Shift+Cmd+/): search, click 
 
 Shift+double-click renames in place anything with a name: marks, groups and stages in the Outliner, boards (panel and canvas), stages, timeline tracks, and asset titles and folders (Enter keeps it, Esc puts it back). In the Outliner and the Boards panel a plain double-click frames the item on the canvas.
 
+**Performance**: right-click the zoom control (or the command palette: performance readout) for frames per second while the canvas redraws, the last redraw in milliseconds, and the number of marks; a redraw slower than 16 ms shows in the accent color. ams_ui reports the last redraw too.
+
 **The interface** is kept minimal: the tools island (top centre) and the menu island (top left: the menu, view, points, present, theme). Drag an island by its grip to move it; double-click the grip to put it back. Cmd+. hides all of the interface, leaving only the drawing (again to bring it back); the command palette (and ams_ui) shows or hides the tools, the menu island, the zoom controls or the panels one by one. Scenes, boards and stages live in their panels; right-click and Opt+right-click for properties.
 
 **Scenes** (the Scenes panel): a project holds several drawings, each with its boards, its own undo and History, and its own Timeline; Assets, brushes and settings are shared. New, duplicate, reorder and delete scenes from the button's menu; Alt+PageDown and Alt+PageUp step through them, Opt+Cmd+N makes a new one. Opening a drawing from Assets (or a file) makes it a new scene, so the one you were working on stays as it was. Agents use ams_scene.
@@ -145,7 +147,7 @@ The canvas is infinite: doodle around the artboard. Only the artboard is the pic
 Construction (guides, gestures, notes) is never part of the picture: it shows in Process view and in the process sheet. Every mark also carries a *why* and a *by* (who made it).
 
 ## Look
-Every element has an **opacity** and a **blend mode** (multiply, screen, overlay, darken, lighten, difference…) in Properties → Look, on top of its brush. Both carry into SVG exports.
+Every element has an **opacity** and a **blend mode** (multiply, screen, overlay, darken, lighten, difference…) in Properties → Look, on top of its brush. Both carry into SVG exports. Look also sets the **path**: Smooth draws a curve through the mark's points (the default), Straight draws straight segments between them (in a score: line(pts, { path: 'straight' })).
 
 ## Color
 Click a color swatch for the picker: a saturation and brightness field, hue and opacity, hex (8-digit hex keeps the opacity), palettes after Klee (Senecio, Castle and Sun, Twittering Machine), Kandinsky, Bauhaus, notebook inks and grays, your recent colors, and your own palette (+ adds the current color; right-click removes). The eyedropper button, or I, samples any pixel. The image button makes a palette from the reference (named after the nearest pigments). The hex field also takes names: *burnt sienna*, *payne's gray*, *crimson*, or any palette color's name.

@@ -171,6 +171,27 @@ export class Workbench {
     this.emit('lazy');
   }
 
+  /** A small performance readout beside the zoom control: fps while redrawing, the last redraw, marks. */
+  togglePerf(on = !this.perfOn) {
+    this.perfOn = on;
+    try { localStorage.setItem('ams_perf', on ? '1' : '0'); } catch { /* ignore */ }
+    cancelAnimationFrame(this.perfRaf);
+    this.renderChrome();
+    if (!on) return;
+    let frames = this.canvas.stats?.frames || 0, t = performance.now(), fps = 0;
+    const tick = now => {
+      if (now - t >= 500) {
+        const f = this.canvas.stats?.frames || 0;
+        fps = Math.round(((f - frames) * 1000) / (now - t)); frames = f; t = now;
+        const s = this.canvas.stats;
+        if (this.perfEl) this.perfEl.textContent = `${fps} fps · ${s ? s.draw.toFixed(1) : '–'} ms · ${this.store.doc.elements.length} marks`;
+        this.perfEl?.classList.toggle('slow', Boolean(s && s.avg > 16));
+      }
+      this.perfRaf = requestAnimationFrame(tick);
+    };
+    this.perfRaf = requestAnimationFrame(tick);
+  }
+
   togglePoints() {
     this.canvas.showPoints = !this.canvas.showPoints;
     try { localStorage.setItem('ams_show_points', this.canvas.showPoints ? '1' : '0'); } catch { /* ignore */ }
@@ -533,6 +554,7 @@ export class Workbench {
     // Opt+right-click: the active tool's parameters as sliders; right-click: the menu.
     try { const ac = localStorage.getItem('ams_accent'); if (ac) document.documentElement.style.setProperty('--wb-accent-2', ac); } catch { /* ignore */ }
     try { this.canvas.showPoints = localStorage.getItem('ams_show_points') === '1'; } catch { /* ignore */ }
+    try { if (localStorage.getItem('ams_perf') === '1') requestAnimationFrame(() => this.togglePerf(true)); } catch { /* ignore */ }
     this.canvas.onContext = (e, hit, at) => (e.altKey ? openToolParams(this, e.clientX, e.clientY) : showMenu(this.contextItems(hit, at), e.clientX, e.clientY));
     this.activeBoard = MAIN;
     this.canvas.onBoardSelect = id => { this.activeBoard = id; this.emit('board'); };
@@ -719,6 +741,8 @@ export class Workbench {
       h('button', { class: 'wb-tool', title: 'Zoom in', html: icon('up'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1.2) }),
       h('button', { class: 'wb-tool', title: 'Fit the active board (F)', html: icon('fit'), onclick: () => { this.canvas.fit(60, this.activeBoard || MAIN); this.renderChrome(); } })
     );
+    if (this.perfOn) this.zoomIsland.append(this.perfEl ||= h('span', { class: 'wb-perf', title: 'Frames per second while the canvas redraws · the last redraw · marks' }));
+    this.zoomIsland.oncontextmenu = e => { e.preventDefault(); this.togglePerf(); };
     this.makeMovable(this.zoomIsland, 'zoom');
   }
 

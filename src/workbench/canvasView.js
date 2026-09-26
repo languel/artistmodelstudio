@@ -143,6 +143,13 @@ export class CanvasView {
   }
 
   draw() {
+    const t0 = performance.now();
+    this.drawFrame_();
+    const ms = performance.now() - t0;
+    this.stats = { draw: ms, avg: this.stats ? this.stats.avg * 0.9 + ms * 0.1 : ms, frames: (this.stats?.frames || 0) + 1 };
+  }
+
+  drawFrame_() {
     const { ctx } = this;
     const css = getComputedStyle(document.documentElement);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);

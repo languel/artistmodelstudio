@@ -40,6 +40,7 @@ export function defaultCommands(app) {
     cmd('tool.board', 'Tools', 'Board', ['shift+o'], () => app.setTool('board')),
     cmd('view.present', 'View', 'Present the boards', ['mod+alt+p'], () => app.present()),
     cmd('ui.all', 'View', 'Show / hide all the interface (only the drawing)', ['mod+.'], () => { const u = app.ui || {}; app.setUI({ all: !(u.tools !== false || u.view !== false || u.zoom !== false || u.panels !== false) }); }, { global: true }),
+    cmd('ui.perf', 'View', 'Show / hide the performance readout (fps, redraw time)', [], () => app.togglePerf()),
     cmd('ui.tools', 'View', 'Show / hide the tools', [], () => app.setUI({ tools: !(app.ui?.tools !== false) })),
     cmd('ui.view', 'View', 'Show / hide the view controls and menu', [], () => app.setUI({ view: !(app.ui?.view !== false) })),
     cmd('ui.zoom', 'View', 'Show / hide the zoom controls', [], () => app.setUI({ zoom: !(app.ui?.zoom !== false) })),
