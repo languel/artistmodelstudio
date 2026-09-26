@@ -48,7 +48,7 @@ function sample(W, H, { line = true, plane = true, pad = 10 } = {}) {
 }
 
 export function mountBrushes(root, app) {
-  let current = 'ink';
+  let current = app.brush?.id || 'ink';
   let def = null;
   const status = h('div', { class: 'wb-script-out' });
   const preview = h('canvas', { class: 'wb-brush-preview', width: 480, height: 130 });
@@ -92,23 +92,27 @@ export function mountBrushes(root, app) {
   // Param sliders act on the marks: the selected ones drawn with this brush, else the current tool's
   // defaults if it uses this brush; otherwise they rewrite the code's defaults (preview only).
   const targets = () => {
-    const sel = (app.selectedElements?.() || []).filter(e => e.realize?.brush === current);
+    const all = app.selectedElements?.() || [];
+    const sel = all.filter(e => e.realize?.brush === current);
     if (sel.length) return { kind: 'sel', ids: sel.map(e => e.id), label: `${sel.length} selected mark${sel.length === 1 ? '' : 's'}` };
+    if (all.length) return null;
     const d = app.tool && app.defaults?.(app.tool);
-    if (d?.realize?.brush === current && !(app.selectedElements?.() || []).length) return { kind: 'tool', label: `new ${app.tool} marks` };
+    if (d?.realize?.brush === current) return { kind: 'tool', tool: app.tool, label: app.tool === 'brush' ? 'the active brush' : `new ${app.tool} marks` };
+    // Nothing selected, another tool: the active brush, if it is this one.
+    if (app.brush?.id === current) return { kind: 'tool', tool: 'brush', label: 'the active brush' };
     return null;
   };
   let before = null, commitTimer = 0, fromEditor = false;
   const liveColor = () => {
     const t = targets();
     if (t?.kind === 'sel') return app.store.doc.elements.find(e => e.id === t.ids[0])?.color || null;
-    if (t?.kind === 'tool') return app.defaults(app.tool).color || null;
+    if (t?.kind === 'tool') return app.defaults(t.tool).color || null;
     return null;
   };
   const livePreviewParams = () => {
     const t = targets();
     if (t?.kind === 'sel') return app.store.doc.elements.find(e => e.id === t.ids[0])?.realize.params;
-    if (t?.kind === 'tool') return app.defaults(app.tool).realize.params;
+    if (t?.kind === 'tool') return app.defaults(t.tool).realize.params;
     return null;
   };
   const live = {
@@ -116,14 +120,14 @@ export function mountBrushes(root, app) {
     get: key => {
       const t = targets();
       if (t?.kind === 'sel') return app.store.doc.elements.find(e => e.id === t.ids[0])?.realize.params?.[key];
-      if (t?.kind === 'tool') return app.defaults(app.tool).realize.params?.[key];
+      if (t?.kind === 'tool') return app.defaults(t.tool).realize.params?.[key];
       return undefined;
     },
     set: (key, v) => {
       const t = targets();
       if (!t) return false;
       fromEditor = true;
-      if (t.kind === 'tool') { app.setDefaults(app.tool, { realize: { params: { [key]: v } } }); requestAnimationFrame(draw); }
+      if (t.kind === 'tool') { app.setDefaults(t.tool, { realize: { params: { [key]: v } } }); requestAnimationFrame(draw); }
       else {
         // Direct edits while dragging; one undo step when the slider rests.
         before ??= JSON.stringify(app.store.doc);
@@ -141,6 +145,8 @@ export function mountBrushes(root, app) {
   const refreshLive = () => { if (!fromEditor) { editor.setLive({ ...live }); draw(); } };
   app.on('selection', refreshLive);
   app.on('tool', refreshLive);
+  // Picking another active brush shows its code.
+  app.on('brush', () => { if (app.brush.id !== current && BRUSHES[app.brush.id]) open(app.brush.id); else refreshLive(); });
 
   const open = id => { current = id; editor.value = brushSource(id) || TEMPLATE(id); renderBar(); check(); refreshLive(); };
   const save = () => {

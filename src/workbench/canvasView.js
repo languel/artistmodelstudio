@@ -18,7 +18,7 @@ const CAMERA_KEY = 'ams_workbench_camera_v1';
 export const TOOL_KEYS = { v: 'select', h: 'hand', p: 'line', e: 'gesture', a: 'plane', g: 'guide', o: 'point', t: 'note' };
 
 /** Tools where Shift+drag over a mark sculpts it (Guide keeps Shift for angle snapping). */
-const SHIFT_SCULPT = new Set(['select', 'line', 'plane', 'gesture']);
+const SHIFT_SCULPT = new Set(['select', 'line', 'plane', 'gesture', 'brush']);
 
 export class CanvasView {
   constructor(host, store, { getTool, getStage, getDefaults, getSculpt, onSelect, onTool, onNoteStyled, viewMode }) {
@@ -625,8 +625,10 @@ export class CanvasView {
   startStroke(e, tool, wx, wy) {
     const t0 = performance.now();
     if (tool === 'guide') [wx, wy] = this.snapPt(wx, wy);
-    const role = tool;
-    const d = this.getDefaults(role);
+    // The Brush tool draws with the active brush: a line, or a plane for a plane-only brush.
+    const role = tool === 'brush' ? (this.getDefaults('brush').role || 'line') : tool;
+    const dkey = tool === 'brush' ? 'brush' : role;
+    const d = this.getDefaults(dkey);
     this.draft = normalizeElement({ role, stage: 'draft', points: [[wx, wy, 0, pressureOf(e, 0)]], realize: d.realize, color: d.color, ...(d.fill ? { fill: d.fill } : {}), seed: 1 }, 'draft');
     let last = [wx, wy, t0];
     this.pointer = true;
@@ -656,7 +658,7 @@ export class CanvasView {
       // A lasso that ends where it started: drop the duplicate closing points (no notch).
       if (role === 'plane') while (pts.length > 3 && Math.hypot(pts[pts.length - 1][0] - pts[0][0], pts[pts.length - 1][1] - pts[0][1]) < 6 / this.cam.z) pts = pts.slice(0, -1);
       const minPts = role === 'plane' ? 3 : 2;
-      if (pts.length >= minPts) this.commitNew(role, straight ? pts : decimate(pts, 0.75 / this.cam.z));
+      if (pts.length >= minPts) this.commitNew(role, straight ? pts : decimate(pts, 0.75 / this.cam.z), {}, dkey);
       else this.invalidate();
     };
     window.addEventListener('pointermove', mv);
@@ -688,8 +690,8 @@ export class CanvasView {
     ta.addEventListener('blur', () => finish(true));
   }
 
-  commitNew(role, points, extra = {}) {
-    const d = this.getDefaults(role);
+  commitNew(role, points, extra = {}, dkey = role) {
+    const d = this.getDefaults(dkey);
     const stage = this.getStage();
     const e = this.store.addElement({
       role, stage: stage.id, points, realize: structuredClone(d.realize || DEFAULT_REALIZE[role]),

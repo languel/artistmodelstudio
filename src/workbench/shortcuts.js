@@ -19,6 +19,7 @@ export function defaultCommands(app) {
     cmd('tool.gesture', 'Tools', 'Gesture', ['e'], () => app.setTool('gesture')),
     cmd('tool.guide', 'Tools', 'Guide', ['g'], () => app.setTool('guide')),
     cmd('tool.note', 'Tools', 'Note', ['t'], () => app.setTool('note')),
+    cmd('tool.brush', 'Tools', 'Brush', ['b'], () => app.setTool('brush')),
     cmd('tool.sculpt', 'Tools', 'Sculpt', ['s'], () => app.setTool('sculpt')),
     cmd('sculpt.smaller', 'Tools', 'Sculpt radius smaller', ['['], () => app.setSculpt({ radius: app.sculpt.radius / 1.2 })),
     cmd('sculpt.larger', 'Tools', 'Sculpt radius larger', [']'], () => app.setSculpt({ radius: app.sculpt.radius * 1.2 })),

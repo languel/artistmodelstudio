@@ -72,17 +72,17 @@ export function mountProperties(el, app) {
   const renderDefaults = () => {
     const tool = app.tool;
     if (tool === 'sculpt') return renderSculpt();
-    if (!ROLES[tool]) {
+    if (!ROLES[tool] && tool !== 'brush') {
       el.append(h('div', { class: 'wb-empty' }, 'Select something, or pick a drawing tool to set its defaults.'));
       return;
     }
     const d = app.defaults(tool);
-    el.append(h('div', { class: 'wb-panel-title' }, `New ${tool}`, h('span', { class: 'wb-muted' }, ' · defaults')));
+    el.append(h('div', { class: 'wb-panel-title' }, tool === 'brush' ? 'Brush' : `New ${tool}`, h('span', { class: 'wb-muted' }, tool === 'brush' ? ' · active' : ' · defaults')));
     el.append(section('Element', true,
       row('Color', colorField(d.color, v => app.setDefaults(tool, { color: v }), { app }))
     ));
     if (tool === 'note') el.append(noteSection(noteProps({ note: d.note, color: d.color, points: [] }), patch => app.setDefaults(tool, { note: patch }), app));
-    else el.append(brushSection(tool, d.realize, realize => app.setDefaults(tool, { realize }), app.store.doc));
+    else el.append(brushSection(d.role || tool, d.realize, realize => app.setDefaults(tool, { realize }), app.store.doc));
     el.append(lookSection(d, patch => app.setDefaults(tool, patch)));
     el.append(section('Reason', true, whyField(d.why || '', v => app.setDefaults(tool, { why: v }), 'Why the next marks are made (kept on each one)')));
   };
@@ -119,6 +119,7 @@ export function mountProperties(el, app) {
   app.on('clip-select', render);
   app.on('selection', () => { if (app.canvas?.selected.size) app.selectedClip = null; render(); });
   app.on('tool', render);
+  app.on('brush', () => { if (app.tool === 'brush' && !app.selectedElements().length) render(); });
   app.on('sculpt', () => { if (app.tool === 'sculpt' && !app.selectedElements().length) render(); });
   render();
 }

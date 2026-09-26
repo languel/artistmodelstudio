@@ -42,7 +42,7 @@ import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
 import { openPalette } from './palette.js';
 import { showMenu } from './menu.js';
-import { brushesForRole, KIT } from '../process/brushes.js';
+import { brushesForRole, KIT, BRUSHES } from '../process/brushes.js';
 import { Shortcuts } from './shortcuts.js';
 import { eyedropToTarget, openPicker, parseColor, formatColor } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
@@ -54,8 +54,10 @@ const DEFAULTS_KEY = 'ams_tool_defaults_v1';
 const TOOLS = [
   ['select', 'Select and move', 'V'], ['hand', 'Pan', 'H'], null,
   ['point', 'Point: a mark at a place', 'O'], ['line', 'Line: a point that moved', 'P'], ['plane', 'Plane: an enclosed area', 'A'], null,
-  ['gesture', 'Gesture: the movement behind a form', 'E'], ['guide', 'Guide: construction (straight; Shift snaps)', 'G'], ['note', 'Note: a written annotation', 'T']
+  ['gesture', 'Gesture: the movement behind a form', 'E'], ['guide', 'Guide: construction (straight; Shift snaps)', 'G']
 ];
+const NOTE_TOOL = ['note', 'Note: a written annotation', 'T'];
+const BRUSH_KEY = 'ams_brush_active';
 const SCULPT_KEY = 'ams_sculpt_v1';
 
 export class Workbench {
@@ -78,6 +80,8 @@ export class Workbench {
     // Sculpt: the current sculpt tool, brush radius (screen px), strength, and each tool's params.
     try { this.sculpt = { tool: 'push', radius: 40, strength: 0.5, params: {}, ...JSON.parse(localStorage.getItem(SCULPT_KEY) || '{}') }; } catch { this.sculpt = { tool: 'push', radius: 40, strength: 0.5, params: {} }; }
     loadSculptLibrary();
+    // The active brush: the Brush tool draws with it; its params are kept per brush.
+    try { this.brush = { id: 'ink', params: {}, ...JSON.parse(localStorage.getItem(BRUSH_KEY) || '{}') }; } catch { this.brush = { id: 'ink', params: {} }; }
     if (!SCULPTS[this.sculpt.tool]) this.sculpt.tool = 'push';
     // Global paint: stroke and fill for new marks (null: the brush's own ink / no fill).
     // Plain colors for now; like brushes, strokes and fills are meant to become processes (code) too.
@@ -173,11 +177,49 @@ export class Workbench {
   }
 
   defaults(role) {
+    if (role === 'brush') {
+      const b = BRUSHES[this.brush.id] ? this.brush.id : 'ink';
+      const roles = BRUSHES[b].roles || ['line'];
+      const r = roles.includes('line') ? 'line' : roles.includes('plane') ? 'plane' : roles.includes('gesture') ? 'gesture' : 'line';
+      return { ...this.defaults(r), role: r, realize: { brush: b, params: { ...(this.brush.params[b] || {}) } } };
+    }
     const d = this.toolDefaults[role] || {};
     return { color: (role !== 'note' && this.paint?.stroke) || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...(role === 'note' ? { note: d.note || {} } : {}) };
   }
 
+  /** The active brush: { id } to pick one, { params } to set the active brush's params. */
+  setBrush(patch) {
+    const b = this.brush;
+    if (patch.id && BRUSHES[patch.id]) b.id = patch.id;
+    if (patch.params) b.params = { ...b.params, [b.id]: { ...(b.params[b.id] || {}), ...patch.params } };
+    try { localStorage.setItem(BRUSH_KEY, JSON.stringify(b)); } catch { /* ignore */ }
+    this.emit('brush');
+    if (patch.id) this.renderChrome();
+  }
+
+  brushMenu(x, y) {
+    const cur = this.brush.id;
+    const ids = Object.keys(BRUSHES).filter(id => !BRUSHES[id].construction && BRUSHES[id].roles?.some(r => ['line', 'plane', 'gesture'].includes(r)));
+    showMenu([
+      { label: 'Brush' },
+      ...ids.map(id => ({ label: `${id === cur ? '✓ ' : ''}${BRUSHES[id].label}`, hint: BRUSHES[id].doc, run: () => { this.setBrush({ id }); if (this.tool !== 'brush') this.setTool('brush'); } })),
+      '-',
+      { label: 'Settings…', hint: 'Opt+right-click on the canvas', run: () => { this.setTool('brush'); openToolParams(this, x, y); } },
+      { label: 'Show code', run: () => this.openCode?.('brush', cur) }
+    ], x, y);
+  }
+
   setDefaults(role, patch) {
+    if (role === 'brush') {
+      // The active brush keeps its own brush and params; the rest (color, look, why) is the role's.
+      const { realize, ...rest } = patch;
+      if (realize?.brush) this.setBrush({ id: realize.brush });
+      if (realize?.params) this.setBrush({ params: realize.params });
+      if (Object.keys(rest).length) this.setDefaults(this.defaults('brush').role, rest);
+      if (!realize) return;
+      this.emit('tool');
+      return;
+    }
     const d = this.defaults(role);
     if (patch.realize) d.realize = { brush: patch.realize.brush || d.realize.brush, params: patch.realize.brush && patch.realize.brush !== d.realize.brush ? {} : { ...d.realize.params, ...(patch.realize.params || {}) } };
     if ('color' in patch) d.color = patch.color;
@@ -358,15 +400,21 @@ export class Workbench {
       const [id, tip, key] = t;
       tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) }));
     }
+    // Brush: the active brush (click again or right-click for the list).
+    const bb = BRUSHES[this.brush.id] || BRUSHES.ink;
+    const brushBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'brush' ? ' on' : ''}`, 'data-guide': 'tool:brush', title: `Brush: ${bb.label} (B). Click again or right-click for the brushes`, html: `${icon('brush')}<kbd>B</kbd><span class="wb-tool-caret"></span>` });
+    brushBtn.addEventListener('click', () => { if (this.tool === 'brush') { const r = brushBtn.getBoundingClientRect(); this.brushMenu(r.left, r.bottom + 4); } else this.setTool('brush'); });
+    brushBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.brushMenu(ev.clientX, ev.clientY); });
     // Sculpt: one button for the stack of sculpt tools (click again or right-click for the list).
     const st = SCULPTS[this.sculpt.tool];
     const sculptBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'sculpt' ? ' on' : ''}`, 'data-guide': 'tool:sculpt', title: `Sculpt: ${st?.label} (S; Shift+drag over a mark with other tools). Click again or right-click for the sculpt tools`, html: `${icon('sculpt')}<kbd>S</kbd><span class="wb-tool-caret"></span>` });
     sculptBtn.addEventListener('click', ev => { if (this.tool === 'sculpt') { const r = sculptBtn.getBoundingClientRect(); this.sculptMenu(r.left, r.bottom + 4); } else this.setTool('sculpt'); });
     sculptBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.sculptMenu(ev.clientX, ev.clientY); });
-    tools.append(h('div', { class: 'wb-sep' }), sculptBtn);
+    tools.append(h('div', { class: 'wb-sep' }), brushBtn, sculptBtn);
     // Snap to grid: on shows the grid at full strength; off, fainter.
     const snapKey = this.shortcuts?.label('view.snap') || '';
     tools.append(h('div', { class: 'wb-sep' }), this.paintSwatches(), h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''}`, html: icon('snap'), onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }) }));
+    { const [id, tip, key] = NOTE_TOOL; tools.append(h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) })); }
     const right = h('div', { class: 'wb-island' },
       h('button', { class: 'wb-tool', 'data-guide': 'view', title: this.view.mode === 'process' ? 'Process: guides, gestures and notes shown (\\ for the picture)' : 'Picture: the finished picture (\\ for the process)', html: icon(this.view.mode === 'process' ? 'viewProcess' : 'viewPicture'), onclick: () => this.setViewMode(this.view.mode === 'picture' ? 'process' : 'picture') }),
       this.reference ? h('button', { class: `wb-tool${this.reference.visible ? ' on' : ''}`, title: `Reference underlay: ${this.reference.title} (R toggles)`, html: icon('picture'), onclick: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } }) : null,
