@@ -476,7 +476,7 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-clip.t-action { background: color-mix(in srgb, var(--wb-muted) 45%, transparent); color: var(--wb-text); }
 .wb-tl-clip.t-camera { background: #b3bfd0; }
 .wb-tl-clip.t-audio { background: #d0b3c4; }
-.wb-tl-playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: #c0563f; pointer-events: none; }
+.wb-tl-playhead { position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: #c0563f; pointer-events: none; will-change: transform; }
 .wb-tl-empty { padding: 14px; color: var(--wb-muted); }
 
 /* Derived from the theme: text selection, secondary accent. */

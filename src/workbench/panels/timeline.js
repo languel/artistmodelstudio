@@ -123,13 +123,23 @@ export function mountTimeline(root, app) {
   const fitZoom = () => { const d = P().duration; const w = lanes.clientWidth || 600; pps = Math.max(2, Math.min(400, (w - 40) / Math.max(1, d / 1000))); };
   const x = ms => (ms / 1000) * pps;
   const live = () => (!P()?.take && R()?.recording ? R().take : null);
+  // The playhead is one element moved by a transform every frame; lanes are rebuilt only when clips change.
+  const playhead = h('div', { class: 'wb-tl-playhead' });
+  let laneWidth = 0;
+  const setHead = ms => { playhead.style.transform = `translateX(${x(ms)}px)`; };
+  // Follow in pages: when the playhead nears the right edge, jump so it sits near the left.
+  const follow = ms => {
+    const hx = x(ms), left = lanes.scrollLeft, w = lanes.clientWidth;
+    if (hx > left + w * 0.9 || hx < left) lanes.scrollLeft = Math.max(0, hx - w * 0.2);
+  };
   const drawLanes = () => {
     const p = P(), rec = live(), take = p?.take || rec;
     const tracks = take ? tracksOf(take) : TRACKS.map(k => ({ id: k, kind: k, name: TRACK_NAMES[k] }));
     labels.replaceChildren(h('div', { class: 'wb-tl-rulerlabel' }), ...tracks.map(tr => trackLabel(tr, take, Boolean(rec))));
     if (!take) { lanes.replaceChildren(h('div', { class: 'wb-tl-empty' }, 'Record, or open a take.')); return; }
     const now = rec ? R().now() : p.t;
-    const d = rec ? now : p.duration, W = Math.max(lanes.clientWidth, x(d) + 120);
+    const d = rec ? now : p.duration, W = Math.max(lanes.clientWidth, x(d) + (rec ? lanes.clientWidth : 120));
+    laneWidth = W;
     const ruler = h('div', { class: 'wb-tl-ruler', style: { width: `${W}px` } });
     const step = pps > 80 ? 1 : pps > 25 ? 5 : pps > 8 ? 10 : 30;
     for (let s = 0; s * 1000 <= d + step * 1000; s += step) ruler.append(h('span', { style: { left: `${x(s * 1000)}px` } }, fmt(s * 1000).replace(/\.0$/, '')));
@@ -138,9 +148,10 @@ export function mountTimeline(root, app) {
       for (const c of take.clips.filter(c => laneOf(c) === tr.id)) row.append(clipEl(c, Boolean(rec)));
       return row;
     });
-    const head = h('div', { class: `wb-tl-playhead${rec ? ' live' : ''}`, style: { left: `${x(now)}px` } });
-    lanes.replaceChildren(ruler, ...rows, head);
-    if (rec) { lanes.scrollLeft = Math.max(0, x(now) - lanes.clientWidth + 80); return; }   // follow the recording; read-only until it stops
+    playhead.classList.toggle('live', Boolean(rec));
+    lanes.replaceChildren(ruler, ...rows, playhead);
+    setHead(now);
+    if (rec) return;   // read-only until the recording stops
     // Scrub by clicking or dragging on the ruler or empty lanes.
     const scrub = ev => { const r = lanes.getBoundingClientRect(); p.seek(((ev.clientX - r.left + lanes.scrollLeft) / pps) * 1000); };
     for (const el of [ruler, ...rows]) el.addEventListener('pointerdown', ev => {
@@ -285,23 +296,35 @@ export function mountTimeline(root, app) {
   });
 
   let lastPlaying = false;
-  // Keep the playhead and time in step while playing (cheap: move the line, rewrite the time).
+  // One animation loop while playing or recording: move the playhead, rewrite the time, follow.
+  let raf = 0, timeEl = null;
+  const loop = () => {
+    raf = 0;
+    const p = P(), rec = live();
+    if (!p?.take && !rec) return;
+    const t = rec ? R().now() : p.t;
+    setHead(t);
+    timeEl ||= bar.querySelector('.wb-tl-time');
+    if (timeEl?.isConnected) timeEl.textContent = rec ? `● ${fmt(t)}` : `${fmt(t)} / ${fmt(p.duration)}`; else timeEl = null;
+    if (rec && x(t) > laneWidth - 60) drawLanes();          // grow a screen at a time
+    if (rec || p.playing) follow(t);
+    if (rec || p.playing) raf = requestAnimationFrame(loop);
+  };
+  const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
   const sync = () => {
     const p = P(); if (!p?.take) return;
-    const head = lanes.querySelector('.wb-tl-playhead'); if (head) head.style.left = `${x(p.t)}px`;
-    const time = bar.querySelector('.wb-tl-time'); if (time) time.textContent = `${fmt(p.t)} / ${fmt(p.duration)}`;
-    // Redraw the bar only when play/pause flips (redrawing every frame swallowed clicks).
-    if (lastPlaying !== p.playing) { lastPlaying = p.playing; drawBar(); }
-    if (p.playing) { const hx = x(p.t); if (hx > lanes.scrollLeft + lanes.clientWidth - 40) lanes.scrollLeft = hx - 60; }
+    if (lastPlaying !== p.playing) { lastPlaying = p.playing; drawBar(); timeEl = null; }   // redraw the bar only when play/pause flips
+    if (p.playing) kick(); else { setHead(p.t); timeEl ||= bar.querySelector('.wb-tl-time'); if (timeEl) timeEl.textContent = `${fmt(p.t)} / ${fmt(p.duration)}`; }
   };
   const attach = () => { if (!P() || !R()) return setTimeout(attach, 30); P().on(sync); drawBar(); drawLanes(); loadTakes(); };
-  let liveTimer = 0, liveQueued = false;
-  const liveRedraw = () => { if (liveQueued) return; liveQueued = true; setTimeout(() => { liveQueued = false; if (live()) { drawLanes(); const t = bar.querySelector('.wb-tl-time'); if (t) t.textContent = `● ${fmt(R().now())}`; } }, 200); };
+  // While recording, new clips redraw the lanes (at most every 250 ms); the loop moves the playhead.
+  let liveQueued = false;
+  const liveRedraw = () => { if (liveQueued) return; liveQueued = true; setTimeout(() => { liveQueued = false; if (live()) drawLanes(); }, 250); };
   app.on('recording-update', liveRedraw);
   app.on('recording', on => {
-    clearInterval(liveTimer);
-    if (on) { if (!P().take) pps = 40; liveTimer = setInterval(liveRedraw, 500); }
-    drawBar(); drawLanes();
+    if (on && !P().take) pps = 40;
+    drawBar(); timeEl = null; drawLanes();
+    if (on) kick();
   });
   // A finished recording goes to the list; it is reviewed only when opened (the canvas stays yours).
   app.on('take', () => { loadTakes(); drawBar(); drawLanes(); });
