@@ -35,6 +35,8 @@ export function defaultCommands(app) {
     cmd('edit.ungroup', 'Edit', 'Ungroup', ['mod+shift+g'], () => app.ungroupSelection()),
     cmd('edit.eyedropper', 'Edit', 'Eyedropper', ['i'], () => import('./colorPicker.js').then(m => m.eyedropToTarget(app))),
     cmd('view.fit', 'View', 'Fit the active board', ['f'], () => { app.canvas.fit(60, app.activeBoard); app.renderChrome(); }),
+    cmd('view.frameBoard', 'View', 'Frame the active board', ['home'], () => app.canvas.animateTo(app.canvas.camFor(app.activeBoard || 'main'), 400)),
+    cmd('view.frameSelection', 'View', 'Frame the selection', ['shift+home'], () => { if (!app.canvas.frameSelection()) app.canvas.animateTo(app.canvas.camFor(app.activeBoard || 'main'), 400); }),
     cmd('tool.board', 'Tools', 'Board', ['shift+o'], () => app.setTool('board')),
     cmd('view.present', 'View', 'Present the boards', ['mod+alt+p'], () => app.present()),
     cmd('scene.next', 'View', 'Next scene', ['alt+pagedown'], () => app.scenes.step(1)),

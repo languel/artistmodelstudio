@@ -103,6 +103,16 @@ export class CanvasView {
     this.camAnim = requestAnimationFrame(step);
   }
 
+  /** Frame the selection (a rectangle in world units), eased. */
+  frameSelection(pad = 60) {
+    const b = this.selectionBounds();
+    if (!b) return false;
+    const w = Math.max(1, b.x1 - b.x0), h = Math.max(1, b.y1 - b.y0);
+    const z = Math.min(40, Math.min((this.w - pad * 2) / w, (this.h - pad * 2) / h));
+    this.animateTo({ z, x: (this.w - w * z) / 2 - b.x0 * z, y: (this.h - h * z) / 2 - b.y0 * z }, 400);
+    return true;
+  }
+
   /** Fit a board (the main one by default) in the view. */
   fit(pad = 60, board = MAIN) {
     this.cam = this.camFor(board, pad);
