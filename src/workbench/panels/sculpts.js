@@ -100,8 +100,17 @@ export function mountSculpts(root, app) {
       !builtin ? h('button', { class: 'wb-btn', onclick: async () => { if (await askConfirm(`Delete the sculpt tool “${current}”?`, { ok: 'Delete', danger: true })) { deleteSculpt(current); open('push'); if (app.sculpt.tool === current) app.setSculpt({ tool: 'push' }); } } }, 'Delete') : null].filter(Boolean));
   };
 
+  let fromEditor = false;
+  // Values changed elsewhere (Properties) move the sliders here.
+  app.on('sculpt', () => { if (!fromEditor) editor.setLive(liveFor(current)); });
+  // The params' sliders tune the tool in use (Properties shows the same values).
+  const liveFor = id => ({
+    get: key => app.sculpt.params?.[id]?.[key],
+    set: (key, v) => { fromEditor = true; if (app.sculpt.tool !== id) app.setSculpt({ tool: id }); app.setSculpt({ params: { [key]: v } }); fromEditor = false; }
+  });
   const open = id => {
     current = SCULPTS[id] ? id : 'push';
+    editor.setLive(liveFor(current));
     editor.value = sculptSource(current);
     compile(editor.value);
     refresh();

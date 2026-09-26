@@ -14,6 +14,7 @@ import { linter, lintGutter, setDiagnostics } from '@codemirror/lint';
 import { tags as t } from '@lezer/highlight';
 import { SCRIPT_VOCAB } from '../process/script.js';
 import { BRUSHES } from '../process/brushes.js';
+import { codeParams } from './codeParams.js';
 
 const VOCAB = new Map(SCRIPT_VOCAB.map(v => [v.name, v]));
 const KIT_DOCS = [
@@ -104,6 +105,7 @@ const hoverDocs = hoverTooltip((view, pos) => {
 
 export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLines = () => [], placeholder = '' } = {}) {
   const wrap = new Compartment();
+  let live = null;
   const view = new EditorView({
     parent,
     state: EditorState.create({
@@ -111,7 +113,7 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
       extensions: [
         lineNumbers(), foldGutter(), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(),
         indentOnInput(), bracketMatching(), closeBrackets(), highlightSelectionMatches(), lintGutter(), linter(() => [], { delay: 1e9 }),
-        javascript(), syntaxHighlighting(highlight), theme, hoverDocs,
+        javascript(), syntaxHighlighting(highlight), theme, hoverDocs, codeParams(() => live),
         autocompletion({ override: [scoreCompletions(getDocLines)], icons: false }),
         wrap.of(EditorView.lineWrapping),
         placeholder ? placeholderExt(placeholder) : [],
@@ -131,6 +133,8 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
     get value() { return view.state.doc.toString(); },
     set value(v) { if (v !== view.state.doc.toString()) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v } }); },
     focus: () => view.focus(),
+    /** Param sliders drive live values ({ get(key), set(key, v) }) instead of rewriting defaults; null: rewrite. */
+    setLive(l) { live = l; view.dispatch({}); },
     toggleWrap() { wrapping = !wrapping; view.dispatch({ effects: wrap.reconfigure(wrapping ? EditorView.lineWrapping : []) }); return wrapping; },
     /** Mark a line (1-based) with an error message; null clears. */
     markError(line, message) {
