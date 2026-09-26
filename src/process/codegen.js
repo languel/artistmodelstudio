@@ -24,6 +24,7 @@ function optsOf(e, doc) {
   if (e.realize?.brush && e.realize.brush !== def) o.brush = e.realize.brush;
   Object.assign(o, e.realize?.params || {});
   if (e.color) o.color = e.color;
+  if (e.fill) o.fill = e.fill;
   if (e.role === 'line' && e.closed) o.closed = true;
   const st = doc.stages.find(s => s.id === e.stage);
   if (st) o.stage = st.name;

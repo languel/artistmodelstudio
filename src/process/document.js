@@ -98,6 +98,7 @@ export function normalizeElement(e, stage) {
     closed: role === 'plane' ? true : Boolean(e.closed),
     realize: { ...(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), ...(e.realize || {}), params: { ...(e.realize?.params || {}) } },
     color: e.color || null,
+    ...(e.fill ? { fill: e.fill } : {}),
     text: role === 'note' ? String(e.text || '') : e.text,
     why: e.why || '',
     by: e.by || { kind: 'user', name: 'you' },

@@ -42,7 +42,7 @@ import { openPalette } from './palette.js';
 import { showMenu } from './menu.js';
 import { brushesForRole, KIT } from '../process/brushes.js';
 import { Shortcuts } from './shortcuts.js';
-import { eyedropToTarget } from './colorPicker.js';
+import { eyedropToTarget, openPicker, parseColor, formatColor } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 import { Guide } from './guide.js';
@@ -72,6 +72,9 @@ export class Workbench {
     this.view = { mode: 'process', upTo: Infinity };
     this.activeStageId = this.store.doc.stages[this.store.doc.stages.length - 1]?.id;
     try { this.toolDefaults = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || '{}'); } catch { this.toolDefaults = {}; }
+    // Global paint: stroke and fill for new marks (null: the brush's own ink / no fill).
+    // Plain colors for now; like brushes, strokes and fills are meant to become processes (code) too.
+    try { this.paint = { stroke: null, fill: null, ...JSON.parse(localStorage.getItem('ams_paint') || '{}') }; } catch { this.paint = { stroke: null, fill: null }; }
     this.reference = null; // { img, opacity, visible, title }
     this.assetStore = new AssetStore();
     this.artists = new ArtistRegistry();
@@ -104,9 +107,42 @@ export class Workbench {
   groupSelection() { const ids = [...this.canvas.selected]; if (ids.length > 1) { this.store.group(ids); this.canvas.select(ids); } }
   ungroupSelection() { const ids = [...this.canvas.selected]; if (ids.length) this.store.ungroup(ids); }
 
+  /** Set the global stroke or fill; selected marks take it too. */
+  setPaint(which, value) {
+    this.paint[which] = value || null;
+    try { localStorage.setItem('ams_paint', JSON.stringify(this.paint)); } catch { /* ignore */ }
+    const ids = [...this.canvas.selected];
+    if (ids.length) {
+      const key = which === 'stroke' ? 'color' : 'fill';
+      this.store.change(which, d => { for (const e of d.elements) if (ids.includes(e.id) && e.role !== 'note') { if (value) e[key] = value; else delete e[key]; if (key === 'color' && !value) e.color = null; } });
+    }
+    this.renderChrome();
+  }
+
+  paintSwatches() {
+    const { stroke, fill } = this.paint;
+    const sel = this.selectedElements?.() || [];
+    const s = sel.length ? (sel[0].color ?? null) : stroke;
+    const f = sel.length ? (sel[0].fill ?? null) : fill;
+    const chip = (which, v, tip) => {
+      const b = h('button', { class: `wb-paint-${which}${v ? '' : ' none'}`, title: tip, type: 'button' }, h('span', { style: which === 'stroke' ? { boxShadow: v ? `inset 0 0 0 5px ${v}` : 'none' } : { background: v || 'transparent' } }));
+      b.addEventListener('click', ev => { ev.stopPropagation(); openPicker(b, parseColor(v || (which === 'fill' ? '#ffffff' : '#1d1b19')), (c, final) => { if (final) this.setPaint(which, formatColor(c.hex, c.alpha)); }, this); });
+      b.addEventListener('contextmenu', ev => { ev.preventDefault(); showMenu([{ label: which === 'fill' ? 'No fill' : 'Brush ink (default)', run: () => this.setPaint(which, null) }, { label: 'Swap stroke and fill', run: () => this.swapPaint() }], ev.clientX, ev.clientY); });
+      return b;
+    };
+    return h('div', { class: 'wb-paint', 'data-guide': 'tool:paint' },
+      chip('fill', f, 'Fill (right-click: none)'), chip('stroke', s, 'Stroke (right-click: brush ink)'),
+      h('button', { class: 'wb-paint-swap', title: 'Swap stroke and fill', type: 'button', onclick: () => this.swapPaint() }, '⇄'));
+  }
+
+  swapPaint() {
+    const { stroke, fill } = this.paint;
+    this.setPaint('stroke', fill); this.setPaint('fill', stroke);
+  }
+
   defaults(role) {
     const d = this.toolDefaults[role] || {};
-    return { color: d.color || null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...(role === 'note' ? { note: d.note || {} } : {}) };
+    return { color: (role !== 'note' && this.paint?.stroke) || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...(role === 'note' ? { note: d.note || {} } : {}) };
   }
 
   setDefaults(role, patch) {
@@ -147,7 +183,7 @@ export class Workbench {
       getTool: () => this.tool,
       getStage: () => this.activeStage,
       getDefaults: r => this.defaults(r),
-      onSelect: () => this.emit('selection'),
+      onSelect: () => { this.emit('selection'); this.renderChrome(); },
       onNoteStyled: note => this.setDefaults('note', { note }),
       onTool: t => this.setTool(t),
       viewMode: () => this.view.mode
@@ -290,7 +326,7 @@ export class Workbench {
     }
     // Snap to grid: on shows the grid at full strength; off, fainter.
     const snapKey = this.shortcuts?.label('view.snap') || '';
-    tools.append(h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''}`, html: icon('snap'), onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }) }));
+    tools.append(h('div', { class: 'wb-sep' }), this.paintSwatches(), h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''}`, html: icon('snap'), onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }) }));
     const right = h('div', { class: 'wb-island' },
       h('button', { class: 'wb-tool', 'data-guide': 'view', title: this.view.mode === 'process' ? 'Process: guides, gestures and notes shown (\\ for the picture)' : 'Picture: the finished picture (\\ for the process)', html: icon(this.view.mode === 'process' ? 'viewProcess' : 'viewPicture'), onclick: () => this.setViewMode(this.view.mode === 'picture' ? 'process' : 'picture') }),
       this.reference ? h('button', { class: `wb-tool${this.reference.visible ? ' on' : ''}`, title: `Reference underlay: ${this.reference.title} (R toggles)`, html: icon('picture'), onclick: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } }) : null,

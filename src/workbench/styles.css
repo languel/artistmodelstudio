@@ -538,3 +538,14 @@ textarea.wb-dialog-input { min-height: 90px; }
 :focus-visible { outline: 1px solid var(--wb-muted, #888); outline-offset: 1px; }
 input:focus-visible, textarea:focus-visible, select:focus-visible, [contenteditable]:focus-visible, .cm-editor *:focus-visible, canvas:focus-visible, .wb-dialog button:focus-visible { outline: none; }
 .wb-dialog button:focus-visible { box-shadow: 0 0 0 1px var(--wb-muted); }
+
+/* Stroke / fill swatches (fill behind, stroke in front) */
+.wb-paint { position: relative; width: 38px; height: 30px; flex: none; }
+.wb-paint > button { position: absolute; width: 18px; height: 18px; padding: 0; border: 1px solid var(--wb-line); border-radius: 4px; cursor: pointer; overflow: hidden;
+  background: repeating-conic-gradient(#bbb 0 25%, #fff 0 50%) 0 0 / 8px 8px; }
+.wb-paint > button > span { display: block; width: 100%; height: 100%; }
+.wb-paint-fill { left: 2px; top: 2px; }
+.wb-paint-stroke { left: 10px; top: 10px; z-index: 1; }
+.wb-paint > button.none { background: var(--wb-panel); }
+.wb-paint > button.none::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top right, transparent calc(50% - 1px), #d9480f calc(50% - 1px), #d9480f calc(50% + 1px), transparent calc(50% + 1px)); }
+.wb-paint-swap { right: -4px; top: -2px; width: 12px !important; height: 12px !important; border: none !important; background: none !important; color: var(--wb-muted); font-size: 10px; line-height: 12px; }

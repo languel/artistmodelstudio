@@ -7,7 +7,7 @@
  * upTo:       render only stages up to and including this index (filmstrip, replay)
  * transform:  { x, y, scale }, artboard → screen
  */
-import { BRUSHES, mulberry32, resolveParams, installLines } from './brushes.js';
+import { BRUSHES, mulberry32, resolveParams, installLines, KIT } from './brushes.js';
 import { drawNote, noteCorners } from './notes.js';
 
 export function renderDocument(ctx, doc, {
@@ -40,6 +40,12 @@ export function renderDocument(ctx, doc, {
     const construction = brush.construction || e.role === 'guide' || e.role === 'gesture' || e.role === 'note';
     if (construction) { overlay.push(e); continue; }
     env.rng = mulberry32(e.seed || 1);
+    if (e.fill && e.role === 'plane') {
+      // A plane's brush is its fill; the stroke outlines it.
+      withLook(ctx, e, () => { brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env); if (e.color) strokeShape(ctx, e, env.scale); });
+      continue;
+    }
+    if (e.fill && e.points.length > 2 && e.closed) withLook(ctx, e, () => fillShape(ctx, e));
     withLook(ctx, e, () => brush.draw(ctx, e, resolveParams(e.realize.brush, e.realize.params), env));
   }
   if (mode === 'process') {
@@ -84,4 +90,22 @@ export function renderToCanvas(doc, { scale = 1, mode = 'picture', upTo = Infini
   c.height = Math.max(1, Math.round(doc.artboard.height * scale));
   renderDocument(c.getContext('2d'), doc, { mode, upTo, transform: { x: 0, y: 0, scale } });
   return c;
+}
+
+/** Fill: the inside of a closed mark, painted under its stroke. */
+function fillShape(ctx, e) {
+  const pts = KIT.smoothPath(e.points, true);
+  ctx.save();
+  ctx.fillStyle = e.fill;
+  KIT.tracePath(ctx, pts, true);
+  ctx.fill();
+  ctx.restore();
+}
+
+function strokeShape(ctx, e) {
+  ctx.save();
+  ctx.strokeStyle = e.color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  KIT.tracePath(ctx, KIT.smoothPath(e.points, true), true);
+  ctx.stroke();
+  ctx.restore();
 }

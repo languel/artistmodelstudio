@@ -94,7 +94,7 @@ export async function eyedropToTarget(app) {
   return c;
 }
 
-function openPicker(anchor, start, onChange, app) {
+export function openPicker(anchor, start, onChange, app) {
   open?.close();
   let hsv = hexHsv(start.hex), alpha = start.alpha, dirty = false;
   const hex = () => hsvHex(hsv);

@@ -541,7 +541,7 @@ export class CanvasView {
     if (tool === 'guide') [wx, wy] = this.snapPt(wx, wy);
     const role = tool;
     const d = this.getDefaults(role);
-    this.draft = normalizeElement({ role, stage: 'draft', points: [[wx, wy, 0, pressureOf(e, 0)]], realize: d.realize, color: d.color, seed: 1 }, 'draft');
+    this.draft = normalizeElement({ role, stage: 'draft', points: [[wx, wy, 0, pressureOf(e, 0)]], realize: d.realize, color: d.color, ...(d.fill ? { fill: d.fill } : {}), seed: 1 }, 'draft');
     let last = [wx, wy, t0];
     this.pointer = true;
     const straight = tool === 'guide';
@@ -607,7 +607,7 @@ export class CanvasView {
     const stage = this.getStage();
     const e = this.store.addElement({
       role, stage: stage.id, points, realize: structuredClone(d.realize || DEFAULT_REALIZE[role]),
-      color: d.color || null, why: d.why || '', by: { kind: 'user', name: 'you' },
+      color: d.color || null, ...(d.fill ? { fill: d.fill } : {}), why: d.why || '', by: { kind: 'user', name: 'you' },
       ...(d.opacity < 1 ? { opacity: d.opacity } : {}), ...(d.blend && d.blend !== 'normal' ? { blend: d.blend } : {}),
       ...(role === 'note' ? { note: structuredClone(d.note || {}) } : {}), ...extra
     });
