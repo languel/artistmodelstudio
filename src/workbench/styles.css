@@ -532,3 +532,9 @@ textarea.wb-dialog-input { min-height: 90px; }
 .asset-card { user-select: none; }
 .asset-card.selected { border-color: var(--wb-accent); box-shadow: 0 0 0 1px var(--wb-accent); }
 #assets-grid:focus { outline: none; }
+
+/* No system (orange/blue) focus rings anywhere; keyboard focus gets a quiet muted ring. */
+:focus { outline: none; }
+:focus-visible { outline: 1px solid var(--wb-muted, #888); outline-offset: 1px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible, [contenteditable]:focus-visible, .cm-editor *:focus-visible, canvas:focus-visible, .wb-dialog button:focus-visible { outline: none; }
+.wb-dialog button:focus-visible { box-shadow: 0 0 0 1px var(--wb-muted); }
