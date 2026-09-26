@@ -148,16 +148,16 @@ export class CanvasView {
     if (this.showPoints) {
       const doc = this.previewDoc || this.store.doc;
       const vis = new Set(doc.stages.filter(s => s.visible).map(s => s.id));
-      const col = css.getPropertyValue('--wb-text').trim() || '#888';
+      const col = css.getPropertyValue('--wb-accent-2').trim() || '#c8664f';
       ctx.save();
       ctx.fillStyle = col;
       ctx.strokeStyle = css.getPropertyValue('--wb-bg').trim() || css.getPropertyValue('--wb-panel').trim() || '#111'; ctx.lineWidth = 1;
       for (const e of doc.elements) {
         if (e.hidden || !vis.has(e.stage) || ['note', 'image'].includes(e.role)) continue;
         const sel = this.selected.has(e.id);
-        ctx.globalAlpha = sel ? 0.9 : 0.45;
-        const rr = sel ? 2.4 : 1.8;
-        for (const q of e.points) { const [x, y] = this.toScreen(q[0], q[1]); ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+        ctx.globalAlpha = sel ? 0.95 : 0.6;
+        const rr = sel ? 2 : 1.5;
+        for (const q of e.points) { const [x, y] = this.toScreen(q[0], q[1]); ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill(); }
       }
       ctx.restore();
     }

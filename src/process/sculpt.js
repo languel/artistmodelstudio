@@ -161,19 +161,37 @@ export const SCULPTS = {
 
   simplify: {
     label: 'Simplify', doc: 'Fewer points under the brush, same shape (Ramer–Douglas–Peucker on the part you brush). Alt: resample, more points, evenly spaced.',
-    params: [param('tolerance', 'Tolerance', 0, 0.2, 0.005, 0.03, 'How far the shape may move, as a fraction of the brush radius.')],
+    params: [
+      param('tolerance', 'Tolerance', 0, 0.2, 0.005, 0.03, 'How far the shape may move, as a fraction of the brush radius.'),
+      param('density', 'Density', 0.02, 0.5, 0.01, 0.12, 'Alt (resample): spacing at the brush center, as a fraction of the radius; it eases back to the mark’s own spacing toward the edge.')
+    ],
     step(pts, s, p, k) {
       if (s.invert) {
         // Resample: split what the brush covers into even steps (the finer, the stronger).
-        const step = s.radius * Math.max(0.03, 0.25 * (1 - s.strength));
-        return k.refine(pts, step, (a, b) => k.nearMark([a, b], s.x, s.y, s.radius), s.closed);
+        // Spacing follows the brush falloff: p.density × radius at the center, easing to the
+        // segment's own length at the edge, so the new points blend into the old spacing.
+        const out = [], n = pts.length, segs = s.closed ? n : n - 1;
+        for (let i = 0; i < n; i++) {
+          out.push(pts[i]);
+          if (i >= segs) break;
+          const a = pts[i], b = pts[(i + 1) % n];
+          const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          const w = k.w([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+          if (w <= 0) continue;
+          const t = Math.min(1, w * 2);   // strength 0.5 reaches the full density at the center
+          const target = d + (s.radius * p.density - d) * t;
+          const m = Math.min(24, Math.ceil(d / Math.max(0.5, target) - 0.2));
+          for (let j = 1; j < m; j++) { const u = j / m; out.push(a.map((v, c) => v + ((b[c] ?? v) - v) * u)); }
+        }
+        return out;
       }
       const eps = s.radius * p.tolerance * s.strength;
       const out = [];
       let run = [];
       const flush = () => { if (run.length) out.push(...(run.length > 2 ? k.rdp(run, eps) : run)); run = []; };
       pts.forEach((q, i) => {
-        const keep = i === 0 || i === pts.length - 1 || k.w(q) < 0.05;
+        // Only where the brush is strong enough: fewer points toward the center, not a hard edge.
+        const keep = i === 0 || i === pts.length - 1 || k.w(q) < 0.25;
         if (keep) { flush(); out.push(q); } else run.push(q);
       });
       flush();
