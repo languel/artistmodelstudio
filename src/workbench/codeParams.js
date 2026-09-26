@@ -71,15 +71,17 @@ class SliderWidget extends WidgetType {
     input.type = 'range';
     const step = c.step || stepFor(c.min, c.max);
     Object.assign(input, { min: c.min, max: c.max, step });
+    const target = this.live && c.kind === 'param' ? this.live.target?.() : null;
+    if (this.live && c.kind === 'param' && this.live.target && !target) this.live = null;
     const liveVal = this.live && c.kind === 'param' ? this.live.get(c.key) : undefined;
     input.value = String(liveVal ?? c.value);
     const out = document.createElement('span');
     out.className = 'cm-param-value';
     out.textContent = this.live && c.kind === 'param' ? fmt(Number(input.value), step) : '';
-    input.title = this.live && c.kind === 'param' ? `${c.key}: the value in use (the code keeps the default)` : `${c.kind === 'param' ? c.key : 'value'}: ${c.min}…${c.max}`;
+    input.title = this.live && c.kind === 'param' ? `${c.key}: ${target ? `the value on ${target}` : 'the value in use'} (the code keeps the default)` : `${c.kind === 'param' ? c.key : 'value'}: ${c.min}…${c.max}`;
     input.addEventListener('input', () => {
       const v = Number(input.value);
-      if (this.live && c.kind === 'param') { this.live.set(c.key, v); out.textContent = fmt(v, step); return; }
+      if (this.live && c.kind === 'param' && this.live.set(c.key, v) !== false) { out.textContent = fmt(v, step); return; }
       // Rewrite the number in the code: find this control again (positions move as the text changes).
       const cur = findControls(this.view.state.doc.toString()).find(x => x.id === c.id);
       if (cur) this.view.dispatch({ changes: { from: cur.from, to: cur.to, insert: fmt(v, step) } });

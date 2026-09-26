@@ -68,7 +68,47 @@ export function mountBrushes(root, app) {
   };
   const editor = createCodeEditor(host, { value: brushSource(current), onChange: () => { clearTimeout(timer); timer = setTimeout(check, 250); }, onRun: () => save() });
 
-  const open = id => { current = id; editor.value = brushSource(id) || TEMPLATE(id); renderBar(); check(); };
+  // Param sliders act on the marks: the selected ones drawn with this brush, else the current tool's
+  // defaults if it uses this brush; otherwise they rewrite the code's defaults (preview only).
+  const targets = () => {
+    const sel = (app.selectedElements?.() || []).filter(e => e.realize?.brush === current);
+    if (sel.length) return { kind: 'sel', ids: sel.map(e => e.id), label: `${sel.length} selected mark${sel.length === 1 ? '' : 's'}` };
+    const d = app.tool && app.defaults?.(app.tool);
+    if (d?.realize?.brush === current && !(app.selectedElements?.() || []).length) return { kind: 'tool', label: `new ${app.tool} marks` };
+    return null;
+  };
+  let before = null, commitTimer = 0, fromEditor = false;
+  const live = {
+    target: () => targets()?.label || null,
+    get: key => {
+      const t = targets();
+      if (t?.kind === 'sel') return app.store.doc.elements.find(e => e.id === t.ids[0])?.realize.params?.[key];
+      if (t?.kind === 'tool') return app.defaults(app.tool).realize.params?.[key];
+      return undefined;
+    },
+    set: (key, v) => {
+      const t = targets();
+      if (!t) return false;
+      fromEditor = true;
+      if (t.kind === 'tool') app.setDefaults(app.tool, { realize: { params: { [key]: v } } });
+      else {
+        // Direct edits while dragging; one undo step when the slider rests.
+        before ??= JSON.stringify(app.store.doc);
+        for (const e of app.store.doc.elements) if (t.ids.includes(e.id)) e.realize.params = { ...(e.realize.params || {}), [key]: v };
+        app.canvas.invalidate();
+        clearTimeout(commitTimer);
+        commitTimer = setTimeout(() => { const b = before; before = null; fromEditor = true; app.store.commitFrom(b, 'brush param'); fromEditor = false; }, 350);
+      }
+      fromEditor = false;
+      return true;
+    }
+  };
+  editor.setLive(live);
+  const refreshLive = () => { if (!fromEditor) editor.setLive({ ...live }); };
+  app.on('selection', refreshLive);
+  app.on('tool', refreshLive);
+
+  const open = id => { current = id; editor.value = brushSource(id) || TEMPLATE(id); renderBar(); check(); refreshLive(); };
   const save = () => {
     check();
     if (!def) return;

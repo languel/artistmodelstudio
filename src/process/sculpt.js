@@ -175,11 +175,11 @@ export const SCULPTS = {
   },
 
   thicken: {
-    label: 'Thicken', doc: 'Raises the pressure under the brush, so pressure-aware brushes draw wider (Alt: thinner).',
-    params: [param('amount', 'Amount', 0, 0.2, 0.005, 0.04, 'Pressure added per pass.')],
+    label: 'Thicken', doc: 'Raises the pressure under the brush, so pressure-aware brushes (Ink) draw wider (Alt: thinner). Pressure can go past 1 (a mouse line is already near 1), up to 2.',
+    params: [param('amount', 'Amount', 0, 0.5, 0.01, 0.12, 'Pressure added per pass.')],
     step(pts, s, p, k) {
       const dir = s.invert ? -1 : 1;
-      return pts.map(q => { const w = k.w(q); return w ? [q[0], q[1], q[2], Math.max(0.02, Math.min(1, (q[3] ?? 0.5) + dir * w * p.amount))] : q; });
+      return pts.map(q => { const w = k.w(q); return w ? [q[0], q[1], q[2], Math.max(0.02, Math.min(2, (q[3] ?? 0.5) + dir * w * p.amount))] : q; });
     }
   }
 };
