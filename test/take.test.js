@@ -55,6 +55,19 @@ describe('takes', () => {
     expect(duration(s)).toBeLessThanOrEqual(duration(take) * 0.5 + 2800);   // plus the closing hold
   });
 
+  it('tracks: add more of a kind; muted tracks do not play', async () => {
+    const { tracksOf, addTrack } = await import('../src/process/take.js');
+    const take = createTake({ title: 't', baseline: base, clips: [{ id: 's1', track: 'say', start: 0, dur: 1000, text: 'a', fx: {} }] });
+    expect(tracksOf(take).map(t => t.id)).toEqual(['title', 'say', 'draw', 'action', 'camera', 'audio']);
+    const n2 = addTrack(take, 'say');
+    expect(tracksOf(take).map(t => t.id).slice(0, 3)).toEqual(['title', 'say', n2.id]);
+    take.clips.push({ id: 's2', track: 'say', lane: n2.id, start: 0, dur: 1000, text: 'b', fx: {} });
+    const { activeAt } = await import('../src/process/take.js');
+    expect(activeAt(take, 'say', 500).map(c => c.text)).toEqual(['a', 'b']);
+    n2.muted = true;
+    expect(activeAt(take, 'say', 500).map(c => c.text)).toEqual(['a']);
+  });
+
   it('camera eases between keyframes', () => {
     const take = createTake({ baseline: base, clips: [{ id: 'k1', track: 'camera', start: 0, dur: 0, cx: 0.5, cy: 0.5, z: 1 }, { id: 'k2', track: 'camera', start: 2000, dur: 1000, cx: 0.2, cy: 0.2, z: 2 }] });
     expect(cameraAt(take, 500).z).toBe(1);

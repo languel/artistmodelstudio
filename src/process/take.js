@@ -87,6 +87,39 @@ export function createTake({ title = 'Take', baseline, clips = [] } = {}) {
 
 export const duration = take => Math.max(0, ...take.clips.map(c => c.start + c.dur));
 export const TRACKS = ['title', 'say', 'draw', 'action', 'camera', 'audio'];
+export const TRACK_NAMES = { title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
+
+/**
+ * Tracks (as in an editor): any number of each kind, in order, each with a name and mute.
+ * A clip's kind is c.track; the track it sits on is c.lane (older takes: the kind's first track).
+ */
+export function tracksOf(take) {
+  if (!Array.isArray(take.tracks) || !take.tracks.length) {
+    take.tracks = TRACKS.map(k => ({ id: k, kind: k, name: TRACK_NAMES[k] }));
+    Object.defineProperty(take, '_derived', { value: true, enumerable: false, configurable: true, writable: true });
+  }
+  // Clips on tracks that no longer exist fall back to the first track of their kind.
+  const ids = new Set(take.tracks.map(t => t.id));
+  for (const c of take.clips) if (c.lane && !ids.has(c.lane)) delete c.lane;
+  return take.tracks;
+}
+export const laneOf = c => c.lane || c.track;
+/** A clip plays unless its track is muted. */
+export function on(take, c) {
+  const tr = (take.tracks || []).find(t => t.id === laneOf(c));
+  return !tr?.muted;
+}
+
+/** Add a track of a kind (after the last track of that kind); returns it. */
+export function addTrack(take, kind, name) {
+  const tracks = tracksOf(take);
+  const n = tracks.filter(t => t.kind === kind).length + 1;
+  let id = `${kind}-${n}`; for (let i = n; tracks.some(t => t.id === id); i++) id = `${kind}-${i + 1}`;
+  const t = { id, kind, name: name || `${TRACK_NAMES[kind] || kind} ${n}` };
+  const last = tracks.map(x => x.kind).lastIndexOf(kind);
+  tracks.splice(last < 0 ? tracks.length : last + 1, 0, t);
+  return t;
+}
 
 /** How long a line of narration needs to be read (ms). */
 export const readingTime = text => Math.max(1600, String(text || '').split(/\s+/).length * 320);
@@ -95,7 +128,7 @@ export const readingTime = text => Math.max(1600, String(text || '').split(/\s+/
 function drawIndex(take) {
   const key = take.rev || 0;
   if (take._index && take._index.key === key) return take._index;
-  const draws = take.clips.filter(c => c.track === 'draw' && c.diff).sort((a, b) => a.start - b.start || (a.seq ?? 0) - (b.seq ?? 0));
+  const draws = take.clips.filter(c => c.track === 'draw' && c.diff && on(take, c)).sort((a, b) => a.start - b.start || (a.seq ?? 0) - (b.seq ?? 0));
   const before = [];
   let doc = take.baseline;
   for (const c of draws) { before.push(doc); doc = applyDiff(doc, c.diff); }
@@ -133,11 +166,11 @@ export function docAt(take, t) {
 }
 
 /** Clips on a track that are showing at time t. */
-export const activeAt = (take, track, t) => take.clips.filter(c => c.track === track && t >= c.start && t < c.start + Math.max(c.dur, 1));
+export const activeAt = (take, track, t) => take.clips.filter(c => c.track === track && on(take, c) && t >= c.start && t < c.start + Math.max(c.dur, 1));
 
 /** Camera at t: holds each keyframe, then eases to the next during that keyframe's dur (null without keyframes). */
 export function cameraAt(take, t) {
-  const keys = take.clips.filter(c => c.track === 'camera').sort((a, b) => a.start - b.start);
+  const keys = take.clips.filter(c => c.track === 'camera' && on(take, c)).sort((a, b) => a.start - b.start);
   if (!keys.length) return null;
   let cur = { cx: keys[0].cx, cy: keys[0].cy, z: keys[0].z };
   for (const k of keys) {
@@ -184,7 +217,7 @@ export function summarize(take, { maxGap = 350, drawMax = 2200, analysisSpeed = 
   if (end > target) { const k = target / end; for (const c of out) { c.start = Math.round(c.start * k); c.dur = Math.max(200, Math.round(c.dur * k)); } end = target; }
   out.push({ id: clipId(), track: 'title', start: end + 200, dur: hold, text: take.title, sub: 'Summary', fx: { fade: 400 } });
   const base = String(take.title).replace(/(\s*\(summary\))+$/, '');
-  return { ...createTake({ title: `${base} (summary)`, baseline: take.baseline, clips: out }), source: take.title, summaryOf: take.assetId || take.summaryOf || null };
+  return { ...createTake({ title: `${base} (summary)`, baseline: take.baseline, clips: out }), tracks: take.tracks ? JSON.parse(JSON.stringify(take.tracks)) : undefined, source: take.title, summaryOf: take.assetId || take.summaryOf || null };
 }
 
 /** Clips for a take made from live steps: a helper for recorders (time-ordered, ids assigned). */

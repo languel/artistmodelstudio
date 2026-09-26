@@ -44,7 +44,45 @@ export async function blobToImage(blob) {
   }
 }
 
+/** Kinds of file the asset browser keeps (besides images). */
+export function fileKind(f) {
+  const t = f.type || '', n = (f.name || '').toLowerCase();
+  if (t.startsWith('image/') || n.endsWith('.svg')) return 'image';
+  if (t.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|flac|webm)$/.test(n)) return 'audio';
+  if (t === 'application/json' || n.endsWith('.json')) return 'json';
+  if (t.startsWith('text/') || /\.(txt|md|markdown|csv|js|py)$/.test(n)) return 'text';
+  return null;
+}
+
+/** A small card for things that are not pictures: a waveform for sound, the first lines for text. */
+async function cardThumb(blob, kind) {
+  const c = document.createElement('canvas'); c.width = 240; c.height = 150;
+  const x = c.getContext('2d');
+  x.fillStyle = '#f3efe6'; x.fillRect(0, 0, 240, 150);
+  x.fillStyle = '#2b2620';
+  if (kind === 'audio') {
+    let peaks = null;
+    try {
+      const ac = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
+      const buf = await ac.decodeAudioData(await blob.arrayBuffer());
+      const d = buf.getChannelData(0), n = 120, step = Math.floor(d.length / n);
+      peaks = Array.from({ length: n }, (_, i) => { let m = 0; for (let j = i * step; j < (i + 1) * step; j += 16) m = Math.max(m, Math.abs(d[j] || 0)); return m; });
+      blob.durationMs = Math.round(buf.duration * 1000);
+    } catch { /* not decodable here */ }
+    x.globalAlpha = 0.8;
+    (peaks || Array.from({ length: 120 }, (_, i) => 0.3 + 0.25 * Math.sin(i / 5))).forEach((p, i) => { const hgt = Math.max(1, p * 110); x.fillRect(i * 2, 75 - hgt / 2, 1.4, hgt); });
+    blob.peaks = peaks;
+  } else {
+    const txt = (await blob.text()).slice(0, 600).split('\n').slice(0, 9);
+    x.font = '11px ui-monospace, Menlo, monospace';
+    txt.forEach((l, i) => x.fillText(l.slice(0, 38), 10, 18 + i * 15));
+  }
+  return { thumb: c.toDataURL('image/webp', 0.85), width: 0, height: 0 };
+}
+
 async function makeThumb(blob) {
+  const kind = blob.kindHint;
+  if (kind === 'audio' || kind === 'text' || kind === 'json') return cardThumb(blob, kind);
   // createImageBitmap works in background tabs too (img.decode() can wait until the tab is shown).
   const img = typeof createImageBitmap === 'function' ? await createImageBitmap(blob).catch(() => blobToImage(blob)) : await blobToImage(blob);
   if (img.naturalWidth === undefined) { img.naturalWidth = img.width; img.naturalHeight = img.height; }
@@ -98,6 +136,7 @@ export class AssetStore {
   async add(blob, fields = {}) {
     await this.ready();
     const { thumb, width, height } = await makeThumb(blob);
+    if (blob.peaks || blob.durationMs) fields = { ...fields, meta: { ...(fields.meta || {}), peaks: blob.peaks, duration: blob.durationMs } };
     const asset = {
       id: fields.id || (crypto.randomUUID?.() || String(Date.now() + Math.random())),
       title: fields.title || 'Untitled',
@@ -189,6 +228,14 @@ export class AssetStore {
    * Import files picked from a folder (webkitdirectory) or a plain multi-select.
    * Subfolders are kept under `into`; a sources.json manifest supplies titles.
    */
+  /** A process document or take from JSON, as an asset of its kind (thumbnail drawn when shown). */
+  async importStudioJSON(j, name, into = '') {
+    const blob = new Blob([JSON.stringify(j)], { type: 'application/json' });
+    blob.kindHint = 'json';
+    const kind = j.type === 'ams-take' ? 'take' : 'process';
+    return this.add(blob, { title: j.title || name.replace(/\.[a-z.]+$/i, ''), kind, folder: into, program: j, tags: [kind, 'imported'], meta: kind === 'take' ? { clips: j.clips?.length, duration: j.duration } : { elements: j.elements?.length } });
+  }
+
   async importFiles(files, into = '') {
     files = [...files];
     const manifests = {};
@@ -201,7 +248,21 @@ export class AssetStore {
     }
     let n = 0;
     for (const f of files) {
-      if (!f.type.startsWith('image/')) continue;
+      const kind = fileKind(f);
+      if (!kind || f.name === 'sources.json') continue;
+      // Drawings and takes exported from the studio come back as themselves.
+      if (kind === 'json') {
+        try {
+          const j = JSON.parse(await f.text());
+          if (j?.type === 'ams-process' || j?.type === 'ams-take') { await this.importStudioJSON(j, f.name, into); n++; continue; }
+        } catch { /* plain JSON: kept as text */ }
+      }
+      if (kind !== 'image') {
+        f.kindHint = kind;
+        await this.add(f, { title: f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' '), kind: kind === 'audio' ? 'audio' : 'text', folder: into, tags: [kind], meta: { file: f.name, type: f.type } });
+        n++;
+        continue;
+      }
       const rel = f.webkitRelativePath || f.name;
       const dir = rel.split('/').slice(0, -1).join('/');
       const r = manifests[dir + '/' + f.name];

@@ -5,7 +5,7 @@
  */
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
-import { duration, summarize, touch, clipId, TRACKS, readingTime } from '../../process/take.js';
+import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf } from '../../process/take.js';
 import { showMenu } from '../menu.js';
 
 const TRACK_LABEL = { title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
@@ -84,6 +84,8 @@ export function mountTimeline(root, app) {
     const t = Math.round(P().t);
     const add = clip => { P().take.clips.push({ id: clipId(), fx: {}, ...clip }); edited(); select(P().take.clips[P().take.clips.length - 1]); };
     return [
+      { label: 'Track', items: TRACKS.map(k => ({ label: TRACK_NAMES[k], run: () => { addTrack(P().take, k); drawLanes(); } })) },
+      '-',
       { label: 'Title card', run: () => add({ track: 'title', start: t, dur: 2500, text: 'Title', sub: '', fx: { fade: 400 } }) },
       { label: 'Narration', run: () => add({ track: 'say', start: t, dur: readingTime('A line of narration'), text: 'A line of narration' }) },
       { label: 'Camera keyframe (current view)', run: () => add({ track: 'camera', start: t, dur: 800, ...viewNow() }) },
@@ -123,16 +125,17 @@ export function mountTimeline(root, app) {
   const live = () => (!P()?.take && R()?.recording ? R().take : null);
   const drawLanes = () => {
     const p = P(), rec = live(), take = p?.take || rec;
-    labels.replaceChildren(h('div', { class: 'wb-tl-rulerlabel' }), ...TRACKS.map(tr => h('div', { class: 'wb-tl-label' }, TRACK_LABEL[tr])));
+    const tracks = take ? tracksOf(take) : TRACKS.map(k => ({ id: k, kind: k, name: TRACK_NAMES[k] }));
+    labels.replaceChildren(h('div', { class: 'wb-tl-rulerlabel' }), ...tracks.map(tr => trackLabel(tr, take, Boolean(rec))));
     if (!take) { lanes.replaceChildren(h('div', { class: 'wb-tl-empty' }, 'Record, or open a take.')); return; }
     const now = rec ? R().now() : p.t;
     const d = rec ? now : p.duration, W = Math.max(lanes.clientWidth, x(d) + 120);
     const ruler = h('div', { class: 'wb-tl-ruler', style: { width: `${W}px` } });
     const step = pps > 80 ? 1 : pps > 25 ? 5 : pps > 8 ? 10 : 30;
     for (let s = 0; s * 1000 <= d + step * 1000; s += step) ruler.append(h('span', { style: { left: `${x(s * 1000)}px` } }, fmt(s * 1000).replace(/\.0$/, '')));
-    const rows = TRACKS.map(tr => {
-      const row = h('div', { class: 'wb-tl-row', style: { width: `${W}px` } });
-      for (const c of take.clips.filter(c => c.track === tr)) row.append(clipEl(c, Boolean(rec)));
+    const rows = tracks.map(tr => {
+      const row = h('div', { class: `wb-tl-row${tr.muted ? ' muted' : ''}`, 'data-track': tr.id, 'data-kind': tr.kind, style: { width: `${W}px` } });
+      for (const c of take.clips.filter(c => laneOf(c) === tr.id)) row.append(clipEl(c, Boolean(rec)));
       return row;
     });
     const head = h('div', { class: `wb-tl-playhead${rec ? ' live' : ''}`, style: { left: `${x(now)}px` } });
@@ -148,11 +151,36 @@ export function mountTimeline(root, app) {
     });
   };
 
+  const trackLabel = (tr, take, readOnly) => {
+    const el = h('div', { class: `wb-tl-label${tr.muted ? ' muted' : ''}`, title: `${TRACK_NAMES[tr.kind] || tr.kind} track · right-click for more` },
+      h('span', { class: 'wb-tl-labeltext' }, tr.name),
+      take && !readOnly ? h('button', { class: 'wb-tl-mute', title: tr.muted ? 'Unmute' : 'Mute (the track does not play)', onclick: ev => { ev.stopPropagation(); tr.muted = !tr.muted; edited(); } }, tr.muted ? '○' : '●') : null);
+    if (take && !readOnly) {
+      el.addEventListener('dblclick', () => { const v = prompt('Track name', tr.name); if (v) { tr.name = v; drawLanes(); } });
+      el.addEventListener('contextmenu', ev => { ev.preventDefault(); showMenu(trackMenu(tr, take), ev.clientX, ev.clientY); });
+    }
+    return el;
+  };
+  const trackMenu = (tr, take) => [
+    { label: 'Rename', run: () => { const v = prompt('Track name', tr.name); if (v) { tr.name = v; drawLanes(); } } },
+    { label: tr.muted ? 'Unmute' : 'Mute', run: () => { tr.muted = !tr.muted; edited(); } },
+    { label: `Add a ${(TRACK_NAMES[tr.kind] || tr.kind).toLowerCase()} track`, run: () => { addTrack(take, tr.kind); drawLanes(); } },
+    '-',
+    { label: 'Delete track', hint: 'Its clips go too', disabled: tracksOf(take).filter(t => t.kind === tr.kind).length < 2 && take.clips.some(c => laneOf(c) === tr.id), run: () => { take.clips = take.clips.filter(c => laneOf(c) !== tr.id); take.tracks = take.tracks.filter(t => t !== tr); edited(); } }
+  ];
+
   const clipEl = (c, readOnly = false) => {
     const w = Math.max(6, x(c.dur || 0));
     const text = c.track === 'say' || c.track === 'title' ? c.text : c.track === 'draw' ? drawLabel(c) : c.track === 'camera' ? `${Math.round((c.z || 1) * 100)}%` : c.label || c.name || '';
     const el = h('div', { class: `wb-tl-clip t-${c.track}${selected?.id === c.id ? ' sel' : ''}`, 'data-id': c.id, style: { left: `${x(c.start)}px`, width: `${w}px` }, title: `${TRACK_LABEL[c.track]} · ${fmt(c.start)} · ${(c.dur / 1000).toFixed(1)} s\n${text}` },
       h('span', { class: 'wb-tl-cliptext' }, text), h('span', { class: 'wb-tl-grip', title: 'Drag to retime' }));
+    if (c.track === 'audio' && c.peaks?.length) {
+      const cv = h('canvas', { class: 'wb-tl-wave', width: Math.max(8, Math.round(w)), height: 15 });
+      const g = cv.getContext('2d'); g.fillStyle = 'rgba(40,30,36,0.45)';
+      const n = c.peaks.length;
+      for (let i = 0; i < cv.width; i++) { const p = c.peaks[Math.floor((i / cv.width) * n)] || 0; const hh = Math.max(1, p * 14); g.fillRect(i, 7.5 - hh / 2, 1, hh); }
+      el.prepend(cv);
+    }
     if (readOnly) return el;
     el.addEventListener('pointerdown', ev => {
       if (ev.button !== 0) return;
@@ -165,7 +193,19 @@ export function mountTimeline(root, app) {
         if (grip) c.dur = Math.max(100, Math.round(d0 + dt)); else c.start = Math.max(0, Math.round(s0 + dt));
         el.style.left = `${x(c.start)}px`; el.style.width = `${Math.max(6, x(c.dur))}px`;
       };
-      const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); if (c.start !== s0 || c.dur !== d0) edited(); };
+      const lane0 = laneOf(c);
+      let lane = lane0;
+      const mvLane = e2 => {
+        if (grip) return;
+        const row = document.elementFromPoint(e2.clientX, e2.clientY)?.closest?.('.wb-tl-row');
+        if (row && row.dataset.kind === c.track && row.dataset.track !== lane) { lane = row.dataset.track; row.append(el); }
+      };
+      window.addEventListener('pointermove', mvLane);
+      const up = () => {
+        window.removeEventListener('pointermove', mv); window.removeEventListener('pointermove', mvLane); window.removeEventListener('pointerup', up);
+        if (lane !== lane0) c.lane = lane;
+        if (c.start !== s0 || c.dur !== d0 || lane !== lane0) edited();
+      };
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
     });
     el.addEventListener('dblclick', () => { if (c.track === 'say' || c.track === 'title') { const v = prompt(c.track === 'say' ? 'Narration' : 'Title', c.text); if (v !== null) { c.text = v; edited(); } } else P().seek(c.start); });
@@ -184,6 +224,58 @@ export function mountTimeline(root, app) {
   ];
   const deleteClip = c => { const t = P().take; t.clips = t.clips.filter(x2 => x2 !== c); if (selected === c) select(null); edited(); };
   app.timelineEdited = edited;
+
+  // Drop from Assets: sound → an audio clip, text → narration, a drawing → a drawing clip that reveals it.
+  const blobURL = blob => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+  lanes.addEventListener('dragover', ev => { if ([...ev.dataTransfer.types].some(t => t === 'text/asset-id' || t === 'application/x-ams-history')) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; lanes.classList.add('drop'); } });
+  lanes.addEventListener('dragleave', ev => { if (!lanes.contains(ev.relatedTarget)) lanes.classList.remove('drop'); });
+  lanes.addEventListener('drop', async ev => {
+    lanes.classList.remove('drop');
+    ev.preventDefault();
+    if (R().recording) { app.log('Stop recording to add media.'); return; }
+    // History entries → drawing clips, in order, from the drop point.
+    const hist = ev.dataTransfer.getData('application/x-ams-history');
+    if (hist) {
+      const ids = JSON.parse(hist);
+      const H = app.history;
+      if (!P().take) {
+        const first = Math.min(...ids.map(i => H.indexOf(i)));
+        P().load(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(H.stateAfter(first - 1))) })); fitZoom();
+      }
+      const r0 = lanes.getBoundingClientRect();
+      const t0 = Math.max(0, Math.round(((ev.clientX - r0.left + lanes.scrollLeft) / pps) * 1000));
+      const row0 = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('.wb-tl-row');
+      const lane = row0?.dataset.kind === 'draw' ? { lane: row0.dataset.track } : {};
+      for (const c of H.clipsFrom(ids, t0)) P().take.clips.push({ id: clipId(), ...c, ...lane });
+      edited(); drawBar(); fitZoom(); drawLanes();
+      app.log(`Added ${ids.length} change${ids.length === 1 ? '' : 's'} from History at ${fmt(t0)}.`);
+      return;
+    }
+    const id = ev.dataTransfer.getData('text/asset-id');
+    if (!id) return;
+    const a = await app.assetStore.get(id);
+    if (!a) return;
+    if (!P().take) { P().load(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(app.store.doc)) })); fitZoom(); }
+    const r = lanes.getBoundingClientRect();
+    const t = Math.max(0, Math.round(((ev.clientX - r.left + lanes.scrollLeft) / pps) * 1000));
+    const take = P().take;
+    const row = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('.wb-tl-row');
+    const onRow = kind => (row?.dataset.kind === kind ? { lane: row.dataset.track } : {});
+    if (a.kind === 'audio') {
+      const src = await blobURL(a.blob);
+      let dur = a.meta?.duration;
+      if (!dur) { const au = new Audio(src); await new Promise(res => { au.onloadedmetadata = res; au.onerror = res; }); dur = Math.round((au.duration || 5) * 1000); }
+      take.clips.push({ id: clipId(), track: 'audio', ...onRow('audio'), start: t, dur, src, label: a.title, peaks: a.meta?.peaks || null, asset: a.id, fx: {} });
+    } else if (a.kind === 'text') {
+      const text = (await a.blob.text()).trim();
+      take.clips.push({ id: clipId(), track: 'say', ...onRow('say'), start: t, dur: readingTime(text), text, fx: {} });
+    } else if (a.program?.type === 'ams-process') {
+      const diff = diffDocs(docAt(touch(take), t), a.program);
+      if (diff) take.clips.push({ id: clipId(), track: 'draw', ...onRow('draw'), start: t, dur: Math.min(6000, Math.max(600, (diff.add?.length || 1) * 140)), diff, label: a.title, by: 'asset', fx: {} });
+    } else { app.log('Drop sound, text or a saved drawing on the Timeline (pictures go on the canvas).'); return; }
+    edited(); drawBar();
+    app.log(`Added “${a.title}” at ${fmt(t)}.`);
+  });
 
   lanes.addEventListener('wheel', ev => { if (!(ev.metaKey || ev.ctrlKey)) return; ev.preventDefault(); pps = Math.max(2, Math.min(600, pps * Math.exp(-ev.deltaY * 0.004))); drawLanes(); }, { passive: false });
   lanes.addEventListener('keydown', ev => {

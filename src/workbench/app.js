@@ -32,6 +32,8 @@ import { mountShortcuts } from './panels/shortcuts.js';
 import { mountCode } from './panels/code.js';
 import { mountTimeline } from './panels/timeline.js';
 import { Recorder } from './recorder.js';
+import { History } from './history.js';
+import { mountHistory } from './panels/history.js';
 import { TakePlayer } from './takePlayer.js';
 import { loadLibrary } from '../process/brushes.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
@@ -176,6 +178,7 @@ export class Workbench {
     const openCodeFirst = (mode, arg) => { this.docks.open('script'); if (this.openCode !== openCodeFirst) return this.openCode(mode, arg); };
     this.openCode ??= openCodeFirst;
     loadLibrary();
+    this.history = new History(this);
     this.recorder = new Recorder(this);
     this.player = new TakePlayer(this);
     this.shortcuts = new Shortcuts(this);
@@ -205,6 +208,7 @@ export class Workbench {
     reg('settings', 'Settings', 'gear', 'right', mountSettings);
     reg('shortcuts', 'Shortcuts', 'keyboard', 'right', mountShortcuts);
     reg('timeline', 'Timeline', 'film', 'bottom', mountTimeline);
+    reg('history', 'History', 'undo', 'bottom', mountHistory);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }
 
@@ -221,6 +225,7 @@ export class Workbench {
   }
 
   async openAsset(a) {
+    if (a.kind === 'audio' || a.kind === 'text') { this.docks.open('timeline'); this.log(`Drag “${a.title}” onto the Timeline (or the canvas, for text).`); return; }
     if (a.kind === 'take' && a.program?.clips) { await this.openTake(a.id); return; }
     if (a.kind === 'walkthrough' && a.program?.steps) { await this.walkthroughs.loadUser(); this.walkthroughs.start(a.program.id); return; }
     if (a.kind === 'dataset' && a.program?.jsonl) {
@@ -384,6 +389,13 @@ export class Workbench {
       this.log(`Placed the drawing “${a.title}” as a group (${ids.length} marks).`);
       return;
     }
+    if (a.kind === 'text') {
+      const text = (await a.blob.text()).trim().slice(0, 4000);
+      const el = this.store.addElement({ role: 'note', stage: this.activeStage.id, points: [[at[0], at[1], 0, 0.5]], text, note: structuredClone(this.defaults('note').note || {}), label: a.title, why: `from “${a.title}”` });
+      this.canvas.select([el.id]);
+      return;
+    }
+    if (a.kind === 'audio') { this.log('Sound goes on the Timeline: drag it there.'); this.docks.open('timeline'); return; }
     if (!a.blob) throw new Error('This asset has no picture');
     await this.placeImage(a.blob, at, { title: a.title, asset: a.id });
   }

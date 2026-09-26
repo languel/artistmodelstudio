@@ -2,7 +2,7 @@
  * Playing a take in the studio: the canvas shows the take's document at the playhead, the pen at
  * work, captions and title cards. The same frame code drives the standalone player and video.
  */
-import { docAt, duration, touch } from '../process/take.js';
+import { docAt, duration, touch, on } from '../process/take.js';
 import { drawCaptions, drawPen, frameTransform } from '../process/takeRender.js';
 
 export class TakePlayer {
@@ -46,8 +46,26 @@ export class TakePlayer {
     this.emit();
   }
 
+  /** Sound clips follow the playhead (started, seeked, paused with it). */
+  syncAudio() {
+    this.audios ||= new Map();
+    for (const c of this.take?.clips || []) {
+      if (c.track !== 'audio' || !c.src) continue;
+      let a = this.audios.get(c.id);
+      if (!a || a.srcKey !== c.src) { a?.pause(); a = new Audio(c.src); a.srcKey = c.src; a.preload = 'auto'; this.audios.set(c.id, a); }
+      const inside = on(this.take, c) && this.t >= c.start && this.t < c.start + c.dur;
+      if (this.playing && inside) {
+        const want = (this.t - c.start) / 1000 + (c.offset || 0) / 1000;
+        a.playbackRate = Math.min(4, this.rate);
+        if (a.paused) { a.currentTime = want; a.play().catch(() => {}); } else if (Math.abs(a.currentTime - want) > 0.3) a.currentTime = want;
+      } else if (!a.paused) a.pause();
+    }
+    for (const [id, a] of this.audios) if (!this.take?.clips.some(c => c.id === id)) { a.pause(); this.audios.delete(id); }
+  }
+
   close() {
     this.pause();
+    for (const a of this.audios?.values() || []) a.pause();
     this.take = null;
     this.app.canvas.previewDoc = null;
     this.app.canvas.invalidate();
@@ -57,7 +75,7 @@ export class TakePlayer {
   /** The take was edited: redraw at the same time. */
   changed() { if (this.take) { touch(this.take); this.render(); this.emit(); } }
 
-  seek(t) { this.t = Math.max(0, Math.min(this.duration, t)); this.render(); this.emit(); }
+  seek(t) { this.t = Math.max(0, Math.min(this.duration, t)); this.render(); this.syncAudio(); this.emit(); }
 
   play() {
     if (!this.take || this.playing) return;
@@ -68,14 +86,14 @@ export class TakePlayer {
       if (!this.playing) return;
       this.t += (now - last) * this.rate; last = now;
       if (this.t >= this.duration) { if (this.loop) this.t = 0; else { this.t = this.duration; this.playing = false; } }
-      this.render(); this.emit();
+      this.render(); this.syncAudio(); this.emit();
       if (this.playing) this.raf = requestAnimationFrame(tick);
     };
     this.raf = requestAnimationFrame(tick);
     this.emit();
   }
 
-  pause() { this.playing = false; cancelAnimationFrame(this.raf); this.emit(); }
+  pause() { this.playing = false; cancelAnimationFrame(this.raf); this.syncAudio(); this.emit(); }
   toggle() { this.playing ? this.pause() : this.play(); }
 
   render() {

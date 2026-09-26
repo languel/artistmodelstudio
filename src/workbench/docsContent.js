@@ -306,7 +306,9 @@ Pick the engine and model in Generate or the Assistant; *Custom…* takes any mo
 **Assistant** chats with any engine and acts: its replies are JSON (\`{say, actions: [{tool, args}], done}\`) and every action runs through the same tools as an agent, with the guide showing it. Ask *How did you do that?* to replay the last session step by step.`)),
 
     T('record-timeline', 'Agents', 'Recording and the timeline', 'Record runs and walkthroughs as takes; review, edit, summarize, export.', () => prose(`
-A **take** is a recording of how a drawing was made: the starting drawing, then clips on tracks.
+Two things record. **History** keeps everything: every change to the drawing, as it happens (its own capture button pauses it). The **Timeline** is what you produce: a take, recorded with its record button, or assembled by dragging in what you want: History entries, sound, text, saved drawings.
+
+A **take** is the starting drawing, then clips on tracks. Tracks work as in a video editor: add as many as you need of any kind (+ Add → Track, or right-click a track), rename, mute (a muted track does not play or export), delete; drag clips between tracks of the same kind.
 
 | Track | What it holds |
 |---|---|
@@ -320,6 +322,10 @@ A **take** is a recording of how a drawing was made: the starting drawing, then 
 **Recording.** Press record in the Timeline (or the palette, or \`ams_record\`). Walkthroughs record themselves, and so does agent activity (it stops after a quiet spell), so you can leave a run going and review it later. Takes are saved in Assets → Takes.
 
 **Reviewing and editing.** Open a take from the Timeline's list (or double-click it in Assets): the canvas shows the drawing at the playhead, the pen at work and the captions. Clips are rectangles: drag to move, drag the right edge to retime (Shift for fine steps), double-click narration or titles to edit, right-click for speed, reveal and delete. The selected clip's timing, text, reveal and fades are in Properties. **+ Add** puts a title, a line of narration, a camera keyframe (the current view), a hold or an audio file at the playhead. Space plays; ⌘-wheel zooms.
+
+**History** (bottom dock): click to select, Shift for a range, Cmd to toggle; the eye previews the drawing as it was after a change (Esc or any tool goes back); right-click to restore a state (undoable) or make a take; drag entries onto the Timeline to make clips (a hand-drawn stroke keeps its timing).
+
+**Media:** Assets take sound (with a waveform), text and Markdown, SVG, and JSON (drawings and takes come back as themselves). Drag sound onto the Timeline for an audio clip, text for narration, a saved drawing for a clip that reveals it. Audio plays in review, in the standalone player and in video exports.
 
 **Summary** makes a short-form cut: narration kept at reading pace, the drawing appearing briskly, analysis and waiting sped through, tool chatter dropped, and a hold on the result. **Walkthrough** turns a take into a live walkthrough (each line of narration a step; the drawing replayed, strokes traced by the guide).
 

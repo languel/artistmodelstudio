@@ -8,9 +8,9 @@ import { icon } from './icons.js';
 import { matches } from '../assets/assetStore.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-const KIND_ICONS = { take: 'play', walkthrough: 'play', dataset: 'database', process: 'paintBrush', variation: 'squaresPlus', painting: 'paintBrush', import: 'arrowUpTray', klee: 'photo' };
+const KIND_ICONS = { audio: 'play', text: 'script', take: 'play', walkthrough: 'play', dataset: 'database', process: 'paintBrush', variation: 'squaresPlus', painting: 'paintBrush', import: 'arrowUpTray', klee: 'photo' };
 const KIND_TIPS = { process: 'Process document (workbench)', variation: 'Variation (generated candidate)', painting: 'Painting (continuous mode)', import: 'Imported image', klee: 'Bundled Klee reference' };
-const KINDS = { all: 'All', process: 'Processes', take: 'Takes', walkthrough: 'Walkthroughs', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee' };
+const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', walkthrough: 'Walkthroughs', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee' };
 
 export class AssetPanel {
   constructor({ store, onUseAsReference, onExport, onOpen }) {
@@ -36,8 +36,10 @@ export class AssetPanel {
           </label>
           <select id="assets-kind" title="Kind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
           <button id="assets-new-folder" class="btn-micro btn-icon-only" title="New folder here">${icon('folderPlus', 'icon-sm')}</button>
-          <button id="assets-import" class="btn-micro btn-icon-only" title="Import a folder of images (subfolders are kept; a sources.json supplies titles)">${icon('arrowUpTray', 'icon-sm')}</button>
+          <button id="assets-import-files" class="btn-micro btn-icon-only" title="Import files: images, SVG, audio, text, JSON (drawings and takes come back as themselves). Or drop files here.">${icon('arrowUpTray', 'icon-sm')}</button>
+          <button id="assets-import" class="btn-micro btn-icon-only" title="Import a folder (subfolders are kept; a sources.json supplies titles)">${icon('folder', 'icon-sm')}</button>
           <input id="assets-import-input" type="file" webkitdirectory multiple hidden />
+          <input id="assets-import-files-input" type="file" multiple hidden accept="image/*,.svg,audio/*,.mp3,.wav,.ogg,.m4a,text/*,.txt,.md,.json" />
         </div>
         <div class="assets-crumbs" id="assets-crumbs"></div>
         <div class="assets-grid" id="assets-grid"></div>
@@ -51,6 +53,12 @@ export class AssetPanel {
     input.addEventListener('change', async () => {
       if (input.files.length) await this.store.importFiles(input.files, this.folder);
       input.value = '';
+    });
+    const filesInput = container.querySelector('#assets-import-files-input');
+    container.querySelector('#assets-import-files').addEventListener('click', () => filesInput.click());
+    filesInput.addEventListener('change', async () => {
+      if (filesInput.files.length) await this.store.importFiles(filesInput.files, this.folder);
+      filesInput.value = '';
     });
     // Drop images or folders' files onto the panel.
     container.addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });

@@ -492,3 +492,28 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-code-view[hidden] { display: none; }
 
 .wb-tl-playhead.live { box-shadow: 0 0 0 1px color-mix(in srgb, var(--wb-accent-2) 40%, transparent); }
+
+.wb-tl-lanes.drop { outline: 1px dashed color-mix(in srgb, var(--wb-select) 70%, transparent); outline-offset: -2px; }
+.wb-tl-wave { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+
+.wb-tl-label { display: flex; align-items: center; gap: 2px; padding-right: 2px; cursor: default; }
+.wb-tl-labeltext { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-tl-mute { border: 0; background: none; color: var(--wb-muted); font-size: 9px; padding: 0 3px; cursor: pointer; opacity: 0; }
+.wb-tl-label:hover .wb-tl-mute, .wb-tl-label.muted .wb-tl-mute { opacity: 1; }
+.wb-tl-label.muted .wb-tl-labeltext { opacity: 0.45; text-decoration: line-through; }
+.wb-tl-row.muted .wb-tl-clip { opacity: 0.35; }
+.wb-tl-labels { width: 96px; }
+
+/* History */
+.wb-panel-body:has(> .wb-hist-list) { height: 100%; box-sizing: border-box; padding: 4px 8px 6px; display: flex; flex-direction: column; }
+.wb-dock-content:has(> .wb-panel-body > .wb-hist-list) { overflow: hidden; }
+.wb-hist-bar { flex: none; }
+.wb-hist-list { flex: 1; min-height: 0; overflow-y: auto; outline: none; user-select: none; -webkit-user-select: none; }
+.wb-hist-row { display: grid; grid-template-columns: 64px minmax(80px, 180px) 1fr auto 20px; align-items: center; gap: 8px; height: 22px; padding: 0 6px; border-radius: 4px; cursor: grab; font-size: 12px; }
+.wb-hist-row:hover { background: var(--wb-hover); }
+.wb-hist-row.sel { background: var(--wb-selection); }
+.wb-hist-row.preview { box-shadow: inset 2px 0 0 var(--wb-accent-2); }
+.wb-hist-time { font: 11px var(--font-mono, ui-monospace, monospace); color: var(--wb-muted); }
+.wb-hist-label, .wb-hist-sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-hist-row.agent .wb-hist-label { color: color-mix(in srgb, var(--wb-text) 75%, #a58cc9); }
+.wb-hist-eye { width: 18px; height: 18px; font-size: 10px; }
