@@ -82,3 +82,37 @@ export function openToolParams(app, x, y) {
   setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
   open = { close };
 }
+
+/** Right-click the grid button: the grid and the drawing settings, where you are. */
+export function openGridParams(app, x, y) {
+  open?.close();
+  const pop = h('div', { class: 'wb-cp-pop wb-tp' });
+  const g = app.canvas.grid;
+  const seg = (options, value, onPick) => {
+    const wrap = h('div', { class: 'wb-seg wb-tp-seg' });
+    const draw = v => wrap.replaceChildren(...options.map(([id, label]) => h('button', { class: id === v ? 'on' : '', onclick: () => { onPick(id); draw(id); } }, label)));
+    draw(value);
+    return wrap;
+  };
+  const line = (label, control, doc) => h('label', { class: 'wb-tp-row wb-tp-row2', title: doc || '' }, h('span', { class: 'wb-tp-label' }, label), control);
+  const snap = h('input', { type: 'checkbox', checked: Boolean(g.snap), onchange: e => app.canvas.setGrid({ snap: e.target.checked }) });
+  pop.append(
+    h('div', { class: 'wb-tp-head' }, h('span', {}, 'Grid')),
+    line('Show', seg([['off', 'Off'], ['paper', 'Paper'], ['everywhere', 'All']], g.show || 'paper', v => app.canvas.setGrid({ show: v }))),
+    line('Style', seg([['lines', 'Lines'], ['dots', 'Dots']], g.style || 'lines', v => app.canvas.setGrid({ style: v }))),
+    slider({ label: 'Spacing', min: 5, max: 400, step: 5, value: g.spacing, doc: 'Distance between major lines, in artboard units', onInput: v => app.canvas.setGrid({ spacing: v }) }),
+    slider({ label: 'Divisions', min: 1, max: 10, step: 1, value: g.subdivisions, doc: 'Minor lines between the major ones', onInput: v => app.canvas.setGrid({ subdivisions: v }) }),
+    line('Snap', snap, 'Marks snap to the grid (Shift+Tab)'),
+    h('div', { class: 'wb-tp-sub' }, 'Drawing'),
+    slider({ label: 'Lazy', min: 0, max: 120, step: 1, value: app.lazy.radius, doc: 'The pen trails the cursor on a string this long (screen px). Small wobbles inside it never reach the line; corners get rounded. 0 = off', onInput: v => app.setLazy({ radius: v }) }),
+    slider({ label: 'Smoothing', min: 0, max: 0.95, step: 0.01, value: app.lazy.smoothing, doc: 'Each step the pen covers only part of the way to where it is pulled (0.5 = half). Higher is smoother and lags more. 0 = off', onInput: v => app.setLazy({ smoothing: v }) }));
+  document.body.append(pop);
+  const r = pop.getBoundingClientRect();
+  pop.style.left = `${Math.max(8, Math.min(x, window.innerWidth - r.width - 8))}px`;
+  pop.style.top = `${Math.max(8, Math.min(y, window.innerHeight - r.height - 8))}px`;
+  const outside = e => { if (!pop.contains(e.target)) close(); };
+  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const close = () => { pop.remove(); window.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', esc, true); open = null; };
+  setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
+  open = { close };
+}

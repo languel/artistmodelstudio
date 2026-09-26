@@ -633,3 +633,6 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 .wb-menu button.active { background: color-mix(in srgb, var(--wb-text) 12%, transparent); font-weight: 500; }
 .wb-menu button.active .wb-menu-icon { opacity: 1; }
 .wb-tp-sub { font-size: 10.5px; color: var(--wb-muted); margin-top: 4px; letter-spacing: .04em; text-transform: uppercase; }
+.wb-tp-row2 { grid-template-columns: 64px 1fr; }
+.wb-tp-seg { display: inline-flex; }
+.wb-tp-seg button { padding: 1px 8px; font-size: 11px; }
