@@ -22,7 +22,7 @@ export function showMenu(items, x, y) {
         b.addEventListener('pointerenter', open); b.addEventListener('click', open);
       } else {
         b.addEventListener('pointerenter', () => { menus.slice(level + 1).forEach(x2 => x2.remove()); menus.length = level + 1; });
-        b.addEventListener('click', () => { close(); it.run(); });
+        b.addEventListener('click', ev => { close(); it.run(ev); });
       }
       m.append(b);
     }

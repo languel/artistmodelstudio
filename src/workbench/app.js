@@ -197,12 +197,27 @@ export class Workbench {
     if (patch.id) this.renderChrome();
   }
 
+  /**
+   * Pick the active brush. With marks selected (and apply), the ones it can draw take it, with the
+   * brush's current settings; otherwise the Brush tool comes up to draw with it.
+   */
+  pickBrush(id, { apply = true } = {}) {
+    this.setBrush({ id });
+    const b = BRUSHES[id];
+    const ids = apply ? this.selectedElements().filter(e => b.roles?.includes(e.role)).map(e => e.id) : [];
+    if (ids.length) {
+      const params = { ...(this.brush.params[id] || {}) };
+      this.store.change('brush', d => { for (const e of d.elements) if (ids.includes(e.id)) e.realize = { brush: id, params: { ...params } }; });
+      this.log(`Brush “${b.label}” on ${ids.length} mark${ids.length === 1 ? '' : 's'}.`);
+    } else if (this.tool !== 'brush' && !this.canvas.selected.size) this.setTool('brush');
+  }
+
   brushMenu(x, y) {
     const cur = this.brush.id;
     const ids = Object.keys(BRUSHES).filter(id => !BRUSHES[id].construction && BRUSHES[id].roles?.some(r => ['line', 'plane', 'gesture'].includes(r)));
     showMenu([
       { label: 'Brush' },
-      ...ids.map(id => ({ label: `${id === cur ? '✓ ' : ''}${BRUSHES[id].label}`, hint: BRUSHES[id].doc, run: () => { this.setBrush({ id }); if (this.tool !== 'brush') this.setTool('brush'); } })),
+      ...ids.map(id => ({ label: `${id === cur ? '✓ ' : ''}${BRUSHES[id].label}`, hint: `${BRUSHES[id].doc}${this.canvas.selected.size ? ' · applies to the selection (Cmd-click: only pick it)' : ''}`, run: ev => this.pickBrush(id, { apply: !(ev?.metaKey || ev?.ctrlKey) }) })),
       '-',
       { label: 'Settings…', hint: 'Opt+right-click on the canvas', run: () => { this.setTool('brush'); openToolParams(this, x, y); } },
       { label: 'Show code', run: () => this.openCode?.('brush', cur) }
