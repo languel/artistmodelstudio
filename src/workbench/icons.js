@@ -12,7 +12,7 @@ export const ICONS = {
   guide: svg('<path d="M3 17L21 7" stroke-dasharray="3 3"/>'),
   gesture: svg('<path d="M4 16c4-9 7 4 10-3s4-6 6-4" stroke-dasharray="1.5 3"/>'),
   note: svg('<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4"/>'),
-  stages: svg('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>'),
+  stages: svg('<path d="M4 6h6M8 12h8M12 18h8"/><circle cx="4" cy="6" r="0.6" fill="currentColor"/>'),
   properties: svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
   lineNumbers: svg('<path d="M5 6h2v4M5 10h3M5 14h3l-3 4h3M11 7h8M11 12h8M11 17h8" />'),
   slidersCode: svg('<path d="M3 6h10M3 11h7M3 16h10" opacity=".5"/><path d="M15 12h6"/><circle cx="18" cy="12" r="1.8" fill="currentColor"/>'),

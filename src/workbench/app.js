@@ -83,6 +83,8 @@ export class Workbench {
     // The active brush: the Brush tool draws with it; its params are kept per brush.
     try { this.brush = { id: 'ink', params: {}, ...JSON.parse(localStorage.getItem(BRUSH_KEY) || '{}') }; } catch { this.brush = { id: 'ink', params: {} }; }
     if (!SCULPTS[this.sculpt.tool]) this.sculpt.tool = 'push';
+    // Density used to be a spacing (smaller = denser); now it is points per radius.
+    if (this.sculpt.params.simplify?.density < 1) delete this.sculpt.params.simplify.density;
     // Global paint: stroke and fill for new marks (null: the brush's own ink / no fill).
     // Plain colors for now; like brushes, strokes and fills are meant to become processes (code) too.
     try { this.paint = { stroke: null, fill: null, ...JSON.parse(localStorage.getItem('ams_paint') || '{}') }; } catch { this.paint = { stroke: null, fill: null }; }
@@ -141,6 +143,13 @@ export class Workbench {
       '-',
       { label: 'Show code', hint: 'Sculpt tools are code: fork one or write your own', run: () => this.openCode?.('sculpt', cur) }
     ], x, y);
+  }
+
+  /** The warm accent (record, playhead, points); kept per browser. null: the theme's own. */
+  setAccent(v) {
+    try { if (v) localStorage.setItem('ams_accent', v); else localStorage.removeItem('ams_accent'); } catch { /* ignore */ }
+    if (v) document.documentElement.style.setProperty('--wb-accent-2', v); else document.documentElement.style.removeProperty('--wb-accent-2');
+    this.canvas?.invalidate();
   }
 
   togglePoints() {
@@ -287,6 +296,7 @@ export class Workbench {
     this.canvas.drawReference = ctx => this.drawReference(ctx);
     this.canvas.onGrid = () => this.renderChrome();
     // Opt+right-click: the active tool's parameters as sliders; right-click: the menu.
+    try { const ac = localStorage.getItem('ams_accent'); if (ac) document.documentElement.style.setProperty('--wb-accent-2', ac); } catch { /* ignore */ }
     try { this.canvas.showPoints = localStorage.getItem('ams_show_points') === '1'; } catch { /* ignore */ }
     this.canvas.onContext = (e, hit, at) => (e.altKey ? openToolParams(this, e.clientX, e.clientY) : showMenu(this.contextItems(hit, at), e.clientX, e.clientY));
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));

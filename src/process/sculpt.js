@@ -163,7 +163,7 @@ export const SCULPTS = {
     label: 'Simplify', doc: 'Fewer points under the brush, same shape (Ramer–Douglas–Peucker on the part you brush). Alt: resample, more points, evenly spaced.',
     params: [
       param('tolerance', 'Tolerance', 0, 0.2, 0.005, 0.03, 'How far the shape may move, as a fraction of the brush radius.'),
-      param('density', 'Density', 0.02, 0.5, 0.01, 0.12, 'Alt (resample): spacing at the brush center, as a fraction of the radius; it eases back to the mark’s own spacing toward the edge.')
+      param('density', 'Density', 1, 50, 1, 8, 'Alt (resample): points per brush radius at the center (more = denser); it eases back to the mark’s own spacing toward the edge.')
     ],
     step(pts, s, p, k) {
       if (s.invert) {
@@ -179,7 +179,7 @@ export const SCULPTS = {
           const w = k.w([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
           if (w <= 0) continue;
           const t = Math.min(1, w * 2);   // strength 0.5 reaches the full density at the center
-          const target = d + (s.radius * p.density - d) * t;
+          const target = d + (s.radius / Math.max(1, p.density) - d) * t;
           const m = Math.min(24, Math.ceil(d / Math.max(0.5, target) - 0.2));
           for (let j = 1; j < m; j++) { const u = j / m; out.push(a.map((v, c) => v + ((b[c] ?? v) - v) * u)); }
         }

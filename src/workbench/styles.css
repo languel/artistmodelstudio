@@ -90,7 +90,7 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-dock.collapsed .wb-dock-edge-right::after { right: 1px; top: 8px; bottom: 8px; width: 4px; }
 .wb-dock.collapsed .wb-dock-edge-bottom::after { bottom: 1px; left: 8px; right: 8px; height: 4px; }
 .wb-tabs { display: flex; gap: 2px; padding: 4px; border-bottom: 1px solid var(--wb-line); flex: none; overflow-x: auto; }
-.wb-tab { display: inline-flex; align-items: center; gap: 6px; height: var(--ctl); padding: 0 8px; border: 0; border-radius: var(--radius); background: transparent; color: var(--wb-muted); cursor: grab; white-space: nowrap; }
+.wb-tab { display: inline-flex; align-items: center; gap: 6px; height: var(--ctl); padding: 0 5px; border: 0; border-radius: var(--radius); background: transparent; color: var(--wb-muted); cursor: grab; white-space: nowrap; }
 .wb-tab:hover { background: var(--wb-hover); color: var(--wb-text); }
 .wb-tab.active { background: var(--wb-panel-2); color: var(--wb-text); font-weight: 600; }
 .wb-dock-content { flex: 1; min-height: 0; overflow: auto; }
