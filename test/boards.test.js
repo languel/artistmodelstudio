@@ -131,3 +131,20 @@ describe('running a score into a board', () => {
     expect(res.doc.artboard).toMatchObject({ width: 500, height: 500, title: 'Intro', text: 'words' });
   });
 });
+
+import { closeLasso, lazyStep } from '../src/process/strokes.js';
+describe('strokes', () => {
+  it('a lasso whose ends overshoot is cut where they cross', () => {
+    const pts = [];
+    for (let i = 0; i <= 40; i++) { const a = -0.3 + (i / 40) * (Math.PI * 2 + 0.6); pts.push([100 + 50 * Math.cos(a), 100 + 50 * Math.sin(a), i, 0.5]); }
+    const out = closeLasso(pts, 6);
+    expect(out.length).toBeLessThan(pts.length);
+    const gap = Math.hypot(out[0][0] - out.at(-1)[0], out[0][1] - out.at(-1)[1]);
+    expect(gap).toBeLessThan(20);
+  });
+  it('the lazy pen stays until the string is taut', () => {
+    expect(lazyStep([0, 0], [5, 0], 10)).toEqual([0, 0]);
+    const p = lazyStep([0, 0], [30, 0], 10);
+    expect(p[0]).toBeCloseTo(20);
+  });
+});

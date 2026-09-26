@@ -108,6 +108,8 @@ In the Outliner and the Boards panel, double-click an item to frame it on the ca
 
 **Page** (Export → Page, or the page button in the Boards panel): the drawing as one HTML page, for a lecture, a blog post or a report. Every board with marks or text becomes a section: its title, its picture drawn by the studio's own renderer (switch to the process view, or replay how it was made), and its text (Markdown; select a board to write it in Properties). The page intro is in the Boards panel. The drawing travels inside the page: File → Open the page to keep working on it. Agents use ams_page.
 
+**Lazy drawing** (Settings → Drawing, or Opt+right-click with a drawing tool): the pen trails the cursor on a string (Lazy, in screen pixels; 0 is off) and Smoothing eases it further, for steadier lines. It is an editor setting: it changes how your hand becomes points, not the marks. Planes close smoothly: where the lasso's start and end overshoot each other the tails are cut, and the seam is relaxed.
+
 **Points** (' or the dotted-curve button top right): every mark's points as faint dots, brighter on the selection.
 
 **Brush** (B): draw with the active brush. Click the Brush button again (or right-click it) to pick one: with marks selected, the picked brush goes onto them too (Cmd-click only picks it). The active brush keeps its settings: Opt+right-click, Properties and the sliders in Code → Brush change it (with nothing selected), until you change them again.

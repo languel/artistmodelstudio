@@ -632,3 +632,4 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 .wb-menu-text { flex: 1; text-align: left; }
 .wb-menu button.active { background: color-mix(in srgb, var(--wb-text) 12%, transparent); font-weight: 500; }
 .wb-menu button.active .wb-menu-icon { opacity: 1; }
+.wb-tp-sub { font-size: 10.5px; color: var(--wb-muted); margin-top: 4px; letter-spacing: .04em; text-transform: uppercase; }

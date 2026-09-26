@@ -83,6 +83,8 @@ export class Workbench {
     this.view = { mode: 'process', upTo: Infinity };
     this.activeStageId = this.store.doc.stages[this.store.doc.stages.length - 1]?.id;
     try { this.toolDefaults = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || '{}'); } catch { this.toolDefaults = {}; }
+    // Lazy drawing: an editor setting (how the hand becomes points), not a property of marks.
+    try { this.lazy = { radius: 0, smoothing: 0, ...JSON.parse(localStorage.getItem('ams_lazy') || '{}') }; } catch { this.lazy = { radius: 0, smoothing: 0 }; }
     // Sculpt: the current sculpt tool, brush radius (screen px), strength, and each tool's params.
     try { this.sculpt = { tool: 'push', radius: 40, strength: 0.5, params: {}, ...JSON.parse(localStorage.getItem(SCULPT_KEY) || '{}') }; } catch { this.sculpt = { tool: 'push', radius: 40, strength: 0.5, params: {} }; }
     loadSculptLibrary();
@@ -157,6 +159,14 @@ export class Workbench {
     try { if (v) localStorage.setItem('ams_accent', v); else localStorage.removeItem('ams_accent'); } catch { /* ignore */ }
     if (v) document.documentElement.style.setProperty('--wb-accent-2', v); else document.documentElement.style.removeProperty('--wb-accent-2');
     this.canvas?.invalidate();
+  }
+
+  setLazy(patch) {
+    Object.assign(this.lazy, patch);
+    this.lazy.radius = Math.max(0, Math.min(200, Number(this.lazy.radius) || 0));
+    this.lazy.smoothing = Math.max(0, Math.min(0.95, Number(this.lazy.smoothing) || 0));
+    try { localStorage.setItem('ams_lazy', JSON.stringify(this.lazy)); } catch { /* ignore */ }
+    this.emit('lazy');
   }
 
   togglePoints() {
@@ -460,6 +470,7 @@ export class Workbench {
       getStage: () => this.activeStage,
       getDefaults: r => this.defaults(r),
       getSculpt: () => this.sculpt,
+      getLazy: () => this.lazy,
       onSelect: () => { this.emit('selection'); this.renderChrome(); },
       onNoteStyled: note => this.setDefaults('note', { note }),
       onTool: t => this.setTool(t),

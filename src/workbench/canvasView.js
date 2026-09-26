@@ -10,6 +10,7 @@
  */
 import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
 import { boardsOf, boardDoc, boardAt, boardForPoints, MAIN, BLACKBOARD } from '../process/boards.js';
+import { closeLasso, lazyStep } from '../process/strokes.js';
 import { renderDocument } from '../process/render.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
 import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
@@ -22,13 +23,14 @@ export const TOOL_KEYS = { v: 'select', h: 'hand', p: 'line', e: 'gesture', a: '
 const SHIFT_SCULPT = new Set(['select', 'line', 'plane', 'gesture', 'brush']);
 
 export class CanvasView {
-  constructor(host, store, { getTool, getStage, getDefaults, getSculpt, onSelect, onTool, onNoteStyled, viewMode }) {
+  constructor(host, store, { getTool, getStage, getDefaults, getSculpt, getLazy, onSelect, onTool, onNoteStyled, viewMode }) {
     this.host = host;
     this.store = store;
     this.getTool = getTool;
     this.getStage = getStage;
     this.getDefaults = getDefaults;
     this.getSculpt = getSculpt;
+    this.getLazy = getLazy;
     this.onSelect = onSelect;
     this.onNoteStyled = onNoteStyled;
     this.onTool = onTool;
@@ -199,6 +201,15 @@ export class CanvasView {
         const rr = sel ? 2 : 1.5;
         for (const q of e.points) { const [x, y] = this.toScreen(q[0], q[1]); ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill(); }
       }
+      ctx.restore();
+    }
+    if (this.rope) {
+      const [px, py] = this.toScreen(...this.rope.pen), [cx, cy] = this.toScreen(...this.rope.cursor);
+      ctx.save();
+      ctx.strokeStyle = css.getPropertyValue('--wb-muted').trim() || '#888'; ctx.globalAlpha = 0.8; ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(cx, cy); ctx.stroke(); ctx.setLineDash([]);
+      if (this.rope.radius > 0) { ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(cx, cy, this.rope.radius, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.globalAlpha = 0.9; ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
     if (this.brushAt) {
@@ -816,8 +827,17 @@ export class CanvasView {
     let last = [wx, wy, t0];
     this.pointer = true;
     const straight = tool === 'guide';
+    // Lazy drawing: the pen trails the cursor on a string (screen px), smoothed (an editor setting).
+    const lazy = this.getLazy?.() || { radius: 0, smoothing: 0 };
+    const lazyOn = !straight && (lazy.radius > 0 || lazy.smoothing > 0);
+    let pen = [wx, wy];
     const mv = ev => {
-      const [x, y] = this.toWorld(...this.local(ev));
+      let [x, y] = this.toWorld(...this.local(ev));
+      if (lazyOn) {
+        pen = lazyStep(pen, [x, y], lazy.radius / this.cam.z, lazy.smoothing);
+        this.rope = { pen: pen.slice(), cursor: [x, y], radius: lazy.radius };
+        [x, y] = pen;
+      }
       const now = performance.now();
       if (straight) {
         let [x1, y1] = [x, y];
@@ -838,10 +858,11 @@ export class CanvasView {
       this.pointer = false;
       let pts = this.draft.points;
       this.draft = null;
-      // A lasso that ends where it started: drop the duplicate closing points (no notch).
-      if (role === 'plane') while (pts.length > 3 && Math.hypot(pts[pts.length - 1][0] - pts[0][0], pts[pts.length - 1][1] - pts[0][1]) < 6 / this.cam.z) pts = pts.slice(0, -1);
+      this.rope = null;
+      // A lasso: cut the tails where start and end overshoot, and smooth the seam (no spikes at the closure).
+      if (role === 'plane') pts = closeLasso(decimate(pts, 0.75 / this.cam.z), 6 / this.cam.z);
       const minPts = role === 'plane' ? 3 : 2;
-      if (pts.length >= minPts) this.commitNew(role, straight ? pts : decimate(pts, 0.75 / this.cam.z), {}, dkey);
+      if (pts.length >= minPts) this.commitNew(role, straight || role === 'plane' ? pts : decimate(pts, 0.75 / this.cam.z), {}, dkey);
       else this.invalidate();
     };
     window.addEventListener('pointermove', mv);

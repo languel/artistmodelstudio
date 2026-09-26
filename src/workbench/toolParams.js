@@ -60,6 +60,12 @@ export function openToolParams(app, x, y) {
     code = () => app.openCode?.('brush', id);
     rows.push(...(b?.params || []).map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => app.setDefaults(app.tool, { realize: { params: { [p.key]: v } } }) })));
   }
+  // Drawing tools: the lazy pen (an editor setting; it changes how strokes are drawn, not the marks).
+  if (['line', 'plane', 'gesture', 'brush'].includes(app.tool) && app.lazy) {
+    rows.push(h('div', { class: 'wb-tp-sub' }, 'Drawing'),
+      slider({ label: 'Lazy', min: 0, max: 120, step: 1, value: app.lazy.radius, doc: 'The pen trails the cursor on a string this long (screen px); 0 = off', onInput: v => app.setLazy({ radius: v }) }),
+      slider({ label: 'Smoothing', min: 0, max: 0.95, step: 0.01, value: app.lazy.smoothing, doc: 'Eases the pen further (0 = off)', onInput: v => app.setLazy({ smoothing: v }) }));
+  }
   if (!rows.length) rows.push(h('div', { class: 'wb-muted wb-small' }, 'No parameters for this tool: select marks, or pick a drawing or sculpt tool.'));
 
   pop.append(
