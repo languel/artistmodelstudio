@@ -52,7 +52,7 @@ export function runScript(source, opts = {}) {
   return first;
 }
 
-function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, base = null, units = 'fraction' } = {}) {
+function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, base = null, units = 'fraction', target = null } = {}) {
   const doc = base ? normalizeDocument(base) : createDocument();
   if (!base) doc.stages = [];
   let rng = mulberry32(seed);
@@ -60,10 +60,14 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
   let current = null;
   let clock = 0; // synthetic time so scripted paths carry an order and a duration
   const abm = String(source).match(/\bartboard\(\s*([\d.]+)\s*,\s*([\d.]+)/);
-  const W = abm ? Number(abm[1]) : doc.artboard.width, H = abm ? Number(abm[2]) : doc.artboard.height;
+  // The board the score draws on unless it says board(…): the main board, or the one given as target.
+  const tb = target ? findBoard(doc, target) : null;
+  const home = tb && !tb.main ? tb : null;
+  const W = abm ? Number(abm[1]) : home ? home.width : doc.artboard.width, H = abm ? Number(abm[2]) : home ? home.height : doc.artboard.height;
   const frac = units === 'fraction';
   // The board marks land on: the main board (the artboard) until board(…) picks another.
-  let tgt = { id: null, x: 0, y: 0, w: W, h: H };
+  let tgt = home ? { id: home.id, x: home.x, y: home.y, w: W, h: H } : { id: null, x: 0, y: 0, w: W, h: H };
+  if (home && abm) { const b = doc.boards.find(x => x.id === home.id); b.width = W; b.height = H; }
   const aspect = () => tgt.w / tgt.h;
   let maxRaw = 0;
   // Score coordinates → world units: fractions of the current board (or its own units), at its place.
@@ -121,7 +125,12 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
   };
 
   const api = {
-    artboard(width = 1000, height = 1000, ground = '#f3efe6') { doc.artboard = { width, height, ground }; return doc.artboard; },
+    /** The size and paper of the board the score draws on (the artboard, unless it runs into another board). */
+    artboard(width = 1000, height = 1000, ground = '#f3efe6') {
+      if (home) { const b = doc.boards.find(x => x.id === home.id); Object.assign(b, { width, height, ground }); return b; }
+      doc.artboard = { ...doc.artboard, width, height, ground };
+      return doc.artboard;
+    },
     /**
      * board(title, { width, height, x, y, ground }): later marks land on this board, made if new
      * (right of the others); coordinates are then fractions of it. board() goes back to the main one.
@@ -228,6 +237,17 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
     const errorLine = m ? Math.max(1, Number(m[1]) - 4) : null;
     return { doc: null, error: err.message || String(err), errorLine, logs, maxRaw: 0, units };
   }
+}
+
+/**
+ * Run a score into a drawing: it replaces the marks of one board (the main one unless given) and
+ * leaves the other boards and the blackboard as they are. board(…) in the score still reaches (or
+ * makes) other boards. Returns runScript's result, with the whole drawing as doc.
+ */
+export function runScoreInto(doc, source, { board = 'main', seed = 1, by } = {}) {
+  const b = findBoard(doc, board) || findBoard(doc, 'main');
+  const base = { ...structuredClone(doc), elements: doc.elements.filter(e => (e.board || 'main') !== b.id).map(e => structuredClone(e)) };
+  return runScript(source, { seed, by, base, target: b.id });
 }
 
 /** Short reference shown in the Script panel and given to models. */

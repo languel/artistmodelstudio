@@ -9,7 +9,7 @@ import { createDocument } from '../process/document.js';
 export function buildCommands(app) {
   const cmd = (category, name, run, keys = '', hint = '') => ({ id: `${category}:${name}`, category, name, run, keys, hint });
   const out = [
-    cmd('File', 'New drawing', () => { app.loadDocument(createDocument(), 'new'); app.canvas.fit(); }),
+    cmd('File', 'New drawing (a new scene)', () => app.scenes.create()),
     cmd('File', 'Open file…', () => app.openFile()),
     cmd('File', 'Save to Assets', () => app.saveToAssets(), '⌘S'),
     cmd('Edit', 'Undo', () => app.store.undo(), '⌘Z'),

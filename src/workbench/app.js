@@ -7,6 +7,7 @@ import { openToolParams } from './toolParams.js';
 import { boardDoc, boardById, boardsOf, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
 import { sceneHtml, docFromPage } from '../process/page.js';
 import { Scenes } from './scenes.js';
+import { runScoreInto } from '../process/script.js';
 import { SCULPTS, loadSculptLibrary } from '../process/sculpt.js';
 import { ProcessStore, createDocument, normalizeDocument, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
@@ -405,6 +406,21 @@ export class Workbench {
     this.emit('tool');
   }
 
+  /**
+   * A drawing made by a score (a generated candidate, an exercise) onto the active board: its score
+   * reruns there, replacing that board's marks; the other boards and the blackboard stay. Without
+   * a score it opens as a new scene.
+   */
+  putScoreDoc(doc, reason = 'score') {
+    const src = doc?.meta?.script;
+    if (!src) return this.scenes.create({ doc });
+    const res = runScoreInto(this.store.doc, src, { board: this.activeBoard || MAIN, seed: doc.meta.seed ?? 1, by: doc.meta.by });
+    if (res.error || !res.doc) return this.scenes.create({ doc });
+    res.doc.title = this.store.doc.title;
+    this.loadDocument(res.doc, reason);
+    return null;
+  }
+
   loadDocument(doc, reason = 'load') {
     this.store.replace(normalizeDocument(doc), reason);
     this.canvas.select([]);
@@ -788,7 +804,7 @@ export class Workbench {
   openMenu(anchor) {
     const r = anchor.getBoundingClientRect();
     showMenu([
-      { label: 'New drawing', run: () => { this.loadDocument(createDocument(), 'new'); this.canvas.fit(); } },
+      { label: 'New drawing', hint: 'A new scene: the drawing you have stays as it is', run: () => this.scenes.create() },
       { label: 'Open file', hint: 'Process JSON, SVG with a process record, Excalidraw, or an image as reference', run: () => this.openFile() },
       { label: 'Save to Assets', keys: this.shortcuts.label('file.save'), run: () => this.saveToAssets() },
       { label: 'Export', items: [

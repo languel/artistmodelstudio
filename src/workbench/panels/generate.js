@@ -62,7 +62,7 @@ export function mountGenerate(root, app) {
           candidates.unshift(c);
           persist();
           app.log(res.error ? `Candidate failed after ${res.attempts} attempt(s): ${res.error}` : `Candidate: ${res.doc.stages.length} stages, ${res.doc.elements.length} elements, ${res.doc.decisions.length} decisions (${c.seconds}s${res.attempts > 1 ? ', repaired' : ''})`, res.error ? 'error' : 'info');
-          if (res.doc && i === 0) app.loadDocument(res.doc, 'generated');
+          if (res.doc && i === 0) app.putScoreDoc(res.doc, 'generated');
         } catch (err) {
           app.log(`Generate failed: ${err.message}`, 'error');
           if (ctrl.signal.aborted) break;
@@ -99,7 +99,7 @@ export function mountGenerate(root, app) {
       const thumb = c.doc ? renderToCanvas(c.doc, { scale: 110 / Math.max(c.doc.artboard.width, c.doc.artboard.height), mode: 'picture' }) : h('div', { class: 'wb-cand-fail' }, '✕');
       const src = h('pre', { class: 'wb-ref', hidden: true }, c.source || c.raw || '');
       return h('div', { class: 'wb-cand' },
-        h('button', { class: 'wb-cand-thumb', title: c.doc ? 'Open on the canvas' : c.error, onclick: () => c.doc && app.loadDocument(structuredClone(c.doc), 'open candidate') }, thumb),
+        h('button', { class: 'wb-cand-thumb', title: c.doc ? 'Onto the active board (replaces its marks)' : c.error, onclick: () => c.doc && app.putScoreDoc(structuredClone(c.doc), 'open candidate') }, thumb),
         h('div', { class: 'wb-cand-meta' },
           h('div', { class: 'wb-small' }, c.model),
           h('div', { class: 'wb-muted wb-small' }, c.doc ? `${c.doc.stages.length} stages · ${c.doc.elements.length} el · ${c.seconds}s${c.attempts > 1 ? ' · repaired' : ''}` : `failed: ${c.error}`),

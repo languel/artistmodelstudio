@@ -103,3 +103,31 @@ describe('the page', () => {
     expect(docFromPage(html).boards[0].title).toBe('Points');
   });
 });
+
+import { runScoreInto } from '../src/process/script.js';
+describe('running a score into a board', () => {
+  it('replaces that board\'s marks, and keeps the other boards and the blackboard', () => {
+    const s = new ProcessStore();
+    s.updateBoard(MAIN, { title: 'Title slide', text: 'hello' });
+    const b = s.addBoard({ title: 'Two', width: 400, height: 200 });
+    s.addElement({ role: 'line', points: [[10, 10], [20, 20]] });                 // main
+    s.addElement({ role: 'line', board: b.id, points: [[0, 0], [1, 1]] });        // board Two
+    s.addElement({ role: 'line', points: [[-500, -500], [-400, -400]] });         // blackboard
+    const res = runScoreInto(s.doc, `artboard(800, 600)\npoint(0.5, 0.5)`, { board: b.id });
+    expect(res.error).toBeNull();
+    const d = res.doc, two = boardsOf(d).find(x => x.id === b.id);
+    expect(boardsOf(d).map(x => x.title)).toEqual(['Title slide', 'Two']);
+    expect(d.artboard.text).toBe('hello');
+    expect([two.width, two.height]).toEqual([800, 600]);
+    expect(d.elements.filter(e => e.board === b.id).map(e => e.role)).toEqual(['point']);
+    expect(d.elements.find(e => e.role === 'point').points[0].slice(0, 2)).toEqual([two.x + 400, two.y + 300]);
+    expect(d.elements.filter(e => !e.board).length).toBe(1);
+    expect(d.elements.filter(e => e.board === BLACKBOARD).length).toBe(1);
+  });
+  it('into the main board keeps the main board\'s title and text', () => {
+    const s = new ProcessStore();
+    s.updateBoard(MAIN, { title: 'Intro', text: 'words' });
+    const res = runScoreInto(s.doc, `artboard(500, 500)\npoint(0.5, 0.5)`);
+    expect(res.doc.artboard).toMatchObject({ width: 500, height: 500, title: 'Intro', text: 'words' });
+  });
+});

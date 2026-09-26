@@ -4,7 +4,7 @@
  * (/__ams/*) that src/mcp/mcpServer.js proxies for Claude Code and other clients.
  * Every mutating call is written to the Log in purple.
  */
-import { runScript, SCRIPT_REFERENCE } from '../process/script.js';
+import { runScript, runScoreInto, SCRIPT_REFERENCE } from '../process/script.js';
 import { EXERCISES } from '../process/exercises.js';
 import { ROLES, STAGE_KINDS, normalizeElement } from '../process/document.js';
 import { BRUSHES } from '../process/brushes.js';
@@ -47,7 +47,7 @@ export function workbenchTools(app) {
       if (a.load) { app.scriptPanel?.setSource(x.source); loadScore(app, x.source, 1, { kind: 'example', name: 'exercise' }, x.title); }
       return x;
     } },
-    { name: 'ams_run_score', description: 'Run a score (JS in the point/line/plane vocabulary) and put the recorded process on the canvas. Use by to credit yourself (e.g. {kind:"model", name:"claude-opus-5-5"}).', inputSchema: S({ source: str('Score source'), seed: num('Seed (default 1)'), title: str('Title'), by: { type: 'object', description: '{ kind, name }' } }, ['source']), run: (a) => {
+    { name: 'ams_run_score', description: 'Run a score (JS in the point/line/plane vocabulary) into the active board: it replaces that board\'s marks; other boards and the blackboard stay (board(title) in the score reaches others). Use by to credit yourself (e.g. {kind:"model", name:"claude-opus-5-5"}).', inputSchema: S({ source: str('Score source'), seed: num('Seed (default 1)'), title: str('Title'), by: { type: 'object', description: '{ kind, name }' } }, ['source']), run: (a) => {
       app.scriptPanel?.setSource(a.source);
       const res = loadScore(app, a.source, a.seed ?? 1, a.by || { kind: 'model', name: 'agent' }, a.title);
       return res.error ? { error: res.error, logs: res.logs } : { stages: res.doc.stages.map(s => s.name), elements: res.doc.elements.length, decisions: res.doc.decisions.length, logs: res.logs };
@@ -172,7 +172,7 @@ export function workbenchTools(app) {
     { name: 'ams_answer', description: 'Answer the waiting Generate request with your reply (a score in a ```js block).', inputSchema: S({ text: str('Your reply') }, ['text']), run: (a) => ({ delivered: app.artists.get('agent')?.answer(a.text) || false }) },
     { name: 'ams_candidates', description: 'Generated candidates this session (newest first): prompt, engine, model, stages, elements, errors; open one by index.', inputSchema: S({ open: num('Index to open') }), run: (a) => {
       const list = app.candidates || [];
-      if (a.open !== undefined && list[a.open]?.doc) app.loadDocument(structuredClone(list[a.open].doc), 'open candidate');
+      if (a.open !== undefined && list[a.open]?.doc) app.putScoreDoc(structuredClone(list[a.open].doc), 'open candidate');
       return list.map((c, i) => ({ index: i, prompt: c.prompt, engine: c.engine, model: c.model, exercise: c.exercise, stages: c.doc?.stages.length, elements: c.doc?.elements.length, error: c.error || null, attempts: c.attempts, seconds: c.seconds }));
     } },
     { name: 'ams_analyze', description: 'Decide panel: analyze the reference image (value masses, regions with place/value/hue/edges/direction, optional MediaPipe pose and figure). Returns a compact description of the regions.', inputSchema: S({ mediapipe: { type: 'boolean' }, k: num('Value/color clusters (3-8, default 5)') }), run: async (a) => {
@@ -308,7 +308,8 @@ function normalizePoints(pts) {
 }
 
 function loadScore(app, source, seed, by, title) {
-  const res = runScript(source, { seed, by });
+  // Into the active board: its marks are replaced, the other boards and the blackboard stay.
+  const res = runScoreInto(app.store.doc, source, { board: app.activeBoard || 'main', seed, by });
   if (res.doc) { res.doc.title = title || app.store.doc.title; app.loadDocument(res.doc, 'agent score'); }
   return res;
 }

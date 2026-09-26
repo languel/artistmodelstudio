@@ -1,7 +1,7 @@
 /** Score: write or load a score, run it, and the process document is recorded on the canvas. */
 import { h, selectField, numberField, section } from '../ui.js';
 import { icon } from '../icons.js';
-import { runScript, SCRIPT_REFERENCE } from '../../process/script.js';
+import { runScript, runScoreInto, SCRIPT_REFERENCE } from '../../process/script.js';
 import { EXERCISES } from '../../process/exercises.js';
 import { createCodeEditor } from '../codeEditor.js';
 
@@ -11,7 +11,8 @@ export function mountScript(el, app) {
   const brief = h('div', { class: 'wb-brief' });
   const host = h('div', { class: 'wb-code-host' });
   const run = () => {
-    const res = runScript(editor.value, { seed, by: { kind: 'user', name: 'you (score)' } });
+    // Into the active board: its marks are replaced, the other boards and the blackboard stay.
+    const res = runScoreInto(app.store.doc, editor.value, { board: app.activeBoard || 'main', seed, by: { kind: 'user', name: 'you (score)' } });
     out.textContent = res.error ? `${res.errorLine ? `Line ${res.errorLine}: ` : ''}${res.error}` : (res.logs.join('\n') || `${res.doc.elements.length} elements in ${res.doc.stages.length} stages · seed ${seed}`);
     out.classList.toggle('error', Boolean(res.error));
     editor.markError(res.error ? res.errorLine || 1 : null, res.error);
