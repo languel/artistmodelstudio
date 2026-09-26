@@ -183,12 +183,14 @@ export function mountTimeline(root, app) {
     if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected) { ev.preventDefault(); deleteClip(selected); }
   });
 
+  let lastPlaying = false;
   // Keep the playhead and time in step while playing (cheap: move the line, rewrite the time).
   const sync = () => {
     const p = P(); if (!p?.take) return;
     const head = lanes.querySelector('.wb-tl-playhead'); if (head) head.style.left = `${x(p.t)}px`;
     const time = bar.querySelector('.wb-tl-time'); if (time) time.textContent = `${fmt(p.t)} / ${fmt(p.duration)}`;
-    const btns = bar.querySelectorAll('.wb-icon-btn'); if (btns[1] && btns[1]._playing !== p.playing) { btns[1]._playing = p.playing; drawBar(); }
+    // Redraw the bar only when play/pause flips (redrawing every frame swallowed clicks).
+    if (lastPlaying !== p.playing) { lastPlaying = p.playing; drawBar(); }
     if (p.playing) { const hx = x(p.t); if (hx > lanes.scrollLeft + lanes.clientWidth - 40) lanes.scrollLeft = hx - 60; }
   };
   const attach = () => { if (!P() || !R()) return setTimeout(attach, 30); P().on(sync); drawBar(); drawLanes(); loadTakes(); };
