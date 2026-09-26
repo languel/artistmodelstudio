@@ -40,6 +40,12 @@ export function renderDocument(ctx, doc, {
     const construction = brush.construction || e.role === 'guide' || e.role === 'gesture' || e.role === 'note';
     if (construction) { overlay.push(e); continue; }
     env.rng = mulberry32(e.seed || 1);
+    if (e.color === 'none') {
+      // No stroke: only the fill (a plane's brush paints it).
+      if (e.fill && e.role === 'plane') withLook(ctx, e, () => brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env));
+      else if (e.fill && e.points.length > 2 && e.closed) withLook(ctx, e, () => fillShape(ctx, e));
+      continue;
+    }
     if (e.fill && e.role === 'plane') {
       // A plane's brush is its fill; the stroke outlines it.
       withLook(ctx, e, () => { brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env); if (e.color) strokeShape(ctx, e, env.scale); });

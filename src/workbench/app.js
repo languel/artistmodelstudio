@@ -125,9 +125,9 @@ export class Workbench {
     const s = sel.length ? (sel[0].color ?? null) : stroke;
     const f = sel.length ? (sel[0].fill ?? null) : fill;
     const chip = (which, v, tip) => {
-      const b = h('button', { class: `wb-paint-${which}${v ? '' : ' none'}`, title: tip, type: 'button' }, h('span', { style: which === 'stroke' ? { boxShadow: v ? `inset 0 0 0 5px ${v}` : 'none' } : { background: v || 'transparent' } }));
-      b.addEventListener('click', ev => { ev.stopPropagation(); openPicker(b, parseColor(v || (which === 'fill' ? '#ffffff' : '#1d1b19')), (c, final) => { if (final) this.setPaint(which, formatColor(c.hex, c.alpha)); }, this); });
-      b.addEventListener('contextmenu', ev => { ev.preventDefault(); showMenu([{ label: which === 'fill' ? 'No fill' : 'Brush ink (default)', run: () => this.setPaint(which, null) }, { label: 'Swap stroke and fill', run: () => this.swapPaint() }], ev.clientX, ev.clientY); });
+      const b = h('button', { class: `wb-paint-${which}${v && v !== 'none' ? '' : ' none'}${which === 'stroke' && !v ? ' ink' : ''}`, title: tip, type: 'button' }, h('span', { style: which === 'stroke' ? { boxShadow: `inset 0 0 0 5px ${v && v !== 'none' ? v : !v ? 'var(--wb-text)' : 'transparent'}` } : { background: v || 'transparent' } }));
+      b.addEventListener('click', ev => { ev.stopPropagation(); openPicker(b, parseColor((v !== 'none' && v) || (which === 'fill' ? '#ffffff' : '#1d1b19')), (c, final) => { if (final) this.setPaint(which, c ? formatColor(c.hex, c.alpha) : (which === 'stroke' ? 'none' : null)); }, this, { allowNone: true }); });
+      b.addEventListener('contextmenu', ev => { ev.preventDefault(); showMenu([{ label: which === 'fill' ? 'No fill' : 'No stroke', run: () => this.setPaint(which, which === 'stroke' ? 'none' : null) }, ...(which === 'stroke' ? [{ label: 'Brush ink (default)', run: () => this.setPaint('stroke', null) }] : []), { label: 'Swap stroke and fill', run: () => this.swapPaint() }], ev.clientX, ev.clientY); });
       return b;
     };
     return h('div', { class: 'wb-paint', 'data-guide': 'tool:paint' },

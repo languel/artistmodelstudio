@@ -94,7 +94,7 @@ export async function eyedropToTarget(app) {
   return c;
 }
 
-export function openPicker(anchor, start, onChange, app) {
+export function openPicker(anchor, start, onChange, app, { allowNone = false } = {}) {
   open?.close();
   let hsv = hexHsv(start.hex), alpha = start.alpha, dirty = false;
   const hex = () => hsvHex(hsv);
@@ -162,14 +162,15 @@ export function openPicker(anchor, start, onChange, app) {
   alp.addEventListener('input', () => { alpha = Number(alp.value) / 100; sync(); });
   alp.addEventListener('change', () => sync(true));
   // Hex, or a name: "burnt sienna", "payne's gray", "crimson", or a palette color's name.
-  hexIn.addEventListener('change', () => { const raw = hexIn.value.trim(); const v = toHex(/^[0-9a-f]{3,8}$/i.test(raw) ? `#${raw}` : raw); if (v) choose(v); else hexIn.value = formatColor(hex(), alpha).slice(1); });
+  hexIn.addEventListener('change', () => { const raw = hexIn.value.trim(); if (allowNone && /^(none|no|transparent|-|)$/i.test(raw)) { onChange(null, true); close(); return; } const v = toHex(/^[0-9a-f]{3,8}$/i.test(raw) ? `#${raw}` : raw); if (v) choose(v); else hexIn.value = formatColor(hex(), alpha).slice(1); });
   pctIn.addEventListener('change', () => { alpha = Math.max(0, Math.min(100, Number(pctIn.value) || 0)) / 100; sync(true); });
   for (const i of [hexIn, pctIn]) i.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') i.blur(); });
 
   const pop = h('div', { class: 'wb-cp-pop' },
     sv, hue, alp,
     h('div', { class: 'wb-cp-row wb-cp-inputs' }, h('span', { class: 'wb-cp-checker wb-cp-big' }, preview),
-      app ? h('button', { class: 'wb-cp-drop', type: 'button', title: 'Pick a color from the screen (I)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5l4 4M4 20l1-4 9.5-9.5 3 3L8 19z"/><path d="M16 4l4 4"/></svg>', onclick: () => eyedrop(app).then(c => c && choose(c)) }) : null, h('span', { class: 'wb-muted' }, '#'), hexIn, pctIn, h('span', { class: 'wb-muted' }, '%')),
+      app ? h('button', { class: 'wb-cp-drop', type: 'button', title: 'Pick a color from the screen (I)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5l4 4M4 20l1-4 9.5-9.5 3 3L8 19z"/><path d="M16 4l4 4"/></svg>', onclick: () => eyedrop(app).then(c => c && choose(c)) }) : null, h('span', { class: 'wb-muted' }, '#'), hexIn, pctIn, h('span', { class: 'wb-muted' }, '%'),
+      allowNone ? h('button', { class: 'wb-cp-none', type: 'button', title: 'None (or type none)', onclick: () => { onChange(null, true); close(); } }) : null),
     h('div', { class: 'wb-cp-row wb-cp-inputs' }, paletteSel, fromRef), presets,
     h('div', { class: 'wb-cp-head' }, 'Recent'), recents,
     h('div', { class: 'wb-cp-head' }, 'Mine'), mine);

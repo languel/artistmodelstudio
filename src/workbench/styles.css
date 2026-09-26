@@ -549,3 +549,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, [contentedita
 .wb-paint > button.none { background: var(--wb-panel); }
 .wb-paint > button.none::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top right, transparent calc(50% - 1px), #d9480f calc(50% - 1px), #d9480f calc(50% + 1px), transparent calc(50% + 1px)); }
 .wb-paint-swap { right: -4px; top: -2px; width: 12px !important; height: 12px !important; border: none !important; background: none !important; color: var(--wb-muted); font-size: 10px; line-height: 12px; }
+.wb-cp-none { position: relative; width: 20px; height: 20px; flex: none; padding: 0; border: 1px solid var(--wb-line); border-radius: 4px; background: var(--wb-panel); cursor: pointer; }
+.wb-cp-none::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top right, transparent calc(50% - 1px), #d9480f calc(50% - 1px), #d9480f calc(50% + 1px), transparent calc(50% + 1px)); }
+.wb-paint > button.ink::after { display: none; }
