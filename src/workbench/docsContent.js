@@ -98,7 +98,7 @@ Shift+double-click renames in place anything with a name: marks, groups and stag
 
 **Tool settings**: right-click the Point, Line or Plane button (or the gesture/guide button) for what its new marks will be: the brush and its settings, opacity, blend and path (smooth or straight). They stay for every new stroke until you change them (the same defaults as Properties with nothing selected).
 
-**Snap while drawing**: hold Ctrl while drawing (line, plane, gesture, brush) and every point lands on the grid (its finest lines, major ÷ divisions), whether grid snap is on or not; repeated points are dropped and the points stay exactly on the grid.
+**Snap while drawing**: hold Ctrl while drawing (line, plane, gesture, brush) and every point lands on the grid (its finest lines, major ÷ divisions), whether grid snap is on or not; repeated points are dropped and the points stay exactly on the grid. Ctrl works on the selection too: moving snaps its top-left corner to the grid, and scaling snaps the edge or corner you drag (the marks' own edges, not the frame around them; with Alt, both sides from the center).
 
 **Performance**: right-click the zoom control (or the command palette: performance readout) for frames per second while the canvas redraws, the last redraw in milliseconds, and the number of marks; a redraw slower than 16 ms shows in the accent color. ams_ui reports the last redraw too.
 

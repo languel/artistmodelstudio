@@ -382,6 +382,7 @@ export class CanvasView {
     const originals = new Map(this.store.doc.elements.filter(el => this.selected.has(el.id)).map(el => [el.id, el.points.map(p => p.slice())]));
     const notes = new Map(this.store.doc.elements.filter(el => this.selected.has(el.id) && el.role === 'note').map(el => [el.id, noteProps(el)]));
     const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    const tb = this.selectionBounds();   // the marks' own bounds (the frame is padded)
     const [wx0, wy0] = this.toWorld(...this.local(e));
     const a0 = Math.atan2(wy0 - cy, wx0 - cx);
     let changed = false;
@@ -413,6 +414,15 @@ export class CanvasView {
       const ex = hx0 + (x - wx0), ey = hy0 + (y - wy0);
       let sx = hd.hx && hx0 !== ax ? (ex - ax) / (hx0 - ax) : 1;
       let sy = hd.hy && hy0 !== ay ? (ey - ay) / (hy0 - ay) : 1;
+      // Ctrl: the marks' own edges (not the padded frame) land on the grid.
+      if (ev.ctrlKey && tb) {
+        const tax = ev.altKey ? (tb.x0 + tb.x1) / 2 : hd.hx < 0 ? tb.x1 : tb.x0, tay = ev.altKey ? (tb.y0 + tb.y1) / 2 : hd.hy < 0 ? tb.y1 : tb.y0;
+        const tex = hd.hx < 0 ? tb.x0 : tb.x1, tey = hd.hy < 0 ? tb.y0 : tb.y1;
+        const [gx, gy] = this.snapPt(tex + (x - wx0), tey + (y - wy0), true);
+        if (hd.hx && tex !== tax) sx = (gx - tax) / (tex - tax);
+        if (hd.hy && tey !== tay) sy = (gy - tay) / (tey - tay);
+        if (!ev.altKey) { apply((px, py) => [tax + (px - tax) * sx, tay + (py - tay) * sy]); this.transformLabel = `${Math.round(sx * 100)}% × ${Math.round(sy * 100)}%`; return; }
+      }
       if (hd.hx && hd.hy && ev.shiftKey) { const k = Math.max(Math.abs(sx), Math.abs(sy)); sx = Math.sign(sx || 1) * k; sy = Math.sign(sy || 1) * k; }
       if (!Number.isFinite(sx)) sx = 1;
       if (!Number.isFinite(sy)) sy = 1;
@@ -802,7 +812,8 @@ export class CanvasView {
         const [x, y] = this.toWorld(...this.local(ev));
         let dx = x - wx, dy = y - wy;
         // With snap on, the selection's top-left corner lands on the grid.
-        if (this.grid.snap && b0) { const [sx0, sy0] = this.snapPt(b0.x0 + dx, b0.y0 + dy); dx = sx0 - b0.x0; dy = sy0 - b0.y0; }
+        // With snap on, or Ctrl held, the selection's top-left corner lands on the grid.
+        if ((this.grid.snap || ev.ctrlKey) && b0) { const [sx0, sy0] = this.snapPt(b0.x0 + dx, b0.y0 + dy, true); dx = sx0 - b0.x0; dy = sy0 - b0.y0; }
         if (!dx && !dy && !moved) return;
         moved = true;
         for (const el of this.store.doc.elements) { const o = orig.get(el.id); if (o) el.points = o.map(([px, py, t, p]) => [px + dx, py + dy, t, p]); }
