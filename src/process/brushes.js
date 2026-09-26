@@ -170,25 +170,29 @@ export const BRUSHES = {
         const pressure = 1 - p.pressure + p.pressure * (q[3] ?? 0.5) * 2;
         return Math.max(0.15, p.width * 0.5 * pressure * (0.35 + 0.65 * taper));
       });
-      const L = [], R = [];
-      for (let i = 0; i < pts.length; i++) {
-        const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
-        let dx = b[0] - a[0], dy = b[1] - a[1];
-        const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
-        const w = half[i] + (p.wobble ? (k.rng() - 0.5) * p.wobble * p.width : 0);
-        L.push([pts[i][0] - dy * w, pts[i][1] + dx * w]);
-        R.push([pts[i][0] + dy * w, pts[i][1] - dx * w]);
-      }
+      // Round joins: every segment is its own quad (its own direction), every point a disc; one
+      // fill of all of them (same winding), so thick turns stay round and nothing overlaps darker.
+      const r = pts.map((q, i) => Math.max(0.1, half[i] + (p.wobble ? (k.rng() - 0.5) * p.wobble * p.width : 0)));
       ctx.save();
       ctx.globalAlpha *= p.opacity;
       ctx.fillStyle = e.color || k.INK;
       ctx.beginPath();
-      L.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      for (let i = R.length - 1; i >= 0; i--) ctx.lineTo(R[i][0], R[i][1]);
-      ctx.closePath();
-      ctx.fill();
-      // Round caps.
-      for (const i of e.closed ? [] : [0, pts.length - 1]) { ctx.beginPath(); ctx.arc(pts[i][0], pts[i][1], half[i], 0, Math.PI * 2); ctx.fill(); }
+      const segs = e.closed ? pts.length : pts.length - 1;
+      for (let i = 0; i < segs; i++) {
+        const a = pts[i], b = pts[(i + 1) % pts.length], ra = r[i], rb = r[(i + 1) % pts.length];
+        let dx = b[0] - a[0], dy = b[1] - a[1];
+        const d = Math.hypot(dx, dy);
+        if (d < 1e-6) continue;
+        dx /= d; dy /= d;
+        const quad = [[a[0] - dy * ra, a[1] + dx * ra], [b[0] - dy * rb, b[1] + dx * rb], [b[0] + dy * rb, b[1] - dx * rb], [a[0] + dy * ra, a[1] - dx * ra]];
+        let area = 0;
+        for (let j = 0; j < 4; j++) { const [x1, y1] = quad[j], [x2, y2] = quad[(j + 1) % 4]; area += x1 * y2 - x2 * y1; }
+        if (area < 0) quad.reverse();
+        quad.forEach(([x, y], j) => (j ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+      }
+      for (let i = 0; i < pts.length; i++) { ctx.moveTo(pts[i][0] + r[i], pts[i][1]); ctx.arc(pts[i][0], pts[i][1], r[i], 0, Math.PI * 2); }
+      ctx.fill('nonzero');
       ctx.restore();
     }
   },
