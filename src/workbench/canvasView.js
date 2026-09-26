@@ -897,7 +897,10 @@ export class CanvasView {
       if (!straight && role !== 'plane' && !snapped) pts = decimate(pts, 0.75 / this.cam.z);
       // Auto simplify: fewer points within a tolerance (screen px), same shape; ends and time kept.
       if (!straight && lazy.simplify > 0 && pts.length > 3) { const out = rdp(pts, lazy.simplify / this.cam.z); if (out.length >= minPts) pts = out; }
-      if (pts.length >= minPts) this.commitNew(role, pts, {}, dkey);
+      // A line drawn back to where it started closes: a closed path, without a duplicate end point.
+      let extra = {};
+      if (role !== 'plane' && !straight && pts.length > 3 && Math.hypot(pts[0][0] - pts.at(-1)[0], pts[0][1] - pts.at(-1)[1]) < 6 / this.cam.z) { pts = pts.slice(0, -1); extra = { closed: true }; }
+      if (pts.length >= minPts) this.commitNew(role, pts, extra, dkey);
       else this.invalidate();
     };
     window.addEventListener('pointermove', mv);

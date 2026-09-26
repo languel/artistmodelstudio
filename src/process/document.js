@@ -458,10 +458,11 @@ export class ProcessStore {
 function rdp(pts, eps) {
   if (pts.length < 3) return pts;
   const [ax, ay] = pts[0], [bx, by] = pts[pts.length - 1];
-  const L = Math.hypot(bx - ax, by - ay) || 1;
+  const L = Math.hypot(bx - ax, by - ay);
   let far = 0, at = 0;
   for (let i = 1; i < pts.length - 1; i++) {
-    const d = Math.abs((by - ay) * pts[i][0] - (bx - ax) * pts[i][1] + bx * ay - by * ax) / L;
+    // Distance to the chord; when the ends coincide (a closed path) there is no chord: distance to the end.
+    const d = L < 1e-9 ? Math.hypot(pts[i][0] - ax, pts[i][1] - ay) : Math.abs((by - ay) * pts[i][0] - (bx - ax) * pts[i][1] + bx * ay - by * ax) / L;
     if (d > far) { far = d; at = i; }
   }
   if (far <= eps) return [pts[0], pts[pts.length - 1]];

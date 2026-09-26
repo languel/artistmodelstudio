@@ -148,3 +148,13 @@ describe('strokes', () => {
     expect(p[0]).toBeCloseTo(20);
   });
 });
+
+import { rdp } from '../src/process/sculpt.js';
+describe('simplify on a closed path', () => {
+  it('keeps the shape when the ends coincide', () => {
+    const sq = [[0, 0], [50, 0], [100, 0], [100, 50], [100, 100], [50, 100], [0, 100], [0, 50], [0, 0]];
+    const out = rdp(sq, 1);
+    expect(out.length).toBeGreaterThanOrEqual(5);
+    expect(out.map(p => p.join(','))).toEqual(expect.arrayContaining(['100,0', '100,100', '0,100']));
+  });
+});
