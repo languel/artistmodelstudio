@@ -7,6 +7,7 @@ import { h, selectField } from '../ui.js';
 import { SCULPTS, sculptSource, compileSculpt, saveSculpt, deleteSculpt, isBuiltinSculpt, sculptMark, sculptParams } from '../../process/sculpt.js';
 import { mulberry32 } from '../../process/brushes.js';
 import { controlStrip } from '../codeParams.js';
+import { setToolIcon, iconFromCanvas } from '../icons.js';
 import { createCodeEditor } from '../codeEditor.js';
 
 const TEMPLATE = id => `sculpt({
@@ -101,6 +102,7 @@ export function mountSculpts(root, app) {
       h('button', { class: 'wb-btn primary', title: 'Save to your sculpt tools (Cmd+Enter)', onclick: save }, 'Save'),
       h('button', { class: 'wb-btn', title: 'A copy under a new id, to change', onclick: () => { const id = `${current}2`; editor.value = editor.value.replace(/id:\s*['"][\w-]+['"]/, `id: '${id}'`).replace(/label:\s*(['"])(.*?)\1/, (m, qq, l) => `label: ${qq}${l} (mine)${qq}`); compile(editor.value); } }, 'Fork'),
       h('button', { class: 'wb-btn', title: 'Start a new sculpt tool', onclick: () => { editor.value = TEMPLATE('comb'); compile(editor.value); } }, 'New'),
+      !builtin ? h('button', { class: 'wb-icon-btn', title: 'Use the preview as this tool’s icon (toolbar and menus)', html: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.2"/><path d="M8 6l1.5-2h5L16 6"/></svg>', onclick: () => { setToolIcon('sculpt', current, iconFromCanvas(preview, app.store.doc.artboard.ground || '#f3efe6')); app.renderChrome(); status.textContent = 'Icon taken from the preview.'; } }) : null,
       !builtin ? h('button', { class: 'wb-btn', onclick: async () => { if (await askConfirm(`Delete the sculpt tool “${current}”?`, { ok: 'Delete', danger: true })) { deleteSculpt(current); open('push'); if (app.sculpt.tool === current) app.setSculpt({ tool: 'push' }); } } }, 'Delete') : null].filter(Boolean));
   };
 

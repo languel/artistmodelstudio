@@ -22,7 +22,7 @@ import { AssetPanel } from '../ui/AssetPanel.js';
 import { bundledReferences } from '../ui/ReferencePanel.js';
 import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
-import { icon } from './icons.js';
+import { icon, brushIcon, sculptIcon } from './icons.js';
 import { h, download, editInPlace } from './ui.js';
 import { mountBoards } from './panels/boards.js';
 import { mountStages } from './panels/stages.js';
@@ -59,8 +59,9 @@ const DEFAULTS_KEY = 'ams_tool_defaults_v1';
 const TOOLS = [
   ['select', 'Select and move', 'V'], ['hand', 'Pan', 'H'], ['board', 'Board: drag out a new artboard (Shift keeps it square)', '⇧O'], null,
   ['point', 'Point: a mark at a place', 'O'], ['line', 'Line: a point that moved', 'P'], ['plane', 'Plane: an enclosed area', 'A'], null,
-  ['gesture', 'Gesture: the movement behind a form', 'E'], ['guide', 'Guide: construction (straight; Shift snaps)', 'G']
 ];
+/** Construction: one button for gesture and guide (like the brush and sculpt stacks). */
+const CONSTRUCTION = [['gesture', 'Gesture: the movement behind a form', 'E'], ['guide', 'Guide: construction (straight; Shift snaps)', 'G']];
 const NOTE_TOOL = ['note', 'Note: a written annotation', 'T'];
 const BRUSH_KEY = 'ams_brush_active';
 const SCULPT_KEY = 'ams_sculpt_v1';
@@ -116,6 +117,7 @@ export class Workbench {
   setTool(t) {
     // Choosing a tool means drawing again: leave a take being reviewed.
     if (this.player?.take) this.player.close();
+    if (t === 'gesture' || t === 'guide') this.constructTool = t;
     this.tool = t; this.canvas?.updateCursor(); this.emit('tool'); this.renderChrome();
   }
   setViewMode(m) { this.view.mode = m; this.canvas.invalidate(); this.emit('view'); this.renderChrome(); }
@@ -141,7 +143,7 @@ export class Workbench {
     const cur = this.sculpt.tool;
     showMenu([
       { label: 'Sculpt' },
-      ...Object.entries(SCULPTS).map(([id, t]) => ({ label: `${id === cur ? '✓ ' : ''}${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); if (this.tool !== 'sculpt') this.setTool('sculpt'); } })),
+      ...Object.entries(SCULPTS).map(([id, t]) => ({ icon: sculptIcon(id), label: `${id === cur ? '✓ ' : ''}${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); if (this.tool !== 'sculpt') this.setTool('sculpt'); } })),
       '-',
       { label: `Radius ${Math.round(this.sculpt.radius)} px`, keys: '[ ]', disabled: true },
       { label: `Strength ${Math.round(this.sculpt.strength * 100)}%`, keys: 'Shift+[ ]', disabled: true },
@@ -385,7 +387,7 @@ export class Workbench {
     const ids = Object.keys(BRUSHES).filter(id => !BRUSHES[id].construction && BRUSHES[id].roles?.some(r => ['line', 'plane', 'gesture'].includes(r)));
     showMenu([
       { label: 'Brush' },
-      ...ids.map(id => ({ label: `${id === cur ? '✓ ' : ''}${BRUSHES[id].label}`, hint: `${BRUSHES[id].doc}${this.canvas.selected.size ? ' · applies to the selection (Cmd-click: only pick it)' : ''}`, run: ev => this.pickBrush(id, { apply: !(ev?.metaKey || ev?.ctrlKey) }) })),
+      ...ids.map(id => ({ icon: brushIcon(id), label: `${id === cur ? '✓ ' : ''}${BRUSHES[id].label}`, hint: `${BRUSHES[id].doc}${this.canvas.selected.size ? ' · applies to the selection (Cmd-click: only pick it)' : ''}`, run: ev => this.pickBrush(id, { apply: !(ev?.metaKey || ev?.ctrlKey) }) })),
       '-',
       { label: 'Settings…', hint: 'Opt+right-click on the canvas', run: () => { this.setTool('brush'); openToolParams(this, x, y); } },
       { label: 'Show code', run: () => this.openCode?.('brush', cur) },
@@ -623,14 +625,21 @@ export class Workbench {
       const [id, tip, key] = t;
       tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) }));
     }
+    // Construction: gesture and guide share a button showing the one in use (E, G still pick directly).
+    const con = CONSTRUCTION.find(c => c[0] === this.tool) || CONSTRUCTION.find(c => c[0] === this.constructTool) || CONSTRUCTION[0];
+    const conMenu = (x, y) => showMenu([{ label: 'Construction' }, ...CONSTRUCTION.map(([id, tip, key]) => ({ icon: icon(id), label: `${id === con[0] ? '✓ ' : ''}${tip.split(':')[0]}`, hint: tip, keys: key, run: () => this.setTool(id) }))], x, y);
+    const conBtn = h('button', { class: `wb-tool wb-tool-stack${CONSTRUCTION.some(c => c[0] === this.tool) ? ' on' : ''}`, 'data-guide': `tool:${con[0]}`, title: `${con[1]} (${con[2]}). Click again or right-click for gesture and guide`, html: `${icon(con[0])}<kbd>${con[2]}</kbd><span class="wb-tool-caret"></span>` });
+    conBtn.addEventListener('click', () => { if (CONSTRUCTION.some(c => c[0] === this.tool)) { const r = conBtn.getBoundingClientRect(); conMenu(r.left, r.bottom + 4); } else this.setTool(con[0]); });
+    conBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); conMenu(ev.clientX, ev.clientY); });
+    tools.append(conBtn);
     // Brush: the active brush (click again or right-click for the list).
     const bb = BRUSHES[this.brush.id] || BRUSHES.ink;
-    const brushBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'brush' ? ' on' : ''}`, 'data-guide': 'tool:brush', title: `Brush: ${bb.label} (B). Click again or right-click for the brushes`, html: `${icon('brush')}<kbd>B</kbd><span class="wb-tool-caret"></span>` });
+    const brushBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'brush' ? ' on' : ''}`, 'data-guide': 'tool:brush', title: `Brush: ${bb.label} (B). Click again or right-click for the brushes`, html: `${brushIcon(this.brush.id)}<kbd>B</kbd><span class="wb-tool-caret"></span>` });
     brushBtn.addEventListener('click', () => { if (this.tool === 'brush') { const r = brushBtn.getBoundingClientRect(); this.brushMenu(r.left, r.bottom + 4); } else this.setTool('brush'); });
     brushBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.brushMenu(ev.clientX, ev.clientY); });
     // Sculpt: one button for the stack of sculpt tools (click again or right-click for the list).
     const st = SCULPTS[this.sculpt.tool];
-    const sculptBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'sculpt' ? ' on' : ''}`, 'data-guide': 'tool:sculpt', title: `Sculpt: ${st?.label} (S; Shift+drag over a mark with other tools). Click again or right-click for the sculpt tools`, html: `${icon('sculpt')}<kbd>S</kbd><span class="wb-tool-caret"></span>` });
+    const sculptBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'sculpt' ? ' on' : ''}`, 'data-guide': 'tool:sculpt', title: `Sculpt: ${st?.label} (S; Shift+drag over a mark with other tools). Click again or right-click for the sculpt tools`, html: `${sculptIcon(this.sculpt.tool)}<kbd>S</kbd><span class="wb-tool-caret"></span>` });
     sculptBtn.addEventListener('click', ev => { if (this.tool === 'sculpt') { const r = sculptBtn.getBoundingClientRect(); this.sculptMenu(r.left, r.bottom + 4); } else this.setTool('sculpt'); });
     sculptBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.sculptMenu(ev.clientX, ev.clientY); });
     tools.append(h('div', { class: 'wb-sep' }), brushBtn, sculptBtn);
@@ -787,9 +796,9 @@ export class Workbench {
         { label: 'Send to back', run: () => this.store.arrange(ids, 'back') }
       ] },
       { label: 'Move to stage', items: this.store.doc.stages.map(st => ({ label: st.name, run: () => this.store.patchElements(ids, { stage: st.id }, 'stage') })) },
-      brushes.length ? { label: 'Brush', items: brushes.map(b => ({ label: b.label, run: () => this.store.change('brush', d => { for (const el of d.elements) if (ids.includes(el.id)) el.realize = { brush: b.id, params: {} }; }) })) } : null,
+      brushes.length ? { label: 'Brush', items: brushes.map(b => ({ icon: brushIcon(b.id), label: b.label, run: () => this.store.change('brush', d => { for (const el of d.elements) if (ids.includes(el.id)) el.realize = { brush: b.id, params: {} }; }) })) } : null,
       lineish ? { label: 'Sculpt', hint: 'Brush the selected marks into shape (Shift+drag over a mark does it with any tool)', items: [
-        ...Object.entries(SCULPTS).map(([id, t]) => ({ label: `${id === this.sculpt.tool ? '✓ ' : ''}${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } })),
+        ...Object.entries(SCULPTS).map(([id, t]) => ({ icon: sculptIcon(id), label: `${id === this.sculpt.tool ? '✓ ' : ''}${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } })),
         '-',
         { label: 'Settings…', hint: 'Opt+right-click anywhere', run: () => { const [sx, sy] = this.canvas.toScreen(wx, wy); const r = this.canvas.canvas.getBoundingClientRect(); this.setTool('sculpt'); openToolParams(this, r.left + sx, r.top + sy); } },
         { label: 'Show code', run: () => this.openCode?.('sculpt', this.sculpt.tool) }

@@ -56,3 +56,71 @@ export const ICONS = {
 };
 
 export const icon = name => ICONS[name] || '';
+
+const F = 'fill="currentColor" stroke="none"';
+/** Each built-in brush and sculpt tool drawn as what it does; custom ones get the generic icon. */
+const BRUSH_ICONS = {
+  ink: `<path ${F} d="M3.5 19.5c3-6 7-10.5 13-12.5 2-.6 3.6 0 3.8.9.2 1-1 1.4-2.6 1.9-4.8 1.6-9.3 5.4-12.8 10.3z"/>`,
+  speed: '<path d="M3 17c4-7 9-9 18-8" opacity=".5"/><path d="M6 11l1 5M10 9l.5 5M14 8l.2 4.5M18 7.8v4"/>',
+  restate: '<path d="M3 17c4-6 9-9 18-9"/><path d="M3 14c4-6 9-8 18-8" opacity=".6"/><path d="M4 19.5c4-6 9-9 17-9.5" opacity=".4"/>',
+  zigzag: '<path d="M3 15l3-5 3 7 3-7 3 7 3-7 3 5"/>',
+  inner: '<path d="M3 17c4-7 9-9 18-8"/><path d="M6.5 13.6l1.6 1.4M10.5 11.2l1.3 1.6M14.6 9.8l1 1.8M18.6 9.1l.6 1.9" opacity=".7"/>',
+  dotted: `<g ${F}><circle cx="4" cy="17" r="1.3"/><circle cx="8" cy="12.8" r="1.3"/><circle cx="12.3" cy="10" r="1.3"/><circle cx="16.6" cy="8.6" r="1.3"/><circle cx="20.6" cy="8.4" r="1.3"/></g>`,
+  arcs: '<path d="M3 17a3 3 0 0 1 5-3M8 13a3 3 0 0 1 5-3M13 10a3 3 0 0 1 5-2M18 8a2.5 2.5 0 0 1 3 0"/>',
+  flat: `<path ${F} d="M5 7c3-3 10-3 13 0s2 9-2 11-11 2-12-2 -2-6 1-9z"/>`,
+  hatch: '<path d="M5 6c3-2 11-2 14 1s1 10-3 11-10 2-11-2S2 8 5 6z" opacity=".45"/><path d="M6 15l7-8M8 18l9-10M12 18.5l6-6.5"/>',
+  stipple: `<g ${F}><circle cx="8" cy="8" r="1"/><circle cx="12" cy="7" r="1"/><circle cx="16" cy="9" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="11" cy="11.5" r="1"/><circle cx="15" cy="13" r="1"/><circle cx="18" cy="12" r="1"/><circle cx="9" cy="16" r="1"/><circle cx="13" cy="16" r="1"/><circle cx="16.5" cy="17" r="1"/></g>`,
+  sleet: '<path d="M5 7l2 3M10 5l2 3M15 6l2 3M7 13l2 3M12 12l2 3M17 13l2 3M9 18l1.5 2.2M14 18l1.5 2.2"/>',
+  scumble: '<path d="M4 15c2-4 4 2 6-2s3 3 5-1 3 2 5-2M4 11c2-3 4 1 6-2s3 2 5-1 3 1 5-1" stroke-width="2.2" opacity=".75"/>',
+  incised: '<path d="M4 16c4-6 9-8 16-8"/><path d="M4.5 17.6c4-6 9-8 16-8" stroke-width=".8" opacity=".6"/>',
+  dot: `<circle cx="12" cy="12" r="5" ${F}/>`
+};
+const SCULPT_ICONS = {
+  push: '<path d="M3 16c4-2 6-6 9-6s5 4 9 6" opacity=".55"/><path d="M12 20v-6M9.5 16.5 12 14l2.5 2.5"/>',
+  grab: '<path d="M3 17c4-4 6-9 9-9s5 5 9 9" opacity=".55"/><path d="M12 3v6M9.5 5.5 12 3l2.5 2.5"/><circle cx="12" cy="9" r="1.4" fill="currentColor" stroke="none"/>',
+  smooth: '<path d="M3 12l2-3 2 5 2-4 2 4" opacity=".45"/><path d="M12 12c2-3 4-3 5 0s3 3 4 0"/>',
+  relax: '<path d="M3 15c5-6 13-6 18 0" opacity=".5"/><g fill="currentColor" stroke="none"><circle cx="4" cy="13.8" r="1.3"/><circle cx="8" cy="10.5" r="1.3"/><circle cx="12" cy="9.5" r="1.3"/><circle cx="16" cy="10.5" r="1.3"/><circle cx="20" cy="13.8" r="1.3"/></g>',
+  pinch: '<path d="M4 12h5M20 12h-5M6.5 9.5 9 12l-2.5 2.5M17.5 9.5 15 12l2.5 2.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',
+  twist: '<path d="M12 12a2 2 0 1 1 2 2 4 4 0 1 1-4-4 6 6 0 1 1 6 6"/>',
+  jitter: '<path d="M3 12l2-2 1.5 3.5L9 9l1.5 5L13 9.5l1.5 4L17 10l1.5 3 2.5-2"/>',
+  simplify: '<path d="M3 16l3-2 2 1 3-4 2 1 3-3 2 1 3-3" opacity=".4"/><path d="M3 16l8-5 10-4"/><g fill="currentColor" stroke="none"><circle cx="3" cy="16" r="1.3"/><circle cx="11" cy="11" r="1.3"/><circle cx="21" cy="7" r="1.3"/></g>',
+  thicken: `<path ${F} d="M3 13.5c4-.5 6-3 9-3s5 2.5 9 3v.8c-4 .8-5 3.7-9 3.7s-5-3-9-3.7z"/>`
+};
+// Custom tools' icons, captured from their preview (a silhouette used as a mask, so it takes the text color).
+const ICON_KEY = 'ams_tool_icons_v1';
+const loadIcons = () => { try { return JSON.parse(localStorage.getItem(ICON_KEY) || '{}'); } catch { return {}; } };
+export function setToolIcon(kind, id, dataUrl) {
+  const all = loadIcons(); all[kind] = { ...(all[kind] || {}), [id]: dataUrl };
+  try { localStorage.setItem(ICON_KEY, JSON.stringify(all)); } catch { /* ignore */ }
+}
+const custom = (kind, id) => { const u = loadIcons()[kind]?.[id]; return u ? `<span class="wb-custom-icon" style="-webkit-mask-image:url(${u});mask-image:url(${u})"></span>` : null; };
+export const brushIcon = id => (BRUSH_ICONS[id] ? svg(BRUSH_ICONS[id]) : custom('brush', id) || ICONS.brush);
+export const sculptIcon = id => (SCULPT_ICONS[id] ? svg(SCULPT_ICONS[id]) : custom('sculpt', id) || ICONS.sculpt);
+export const hasBuiltinIcon = (kind, id) => Boolean((kind === 'brush' ? BRUSH_ICONS : SCULPT_ICONS)[id]);
+
+/**
+ * An icon from a preview canvas: the square around what was drawn, scaled to 48 px, turned into a
+ * silhouette (how far each pixel is from the paper becomes its opacity).
+ */
+export function iconFromCanvas(src, ground = '#f3efe6') {
+  const W = src.width, H = src.height, sctx = src.getContext('2d'), data = sctx.getImageData(0, 0, W, H).data;
+  const g = ground.replace('#', ''), gr = parseInt(g.slice(0, 2), 16) || 243, gg = parseInt(g.slice(2, 4), 16) || 239, gb = parseInt(g.slice(4, 6), 16) || 230;
+  let x0 = W, y0 = H, x1 = 0, y1 = 0;
+  for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+    const i = (y * W + x) * 4, d = data[i + 3] < 60 ? 0 : Math.abs(data[i] - gr) + Math.abs(data[i + 1] - gg) + Math.abs(data[i + 2] - gb);
+    if (d > 40) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  }
+  if (x1 <= x0) { x0 = 0; y0 = 0; x1 = W; y1 = H; }
+  const side = Math.max(x1 - x0, y1 - y0) + 8, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const out = document.createElement('canvas'); out.width = out.height = 48;
+  const o = out.getContext('2d');
+  o.drawImage(src, cx - side / 2, cy - side / 2, side, side, 0, 0, 48, 48);
+  const img = o.getImageData(0, 0, 48, 48);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const d = img.data[i + 3] < 60 ? 0 : Math.abs(img.data[i] - gr) + Math.abs(img.data[i + 1] - gg) + Math.abs(img.data[i + 2] - gb);
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = 0;
+    img.data[i + 3] = Math.max(0, Math.min(255, (d - 30) * 2));
+  }
+  o.putImageData(img, 0, 0);
+  return out.toDataURL('image/png');
+}
