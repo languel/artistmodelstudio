@@ -4,6 +4,7 @@
  * tag exactly), star ratings, double-click to rename or retag, export, and
  * "use as reference".
  */
+import { askConfirm, askText } from '../workbench/dialog.js';
 import { icon } from './icons.js';
 import { matches } from '../assets/assetStore.js';
 
@@ -151,8 +152,8 @@ export class AssetPanel {
       card.querySelector('[data-act="open"]').addEventListener('click', () => this.onOpen?.(asset));
       card.querySelector('[data-act="ref"]').addEventListener('click', () => this.onUseAsReference?.(asset));
       card.querySelector('[data-act="export"]').addEventListener('click', () => this.onExport?.(asset));
-      card.querySelector('[data-act="delete"]').addEventListener('click', () => {
-        if (confirm(`Delete "${asset.title}" from assets?`)) this.store.remove(id);
+      card.querySelector('[data-act="delete"]').addEventListener('click', async () => {
+        if (await askConfirm(`Delete "${asset.title}" from assets?`)) this.store.remove(id);
       });
       const title = card.querySelector('.asset-title');
       title.addEventListener('dblclick', () => this.editInline(title, asset.title, v => this.store.update(id, { title: v || asset.title })));
@@ -172,7 +173,7 @@ export class AssetPanel {
     showMenu([
       { label: `“${name}”` },
       { label: n ? `Remove folder (move ${n} asset${n === 1 ? '' : 's'} up)` : 'Remove folder', run: async () => { await this.store.removeFolder(path); done(); } },
-      n ? { label: `Delete folder and its ${n} asset${n === 1 ? '' : 's'}…`, run: async () => { if (confirm(`Delete “${name}” and the ${n} asset${n === 1 ? '' : 's'} in it? This cannot be undone.`)) { await this.store.removeFolder(path, { deleteAssets: true }); done(); } } } : null
+      n ? { label: `Delete folder and its ${n} asset${n === 1 ? '' : 's'}…`, run: async () => { if (await askConfirm(`Delete “${name}” and the ${n} asset${n === 1 ? '' : 's'} in it? This cannot be undone.`)) { await this.store.removeFolder(path, { deleteAssets: true }); done(); } } } : null
     ], ev.clientX, ev.clientY);
   }
 

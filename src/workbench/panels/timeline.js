@@ -3,6 +3,7 @@
  * tracks: drag to move, drag the right edge to retime, double-click narration or titles to edit,
  * right-click for more. The selected clip's properties are in Properties.
  */
+import { askConfirm, askText } from '../dialog.js';
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
 import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf } from '../../process/take.js';
@@ -167,13 +168,13 @@ export function mountTimeline(root, app) {
       h('span', { class: 'wb-tl-labeltext' }, tr.name),
       take && !readOnly ? h('button', { class: 'wb-tl-mute', title: tr.muted ? 'Unmute' : 'Mute (the track does not play)', onclick: ev => { ev.stopPropagation(); tr.muted = !tr.muted; edited(); } }, tr.muted ? '○' : '●') : null);
     if (take && !readOnly) {
-      el.addEventListener('dblclick', () => { const v = prompt('Track name', tr.name); if (v) { tr.name = v; drawLanes(); } });
+      el.addEventListener('dblclick', async () => { const v = await askText('Track name', tr.name); if (v) { tr.name = v; drawLanes(); } });
       el.addEventListener('contextmenu', ev => { ev.preventDefault(); showMenu(trackMenu(tr, take), ev.clientX, ev.clientY); });
     }
     return el;
   };
   const trackMenu = (tr, take) => [
-    { label: 'Rename', run: () => { const v = prompt('Track name', tr.name); if (v) { tr.name = v; drawLanes(); } } },
+    { label: 'Rename', run: async () => { const v = await askText('Track name', tr.name); if (v) { tr.name = v; drawLanes(); } } },
     { label: tr.muted ? 'Unmute' : 'Mute', run: () => { tr.muted = !tr.muted; edited(); } },
     { label: `Add a ${(TRACK_NAMES[tr.kind] || tr.kind).toLowerCase()} track`, run: () => { addTrack(take, tr.kind); drawLanes(); } },
     '-',
@@ -219,7 +220,7 @@ export function mountTimeline(root, app) {
       };
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
     });
-    el.addEventListener('dblclick', () => { if (c.track === 'say' || c.track === 'title') { const v = prompt(c.track === 'say' ? 'Narration' : 'Title', c.text); if (v !== null) { c.text = v; edited(); } } else P().seek(c.start); });
+    el.addEventListener('dblclick', async () => { if (c.track === 'say' || c.track === 'title') { const v = await askText(c.track === 'say' ? 'Narration' : 'Title', c.text); if (v !== null) { c.text = v; edited(); } } else P().seek(c.start); });
     el.addEventListener('contextmenu', ev => { ev.preventDefault(); select(c); showMenu(clipMenu(c), ev.clientX, ev.clientY); });
     return el;
   };

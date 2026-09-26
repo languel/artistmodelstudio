@@ -517,3 +517,11 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-hist-label, .wb-hist-sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-hist-row.agent .wb-hist-label { color: color-mix(in srgb, var(--wb-text) 75%, #a58cc9); }
 .wb-hist-eye { width: 18px; height: 18px; font-size: 10px; }
+
+/* In-app confirm / text dialogs */
+.wb-dialog-back { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; background: rgba(0,0,0,.25); }
+.wb-dialog { min-width: 280px; max-width: 420px; padding: 14px; border-radius: var(--radius); background: var(--wb-panel); color: var(--wb-text); border: 1px solid var(--wb-line); box-shadow: 0 8px 30px rgba(0,0,0,.25); display: flex; flex-direction: column; gap: 10px; }
+.wb-dialog p { margin: 0; }
+.wb-dialog-input { width: 100%; box-sizing: border-box; }
+textarea.wb-dialog-input { min-height: 90px; }
+.wb-dialog-row { display: flex; justify-content: flex-end; gap: 6px; }

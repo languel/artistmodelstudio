@@ -3,6 +3,7 @@
  * yours. The preview redraws as you type (a walk that speeds up and slows down, and a plane).
  * Saved brushes go to your library (all drawings); a drawing carries the brushes it uses.
  */
+import { askConfirm, askText } from '../dialog.js';
 import { h, selectField } from '../ui.js';
 import { BRUSHES, brushSource, compileBrush, saveLibraryBrush, deleteLibraryBrush, isBuiltin, resolveParams, mulberry32 } from '../../process/brushes.js';
 import { createCodeEditor } from '../codeEditor.js';
@@ -108,7 +109,7 @@ export function mountBrushes(root, app) {
     actions.replaceChildren(
       h('button', { class: 'wb-btn primary', title: 'Save to your library (Cmd+Enter)', disabled: builtin, onclick: save }, 'Save'),
       h('button', { class: 'wb-btn', title: 'Use on the selection, or for the current tool', onclick: use }, 'Use'),
-      !builtin && BRUSHES[current]?.scope === 'library' ? h('button', { class: 'wb-btn', title: 'Delete from your library (drawings keep their copies)', onclick: () => { if (confirm(`Delete the brush “${current}” from your library?`)) { deleteLibraryBrush(current); open('ink'); } } }, 'Delete') : null,
+      !builtin && BRUSHES[current]?.scope === 'library' ? h('button', { class: 'wb-btn', title: 'Delete from your library (drawings keep their copies)', onclick: async () => { if (await askConfirm(`Delete the brush “${current}” from your library?`)) { deleteLibraryBrush(current); open('ink'); } } }, 'Delete') : null,
       h('span', { class: 'wb-muted wb-small', style: { marginLeft: 'auto' } }, builtin ? 'built-in · fork to edit' : scopeOf(current)));
   };
   app.brushesPanel = { open, editor, get source() { return editor.value; }, setSource: v => { editor.value = v; check(); }, save };

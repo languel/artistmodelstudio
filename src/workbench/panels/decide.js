@@ -6,6 +6,7 @@
  * 3. Low confidence → the card waits for you; otherwise it can run on its own.
  * 4. The step is realized by an executor, and your final choices become training labels.
  */
+import { askConfirm, askText } from '../dialog.js';
 import { h, row, numberField, section, download } from '../ui.js';
 import { icon } from '../icons.js';
 import { analyzeImage } from '../../perception/analyze.js';
@@ -171,7 +172,7 @@ export function mountDecide(root, app) {
           h('button', { class: 'wb-btn', title: 'Download the labels as JSONL (lev format)', onclick: () => download(eng.exportJSONL(), 'ams-decisions.jsonl', 'application/jsonl') }, 'Export JSONL'),
           h('button', { class: 'wb-btn', title: 'Keep the labels as a dataset in Assets (export it from there as JSONL)', onclick: () => eng.saveToAssets(app.assetStore, { title: `Decisions · ${app.store.doc.title}` }).then(a => status(`Saved “${a.title}” to Assets`), e => status(e.message)) }, 'Save to Assets'),
           import.meta.env?.DEV ? h('button', { class: 'wb-btn', title: 'Write the labels to training/decisions/labels/ for make_suite.py', onclick: () => eng.saveToProject().then(p => status(`Saved ${p}`), e => status(e.message)) }, 'Save to project') : null,
-          h('button', { class: 'wb-btn', onclick: () => { if (confirm('Delete all decision labels?')) { eng.labels = []; eng.saveLabels(); render(); } } }, 'Clear')))
+          h('button', { class: 'wb-btn', onclick: async () => { if (await askConfirm('Delete all decision labels?')) { eng.labels = []; eng.saveLabels(); render(); } } }, 'Clear')))
     ].filter(Boolean));
   };
   app.decidePanel = { analyze, propose, apply, runAuto, setBackend: b => { backend = b; ls('ams_decide_backend', b); render(); }, get proposal() { return proposal; }, setFinal: (v) => { Object.assign(final, v); render(); } };
