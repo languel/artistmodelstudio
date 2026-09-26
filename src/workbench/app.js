@@ -3,7 +3,7 @@
  * and the process document at the center. Everything the user can do is also a
  * command (see mcp.js), so agents drive the same surface.
  */
-import { openToolParams, openGridParams } from './toolParams.js';
+import { openToolParams, openGridParams, openToolDefaults } from './toolParams.js';
 import { boardDoc, boardById, boardsOf, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
 import { sceneHtml, docFromPage } from '../process/page.js';
 import { Scenes } from './scenes.js';
@@ -699,14 +699,15 @@ export class Workbench {
     for (const t of TOOLS) {
       if (!t) { tools.append(h('div', { class: 'wb-sep' })); continue; }
       const [id, tip, key] = t;
-      tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) }));
+      const drawing = ['point', 'line', 'plane'].includes(id);
+      tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})${drawing ? ' · right-click: brush and look for new marks' : ''}`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id), oncontextmenu: drawing ? e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); openToolDefaults(this, id, r.left, r.bottom + 6); } : null }));
     }
     // Construction: gesture and guide share a button showing the one in use (E, G still pick directly).
     const con = CONSTRUCTION.find(c => c[0] === this.tool) || CONSTRUCTION.find(c => c[0] === this.constructTool) || CONSTRUCTION[0];
     const conMenu = (x, y) => showMenu([{ label: 'Construction' }, ...CONSTRUCTION.map(([id, tip, key]) => ({ icon: icon(id), active: id === con[0], label: `${tip.split(':')[0]}`, hint: tip, keys: key, run: () => this.setTool(id) }))], x, y);
     const conBtn = h('button', { class: `wb-tool wb-tool-stack${CONSTRUCTION.some(c => c[0] === this.tool) ? ' on' : ''}`, 'data-guide': `tool:${con[0]}`, title: `${con[1]} (${con[2]}). Click again or right-click for gesture and guide`, html: `${icon(con[0])}<kbd>${con[2]}</kbd><span class="wb-tool-caret"></span>` });
     conBtn.addEventListener('click', () => { if (CONSTRUCTION.some(c => c[0] === this.tool)) { const r = conBtn.getBoundingClientRect(); conMenu(r.left, r.bottom + 4); } else this.setTool(con[0]); });
-    conBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); conMenu(ev.clientX, ev.clientY); });
+    conBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); if (ev.altKey) conMenu(ev.clientX, ev.clientY); else { const r = conBtn.getBoundingClientRect(); openToolDefaults(this, con[0], r.left, r.bottom + 6); } });
     tools.append(conBtn);
     // Brush: the active brush (click again or right-click for the list).
     const bb = BRUSHES[this.brush.id] || BRUSHES.ink;

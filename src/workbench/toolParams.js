@@ -7,7 +7,9 @@ import { h } from './ui.js';
 import { icon } from './icons.js';
 import { rangeInput } from './codeParams.js';
 import { SCULPTS, sculptParams } from '../process/sculpt.js';
-import { BRUSHES, resolveParams } from '../process/brushes.js';
+import { BRUSHES, resolveParams, brushesForRole } from '../process/brushes.js';
+import { BLENDS } from '../process/document.js';
+import { brushIcon } from './icons.js';
 
 let open = null;
 
@@ -108,6 +110,47 @@ export function openGridParams(app, x, y) {
     slider({ label: 'Lazy', min: 0, max: 120, step: 1, value: app.lazy.radius, doc: 'The pen trails the cursor on a string this long (screen px). Small wobbles inside it never reach the line; corners get rounded. 0 = off', onInput: v => app.setLazy({ radius: v }) }),
     slider({ label: 'Smoothing', min: 0, max: 0.95, step: 0.01, value: app.lazy.smoothing, doc: 'Each step the pen covers only part of the way to where it is pulled (0.5 = half). Higher is smoother and lags more. 0 = off', onInput: v => app.setLazy({ smoothing: v }) }),
     slider({ label: 'Simplify', min: 0, max: 40, step: 0.5, value: app.lazy.simplify || 0, doc: 'On release, points the line does not need are dropped: how far (screen px) the shape may move. Higher = fewer points, looser shape. 0 = off', onInput: v => app.setLazy({ simplify: v }) }));
+  document.body.append(pop);
+  const r = pop.getBoundingClientRect();
+  pop.style.left = `${Math.max(8, Math.min(x, window.innerWidth - r.width - 8))}px`;
+  pop.style.top = `${Math.max(8, Math.min(y, window.innerHeight - r.height - 8))}px`;
+  const outside = e => { if (!pop.contains(e.target)) close(); };
+  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const close = () => { pop.remove(); window.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', esc, true); open = null; };
+  setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
+  open = { close };
+}
+
+/**
+ * Right-click a drawing tool's button: what its new marks will be (brush and its settings, opacity,
+ * blend, path). The same defaults as Properties; they stay until changed.
+ */
+export function openToolDefaults(app, tool, x, y) {
+  open?.close();
+  const pop = h('div', { class: 'wb-cp-pop wb-tp' });
+  const line = (label, control, doc) => h('label', { class: 'wb-tp-row wb-tp-row2', title: doc || '' }, h('span', { class: 'wb-tp-label' }, label), control);
+  const seg = (options, value, onPick) => {
+    const wrap = h('div', { class: 'wb-seg wb-tp-seg' });
+    const draw = v => wrap.replaceChildren(...options.map(([id, label]) => h('button', { class: id === v ? 'on' : '', onclick: () => { onPick(id); draw(id); } }, label)));
+    draw(value);
+    return wrap;
+  };
+  const render = () => {
+    const d = app.defaults(tool), id = d.realize.brush, b = BRUSHES[id];
+    const vals = resolveParams(id, d.realize.params);
+    const brushSel = h('select', { class: 'wb-select', title: 'Brush for new marks' }, ...brushesForRole(tool, app.store.doc).map(x => h('option', { value: x.id, selected: x.id === id }, x.label)));
+    brushSel.addEventListener('change', () => { app.setDefaults(tool, { realize: { brush: brushSel.value } }); render(); });
+    brushSel.addEventListener('keydown', e => e.stopPropagation());
+    pop.replaceChildren(
+      h('div', { class: 'wb-tp-head' }, h('span', { class: 'wb-tp-title' }, h('span', { html: brushIcon(id) }), `New ${tool}`), h('button', { class: 'wb-icon-btn', title: 'The brush in code', html: icon('script'), onclick: () => { close(); app.openCode?.('brush', id); } })),
+      line('Brush', brushSel),
+      ...(b?.params || []).map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => app.setDefaults(tool, { realize: { params: { [p.key]: v } } }) })),
+      h('div', { class: 'wb-tp-sub' }, 'Look'),
+      slider({ label: 'Opacity', min: 0, max: 1, step: 0.01, value: d.opacity ?? 1, doc: 'The whole mark’s opacity (on top of the brush’s own)', onInput: v => app.setDefaults(tool, { opacity: v }) }),
+      line('Blend', (() => { const s = h('select', { class: 'wb-select' }, ...BLENDS.map(x => h('option', { value: x, selected: x === (d.blend || 'normal') }, x))); s.addEventListener('change', () => app.setDefaults(tool, { blend: s.value })); s.addEventListener('keydown', e => e.stopPropagation()); return s; })(), 'How the mark mixes with what is under it'),
+      tool === 'point' ? null : line('Path', seg([['smooth', 'Smooth'], ['straight', 'Straight']], d.path === 'straight' ? 'straight' : 'smooth', v => app.setDefaults(tool, { path: v === 'straight' ? 'straight' : undefined })), 'Smooth: a curve through the points. Straight: segments between them'));
+  };
+  render();
   document.body.append(pop);
   const r = pop.getBoundingClientRect();
   pop.style.left = `${Math.max(8, Math.min(x, window.innerWidth - r.width - 8))}px`;

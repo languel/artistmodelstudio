@@ -656,3 +656,4 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 .wb-island > .wb-grip { flex: none; width: 6px !important; min-width: 0 !important; height: auto !important; padding: 0 !important; font-size: 0 !important; border: 0 !important; }
 .wb-perf { font: 10.5px var(--font-mono, ui-monospace, monospace); color: var(--wb-muted); padding: 0 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .wb-perf.slow { color: var(--wb-accent-2); }
+.wb-tp-title { display: inline-flex; align-items: center; gap: 6px; color: var(--wb-text); }

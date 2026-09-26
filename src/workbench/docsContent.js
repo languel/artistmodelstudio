@@ -96,6 +96,8 @@ Every key can be changed in **Shortcuts** (menu, or Shift+Cmd+/): search, click 
 
 Shift+double-click renames in place anything with a name: marks, groups and stages in the Outliner, boards (panel and canvas), stages, timeline tracks, and asset titles and folders (Enter keeps it, Esc puts it back). In the Outliner and the Boards panel a plain double-click frames the item on the canvas.
 
+**Tool settings**: right-click the Point, Line or Plane button (or the gesture/guide button) for what its new marks will be: the brush and its settings, opacity, blend and path (smooth or straight). They stay for every new stroke until you change them (the same defaults as Properties with nothing selected).
+
 **Snap while drawing**: hold Ctrl while drawing (line, plane, gesture, brush) and every point lands on the grid (its finest lines, major ÷ divisions), whether grid snap is on or not; repeated points are dropped and the points stay exactly on the grid.
 
 **Performance**: right-click the zoom control (or the command palette: performance readout) for frames per second while the canvas redraws, the last redraw in milliseconds, and the number of marks; a redraw slower than 16 ms shows in the accent color. ams_ui reports the last redraw too.
