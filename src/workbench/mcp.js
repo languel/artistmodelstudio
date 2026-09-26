@@ -99,6 +99,13 @@ export function workbenchTools(app) {
       return { image };
     } },
     { name: 'ams_process_sheet', description: 'PNG process sheet of a board (main unless given): each stage built up, plus decisions.', inputSchema: S({ board: str('Board id or title') }), run: (a) => ({ image: png(processSheet(boardDoc(doc(), (a.board && findBoard(doc(), a.board)?.id) || MAIN))) }) },
+    { name: 'ams_active_brush', description: 'The Brush tool\'s active brush (what B draws with), for drawing and performing alongside a person: get; set {id?, params?} (params are kept per brush); slot {n} picks brush slot n (1–9, also Shift+n); keep {n} keeps the active brush in slot n; tool {on} switches to the Brush tool.', inputSchema: S({ action: { type: 'string', enum: ['get', 'set', 'slot', 'keep', 'tool'] }, id: str('Brush id'), params: { type: 'object' }, n: num('Slot 1–9') }, ['action']), run: (a) => {
+      if (a.action === 'set') { if (a.id) { if (!BRUSHES[a.id]) throw new Error(`Unknown brush “${a.id}”`); app.setBrush({ id: a.id }); } if (a.params) app.setBrush({ params: a.params }); }
+      if (a.action === 'slot') app.useSlot(a.n);
+      if (a.action === 'keep') app.keepSlot(a.n);
+      if (a.action === 'tool') app.setTool('brush');
+      return { active: app.brush.id, params: app.brush.params[app.brush.id] || {}, slots: app.slots, tool: app.tool };
+    } },
     { name: 'ams_scene', description: 'Scenes: a project holds several drawings, each with its boards, undo, History and Timeline (assets and brushes are shared). list; new {title?, doc?} (an empty drawing, or a copy of a process document) and open it; open {id}; duplicate; delete {id} (not the last; its drawing is gone unless saved to Assets); move {id, delta}; get {id} (another scene\'s document without opening it).', inputSchema: S({ action: { type: 'string', enum: ['list', 'new', 'open', 'duplicate', 'delete', 'move', 'get'] }, id: str('Scene id or title'), title: str(''), doc: { type: 'object' }, delta: num('±1') }, ['action']), run: async (a) => {
       const Sc = app.scenes;
       const find = k => Sc.all.find(s => s.id === k || String(s.title).toLowerCase() === String(k || '').toLowerCase());

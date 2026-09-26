@@ -353,6 +353,22 @@ export class Workbench {
     } else if (this.tool !== 'brush' && !this.canvas.selected.size) this.setTool('brush');
   }
 
+  /** Brush slots: the active brush with its settings (and the stroke color), on Shift+1–9. */
+  keepSlot(n) {
+    this.slots[n] = { id: this.brush.id, params: { ...(this.brush.params[this.brush.id] || {}) }, stroke: this.paint?.stroke || null };
+    try { localStorage.setItem('ams_brush_slots', JSON.stringify(this.slots)); } catch { /* ignore */ }
+    this.log(`Slot ${n}: ${BRUSHES[this.brush.id]?.label || this.brush.id}.`);
+  }
+
+  useSlot(n) {
+    const s = this.slots[n];
+    if (!s || !BRUSHES[s.id]) { this.log(`Slot ${n} is empty (Ctrl+Shift+${n} keeps the active brush there).`); return; }
+    this.setBrush({ id: s.id });
+    this.setBrush({ params: s.params });
+    if (s.stroke !== undefined) this.setPaint('stroke', s.stroke);
+    if (this.tool !== 'brush') this.setTool('brush');
+  }
+
   brushMenu(x, y) {
     const cur = this.brush.id;
     const ids = Object.keys(BRUSHES).filter(id => !BRUSHES[id].construction && BRUSHES[id].roles?.some(r => ['line', 'plane', 'gesture'].includes(r)));
@@ -361,7 +377,9 @@ export class Workbench {
       ...ids.map(id => ({ label: `${id === cur ? '✓ ' : ''}${BRUSHES[id].label}`, hint: `${BRUSHES[id].doc}${this.canvas.selected.size ? ' · applies to the selection (Cmd-click: only pick it)' : ''}`, run: ev => this.pickBrush(id, { apply: !(ev?.metaKey || ev?.ctrlKey) }) })),
       '-',
       { label: 'Settings…', hint: 'Opt+right-click on the canvas', run: () => { this.setTool('brush'); openToolParams(this, x, y); } },
-      { label: 'Show code', run: () => this.openCode?.('brush', cur) }
+      { label: 'Show code', run: () => this.openCode?.('brush', cur) },
+      '-',
+      { label: 'Slots', hint: 'Shift+1–9 picks a slot; Ctrl+Shift+1–9 keeps the active brush there', items: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => ({ label: `${n}  ${this.slots[n] ? BRUSHES[this.slots[n].id]?.label || this.slots[n].id : '—'}`, keys: `⇧${n}`, run: () => this.useSlot(n) })).concat(['-', { label: 'Keep the active brush in…', items: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => ({ label: `Slot ${n}`, keys: `⌃⇧${n}`, run: () => this.keepSlot(n) })) }]) }
     ], x, y);
   }
 
@@ -455,6 +473,16 @@ export class Workbench {
     this.history = new History(this);
     this.scenes = new Scenes(this);
     this.scenes.on(() => this.renderChrome());
+    // Performing: 1–9 go to a board; Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush there.
+    try { this.slots = JSON.parse(localStorage.getItem('ams_brush_slots') || '{}'); } catch { this.slots = {}; }
+    window.addEventListener('keydown', e => {
+      const m = /^Digit([1-9])$/.exec(e.code || '');
+      if (!m || this.presenting || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select, [contenteditable], .cm-editor')) return;
+      const n = Number(m[1]);
+      if (e.shiftKey && e.ctrlKey) { e.preventDefault(); this.keepSlot(n); }
+      else if (e.shiftKey) { e.preventDefault(); this.useSlot(n); }
+      else if (!e.ctrlKey) { const b = boardsOf(this.store.doc)[n - 1]; if (b) { e.preventDefault(); this.goToBoard(b.id, { animate: true }); } }
+    }, true);
     this.recorder = new Recorder(this);
     this.player = new TakePlayer(this);
     this.shortcuts = new Shortcuts(this);
