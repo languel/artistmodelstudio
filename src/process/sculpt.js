@@ -95,13 +95,16 @@ export const SCULPTS = {
   },
 
   smooth: {
-    label: 'Smooth', doc: 'Points move toward their neighbours: wiggles relax, corners round.',
+    label: 'Smooth', doc: 'Points move toward their neighbours: wiggles relax, corners round, and pressure (thickness) evens out.',
     params: [param('amount', 'Amount', 0, 1, 0.05, 0.5, 'How far each pass moves a point toward its neighbours.')],
     step(pts, s, p, k) {
       return pts.map((q, i) => {
         const w = k.w(q) * p.amount;
         const m = w && k.mean(pts, i, s.closed);
-        return m ? [q[0] + (m[0] - q[0]) * w, q[1] + (m[1] - q[1]) * w, q[2], q[3]] : q;
+        if (!m) return q;
+        // Pressure evens out too (thickened passages blend into the rest).
+        const n = pts.length, a = pts[(i - 1 + n) % n][3] ?? 0.5, b = pts[(i + 1) % n][3] ?? 0.5, pr = q[3] ?? 0.5;
+        return [q[0] + (m[0] - q[0]) * w, q[1] + (m[1] - q[1]) * w, q[2], pr + ((a + b) / 2 - pr) * w];
       });
     }
   },
@@ -175,7 +178,7 @@ export const SCULPTS = {
   },
 
   thicken: {
-    label: 'Thicken', doc: 'Raises the pressure under the brush, so pressure-aware brushes (Ink) draw wider (Alt: thinner). Pressure can go past 1 (a mouse line is already near 1): up to 2, or up to 10 with Cmd held.',
+    label: 'Thicken', refine: true, doc: 'Raises the pressure under the brush, so pressure-aware brushes (Ink) draw wider (Alt: thinner). Pressure can go past 1 (a mouse line is already near 1): up to 2, or up to 10 with Cmd held.',
     params: [param('amount', 'Amount', 0, 0.5, 0.01, 0.12, 'Pressure added per pass.')],
     step(pts, s, p, k) {
       const dir = s.invert ? -1 : 1;
