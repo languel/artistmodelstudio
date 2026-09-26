@@ -529,3 +529,6 @@ textarea.wb-dialog-input { min-height: 90px; }
 /* New / renamed folder: the chip is the field (no box inside a box) */
 .folder-chip.editing { cursor: text; border-color: var(--wb-accent, var(--accent)); }
 .folder-chip.editing input, .folder-chip.editing input:focus { all: unset; width: 10ch; min-width: 4ch; font: inherit; color: inherit; }
+.asset-card { user-select: none; }
+.asset-card.selected { border-color: var(--wb-accent); box-shadow: 0 0 0 1px var(--wb-accent); }
+#assets-grid:focus { outline: none; }

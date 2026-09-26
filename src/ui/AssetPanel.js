@@ -20,6 +20,8 @@ export class AssetPanel {
     this.onUseAsReference = onUseAsReference;
     this.onExport = onExport;
     this.folder = '';
+    this.sel = new Set();
+    this.anchor = null;
     this.query = '';
     this.kind = 'all';
     this.assets = [];
@@ -61,6 +63,16 @@ export class AssetPanel {
       if (filesInput.files.length) await this.store.importFiles(filesInput.files, this.folder);
       filesInput.value = '';
     });
+    // Selection keys: Esc clears, Delete removes, Cmd+A selects all shown.
+    const grid = container.querySelector('#assets-grid');
+    grid.tabIndex = 0;
+    grid.addEventListener('keydown', e => {
+      if (e.target !== grid) return;
+      if (e.key === 'Escape' && this.sel.size) { this.sel.clear(); this.markSelection(); e.stopPropagation(); }
+      else if ((e.key === 'Delete' || e.key === 'Backspace') && this.sel.size) { e.preventDefault(); e.stopPropagation(); this.deleteAssets([...this.sel]); }
+      else if (e.key === 'a' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); e.stopPropagation(); this.sel = new Set(this.visible().map(a => a.id)); this.markSelection(); }
+    });
+    grid.addEventListener('click', e => { if (!e.target.closest('.asset-card')) { this.sel.clear(); this.markSelection(); } grid.focus({ preventScroll: true }); });
     // Drop images or folders' files onto the panel.
     container.addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
     container.addEventListener('drop', async e => {
@@ -101,9 +113,9 @@ export class AssetPanel {
       el.addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('text/asset-id')) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drop'); } });
       el.addEventListener('dragleave', () => el.classList.remove('drop'));
       el.addEventListener('drop', e => {
-        const id = e.dataTransfer.getData('text/asset-id');
+        const ids = e.dataTransfer.getData('text/asset-id').split('\n').filter(Boolean);
         el.classList.remove('drop');
-        if (id) { e.preventDefault(); e.stopPropagation(); this.store.update(id, { folder: el.dataset.path }); }
+        if (ids.length) { e.preventDefault(); e.stopPropagation(); Promise.all(ids.map(id => this.store.update(id, { folder: el.dataset.path }))).then(() => this.refresh()); }
       });
     });
     // Right-click a folder (chip or crumb) to remove it.
@@ -120,7 +132,7 @@ export class AssetPanel {
     const grid = this.container.querySelector('#assets-grid');
     const list = this.visible();
     grid.innerHTML = list.length ? list.map(a => `
-      <div class="variant-card asset-card" data-id="${esc(a.id)}" draggable="true">
+      <div class="variant-card asset-card${this.sel.has(a.id) ? ' selected' : ''}" data-id="${esc(a.id)}" draggable="true">
         <div class="variant-card-header">
           <span class="asset-title" title="${esc(a.title)}">${esc(a.title)}</span>
           <span class="asset-kind" title="${esc(KIND_TIPS[a.kind] || a.kind)}">${icon(KIND_ICONS[a.kind] || 'photo', 'icon-sm')}</span>
@@ -143,7 +155,20 @@ export class AssetPanel {
     grid.querySelectorAll('.asset-card').forEach(card => {
       const id = card.dataset.id;
       const asset = this.assets.find(a => a.id === id);
-      card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/asset-id', id); e.dataTransfer.effectAllowed = 'copyMove'; });
+      card.addEventListener('click', e => {
+        if (e.target.closest('button, .star, input, textarea')) return;
+        const ids = list.map(a => a.id);
+        if (e.shiftKey && this.anchor && ids.includes(this.anchor)) {
+          const [a, b] = [ids.indexOf(this.anchor), ids.indexOf(id)].sort((x, y) => x - y);
+          if (!(e.metaKey || e.ctrlKey)) this.sel.clear();
+          for (const x of ids.slice(a, b + 1)) this.sel.add(x);
+        } else if (e.metaKey || e.ctrlKey) { this.sel.has(id) ? this.sel.delete(id) : this.sel.add(id); this.anchor = id; }
+        else { this.sel = new Set([id]); this.anchor = id; }
+        this.markSelection();
+      });
+      card.addEventListener('dragstart', e => {
+        if (!this.sel.has(id)) { this.sel = new Set([id]); this.anchor = id; this.markSelection(); }
+        e.dataTransfer.setData('text/asset-id', [...this.sel].join('\n')); e.dataTransfer.effectAllowed = 'copyMove'; });
       card.querySelectorAll('.star').forEach(st => st.addEventListener('click', () => {
         const r = Number(st.dataset.star);
         this.store.update(id, { rating: asset.rating === r ? 0 : r });
@@ -152,15 +177,25 @@ export class AssetPanel {
       card.querySelector('[data-act="open"]').addEventListener('click', () => this.onOpen?.(asset));
       card.querySelector('[data-act="ref"]').addEventListener('click', () => this.onUseAsReference?.(asset));
       card.querySelector('[data-act="export"]').addEventListener('click', () => this.onExport?.(asset));
-      card.querySelector('[data-act="delete"]').addEventListener('click', async () => {
-        if (await askConfirm(`Delete "${asset.title}" from assets?`)) this.store.remove(id);
-      });
+      card.querySelector('[data-act="delete"]').addEventListener('click', () => this.deleteAssets(this.sel.has(id) ? [...this.sel] : [id]));
       const title = card.querySelector('.asset-title');
       title.addEventListener('dblclick', () => this.editInline(title, asset.title, v => this.store.update(id, { title: v || asset.title })));
       const tags = card.querySelector('.asset-tags');
       tags.addEventListener('dblclick', () => this.editInline(tags, (asset.tags || []).join(', '), v =>
         this.store.update(id, { tags: v.split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean) })));
     });
+  }
+
+  markSelection() {
+    this.container.querySelectorAll('.asset-card').forEach(c => c.classList.toggle('selected', this.sel.has(c.dataset.id)));
+  }
+
+  async deleteAssets(ids) {
+    const one = this.assets.find(a => a.id === ids[0]);
+    const msg = ids.length === 1 ? `Delete "${one?.title}" from assets?` : `Delete ${ids.length} assets?`;
+    if (!(await askConfirm(msg, { ok: 'Delete', danger: true }))) return;
+    for (const id of ids) { await this.store.remove(id); this.sel.delete(id); }
+    this.refresh();
   }
 
   /** Replace `el`'s text with a field; Enter saves, Esc cancels. */
