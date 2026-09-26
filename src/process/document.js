@@ -359,7 +359,7 @@ export class ProcessStore {
     return this.change('board', d => {
       if (id === MAIN) {
         if ('title' in patch) d.artboard.title = patch.title;
-        for (const k of ['width', 'height', 'ground']) if (k in patch) d.artboard[k] = patch[k];
+        for (const k of ['width', 'height', 'ground', 'text', 'code']) if (k in patch) { if (patch[k] === '' || patch[k] == null) delete d.artboard[k]; else d.artboard[k] = patch[k]; }
         return;
       }
       const b = d.boards.find(x => x.id === id);
@@ -369,6 +369,7 @@ export class ProcessStore {
         for (const e of d.elements) if (e.board === id) e.points = e.points.map(([x, y, t, p]) => [x + dx, y + dy, t, p]);
       }
       for (const k of ['title', 'ground', 'width', 'height', 'x', 'y']) if (k in patch) b[k] = patch[k];
+      for (const k of ['text', 'code']) if (k in patch) { if (patch[k] === '' || patch[k] == null) delete b[k]; else b[k] = String(patch[k]); }
     }, opts);
   }
 

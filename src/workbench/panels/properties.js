@@ -85,6 +85,11 @@ export function mountProperties(el, app) {
       row('Height', numberField({ value: b.height, min: 40, max: 10000, step: 10, def: 1000, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { height: Math.round(v) }); } })),
       row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app })),
       h('div', { class: 'wb-muted wb-small' }, `${marksOf(app.store.doc, b.id).length} marks${trainBoard(app.store.doc) === b.id ? ' · models learn from this board' : ''}`)));
+    const text = h('textarea', { class: 'wb-why', rows: 6, placeholder: 'What this board says (Markdown): on the exported page, under the picture' });
+    text.value = b.text || '';
+    text.addEventListener('keydown', e => e.stopPropagation());
+    text.addEventListener('change', () => app.store.updateBoard(b.id, { text: text.value }));
+    el.append(section('Text', true, text));
   };
 
   const renderDefaults = () => {

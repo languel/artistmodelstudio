@@ -19,7 +19,7 @@ export const BLACKBOARD = '_';
 export function boardsOf(doc) {
   const a = doc.artboard || { width: 1000, height: 1000, ground: '#f3efe6' };
   return [
-    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, main: true },
+    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), main: true },
     ...(doc.boards || []).map(b => ({ ...b, main: false }))
   ];
 }
@@ -99,7 +99,8 @@ export function migrateBoards(d) {
   if (Array.isArray(d.boards)) {
     d.boards = d.boards.filter(b => b && b.id && b.id !== MAIN && b.id !== BLACKBOARD).map(b => ({
       id: String(b.id), title: String(b.title || b.id), x: Number(b.x) || 0, y: Number(b.y) || 0,
-      width: Math.max(10, Number(b.width) || 1000), height: Math.max(10, Number(b.height) || 1000), ground: b.ground || d.artboard.ground
+      width: Math.max(10, Number(b.width) || 1000), height: Math.max(10, Number(b.height) || 1000), ground: b.ground || d.artboard.ground,
+      ...(b.text ? { text: String(b.text) } : {}), ...(b.code ? { code: String(b.code) } : {})
     }));
     const ids = new Set([MAIN, BLACKBOARD, ...d.boards.map(b => b.id)]);
     for (const e of d.elements) if (e.board && !ids.has(e.board)) e.board = BLACKBOARD;

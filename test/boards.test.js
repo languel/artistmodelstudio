@@ -52,3 +52,20 @@ describe('boards', () => {
     expect(trainBoard(s.doc)).toBe(MAIN);
   });
 });
+
+import { toP5, toSVG } from '../src/process/exports.js';
+describe('exports with boards', () => {
+  it('the p5 sketch (runtime bundled) still parses', () => {
+    const { doc } = runScript(`point(0.5, 0.5)\nboard('Two')\nline([[0, 0], [1, 1]])`);
+    const src = toP5(doc);
+    expect(() => new Function(src)).not.toThrow();
+  });
+  it('SVG of a board holds only its marks, at its origin', () => {
+    const { doc } = runScript(`point(0.5, 0.5)\nboard('Two', { width: 200, height: 100 })\nline([[0, 0], [1, 1]], { why: 'diag' })`);
+    const two = boardsOf(doc)[1];
+    const svg = toSVG(boardDoc(doc, two.id));
+    expect(svg).toContain('width="200"');
+    expect(svg).toContain('data-ams-role="line"');
+    expect(svg).not.toContain('data-ams-role="point"');
+  });
+});

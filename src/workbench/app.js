@@ -5,6 +5,7 @@
  */
 import { openToolParams } from './toolParams.js';
 import { boardDoc, boardById, boardsOf, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
+import { sceneHtml, docFromPage } from '../process/page.js';
 import { SCULPTS, loadSculptLibrary } from '../process/sculpt.js';
 import { ProcessStore, createDocument, normalizeDocument, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
@@ -694,6 +695,7 @@ export class Workbench {
         { label: 'SVG', hint: 'With the full process record inside; opens again as a process', run: () => this.exportAs('svg') },
         { label: 'p5.js sketch', hint: 'A zip whose sketch re-runs the score', run: () => this.exportAs('p5') },
         { label: 'Process sheet', hint: 'Stages, decisions and reasons on one page (PNG)', run: () => this.exportAs('sheet') },
+        { label: 'Page (HTML)', hint: 'Every board as a section: picture, process, replay and its text. The drawing travels inside', run: () => this.exportAs('page') },
         { label: 'JSON', hint: 'The process document', run: () => this.exportAs('json') },
         { label: 'Excalidraw', run: () => this.exportAs('excalidraw') }
       ] },
@@ -718,22 +720,23 @@ export class Workbench {
   async exportAs(kind, board = this.activeBoard || MAIN) {
     const b = boardById(this.store.doc, board) || boardById(this.store.doc, MAIN);
     // json keeps the whole drawing (every board); the rest is one board as a picture.
-    const doc = kind === 'json' ? this.store.doc : boardDoc(this.store.doc, b.id);
+    const doc = kind === 'json' || kind === 'page' ? this.store.doc : boardDoc(this.store.doc, b.id);
     const s = b.main ? this.slug() : `${this.slug()}-${String(b.title).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     if (kind === 'png') renderToCanvas(doc, { scale: 2, mode: this.view.mode }).toBlob(b => download(b, `${s}.png`, 'image/png'));
     else if (kind === 'sheet') processSheet(doc).toBlob(b => download(b, `${s}-process.png`, 'image/png'));
     else if (kind === 'svg') download(toSVG(doc, { mode: this.view.mode }), `${s}.svg`, 'image/svg+xml');
     else if (kind === 'json') download(JSON.stringify(doc, null, 2), `${s}.ams.json`, 'application/json');
+    else if (kind === 'page') download(sceneHtml(this.store.doc), `${this.slug()}.html`, 'text/html');
     else if (kind === 'excalidraw') download(JSON.stringify(toExcalidraw(doc), null, 2), `${s}.excalidraw`, 'application/json');
     else if (kind === 'p5') {
       const zip = createZip([{ name: 'index.html', data: p5IndexHtml(doc.title) }, { name: 'sketch.js', data: toP5(doc) }]);
       download(new Blob([zip], { type: 'application/zip' }), `${s}-p5.zip`, 'application/zip');
     }
-    this.log(`Exported ${kind}${b.main ? '' : ` (${b.title})`}.`);
+    this.log(`Exported ${kind}${b.main || kind === 'page' || kind === 'json' ? '' : ` (${b.title})`}.`);
   }
 
   openFile() {
-    const input = h('input', { type: 'file', accept: '.json,.svg,.excalidraw,application/json,image/svg+xml,image/*' });
+    const input = h('input', { type: 'file', accept: '.json,.svg,.html,.excalidraw,application/json,image/svg+xml,text/html,image/*' });
     input.addEventListener('change', async () => {
       const f = input.files[0];
       if (!f) return;
@@ -741,7 +744,8 @@ export class Workbench {
       const text = await f.text();
       try {
         let doc;
-        if (f.name.endsWith('.svg') || text.trim().startsWith('<')) doc = fromSVG(text);
+        if (f.name.endsWith('.html') || /<html[\s>]/i.test(text.slice(0, 400))) { doc = docFromPage(text); if (!doc) throw new Error('no drawing inside this page'); }
+        else if (f.name.endsWith('.svg') || text.trim().startsWith('<')) doc = fromSVG(text);
         else {
           const j = JSON.parse(text);
           doc = j.type === 'excalidraw' || Array.isArray(j.elements) && j.elements[0]?.type && !j.stages ? fromExcalidraw(j) : j.actions ? dslToProcess(j) : j;

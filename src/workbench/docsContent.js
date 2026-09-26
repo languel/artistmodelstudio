@@ -11,38 +11,8 @@ import { HARDWARE_PRESETS, MODEL_SPECS, estimateTrainingResources } from '../tra
 
 export const DOC_SECTIONS = ['Getting started', 'Drawing', 'Scores', 'Seeing and deciding', 'Models', 'Agents', 'Files and data'];
 
-/** Markdown subset: ## headings, paragraphs, - lists, 1. lists, | tables |, ``` code ```, `code`, **bold**, *em*, [links](url). */
-export function md(src) {
-  const inline = s => esc(s)
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  const out = [];
-  const lines = src.replace(/^\n+|\s+$/g, '').split('\n');
-  for (let i = 0; i < lines.length;) {
-    const l = lines[i];
-    if (/^```/.test(l)) { const buf = []; i++; while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]); i++; out.push(`<pre><code>${esc(buf.join('\n'))}</code></pre>`); continue; }
-    if (/^#{2,3} /.test(l)) { const n = l.startsWith('###') ? 4 : 3; out.push(`<h${n}>${inline(l.replace(/^#+ /, ''))}</h${n}>`); i++; continue; }
-    if (/^\|/.test(l)) {
-      const rows = []; while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]);
-      const cells = r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
-      const body = rows.filter(r => !/^\|[\s:|-]+\|$/.test(r));
-      out.push(`<table><thead><tr>${cells(body[0]).map(c => `<th>${inline(c)}</th>`).join('')}</tr></thead><tbody>${body.slice(1).map(r => `<tr>${cells(r).map(c => `<td>${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
-      continue;
-    }
-    if (/^(- |\d+\. )/.test(l)) {
-      const ordered = /^\d/.test(l), items = [];
-      while (i < lines.length && /^(- |\d+\. )/.test(lines[i])) items.push(lines[i++].replace(/^(- |\d+\. )/, ''));
-      out.push(`<${ordered ? 'ol' : 'ul'}>${items.map(x => `<li>${inline(x)}</li>`).join('')}</${ordered ? 'ol' : 'ul'}>`);
-      continue;
-    }
-    if (!l.trim()) { i++; continue; }
-    const buf = []; while (i < lines.length && lines[i].trim() && !/^(#{2,3} |```|\||- |\d+\. )/.test(lines[i])) buf.push(lines[i++]);
-    out.push(`<p>${inline(buf.join(' '))}</p>`);
-  }
-  return out.join('\n');
-}
+export { md } from '../process/markdown.js';
+import { md } from '../process/markdown.js';
 
 const prose = text => h('div', { html: md(text) });
 
@@ -125,6 +95,8 @@ Every key can be changed in **Shortcuts** (menu, or Shift+Cmd+/): search, click 
 | ? | Docs |
 
 **Boards** (Shift+O, or the Boards panel): a drawing can hold several artboards, like slides. The main board is the artboard at the origin; drag out more with the Board tool. A board's title sits above it: click it to select the board, drag it to move the board with its marks, double-click to rename, right-click for export (PNG, SVG, process sheet, p5), training, order, duplicate and delete. The selected board's corner resizes it. Marks belong to the board they are drawn on; outside the boards is the blackboard, kept but in no board's picture. F fits the active board; Alt+→ and Alt+← go to the next and previous board. In a score, board('Title') makes a board (if new) and later marks land on it, in fractions of that board; board() goes back to the main one. Models learn from the board marked with the dot in the Boards panel (the main one unless you choose).
+
+**Page** (Export → Page, or the page button in the Boards panel): the drawing as one HTML page, for a lecture, a blog post or a report. Every board with marks or text becomes a section: its title, its picture drawn by the studio's own renderer (switch to the process view, or replay how it was made), and its text (Markdown; select a board to write it in Properties). The page intro is in the Boards panel. The drawing travels inside the page: File → Open the page to keep working on it. Agents use ams_page.
 
 **Points** (' or the dotted-curve button top right): every mark's points as faint dots, brighter on the selection.
 

@@ -30,8 +30,16 @@ export function mountBoards(el, app) {
     const scratch = marksOf(doc, BLACKBOARD).length;
     list.append(h('div', { class: 'wb-stage wb-blackboard', title: 'Marks outside the boards: kept, but in no board’s picture' },
       h('span', { class: 'wb-icon-btn' }), h('span', { class: 'wb-stage-name wb-muted' }, 'Blackboard'), h('span', { class: 'wb-muted' }, String(scratch)), h('span', {})));
+    // The page: an intro before the boards, and the export.
+    const intro = h('textarea', { class: 'wb-why', rows: 3, placeholder: 'Page intro (Markdown), before the boards', title: 'Shown at the top of the exported page' });
+    intro.value = doc.meta?.intro || '';
+    intro.addEventListener('keydown', e => e.stopPropagation());
+    intro.addEventListener('change', () => app.store.change('page intro', d => { d.meta = { ...(d.meta || {}), intro: intro.value }; if (!intro.value) delete d.meta.intro; }));
     el.append(list, h('div', { class: 'wb-row wb-row-actions' },
-      h('button', { class: 'wb-btn', html: `${icon('plus')}<span>Board</span>`, title: 'A new board, right of the others (or drag one out with the Board tool, Shift+O)', onclick: () => { const b = app.store.addBoard({}); app.goToBoard(b.id); } })));
+      h('button', { class: 'wb-btn', html: `${icon('plus')}<span>Board</span>`, title: 'A new board, right of the others (or drag one out with the Board tool, Shift+O)', onclick: () => { const b = app.store.addBoard({}); app.goToBoard(b.id); } }),
+      h('span', { style: { flex: 1 } }),
+      h('button', { class: 'wb-icon-btn', title: 'Export the page (HTML): every board with its picture, process, replay and text', html: icon('page'), onclick: () => app.exportAs('page') })),
+      intro);
   };
   app.store.subscribe(render);
   app.on('board', render);

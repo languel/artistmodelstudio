@@ -24,6 +24,7 @@ export const ICONS = {
   log: svg('<path d="M4 6h16M4 12h10M4 18h13"/>'),
   exercise: svg('<path d="M4 5h11l5 5v9H4z"/><path d="M8 13l2 2 5-5"/>'),
   board: svg('<rect x="3.5" y="6" width="11" height="12" rx="1"/><rect x="9.5" y="3" width="11" height="12" rx="1" opacity=".55"/>'),
+  page: svg('<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 11h7M9 14h7M9 17h4"/>'),
   menu: svg('<path d="M4 7h16M4 12h16M4 17h16"/>'),
   undo: svg('<path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 010 10h-2"/>'),
   redo: svg('<path d="M15 7l5 5-5 5"/><path d="M20 12H9a5 5 0 000 10h2"/>'),

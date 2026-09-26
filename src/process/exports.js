@@ -11,10 +11,11 @@
  *              the same brushes on p5's drawingContext.
  *   Sheet      a PNG "process sheet": the picture built up stage by stage, with decisions.
  */
-import { BRUSHES, mulberry32, resolveParams, installLines } from './brushes.js';
+import { KIT, BRUSHES, mulberry32, resolveParams, installLines } from './brushes.js';
 import { noteSVG } from './notes.js';
 import { normalizeDocument, normalizeElement, createDocument } from './document.js';
 import { renderToCanvas } from './render.js';
+import boardsSrc from './boards.js?raw';
 import documentSrc from './document.js?raw';
 import brushesSrc from './brushes.js?raw';
 import renderSrc from './render.js?raw';
@@ -42,7 +43,7 @@ class SvgContext {
   moveTo(x, y) { this.d += `M${r2(x)} ${r2(y)}`; }
   lineTo(x, y) { this.d += `L${r2(x)} ${r2(y)}`; }
   closePath() { this.d += 'Z'; }
-  arc(x, y, r) { this.d += `M${r2(x - r)} ${r2(y)}a${r2(r)} ${r2(r)} 0 1 0 ${r2(2 * r)} 0a${r2(r)} ${r2(r)} 0 1 0 ${r2(-2 * r)} 0`; }
+  arc(x, y, r) { this.d += `M${r2(x - r)} ${r2(y)}a${r2(r)} ${r2(r)} 0 1 1 ${r2(2 * r)} 0a${r2(r)} ${r2(r)} 0 1 1 ${r2(-2 * r)} 0`; }   // clockwise, as canvas arc() draws by default
   fill() { this.out.push(`<path d="${this.d}" fill="${esc(this.state.fillStyle)}"${this.state.globalAlpha < 1 ? ` fill-opacity="${this.state.globalAlpha}"` : ''}/>`); }
   stroke() {
     const s = this.state;
@@ -76,7 +77,20 @@ export function toSVG(doc, { mode = 'process' } = {}) {
           ctx.out.push(noteSVG(e, esc, r2));
         } else {
           const id = construction && !brush.construction ? 'guide' : e.realize.brush;
-          BRUSHES[id].draw(ctx, e, resolveParams(id, e.realize.params), { rng: mulberry32(e.seed || 1), scale: 1 });
+          const p = resolveParams(id, e.realize.params), env = { rng: mulberry32(e.seed || 1), scale: 1 };
+          const closedFill = !construction && e.fill && e.points.length > 2 && e.closed && e.role !== 'plane';
+          const fillPath = () => { ctx.fillStyle = e.fill; KIT.tracePath(ctx, KIT.smoothPath(e.points, true), true); ctx.fill(); };
+          if (!construction && e.color === 'none') {
+            // No stroke: only the fill (a plane's brush paints it).
+            if (e.fill && e.role === 'plane') BRUSHES[id].draw(ctx, { ...e, color: e.fill }, p, env);
+            else if (closedFill) fillPath();
+          } else if (!construction && e.fill && e.role === 'plane') {
+            BRUSHES[id].draw(ctx, { ...e, color: e.fill }, p, env);
+            if (e.color) { ctx.strokeStyle = e.color; ctx.lineWidth = 2; KIT.tracePath(ctx, KIT.smoothPath(e.points, true), true); ctx.stroke(); }
+          } else {
+            if (closedFill) fillPath();
+            BRUSHES[id].draw(ctx, e, p, env);
+          }
         }
       }
       const rec = { ...e };
@@ -230,6 +244,7 @@ function keyPressed() {
 }
 
 // ---- Artist Model Studio process runtime (unchanged library code) ----
+${strip(boardsSrc)}
 ${strip(documentSrc)}
 ${strip(brushesSrc)}
 ${strip(notesSrc)}

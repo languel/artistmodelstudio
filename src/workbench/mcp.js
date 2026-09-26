@@ -9,6 +9,7 @@ import { EXERCISES } from '../process/exercises.js';
 import { ROLES, STAGE_KINDS, normalizeElement } from '../process/document.js';
 import { BRUSHES } from '../process/brushes.js';
 import { toSVG, toExcalidraw, toP5, processSheet } from '../process/exports.js';
+import { sceneHtml } from '../process/page.js';
 import { boardsOf, findBoard, boardDoc, marksOf, trainBoard, MAIN, BLACKBOARD } from '../process/boards.js';
 import { matches } from '../assets/assetStore.js';
 import { describeRegion } from '../perception/analyze.js';
@@ -98,6 +99,13 @@ export function workbenchTools(app) {
       return { image };
     } },
     { name: 'ams_process_sheet', description: 'PNG process sheet of a board (main unless given): each stage built up, plus decisions.', inputSchema: S({ board: str('Board id or title') }), run: (a) => ({ image: png(processSheet(boardDoc(doc(), (a.board && findBoard(doc(), a.board)?.id) || MAIN))) }) },
+    { name: 'ams_page', description: 'The drawing as a page (self-contained HTML): every board with marks or text as a section (title, picture, process view, replay, its text in Markdown), after an intro. Set a board\'s text with ams_board update {patch: {text}}; the intro with intro here (kept in the drawing). download: true also saves the file.', inputSchema: S({ intro: str('Markdown before the boards (kept)'), title: str('Page title (default: the drawing\'s)'), boards: { type: 'array', items: { type: 'string' }, description: 'Board ids or titles, in order (default: all with marks or text)' }, download: { type: 'boolean' } }), run: (a) => {
+      if (a.intro !== undefined) app.store.change('page intro', d => { d.meta = { ...(d.meta || {}), intro: a.intro }; }, { by: 'agent' });
+      const ids = a.boards ? a.boards.map(k => findBoard(doc(), k)?.id).filter(Boolean) : null;
+      const html = sceneHtml(doc(), { title: a.title || doc().title, boards: ids });
+      if (a.download) download(html, `${String(a.title || doc().title || 'page').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.html`, 'text/html');
+      return { html, bytes: html.length };
+    } },
     { name: 'ams_board', description: 'Boards (artboards; the main one is the drawing\'s artboard at the origin). list; add {title, width, height, x?, y?, ground?} (placed right of the others unless x, y); update {id, patch: {title, width, height, x, y, ground}} (moving a board moves its marks); move {id, delta} in the sequence; delete {id, deleteMarks?} (marks go to the blackboard unless deleteMarks); go {id} (make active and fit the view); train {id} (the board models learn from); assign {id, ids} (put marks on a board; id "_" is the blackboard). Scores use board(title) to draw on a board.', inputSchema: S({ action: { type: 'string', enum: ['list', 'add', 'update', 'move', 'delete', 'go', 'train', 'assign'] }, id: str('Board id or title'), title: str(''), width: num(''), height: num(''), x: num(''), y: num(''), ground: str(''), patch: { type: 'object' }, delta: num('±1'), deleteMarks: { type: 'boolean' }, ids: { type: 'array', items: { type: 'string' } } }, ['action']), run: (a) => {
       const list = () => boardsOf(doc()).map((b, i) => ({ index: i, id: b.id, title: b.title, x: b.x, y: b.y, width: b.width, height: b.height, ground: b.ground, marks: marksOf(doc(), b.id).length, main: b.main, train: trainBoard(doc()) === b.id }));
       if (a.action === 'list') return { boards: list(), blackboard: marksOf(doc(), BLACKBOARD).length, active: app.activeBoard || MAIN };

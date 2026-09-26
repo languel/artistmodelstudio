@@ -5,6 +5,7 @@
  * The player exposes window.amsPlayer = { duration, seek(ms), play(), pause(), frame(ms) } so a
  * frame-by-frame renderer (HyperFrames-style, headless capture) can drive it deterministically.
  */
+import boardsSrc from '../process/boards.js?raw';
 import documentSrc from '../process/document.js?raw';
 import brushesSrc from '../process/brushes.js?raw';
 import notesSrc from '../process/notes.js?raw';
@@ -26,7 +27,7 @@ const clean = take => { const t = JSON.parse(JSON.stringify(take)); delete t.ass
 
 /** The renderer and player as one script (no imports). */
 export function playerScript() {
-  return [documentSrc, brushesSrc, notesSrc, renderSrc, takeSrc, takeRenderSrc].map(strip).join('\n;\n') + '\n' + PLAYER_UI;
+  return [boardsSrc, documentSrc, brushesSrc, notesSrc, renderSrc, takeSrc, takeRenderSrc].map(strip).join('\n;\n') + '\n' + PLAYER_UI;
 }
 
 const PLAYER_UI = String.raw`
