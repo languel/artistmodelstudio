@@ -18,6 +18,7 @@ and collapse, as in underscores:
 
 | Panel | What it holds |
 |---|---|
+| Boards | The drawing's boards in order (click to go, double-click to rename, the dot marks the training board), the blackboard, the page intro and page export. |
 | Stages | The process as ordered layers: show, lock, rename, kind, reorder. New marks go to the active stage. |
 | Outliner | Every mark by stage and group: select (Shift for a range, Cmd to toggle), rename, drag to reorder or move between stages and groups, hide, lock, delete. Cmd+G / Shift+Cmd+G group and ungroup. |
 | Assets | Saved processes, takes, earlier generations, imports (images, audio, text, SVG, JSON; files or whole folders, subfolders kept), and the Klee references. Search, folders (right-click to remove), stars, tags; click, Shift and Cmd select several to drag or delete. |
@@ -86,6 +87,35 @@ of the picture, and the Generate panel can send it to vision models.
 A **take** records how a drawing was made: the starting drawing, then clips on tracks (titles, narration, drawing changes, actions, camera, audio). Record by hand; walkthroughs and agent activity record themselves (agent recordings stop after 90 s of quiet), so a long run can be reviewed later. Takes are in Assets → Takes.
 
 In the Timeline, clips are rectangles: drag to move, drag the right edge to retime, double-click text, right-click for speed, reveal and delete; the selected clip's properties are in Properties. **Summary** distills a run (narration at reading pace, the drawing brisk, analysis and waiting sped through, a hold at the end). **Walkthrough** makes a live walkthrough from a take. **Export** writes a standalone playable HTML file (the renderer inlined; `window.amsPlayer.seek(ms)` / `frame(ms)` for frame-by-frame capture), a project zip, a video (MP4 or WebM), or JSON. Agents use `ams_record` and `ams_timeline`.
+
+## Scenes, boards and pages
+
+A **project** holds **scenes**, and a scene holds **boards**. It is enough to write a lecture, a blog post or a report, or to prepare a performance.
+
+- **Scenes** (the layers button beside the title) are separate drawings. Each has its own undo, History and Timeline; Assets, brushes and settings are shared by all. Opening a drawing from Assets, or a file, makes a new scene, so your drawing is never replaced. Alt+PageUp and Alt+PageDown step through scenes.
+- **Boards** (Shift+O, or the Boards panel) are artboards in one drawing, in order, like slides.
+  - **The main board** is the old artboard at the origin, so every older drawing, score and training record is unchanged.
+  - **Editing boards:** drag out more with the Board tool. A board's title selects it, moves it (with its marks) and renames it; its right-click menu exports it, trains on it, reorders or duplicates it.
+  - **Which board a mark is on:** marks belong to the board they are drawn on. Outside the boards is the **blackboard**: kept, but in no board's picture.
+  - **Training** uses the board marked with the dot in the Boards panel.
+- **Board code** (Code → Board): a board's own score, run with the board as its artboard. Each run replaces its last run's marks, so the board is live while you edit or move its sliders.
+- **Present** (Opt+Cmd+P): the boards full-window, with eased moves between them.
+  - Keys: →, Space, ←, 1–9, Esc.
+  - Drawing still works.
+  - While recording, the moves go onto the camera track, so replays and videos follow them.
+- **Page** (Export → Page): the drawing as one HTML file.
+  - Each board is a section: title, picture, process view, replay, its text (Markdown, written in Properties) and its code with live sliders.
+  - The studio's renderer is inside the page, and so is the drawing, so File → Open the page to keep working on it.
+  - Two examples: `scripts/point-line-plane-demo.mjs` (a lecture after Kandinsky) and `scripts/senecio-report-scene.mjs` (the Senecio run report).
+- **Performing:** 1–9 go to a board; Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush in a slot.
+
+In a score:
+
+```js
+board('A line')                         // made if new, right of the others
+line(walk({ from: [0.1, 0.5], steps: 80, turn: i => sin(i / 7) * 9 }))   // fractions of this board
+board()                                 // back to the main board
+```
 
 ## Brushes are code
 
@@ -274,4 +304,6 @@ policy with `training/decisions/` (see its README).
 - **A modifier stack:** non-destructive, Blender-like operations on a mark, with Apply to make them destructive.
 - **A direct point editor** building on the points view.
 - **Richer range comments,** with colors, choices and switches.
-- **Scenes,** kept separate from stages.
+- **Curve and SVG optimization filters:** like Simplify, but aimed at SVG output (fewer and simpler paths for hatching and stipple).
+- **Group frames** (plain, Excalidraw-style) beside boards; per-board grids and snapping.
+- **Sequencing scenes,** and cameras separate from boards (a view that travels across several boards).

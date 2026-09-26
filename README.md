@@ -8,6 +8,7 @@ Artist Model Studio is a training ground for that question: *creative coding for
 - **Brushes are code**: every brush, the built-ins included, is a small program you (or a model, or an agent) can read, fork and write, with a live preview; drawings carry the brushes they use.
 - **Sculpting**: push, grab, smooth, relax, pinch, twist, jitter, simplify (or resample) and thicken marks with a brush (after threegrease), from a Sculpt tool or Shift+drag. Sculpt tools are code as well.
 - **Parameters are controls**: parameters declared in code become sliders that act on the selection, the active brush or the tool in use. They also appear in the preview and on Opt+right-click, and any number in code can be scrubbed.
+- **Scenes, boards and pages**: a project holds scenes (drawings), a scene holds boards (artboards, like slides) with their own live code. Present them, or export a scene as one HTML page (a lecture, a blog post, an agent's report) that carries the drawing and replays it.
 - **Timeline and History**: record takes as clips on editor-style tracks (drawing, narration, titles, camera, audio) and export video with sound. History keeps every change, to preview, restore or drag onto the Timeline.
 - **Studies**: *Study: Senecio* walks through studying a painting, writing its methods as brushes and a score, reproducing it, and drawing a new subject in its manner.
 - **Decisions**: the Decide panel turns drawing into typed decisions a small local model (lev) can learn from your choices.
