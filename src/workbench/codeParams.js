@@ -1,7 +1,7 @@
 /**
  * Parameters in code, as controls in the editor (after underscores and Strudel's inline sliders):
  *
- *   params: { amount: [0, 1, 0.5, 'doc'] }    a param declaration gets a slider after it. With a
+ *   params: { amount: [0, 1, 0.5, 'doc'] }    a param declaration gets a slider in the gutter. With a
  *                                            live source (the Sculpt panel) it sets the value in use;
  *                                            otherwise it rewrites the default in the code.
  *   0.4 /* 0..1 *\/                          a number with a range comment gets a slider that
@@ -10,7 +10,8 @@
  *
  * The code stays the truth: sliders that rewrite write plain numbers back into it.
  */
-import { ViewPlugin, Decoration, WidgetType, EditorView } from '@codemirror/view';
+import { ViewPlugin, EditorView, GutterMarker, gutter } from '@codemirror/view';
+import { RangeSet } from '@codemirror/state';
 
 const NUM = '-?(?:\\d+\\.?\\d*|\\.\\d+)';
 const PARAM_RE = new RegExp(`(^|[\\s{,])([A-Za-z_$][\\w$]*)\\s*:\\s*\\[\\s*(${NUM})\\s*,\\s*(${NUM})\\s*,\\s*(${NUM})`, 'g');
@@ -60,43 +61,64 @@ export function findControls(text) {
   return out;
 }
 
-class SliderWidget extends WidgetType {
-  constructor(c, view, live) { super(); this.c = c; this.view = view; this.live = live; }
-  eq(o) { return o.c.id === this.c.id && o.c.min === this.c.min && o.c.max === this.c.max && o.live === this.live; }
+/** The shared slider look (code, canvas popovers): the filled part follows the value. */
+export function rangeInput({ min, max, step, value, title = '' }) {
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.className = 'wb-range';
+  Object.assign(input, { min, max, step });
+  input.value = String(value);
+  input.title = title;
+  paintRange(input);
+  input.addEventListener('input', () => paintRange(input));
+  return input;
+}
+export function paintRange(input) {
+  const min = Number(input.min), max = Number(input.max);
+  input.style.setProperty('--p', `${((Number(input.value) - min) / ((max - min) || 1)) * 100}%`);
+}
+
+/** The controls on one line, in the gutter: [slider] opacity: [0, 1, 1…]. */
+class LineControls extends GutterMarker {
+  constructor(cs, view, live) { super(); this.cs = cs; this.view = view; this.live = live; }
+  eq(o) { return o.live === this.live && o.cs.length === this.cs.length && o.cs.every((c, i) => c.id === this.cs[i].id && c.min === this.cs[i].min && c.max === this.cs[i].max); }
   toDOM() {
-    const c = this.c;
     const wrap = document.createElement('span');
-    wrap.className = `cm-param${this.live ? ' live' : ''}`;
-    const input = document.createElement('input');
-    input.type = 'range';
+    wrap.className = 'cm-param';
+    for (const c of this.cs) wrap.append(this.control(c));
+    return wrap;
+  }
+  control(c) {
     const step = c.step || stepFor(c.min, c.max);
-    Object.assign(input, { min: c.min, max: c.max, step });
     const target = this.live && c.kind === 'param' ? this.live.target?.() : null;
-    if (this.live && c.kind === 'param' && this.live.target && !target) this.live = null;
-    const liveVal = this.live && c.kind === 'param' ? this.live.get(c.key) : undefined;
-    input.value = String(liveVal ?? c.value);
-    const out = document.createElement('span');
-    out.className = 'cm-param-value';
-    out.textContent = this.live && c.kind === 'param' ? fmt(Number(input.value), step) : '';
-    input.title = this.live && c.kind === 'param' ? `${c.key}: ${target ? `the value on ${target}` : 'the value in use'} (the code keeps the default)` : `${c.kind === 'param' ? c.key : 'value'}: ${c.min}…${c.max}`;
+    const live = this.live && c.kind === 'param' && !(this.live.target && !target) ? this.live : null;
+    const liveVal = live ? live.get(c.key) : undefined;
+    const name = c.kind === 'param' ? c.key : 'value';
+    const tip = v => (live ? `${name} = ${fmt(v, step)} on ${target || 'the tool in use'} (the code keeps the default)` : `${name} = ${fmt(v, step)} (${c.min}…${c.max})`);
+    const input = rangeInput({ min: c.min, max: c.max, step, value: liveVal ?? c.value });
+    input.title = tip(Number(input.value));
+    if (live) input.classList.add('live');
     input.addEventListener('input', () => {
       const v = Number(input.value);
-      if (this.live && c.kind === 'param' && this.live.set(c.key, v) !== false) { out.textContent = fmt(v, step); return; }
+      input.title = tip(v);
+      if (live && live.set(c.key, v) !== false) return;
       // Rewrite the number in the code: find this control again (positions move as the text changes).
       const cur = findControls(this.view.state.doc.toString()).find(x => x.id === c.id);
       if (cur) this.view.dispatch({ changes: { from: cur.from, to: cur.to, insert: fmt(v, step) } });
     });
-    for (const ev of ['mousedown', 'pointerdown', 'keydown']) input.addEventListener(ev, e => e.stopPropagation());
-    wrap.append(input, out);
-    return wrap;
+    for (const ev of ['mousedown', 'pointerdown', 'keydown', 'click']) input.addEventListener(ev, e => e.stopPropagation());
+    return input;
   }
-  ignoreEvent() { return true; }
 }
 
 function build(view, live) {
-  const controls = findControls(view.state.doc.toString());
-  const decos = controls.map(c => Decoration.widget({ widget: new SliderWidget(c, view, live), side: c.kind === 'param' ? 1 : -1 }).range(c.at));
-  return Decoration.set(decos.sort((a, b) => a.from - b.from), true);
+  const byLine = new Map();
+  for (const c of findControls(view.state.doc.toString())) {
+    const line = view.state.doc.lineAt(c.from).from;
+    if (!byLine.has(line)) byLine.set(line, []);
+    byLine.get(line).push(c);
+  }
+  return RangeSet.of([...byLine].sort((a, b) => a[0] - b[0]).map(([at, cs]) => new LineControls(cs, view, live).range(at)));
 }
 
 /** Cmd-drag a number literal to change it (Shift: fine steps). */
@@ -134,11 +156,11 @@ const scrub = EditorView.domEventHandlers({
  */
 export function codeParams(getLive = () => null) {
   const plugin = ViewPlugin.fromClass(class {
-    constructor(view) { this.live = getLive(); this.decorations = build(view, this.live); }
+    constructor(view) { this.live = getLive(); this.markers = build(view, this.live); }
     update(u) {
       const live = getLive();
-      if (u.docChanged || live !== this.live || u.transactions.some(t => t.effects.length)) { this.live = live; this.decorations = build(u.view, live); }
+      if (u.docChanged || live !== this.live) { this.live = live; this.markers = build(u.view, live); }
     }
-  }, { decorations: v => v.decorations });
-  return [plugin, scrub];
+  });
+  return [plugin, gutter({ class: 'cm-param-gutter', markers: v => v.plugin(plugin)?.markers || RangeSet.empty }), scrub];
 }

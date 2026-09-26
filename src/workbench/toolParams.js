@@ -4,6 +4,8 @@
  * selection: the selected marks' brush params. A drawing tool: its brush params for new marks.
  */
 import { h } from './ui.js';
+import { icon } from './icons.js';
+import { rangeInput } from './codeParams.js';
 import { SCULPTS, sculptParams } from '../process/sculpt.js';
 import { BRUSHES, resolveParams } from '../process/brushes.js';
 
@@ -13,7 +15,7 @@ function slider({ label, min, max, step, value, doc, onInput }) {
   const out = h('span', { class: 'wb-tp-value' });
   const d = (String(step).split('.')[1] || '').length;
   const show = v => { out.textContent = String(+Number(v).toFixed(Math.min(4, d))); };
-  const input = h('input', { type: 'range', min, max, step, value: String(value), title: doc || label });
+  const input = rangeInput({ min, max, step, value, title: doc || label });
   input.addEventListener('input', () => { show(input.value); onInput(Number(input.value)); });
   show(value);
   return h('label', { class: 'wb-tp-row', title: doc || '' }, h('span', { class: 'wb-tp-label' }, label), input, out);
@@ -61,7 +63,7 @@ export function openToolParams(app, x, y) {
   if (!rows.length) rows.push(h('div', { class: 'wb-muted wb-small' }, 'No parameters for this tool: select marks, or pick a drawing or sculpt tool.'));
 
   pop.append(
-    h('div', { class: 'wb-tp-head' }, h('span', {}, title || 'Parameters'), code ? h('button', { class: 'wb-btn', title: 'The same params in code', onclick: () => { close(); code(); } }, 'Code') : null),
+    h('div', { class: 'wb-tp-head' }, h('span', {}, title || 'Parameters'), code ? h('button', { class: 'wb-icon-btn', title: 'The same params in code', html: icon('script'), onclick: () => { close(); code(); } }) : null),
     ...rows);
   document.body.append(pop);
   const r = pop.getBoundingClientRect();

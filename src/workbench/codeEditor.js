@@ -111,9 +111,9 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
     state: EditorState.create({
       doc: value,
       extensions: [
-        lineNumbers(), foldGutter(), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(),
+        lineNumbers(), foldGutter(), codeParams(() => live), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(),
         indentOnInput(), bracketMatching(), closeBrackets(), highlightSelectionMatches(), lintGutter(), linter(() => [], { delay: 1e9 }),
-        javascript(), syntaxHighlighting(highlight), theme, hoverDocs, codeParams(() => live),
+        javascript(), syntaxHighlighting(highlight), theme, hoverDocs,  
         autocompletion({ override: [scoreCompletions(getDocLines)], icons: false }),
         wrap.of(EditorView.lineWrapping),
         placeholder ? placeholderExt(placeholder) : [],

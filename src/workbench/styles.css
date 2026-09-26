@@ -557,10 +557,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, [contentedita
 .wb-tool-caret { position: absolute; right: 2px; bottom: 2px; width: 0; height: 0; border-left: 4px solid transparent; border-top: 4px solid currentColor; opacity: .5; transform: rotate(-45deg); }
 
 /* Params as controls in the code editor */
-.cm-param { display: inline-flex; align-items: center; gap: 4px; margin: 0 4px; vertical-align: middle; }
-.cm-param input[type=range] { width: 72px; height: 12px; margin: 0; accent-color: var(--wb-muted); cursor: ew-resize; }
-.cm-param.live input[type=range] { accent-color: var(--wb-text); }
-.cm-param-value { font-size: 10px; color: var(--wb-muted); min-width: 2.5em; }
 
 /* Opt+right-click: tool parameters */
 .wb-tp { width: 260px; gap: 6px; }
@@ -568,5 +564,20 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, [contentedita
 .wb-tp-head .wb-btn { padding: 1px 8px; }
 .wb-tp-row { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 6px; font-size: 11px; }
 .wb-tp-label { color: var(--wb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wb-tp-row input[type=range] { width: 100%; margin: 0; accent-color: var(--wb-text); }
 .wb-tp-value { text-align: right; font-family: var(--font-mono, ui-monospace, monospace); font-size: 10.5px; color: var(--wb-muted); }
+
+/* One slider look, in code and on the canvas: a filled bar with a small round thumb */
+.wb-range { -webkit-appearance: none; appearance: none; height: 10px; margin: 0; border-radius: 5px; cursor: ew-resize; background: transparent;
+  --fill: color-mix(in srgb, var(--wb-text) 85%, transparent); --rest: color-mix(in srgb, var(--wb-muted) 35%, transparent); }
+.wb-range::-webkit-slider-runnable-track { height: 10px; border-radius: 5px; background: linear-gradient(to right, var(--fill) var(--p, 50%), var(--rest) var(--p, 50%)); }
+.wb-range::-moz-range-track { height: 10px; border-radius: 5px; background: var(--rest); }
+.wb-range::-moz-range-progress { height: 10px; border-radius: 5px; background: var(--fill); }
+.wb-range::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 8px; margin-top: 1px; border-radius: 50%; background: var(--wb-panel); border: 1.5px solid var(--wb-text); box-sizing: border-box; }
+.wb-range::-moz-range-thumb { width: 8px; height: 8px; border-radius: 50%; background: var(--wb-panel); border: 1.5px solid var(--wb-text); box-sizing: border-box; }
+.wb-range:not(.live) { --fill: color-mix(in srgb, var(--wb-muted) 75%, transparent); }
+.wb-tp .wb-range { --fill: color-mix(in srgb, var(--wb-text) 85%, transparent); width: 100%; }
+.cm-param-gutter { min-width: 0; }
+.cm-param-gutter .cm-gutterElement { display: flex; align-items: center; }
+.cm-param { display: inline-flex; flex-direction: column; justify-content: center; gap: 2px; padding: 0 6px 0 2px; height: 100%; }
+.cm-param .wb-range { width: 64px; }
+.wb-tp-head .wb-icon-btn { width: 24px; height: 22px; display: grid; place-items: center; }
