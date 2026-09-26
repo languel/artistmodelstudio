@@ -105,6 +105,10 @@ export class AssetPanel {
         if (id) { e.preventDefault(); e.stopPropagation(); this.store.update(id, { folder: el.dataset.path }); }
       });
     });
+    // Right-click a folder (chip or crumb) to remove it.
+    crumbs.querySelectorAll('.folder-chip:not(.folder-up)[data-path], .crumb[data-path]:not([data-path=""])').forEach(el => {
+      el.addEventListener('contextmenu', ev => { ev.preventDefault(); this.folderMenu(el.dataset.path, ev); });
+    });
     crumbs.querySelectorAll('.crumb[data-path]:not([data-path=""])').forEach(el => {
       el.addEventListener('dblclick', () => this.editInline(el, el.textContent, name => {
         const path = el.dataset.path.split('/').slice(0, -1).concat(name.replace(/\//g, '-')).join('/');
@@ -159,6 +163,19 @@ export class AssetPanel {
   }
 
   /** Replace `el`'s text with a field; Enter saves, Esc cancels. */
+  async folderMenu(path, ev) {
+    const n = (await this.store.all()).filter(a => a.folder === path || a.folder.startsWith(path + '/')).length;
+    const name = path.split('/').pop();
+    const parent = path.split('/').slice(0, -1).join('/');
+    const done = () => { if (this.folder === path || this.folder.startsWith(path + '/')) this.folder = parent; this.refresh(); };
+    const { showMenu } = await import('../workbench/menu.js');
+    showMenu([
+      { label: `“${name}”` },
+      { label: n ? `Remove folder (move ${n} asset${n === 1 ? '' : 's'} up)` : 'Remove folder', run: async () => { await this.store.removeFolder(path); done(); } },
+      n ? { label: `Delete folder and its ${n} asset${n === 1 ? '' : 's'}…`, run: async () => { if (confirm(`Delete “${name}” and the ${n} asset${n === 1 ? '' : 's'} in it? This cannot be undone.`)) { await this.store.removeFolder(path, { deleteAssets: true }); done(); } } } : null
+    ], ev.clientX, ev.clientY);
+  }
+
   editInline(el, value, save, cancel) {
     const input = document.createElement('input');
     input.className = 'asset-edit';

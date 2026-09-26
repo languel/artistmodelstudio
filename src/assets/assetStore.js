@@ -94,6 +94,13 @@ async function makeThumb(blob) {
   return { thumb: c.toDataURL('image/webp', 0.85), width: img.naturalWidth, height: img.naturalHeight };
 }
 
+/** Where a folder's contents go when the folder is removed: one level up, subfolders kept. */
+export function liftFolder(folder, removed) {
+  const parent = removed.split('/').slice(0, -1).join('/');
+  const rest = folder === removed ? '' : folder.slice(removed.length + 1);
+  return [parent, rest].filter(Boolean).join('/');
+}
+
 export function normFolder(path) {
   return String(path || '').split('/').map(s => s.trim()).filter(Boolean).join('/');
 }
@@ -182,6 +189,26 @@ export class AssetStore {
 
   savedFolders() {
     try { return JSON.parse(localStorage.getItem(FOLDERS_KEY) || '[]'); } catch { return []; }
+  }
+
+  /**
+   * Remove a folder (and its subfolders). Its assets move up to the parent folder, or with
+   * deleteAssets are deleted. Returns how many assets were moved or deleted.
+   */
+  async removeFolder(path, { deleteAssets = false } = {}) {
+    const p = normFolder(path);
+    if (!p) return 0;
+    const parent = p.split('/').slice(0, -1).join('/');
+    const inside = a => a.folder === p || a.folder.startsWith(p + '/');
+    const hit = (await this.all()).filter(inside);
+    for (const a of hit) {
+      if (deleteAssets) await this.remove(a.id);
+      else await this.update(a.id, { folder: liftFolder(a.folder, p) });
+    }
+    const keep = this.savedFolders().filter(f => !(f === p || f.startsWith(p + '/')));
+    try { localStorage.setItem(FOLDERS_KEY, JSON.stringify(keep)); } catch { /* storage unavailable */ }
+    this.emit();
+    return hit.length;
   }
 
   addFolder(path) {
