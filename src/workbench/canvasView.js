@@ -520,7 +520,8 @@ export class CanvasView {
     });
     c.addEventListener('dblclick', e => {
       const bh = this.boardHandleAt(...this.local(e));
-      if (bh?.kind === 'title') this.onBoardRename?.(bh.id);
+      // Double-click a board's title frames it; Shift+double-click renames it.
+      if (bh?.kind === 'title') { if (e.shiftKey) this.onBoardRename?.(bh.id); else this.animateTo(this.camFor(bh.id), 400); }
     });
     c.addEventListener('contextmenu', e => {
       e.preventDefault();

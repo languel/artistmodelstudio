@@ -50,6 +50,27 @@ export function mountOutliner(root, app) {
     input.addEventListener('blur', () => finish(true));
     input.addEventListener('pointerdown', e => e.stopPropagation());
   };
+  // Double-click to rename. A click selects and redraws the list, so the browser's dblclick never
+  // reaches the (new) label: two presses on the same label within 450 ms count instead, and the
+  // click that ends the second press opens the field (instead of selecting again).
+  // Double-click frames the item on the canvas; Shift+double-click renames it (no accidental renames).
+  let lastPress = { key: null, t: 0 }, pending = null;
+  const onDouble = (name, key, fn, ids) => {
+    name.dataset.renameKey = key;
+    name.addEventListener('pointerdown', ev => {
+      const now = performance.now();
+      if (lastPress.key === key && now - lastPress.t < 450) { pending = { key, fn, ids, rename: ev.shiftKey }; lastPress = { key: null, t: 0 }; }
+      else lastPress = { key, t: now };
+    });
+  };
+  root.addEventListener('click', ev => {
+    if (!pending) return;
+    const { key, fn, ids, rename: doRename } = pending; pending = null;
+    ev.stopPropagation(); ev.preventDefault();
+    if (doRename) { const cur = root.querySelector(`[data-rename-key="${CSS.escape(key)}"]`); if (cur) fn(cur); return; }
+    const list = typeof ids === 'function' ? ids() : ids;
+    if (list?.length) { app.canvas.select(list); app.canvas.frameSelection(); }
+  }, true);
   const toggleBtn = (on, iconOn, iconOff, title, fn, cls = '') => h('button', { class: `wb-icon-btn wb-outliner-toggle${on ? '' : ' off'} ${cls}`, title, html: icon(on ? iconOn : iconOff), onclick: e => { e.stopPropagation(); fn(e); } });
   // The action applies to the row, or to the whole selection if the row is part of it.
   const targetIds = ids => (ids.some(id => sel().has(id)) ? [...new Set([...ids, ...sel()])] : ids);
@@ -73,8 +94,8 @@ export function mountOutliner(root, app) {
 
   const elementRow = (e, depth) => {
     const doc = app.store.doc;
-    const name = h('span', { class: 'wb-outliner-label', title: `${e.why || e.role}${e.by?.name ? ` · ${e.by.name}` : ''}` }, labelOf(e, doc));
-    name.addEventListener('dblclick', ev => { ev.stopPropagation(); rename(name, labelOf(e, doc), v => app.store.patchElements([e.id], { label: v }, 'rename')); });
+    const name = h('span', { class: 'wb-outliner-label', title: `${e.why || e.role}${e.by?.name ? ` · ${e.by.name}` : ''} · double-click to frame, Shift+double-click to rename` }, labelOf(e, doc));
+    onDouble(name, `e:${e.id}`, cur => rename(cur, labelOf(e, doc), v => app.store.patchElements([e.id], { label: v }, 'rename')), [e.id]);
     const row = h('div', { class: `wb-outliner-row${sel().has(e.id) ? ' selected' : ''}${e.hidden ? ' hidden' : ''}`, style: { '--depth': depth }, role: 'treeitem', onclick: ev => clickRow(ev, [e.id], e.id) },
       h('span', { class: 'wb-outliner-glyph', title: e.role }, ROLE_GLYPH[e.role] || '·'),
       name,
@@ -101,7 +122,7 @@ export function mountOutliner(root, app) {
     const hidden = items.every(e => e.hidden), locked = items.every(e => e.locked);
     const allSel = ids.every(id => sel().has(id));
     const name = h('span', { class: 'wb-outliner-label' }, doc.groups?.[gid]?.name || 'Group');
-    name.addEventListener('dblclick', ev => { ev.stopPropagation(); rename(name, doc.groups?.[gid]?.name || 'Group', v => app.store.renameGroup(gid, v)); });
+    onDouble(name, `g:${gid}`, cur => rename(cur, doc.groups?.[gid]?.name || 'Group', v => app.store.renameGroup(gid, v)), () => app.store.doc.elements.filter(x => x.group === gid).map(x => x.id));
     const row = h('div', { class: `wb-outliner-row wb-outliner-group${allSel ? ' selected' : ''}${hidden ? ' hidden' : ''}`, style: { '--depth': depth }, onclick: ev => clickRow(ev, ids, ids[0]) },
       h('button', { class: 'wb-outliner-caret', title: open ? 'Collapse' : 'Expand', onclick: ev => { ev.stopPropagation(); open ? collapsed.add(gid) : collapsed.delete(gid); render(); } }, open ? '▾' : '▸'),
       name,
@@ -125,7 +146,7 @@ export function mountOutliner(root, app) {
     const open = !collapsed.has(key);
     const active = app.activeStageId === s.id;
     const name = h('span', { class: 'wb-outliner-label wb-outliner-stage-name' }, `${i + 1}. ${s.name}`);
-    name.addEventListener('dblclick', ev => { ev.stopPropagation(); rename(name, s.name, v => app.store.updateStage(s.id, { name: v })); });
+    onDouble(name, `s:${s.id}`, cur => rename(cur, s.name, v => app.store.updateStage(s.id, { name: v })), () => app.store.doc.elements.filter(x => x.stage === s.id && !x.hidden).map(x => x.id));
     const row = h('div', { class: `wb-outliner-row wb-outliner-stage${active ? ' active' : ''}${s.visible ? '' : ' hidden'}`, title: `${s.kind}: click to make active (new marks go here)`, onclick: () => app.setActiveStage(s.id) },
       h('button', { class: 'wb-outliner-caret', title: open ? 'Collapse' : 'Expand', onclick: ev => { ev.stopPropagation(); open ? collapsed.add(key) : collapsed.delete(key); render(); } }, items.length ? (open ? '▾' : '▸') : ''),
       name,
