@@ -78,7 +78,7 @@ export class AssetPanel {
     container.addEventListener('drop', async e => {
       if (!e.dataTransfer?.files.length) return;
       e.preventDefault();
-      await this.store.importFiles(e.dataTransfer.files, this.folder);
+      await this.store.importFiles(await droppedFiles(e.dataTransfer), this.folder);
     });
     this.refresh();
   }
@@ -248,4 +248,27 @@ export class AssetPanel {
     }, () => this.draw());
     chip.querySelector('input').placeholder = 'Folder name';
   }
+}
+
+/** Files from a drop, folders included (walked, each file tagged with its relative path). */
+async function droppedFiles(dt) {
+  const entries = [...dt.items].map(i => i.webkitGetAsEntry?.()).filter(Boolean);
+  if (!entries.some(e => e.isDirectory)) return [...dt.files];
+  const out = [];
+  const walk = async (entry, path) => {
+    if (entry.isFile) {
+      const f = await new Promise((res, rej) => entry.file(res, rej));
+      f.relPath = path + f.name;
+      out.push(f);
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      for (;;) {
+        const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+        if (!batch.length) break;
+        for (const c of batch) await walk(c, path + entry.name + '/');
+      }
+    }
+  };
+  for (const e of entries) await walk(e, '');
+  return out;
 }

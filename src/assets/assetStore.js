@@ -269,7 +269,7 @@ export class AssetStore {
     for (const f of files.filter(f => f.name === 'sources.json')) {
       try {
         const m = JSON.parse(await f.text());
-        const dir = (f.webkitRelativePath || '').split('/').slice(0, -1).join('/');
+        const dir = (f.relPath || f.webkitRelativePath || '').split('/').slice(0, -1).join('/');
         for (const r of m.references || []) manifests[dir + '/' + r.file] = r;
       } catch { /* not a manifest */ }
     }
@@ -277,26 +277,27 @@ export class AssetStore {
     for (const f of files) {
       const kind = fileKind(f);
       if (!kind || f.name === 'sources.json') continue;
+      const rel = f.relPath || f.webkitRelativePath || f.name;
+      const dir = rel.split('/').slice(0, -1).join('/');
+      const folder = [into, dir].filter(Boolean).join('/');
       // Drawings and takes exported from the studio come back as themselves.
       if (kind === 'json') {
         try {
           const j = JSON.parse(await f.text());
-          if (j?.type === 'ams-process' || j?.type === 'ams-take') { await this.importStudioJSON(j, f.name, into); n++; continue; }
+          if (j?.type === 'ams-process' || j?.type === 'ams-take') { await this.importStudioJSON(j, f.name, folder); n++; continue; }
         } catch { /* plain JSON: kept as text */ }
       }
       if (kind !== 'image') {
         f.kindHint = kind;
-        await this.add(f, { title: f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' '), kind: kind === 'audio' ? 'audio' : 'text', folder: into, tags: [kind], meta: { file: f.name, type: f.type } });
+        await this.add(f, { title: f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' '), kind: kind === 'audio' ? 'audio' : 'text', folder, tags: [kind], meta: { file: f.name, type: f.type } });
         n++;
         continue;
       }
-      const rel = f.webkitRelativePath || f.name;
-      const dir = rel.split('/').slice(0, -1).join('/');
       const r = manifests[dir + '/' + f.name];
       await this.add(f, {
         title: r?.title || f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' '),
         kind: 'import',
-        folder: [into, dir].filter(Boolean).join('/'),
+        folder,
         tags: r ? [String(r.year || ''), ...(r.artist ? [r.artist.split(' (')[0].split(' ').pop().toLowerCase()] : [])].filter(Boolean) : [],
         meta: r ? { artist: r.artist, year: r.year, source: r.source?.commonsPage } : null,
         created: Date.now() - n
