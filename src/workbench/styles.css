@@ -487,3 +487,6 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-rec.on { background: var(--wb-accent-2); }
 .wb-tl-playhead { background: var(--wb-accent-2); }
 .wb-tl-time { background: transparent; }
+.wb-code-modes { margin-bottom: 6px; align-self: flex-start; }
+.wb-code-view { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.wb-code-view[hidden] { display: none; }

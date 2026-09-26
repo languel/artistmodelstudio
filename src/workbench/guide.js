@@ -56,7 +56,8 @@ export class Guide {
     if (!el && kind === 'view') el = document.querySelector('[data-guide="view"]');
     if (!el && kind === 'panel') {
       this.app.docks.open(id);
-      el = document.querySelector(`[data-guide="tab:${CSS.escape(id)}"]`) || document.querySelector(`[data-panel="${CSS.escape(id)}"]`);
+      const real = this.app.docks.aliases?.[id]?.[0] || id;
+      el = document.querySelector(`[data-guide="tab:${CSS.escape(real)}"]`) || document.querySelector(`[data-panel="${CSS.escape(real)}"]`);
     }
     if (!el) return null;
     const r = el.getBoundingClientRect();

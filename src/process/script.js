@@ -20,7 +20,7 @@
 import { createDocument, normalizeDocument, newId, STAGE_KINDS } from './document.js';
 import { BRUSHES, mulberry32, installLines, defSource, registerBrush, isBuiltin } from './brushes.js';
 
-const ELEMENT_KEYS = new Set(['why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by']);
+const ELEMENT_KEYS = new Set(['why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id']);
 
 /** 1D/2D value noise (seeded, smooth), enough for gentle variation. */
 function makeNoise(rng) {
@@ -91,7 +91,9 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
     for (const [k, v] of Object.entries(params)) {
       if (typeof v !== 'number' && typeof v !== 'string') throw new Error(`Brush parameter "${k}" must be a number (got ${typeof v}). For per-point variation use pressures: t => 0..1, or make several marks.`);
     }
-    const stage = el.stage || ensureStage().id;
+    // stage: an existing stage's id or name (created if new), else the current stage.
+    const named = el.stage ? doc.stages.find(st => st.id === el.stage || st.name === el.stage) : null;
+    const stage = named ? named.id : el.stage ? api.stage(String(el.stage), 'marks').id : ensureStage().id;
     const brush = el.brush || defaultBrush;
     installLines(doc);
     if (!BRUSHES[brush]) throw new Error(`Unknown brush "${brush}" (have: ${Object.keys(BRUSHES).join(', ')})`);
@@ -102,6 +104,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
       realize: { brush, params },
       color: el.color || null,
       text: el.text,
+      ...Object.fromEntries(['label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group'].filter(k => el[k] !== undefined).map(k => [k, el[k]])),
       why: el.why || '',
       by: el.by || by,
       seed: el.seed ?? Math.floor(rng() * 1e9),
@@ -127,6 +130,8 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
     guide(pts, opts = {}) { return add('guide', pts, opts, 'guide'); },
     gesture(pts, opts = {}) { return add('gesture', pts, opts, 'guide'); },
     note(x, y, text, opts = {}) { return add('note', [[x, y]], { ...opts, text }, 'none'); },
+    /** A picture placed through its four corners (top-left, top-right, bottom-right, bottom-left): image(corners, { src }). */
+    image(corners, opts = {}) { return add('image', corners, opts, 'image'); },
     /**
      * Create a line before drawing it: defineLine(name, [{ doc, params: { key: [min, max, default] } },] (ctx, frames, p, env) => { ... })
      * frames: [{ x, y, nx, ny, speed, pressure }] along the walk; env: { color, rng, closed, points }. Then line(pts, { brush: name }).

@@ -22,12 +22,11 @@ and collapse, as in underscores:
 | Outliner | Every mark by stage and group: select (Shift for a range, Cmd to toggle), rename, drag to reorder or move between stages and groups, hide, lock, delete. Cmd+G / Shift+Cmd+G group and ungroup. |
 | Assets | Saved processes, earlier generations, imports, and the Klee references (search, folders, stars, tags). |
 | Properties | The selection, or the current tool's defaults: role, stage, brush and its parameters, color, the reason (why), the author. |
-| Score | Write or load a score (JS in the point/line/plane vocabulary). **Cmd+Enter** runs it. The exercises live here. |
+| Code | Everything as code, in modes. **Score:** write or load a score (Cmd+Enter runs it; the exercises live here). **Brush:** read, fork and write brushes with a live preview. **Selection:** the selected marks as score code; edit and Apply, and they change in place (same ids). **Clip:** a timeline clip as `clip({ … })`. Right-click a mark or a clip → Show code. |
 | Process | Picture or process view, stage scrub and replay, a filmstrip, decisions, reasons, the editing record, and the process sheet. |
 | Generate | Engines and models write scores. Candidates can be opened, saved, or read as scores. |
 | Assistant | Chat with any engine (Ollama, WebGPU, OpenRouter…). It acts through the same tools as an agent, visibly. *How did you do that?* replays its last session. |
 | Decide | The drawing as a sequence of typed decisions, answered by a policy you can train (see below). |
-| Brushes | Every brush is code: read the built-ins, fork them, write new ones, with a live preview. Saved brushes go to your library; a drawing carries the brushes it uses. |
 | Docs | The documentation, with search and collapsible contents. Parts are generated from the code: brushes, vocabulary, exercises, tools. It also holds the walkthroughs and the training estimator. |
 | Settings | Artboard size (presets, rotate) and paper, theme, grid (on the paper or everywhere, lines or dots, spacing, subdivisions, color, snap), reference opacity, the guide. Cmd+, |
 | Shortcuts | Every command and its keys, searchable. Click a key to reassign it; a key taken from another command moves. Shift+Cmd+/ |

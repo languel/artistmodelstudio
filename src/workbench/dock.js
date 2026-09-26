@@ -63,6 +63,8 @@ export class DockManager {
 
   /** Show a panel: activate it in its dock (expanding the dock) or bring its float forward. */
   open(id, { toggle = false } = {}) {
+    const alias = this.aliases?.[id];
+    if (alias) { this.open(alias[0], { toggle }); this.onAlias?.(alias[1]); return; }
     const s = this.state.panels[id];
     if (!s) return;
     if (s.placement === 'floating') {

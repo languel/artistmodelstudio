@@ -189,7 +189,7 @@ line(walk({ from: [100, 350], steps: 60, step: 14 }), { brush: 'teeth' })
 Line definitions are code: open drawings from people you trust.`))),
 
     T('draw-brushcode', 'Drawing', 'Brushes are code', 'Read, fork, write and share brushes; the brush kit.', () => prose(`
-Every brush, the built-ins included, is a small program. Open **Brushes** to read one; **Fork** a built-in to change it, or **New** to start from a template. The preview redraws as you type (a walk that is slow, then fast, then lingers, and a plane). **Save** (Cmd+Enter) keeps it in your library for every drawing; a drawing carries the code of every brush it uses, so it renders anywhere. **Use** puts it on the selection, or on the current tool.
+Every brush, the built-ins included, is a small program. Open **Code → Brush** to read one (or right-click a mark → Brush code); **Fork** a built-in to change it, or **New** to start from a template. The preview redraws as you type (a walk that is slow, then fast, then lingers, and a plane). **Save** (Cmd+Enter) keeps it in your library for every drawing; a drawing carries the code of every brush it uses, so it renders anywhere. **Use** puts it on the selection, or on the current tool.
 
 \`\`\`
 brush({

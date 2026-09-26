@@ -29,7 +29,7 @@ import { mountDecide } from './panels/decide.js';
 import { mountOutliner } from './panels/outliner.js';
 import { mountSettings } from './panels/settings.js';
 import { mountShortcuts } from './panels/shortcuts.js';
-import { mountBrushes } from './panels/brushes.js';
+import { mountCode } from './panels/code.js';
 import { mountTimeline } from './panels/timeline.js';
 import { Recorder } from './recorder.js';
 import { TakePlayer } from './takePlayer.js';
@@ -137,6 +137,9 @@ export class Workbench {
     );
     this.root.append(shell, h('div', { 'data-floating': '' }), h('div', { class: 'wb-dock-hint' }));
     this.docks = new DockManager(this.root, { onLayout: () => this.canvas?.resize() });
+    // Score and Brushes are modes of one Code panel; old names open it in the right mode.
+    this.docks.aliases = { brushes: ['script', 'brush'], code: ['script', null] };
+    this.docks.onAlias = mode => { if (mode) this.codeMode?.(mode); };
 
     this.canvas = new CanvasView(this.stageArea, this.store, {
       getTool: () => this.tool,
@@ -169,6 +172,9 @@ export class Workbench {
     // Likewise the Timeline: opening a take mounts it first.
     const openTakeFirst = async id => { this.docks.open('timeline'); if (this.openTake !== openTakeFirst) return this.openTake(id); throw new Error('Timeline unavailable'); };
     this.openTake ??= openTakeFirst;
+    // And the Code panel: Show code mounts it first.
+    const openCodeFirst = (mode, arg) => { this.docks.open('script'); if (this.openCode !== openCodeFirst) return this.openCode(mode, arg); };
+    this.openCode ??= openCodeFirst;
     loadLibrary();
     this.recorder = new Recorder(this);
     this.player = new TakePlayer(this);
@@ -190,7 +196,7 @@ export class Workbench {
     reg('outliner', 'Outliner', 'layers', 'left', mountOutliner);
     reg('assets', 'Assets', 'assets', 'left', el => this.mountAssets(el));
     reg('properties', 'Properties', 'properties', 'right', mountProperties);
-    reg('script', 'Score', 'script', 'right', mountScript);
+    reg('script', 'Code', 'script', 'right', mountCode);
     reg('process', 'Process', 'process', 'right', mountProcess);
     reg('generate', 'Generate', 'sparkles', 'right', mountGenerate);
     reg('assistant', 'Assistant', 'chat', 'right', mountAssistant);
@@ -198,7 +204,6 @@ export class Workbench {
     reg('docs', 'Docs', 'book', 'right', mountDocs);
     reg('settings', 'Settings', 'gear', 'right', mountSettings);
     reg('shortcuts', 'Shortcuts', 'keyboard', 'right', mountShortcuts);
-    reg('brushes', 'Brushes', 'brush', 'right', mountBrushes);
     reg('timeline', 'Timeline', 'film', 'bottom', mountTimeline);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }
@@ -431,6 +436,8 @@ export class Workbench {
       grouped ? { label: 'Ungroup', keys: sc('edit.ungroup'), run: () => this.ungroupSelection() } : null,
       { label: 'Lock', hint: 'Locked marks cannot be picked on the canvas (unlock in the Outliner)', run: () => { this.store.patchElements(ids, { locked: true }, 'lock'); this.canvas.select([]); } },
       { label: 'Hide', hint: 'Show again from the Outliner', run: () => { this.store.patchElements(ids, { hidden: true }, 'hide'); this.canvas.select([]); } },
+      { label: 'Show code', hint: 'The selected marks as code: edit and apply', run: () => this.openCode?.('selection') },
+      one && one.realize?.brush && !['none', 'image'].includes(one.realize.brush) ? { label: 'Brush code', hint: `The code of the “${one.realize.brush}” brush`, run: () => this.openCode?.('brush', one.realize.brush) } : null,
       { label: 'Show in Outliner', run: () => { this.docks.open('outliner'); this.emit('selection'); } },
       '-',
       { label: 'Delete', keys: sc('edit.delete'), run: () => this.store.removeElements(ids) }
