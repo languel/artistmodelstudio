@@ -30,8 +30,8 @@ export function defaultCommands(app) {
     cmd('view.fit', 'View', 'Fit artboard', ['f'], () => { app.canvas.fit(); app.renderChrome(); }),
     cmd('view.toggle', 'View', 'Picture / process view', ['\\'], () => app.setViewMode(app.view.mode === 'picture' ? 'process' : 'picture')),
     cmd('view.reference', 'View', 'Reference on / off', ['r'], () => { if (app.reference) { app.reference.visible = !app.reference.visible; app.canvas.invalidate(); app.renderChrome(); } }),
-    cmd('view.grid', 'View', 'Grid on / off', [], () => app.canvas.setGrid({ show: app.canvas.grid.show === 'off' ? 'paper' : 'off' })),
-    cmd('view.snap', 'View', 'Snap to grid', [], () => app.canvas.setGrid({ snap: !app.canvas.grid.snap })),
+    cmd('view.grid', 'View', 'Grid on / off', ["mod+'"], () => app.canvas.setGrid({ show: app.canvas.grid.show === 'off' ? 'paper' : 'off' })),
+    cmd('view.snap', 'View', 'Snap to grid', ['shift+tab'], () => app.canvas.setGrid({ snap: !app.canvas.grid.snap })),
     cmd('view.zoomIn', 'View', 'Zoom in', ['mod+='], () => app.canvas.zoomAt(app.canvas.w / 2, app.canvas.h / 2, 1.2)),
     cmd('view.zoomOut', 'View', 'Zoom out', ['mod+-'], () => app.canvas.zoomAt(app.canvas.w / 2, app.canvas.h / 2, 1 / 1.2)),
     cmd('dock.left', 'Panels', 'Toggle left dock', ['mod+b'], () => app.docks.toggleDock('left')),
@@ -67,7 +67,7 @@ export function comboOf(e) {
 }
 
 const GLYPH = IS_MAC ? { mod: '⌘', shift: '⇧', alt: '⌥', ctrl: '⌃' } : { mod: 'Ctrl+', shift: 'Shift+', alt: 'Alt+', ctrl: 'Ctrl+' };
-const KEYNAME = { escape: 'Esc', delete: 'Del', backspace: '⌫', enter: '↵', space: 'Space', arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→', '\\': '\\' };
+const KEYNAME = { tab: '⇥', escape: 'Esc', delete: 'Del', backspace: '⌫', enter: '↵', space: 'Space', arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→', '\\': '\\' };
 /** '⇧⌘Z' (Mac) or 'Ctrl+Shift+Z'. */
 export function formatCombo(c) {
   if (!c) return '';

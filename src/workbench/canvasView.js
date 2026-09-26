@@ -152,6 +152,7 @@ export class CanvasView {
     Object.assign(this.grid, patch);
     try { localStorage.setItem('ams_grid_v2', JSON.stringify(this.grid)); } catch { /* ignore */ }
     this.invalidate();
+    this.onGrid?.(this.grid);
   }
 
   /** Nearest grid point (a subdivision) when snapping is on. */
@@ -177,9 +178,10 @@ export class CanvasView {
       ctx.beginPath(); ctx.rect(ax, ay, ab.width * z, ab.height * z); ctx.clip();
     }
     ctx.strokeStyle = ctx.fillStyle = g.color;
+    const strength = g.snap ? 1 : 0.5;   // fainter when marks don't snap to it
     const lines = (step, alpha, width) => {
       if (step < 5) return;
-      ctx.globalAlpha = alpha;
+      ctx.globalAlpha = alpha * strength;
       const ox = this.cam.x - Math.floor((this.cam.x - x0) / step) * step, oy = this.cam.y - Math.floor((this.cam.y - y0) / step) * step;
       if (g.style === 'dots') {
         const r = Math.max(1, Math.min(2.2, step / 25)) * width;

@@ -183,7 +183,8 @@ export function summarize(take, { maxGap = 350, drawMax = 2200, analysisSpeed = 
   const target = Math.max(10000, srcEnd * 0.5);
   if (end > target) { const k = target / end; for (const c of out) { c.start = Math.round(c.start * k); c.dur = Math.max(200, Math.round(c.dur * k)); } end = target; }
   out.push({ id: clipId(), track: 'title', start: end + 200, dur: hold, text: take.title, sub: 'Summary', fx: { fade: 400 } });
-  return { ...createTake({ title: `${take.title} (summary)`, baseline: take.baseline, clips: out }), source: take.title };
+  const base = String(take.title).replace(/(\s*\(summary\))+$/, '');
+  return { ...createTake({ title: `${base} (summary)`, baseline: take.baseline, clips: out }), source: take.title, summaryOf: take.assetId || take.summaryOf || null };
 }
 
 /** Clips for a take made from live steps: a helper for recorders (time-ordered, ids assigned). */

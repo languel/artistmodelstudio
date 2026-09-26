@@ -144,6 +144,7 @@ export class Workbench {
       viewMode: () => this.view.mode
     });
     this.canvas.drawReference = ctx => this.drawReference(ctx);
+    this.canvas.onGrid = () => this.renderChrome();
     this.canvas.onContext = (e, hit, at) => showMenu(this.contextItems(hit, at), e.clientX, e.clientY);
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));
@@ -273,6 +274,9 @@ export class Workbench {
       const [id, tip, key] = t;
       tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) }));
     }
+    // Snap to grid: on shows the grid at full strength; off, fainter.
+    const snapKey = this.shortcuts?.label('view.snap') || '';
+    tools.append(h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''}`, html: icon('snap'), onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }) }));
     const right = h('div', { class: 'wb-island' },
       h('button', { class: 'wb-tool', 'data-guide': 'view', title: this.view.mode === 'process' ? 'Process: guides, gestures and notes shown (\\ for the picture)' : 'Picture: the finished picture (\\ for the process)', html: icon(this.view.mode === 'process' ? 'viewProcess' : 'viewPicture'), onclick: () => this.setViewMode(this.view.mode === 'picture' ? 'process' : 'picture') }),
       this.reference ? h('button', { class: `wb-tool${this.reference.visible ? ' on' : ''}`, title: `Reference underlay: ${this.reference.title} (R toggles)`, html: icon('picture'), onclick: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } }) : null,

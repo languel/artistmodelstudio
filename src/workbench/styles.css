@@ -20,6 +20,7 @@
   --wb-hover: rgba(255, 255, 255, 0.055);
   --wb-on: rgba(255, 255, 255, 0.10);
   --wb-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  --wb-accent-2: #c8664f;   /* secondary accent: record, playhead, warnings */
 }
 :root[data-theme="light"] {
   --wb-canvas: #ebebe9;
@@ -35,6 +36,7 @@
   --wb-hover: rgba(0, 0, 0, 0.045);
   --wb-on: rgba(0, 0, 0, 0.07);
   --wb-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  --wb-accent-2: #b4533d;
 }
 /* Names used by panels shared with the classic studio (assets, pickers). */
 :root, :root[data-theme="light"] {
@@ -476,3 +478,12 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-clip.t-audio { background: #d0b3c4; }
 .wb-tl-playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: #c0563f; pointer-events: none; }
 .wb-tl-empty { padding: 14px; color: var(--wb-muted); }
+
+/* Derived from the theme: text selection, secondary accent. */
+:root { --wb-selection: color-mix(in srgb, var(--wb-accent) 32%, transparent); }
+::selection { background: var(--wb-selection); color: inherit; }
+.wb-tl, .wb-tl * { user-select: none; -webkit-user-select: none; }
+.wb-tl-rec { color: var(--wb-accent-2); }
+.wb-tl-rec.on { background: var(--wb-accent-2); }
+.wb-tl-playhead { background: var(--wb-accent-2); }
+.wb-tl-time { background: transparent; }
