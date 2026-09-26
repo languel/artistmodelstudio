@@ -35,6 +35,7 @@ export function mountSettings(root, app) {
         row('Reference', numberField({ value: app.reference?.opacity ?? Number(ls('ams_ref_opacity') ?? 0.35), min: 0, max: 1, step: 0.05, def: 0.35, title: 'How strongly the reference picture shows under the drawing (0 = hidden, 1 = full)', onChange: v => { ls('ams_ref_opacity', String(v)); if (app.reference) { app.reference.opacity = v; app.canvas.invalidate(); } } }), 'Reference picture: how strongly it shows under the drawing (R toggles it)')),
       section('Drawing', true,
         row('Lazy', numberField({ value: app.lazy.radius, min: 0, max: 200, step: 1, def: 0, title: 'The pen trails the cursor on a string this long (screen px): wobbles smaller than the string never reach the line, corners get rounded. 0 = off. Also on right-click of the grid button', onChange: v => app.setLazy({ radius: v }) }), 'Lazy drawing: steadier lines'),
+        row('Simplify', numberField({ value: app.lazy.simplify || 0, min: 0, max: 40, step: 0.5, def: 0, title: 'On release, points the line does not need are dropped: how far (screen px) the shape may move. 0 = off', onChange: v => app.setLazy({ simplify: v }) })),
         row('Smoothing', numberField({ value: app.lazy.smoothing, min: 0, max: 0.95, step: 0.01, def: 0, title: 'Each step the pen covers only part of the way (0.5 = half): higher is smoother and lags more. 0 = off', onChange: v => app.setLazy({ smoothing: v }) }))),
       gridSection(app),
       section('Guide', true,

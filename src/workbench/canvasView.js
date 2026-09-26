@@ -11,6 +11,7 @@
 import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
 import { boardsOf, boardDoc, boardAt, boardForPoints, MAIN, BLACKBOARD } from '../process/boards.js';
 import { closeLasso, lazyStep } from '../process/strokes.js';
+import { rdp } from '../process/sculpt.js';
 import { renderDocument } from '../process/render.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
 import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
@@ -180,7 +181,12 @@ export class CanvasView {
     }
     if (this.draft) {
       // A plane being drawn is closed the way it will be on release (no spikes where the ends meet).
-      const d = this.draft.role === 'plane' && this.draft.points.length > 5 ? { ...this.draft, points: closeLasso(this.draft.points, 6 / this.cam.z) } : this.draft;
+      // Shown as it will be on release: a plane closed smoothly, and simplified live when Simplify is on.
+      let d = this.draft;
+      const simp = this.getLazy?.()?.simplify || 0;
+      if (simp > 0 && d.points.length > 3 && !this.draftStraight) d = { ...d, points: rdp(d.points, simp / this.cam.z) };
+      if (d.role === 'plane' && d.points.length > 5) d = { ...d, points: closeLasso(d.points, 6 / this.cam.z) };
+      this.draftShown = d;
       renderDocument(ctx, { ...doc, stages: [{ id: 'draft', visible: true }], elements: [d] }, {
         mode: 'process', transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, ground: false
       });
@@ -202,6 +208,11 @@ export class CanvasView {
         ctx.globalAlpha = sel ? 0.95 : 0.6;
         const rr = sel ? 2 : 1.5;
         for (const q of e.points) { const [x, y] = this.toScreen(q[0], q[1]); ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill(); }
+      }
+      // The stroke being drawn shows its points too (as they will be kept).
+      if (this.draft && this.draftShown) {
+        ctx.globalAlpha = 0.95;
+        for (const q of this.draftShown.points) { const [x, y] = this.toScreen(q[0], q[1]); ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill(); }
       }
       ctx.restore();
     }
@@ -829,9 +840,10 @@ export class CanvasView {
     let last = [wx, wy, t0];
     this.pointer = true;
     const straight = tool === 'guide';
+    this.draftStraight = straight;
     // Lazy drawing: the pen trails the cursor on a string (screen px), smoothed (an editor setting).
     const lazy = this.getLazy?.() || { radius: 0, smoothing: 0 };
-    const lazyOn = !straight && (lazy.radius > 0 || lazy.smoothing > 0);
+    const lazyOn = !straight && (lazy.radius > 0 || lazy.smoothing > 0);   // (lazy.simplify applies on release)
     let pen = [wx, wy];
     const mv = ev => {
       let [x, y] = this.toWorld(...this.local(ev));
@@ -864,7 +876,10 @@ export class CanvasView {
       // A lasso: cut the tails where start and end overshoot, and smooth the seam (no spikes at the closure).
       if (role === 'plane') pts = closeLasso(decimate(pts, 0.75 / this.cam.z), 6 / this.cam.z);
       const minPts = role === 'plane' ? 3 : 2;
-      if (pts.length >= minPts) this.commitNew(role, straight || role === 'plane' ? pts : decimate(pts, 0.75 / this.cam.z), {}, dkey);
+      if (!straight && role !== 'plane') pts = decimate(pts, 0.75 / this.cam.z);
+      // Auto simplify: fewer points within a tolerance (screen px), same shape; ends and time kept.
+      if (!straight && lazy.simplify > 0 && pts.length > 3) { const out = rdp(pts, lazy.simplify / this.cam.z); if (out.length >= minPts) pts = out; }
+      if (pts.length >= minPts) this.commitNew(role, pts, {}, dkey);
       else this.invalidate();
     };
     window.addEventListener('pointermove', mv);

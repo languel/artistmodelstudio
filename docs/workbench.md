@@ -105,6 +105,7 @@ It is kept minimal.
 - **Drawing:** Settings → Drawing (or right-click the grid button) has Lazy and Smoothing.
   - **Lazy** (screen pixels) is a string between the cursor and the pen. Wobbles shorter than it never reach the line, and corners get rounded.
   - **Smoothing** (0 to 0.95) is how much the pen holds back each step: 0.5 covers half the distance, so higher is smoother and lags more.
+  - **Simplify** (screen pixels, 0 = off) keeps only the points the line needs, live while drawing: how far the shape may move from what your hand did. With Points on, the stroke being drawn shows its kept points.
   - Planes close smoothly: overshooting ends are cut and the seam relaxed.
 - **Running a score** (Score panel, a generated candidate, an agent) draws into the active board and replaces that board's marks. The other boards and the blackboard stay.
 - **Naming:** project > scene > board > stage and marks. New project starts over (after offering to keep the current one in Assets); New scene adds a drawing.

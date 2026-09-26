@@ -166,6 +166,7 @@ export class Workbench {
     Object.assign(this.lazy, patch);
     this.lazy.radius = Math.max(0, Math.min(200, Number(this.lazy.radius) || 0));
     this.lazy.smoothing = Math.max(0, Math.min(0.95, Number(this.lazy.smoothing) || 0));
+    this.lazy.simplify = Math.max(0, Math.min(40, Number(this.lazy.simplify) || 0));
     try { localStorage.setItem('ams_lazy', JSON.stringify(this.lazy)); } catch { /* ignore */ }
     this.emit('lazy');
   }
