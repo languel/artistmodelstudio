@@ -64,6 +64,7 @@ Pick **Reference Fitter** as the engine, choose a reference in the **Reference**
 - [Driving the studio from agents (MCP / WebMCP), agent as engine](docs/mcp.md)
 - [Klee distillation pipeline and results](training/klee/README.md)
 - [References and rights](fixtures/README.md)
+- [Handoff: where things stand, what is next](docs/HANDOFF.md)
 - [System architecture and drawing language](docs/architecture.md)
 - [Training scaffolding](docs/TRAINING.md) · [Experiments log](docs/experiments.md) · [Classroom demo](docs/classroom-demo.md)
 

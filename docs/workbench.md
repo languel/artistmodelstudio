@@ -88,11 +88,32 @@ A **take** records how a drawing was made: the starting drawing, then clips on t
 
 In the Timeline, clips are rectangles: drag to move, drag the right edge to retime, double-click text, right-click for speed, reveal and delete; the selected clip's properties are in Properties. **Summary** distills a run (narration at reading pace, the drawing brisk, analysis and waiting sped through, a hold at the end). **Walkthrough** makes a live walkthrough from a take. **Export** writes a standalone playable HTML file (the renderer inlined; `window.amsPlayer.seek(ms)` / `frame(ms)` for frame-by-frame capture), a project zip, a video (MP4 or WebM), or JSON. Agents use `ams_record` and `ams_timeline`.
 
+## The interface
+
+It is kept minimal.
+
+- **Two islands:** the tools sit top centre; the menu island sits top left (menu, picture or process view, points, present, theme).
+  - Drag either island, or the zoom control, by its dotted grip; double-click the grip to put it back.
+  - **Cmd+.** hides all of the interface and leaves only the drawing. The command palette (and `ams_ui`) hides the tools, menu island, zoom control or panels one by one.
+- **Panels on demand:** Scenes, Boards, Stages, Outliner, Assets, Properties, Code and the rest open as needed.
+- **Right-click and Opt+right-click:**
+  - Right-click a toolbar button for its list (Brush, Sculpt, Construction) or its settings (the grid button: grid and drawing).
+  - Opt+right-click the canvas for the active tool's parameters.
+- **Icons:** every built-in brush and sculpt tool has an icon; the toolbar shows the active one. Custom tools take theirs from their preview (the camera button in Code → Brush / Sculpt). In menus the active item has a soft background.
+- **Names:** Shift+double-click renames anything with a name, in place: boards, scenes, stages, tracks, asset titles and folders, and marks, groups and stages in the Outliner. Enter keeps it, Esc puts it back. In the Outliner and the Boards panel a plain double-click frames the item.
+- **Framing:** Home frames the active board, Shift+Home the selection.
+- **Drawing:** Settings → Drawing (or right-click the grid button) has Lazy and Smoothing.
+  - **Lazy** (screen pixels) is a string between the cursor and the pen. Wobbles shorter than it never reach the line, and corners get rounded.
+  - **Smoothing** (0 to 0.95) is how much the pen holds back each step: 0.5 covers half the distance, so higher is smoother and lags more.
+  - Planes close smoothly: overshooting ends are cut and the seam relaxed.
+- **Running a score** (Score panel, a generated candidate, an agent) draws into the active board and replaces that board's marks. The other boards and the blackboard stay.
+- **Naming:** project > scene > board > stage and marks. New project starts over (after offering to keep the current one in Assets); New scene adds a drawing.
+
 ## Scenes, boards and pages
 
 A **project** holds **scenes**, and a scene holds **boards**. It is enough to write a lecture, a blog post or a report, or to prepare a performance.
 
-- **Scenes** (the layers button beside the title) are separate drawings. Each has its own undo, History and Timeline; Assets, brushes and settings are shared by all. Opening a drawing from Assets, or a file, makes a new scene, so your drawing is never replaced. Alt+PageUp and Alt+PageDown step through scenes.
+- **Scenes** (the Scenes panel) are separate drawings. Each has its own undo, History and Timeline; Assets, brushes and settings are shared by all. Opening a drawing from Assets, or a file, makes a new scene, so your drawing is never replaced. Alt+PageUp and Alt+PageDown step through scenes.
 - **Boards** (Shift+O, or the Boards panel) are artboards in one drawing, in order, like slides.
   - **The main board** is the old artboard at the origin, so every older drawing, score and training record is unchanged.
   - **Editing boards:** drag out more with the Board tool. A board's title selects it, moves it (with its marks) and renames it; its right-click menu exports it, trains on it, reorders or duplicates it.
