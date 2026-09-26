@@ -207,14 +207,63 @@ export class Workbench {
 
   // ---- boards ----------------------------------------------------------------------
   /** Go to a board: it becomes active and fills the view. */
-  goToBoard(id, { fit = true } = {}) {
+  goToBoard(id, { fit = true, animate = this.presenting } = {}) {
     const b = boardById(this.store.doc, id);
     if (!b) return;
     this.activeBoard = b.id;
-    this.canvas.selectBoard(b.id);
-    if (fit) this.canvas.fit(60, b.id);
+    if (!this.presenting) this.canvas.selectBoard(b.id);
+    const pad = this.presenting ? 24 : 60;
+    if (fit && animate) this.canvas.animateTo(this.canvas.camFor(b.id, pad)); else if (fit) this.canvas.fit(pad, b.id);
+    // Recording: the camera goes into the take (the camera track), so a replay or video follows the boards.
+    if (fit && this.recorder?.recording) {
+      const ab = this.store.doc.artboard;
+      const fitMain = Math.min(16 / ab.width, 9 / ab.height), fitB = Math.min(16 / b.width, 9 / b.height);
+      this.recorder.push({ track: 'camera', start: this.recorder.now(), dur: animate ? 550 : 1, cx: (b.x + b.width / 2) / ab.width, cy: (b.y + b.height / 2) / ab.height, z: fitB / fitMain * 0.96, label: b.title });
+    }
+    if (this.presenting) this.presentHud();
     this.emit('board');
     this.renderChrome();
+  }
+
+  // ---- presenting ---------------------------------------------------------------------
+  /**
+   * Present: the boards full-window, in order, with eased moves between them. → / Space / PageDown
+   * next, ← / PageUp back, 1–9 a board by number, Home / End, Esc leaves. Drawing still works.
+   */
+  present(on = !this.presenting) {
+    this.presenting = on;
+    this.canvas.presenting = on;
+    this.root.classList.toggle('presenting', on);
+    try { if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen?.(); } catch { /* ignore */ }
+    if (on) {
+      this.presentKeys ||= e => {
+        if (!this.presenting || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+        const bs = boardsOf(this.store.doc);
+        const go = i => { e.preventDefault(); e.stopPropagation(); this.goToBoard(bs[Math.max(0, Math.min(bs.length - 1, i))].id); };
+        const cur = Math.max(0, bs.findIndex(b => b.id === this.activeBoard));
+        if (['ArrowRight', 'PageDown', ' '].includes(e.key) && !e.metaKey) go(cur + 1);
+        else if (['ArrowLeft', 'PageUp'].includes(e.key) && !e.metaKey) go(cur - 1);
+        else if (e.key === 'Home') go(0);
+        else if (e.key === 'End') go(bs.length - 1);
+        else if (/^[1-9]$/.test(e.key) && !e.metaKey && !e.altKey) go(Number(e.key) - 1);
+        else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.present(false); }
+      };
+      window.addEventListener('keydown', this.presentKeys, true);
+      this.canvas.selectBoard(null);
+      requestAnimationFrame(() => this.goToBoard(this.activeBoard || MAIN));
+    } else {
+      window.removeEventListener('keydown', this.presentKeys, true);
+      this.hud?.remove(); this.hud = null;
+      requestAnimationFrame(() => this.canvas.fit(60, this.activeBoard || MAIN));
+    }
+    this.emit('present', on);
+  }
+
+  presentHud() {
+    const bs = boardsOf(this.store.doc), i = bs.findIndex(b => b.id === this.activeBoard);
+    if (!this.hud) { this.hud = h('div', { class: 'wb-present-hud' }); this.stageArea.append(this.hud); }
+    this.hud.textContent = `${i + 1} / ${bs.length}  ·  ${bs[i]?.title || ''}`;
+    this.hud.classList.remove('fade'); void this.hud.offsetWidth; this.hud.classList.add('fade');
   }
 
   stepBoard(delta) {
@@ -516,6 +565,7 @@ export class Workbench {
       h('button', { class: 'wb-tool', 'data-guide': 'view', title: this.view.mode === 'process' ? 'Process: guides, gestures and notes shown (\\ for the picture)' : 'Picture: the finished picture (\\ for the process)', html: icon(this.view.mode === 'process' ? 'viewProcess' : 'viewPicture'), onclick: () => this.setViewMode(this.view.mode === 'picture' ? 'process' : 'picture') }),
       this.reference ? h('button', { class: `wb-tool${this.reference.visible ? ' on' : ''}`, title: `Reference underlay: ${this.reference.title} (R toggles)`, html: icon('picture'), onclick: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } }) : null,
       h('button', { class: `wb-tool${this.canvas.showPoints ? ' on' : ''}`, title: "Show marks' points (')", html: icon('points'), onclick: () => this.togglePoints() }),
+      h('button', { class: 'wb-tool', 'data-guide': 'present', title: 'Present the boards (Opt+Cmd+P): ← → to move, Esc to leave', html: icon('play'), onclick: () => this.present(true) }),
       h('button', { class: 'wb-tool', title: 'Theme', html: icon(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun'), onclick: () => this.toggleTheme() })
     );
     this.topbar.replaceChildren(left, tools, right);

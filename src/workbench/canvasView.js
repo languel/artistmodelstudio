@@ -77,12 +77,35 @@ export class CanvasView {
     if (this.cam) this.draw(); else this.invalidate();
   }
 
-  /** Fit a board (the main one by default) in the view. */
-  fit(pad = 60, board = MAIN) {
+  /** The camera that fits a board (the main one by default) in the view. */
+  camFor(board = MAIN, pad = 60) {
     const b = boardsOf(this.store.doc).find(x => x.id === board) || boardsOf(this.store.doc)[0];
     const { width, height } = b;
     const z = Math.min((this.w - pad * 2) / width, (this.h - pad * 2) / height);
-    this.cam = { z, x: (this.w - width * z) / 2 - b.x * z, y: (this.h - height * z) / 2 - b.y * z };
+    return { z, x: (this.w - width * z) / 2 - b.x * z, y: (this.h - height * z) / 2 - b.y * z };
+  }
+
+  /** Move the view to a camera, eased (a transition between boards). */
+  animateTo(cam, ms = 550) {
+    cancelAnimationFrame(this.camAnim);
+    const a = { ...this.cam }, t0 = performance.now();
+    // Zoom moves in log space, so the transition feels even at every scale.
+    const step = now => {
+      const u = Math.min(1, (now - t0) / ms), e = u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+      const z = Math.exp(Math.log(a.z) + (Math.log(cam.z) - Math.log(a.z)) * e);
+      // Keep the world point at the screen center moving in a straight line.
+      const c0 = [(this.w / 2 - a.x) / a.z, (this.h / 2 - a.y) / a.z], c1 = [(this.w / 2 - cam.x) / cam.z, (this.h / 2 - cam.y) / cam.z];
+      const cx = c0[0] + (c1[0] - c0[0]) * e, cy = c0[1] + (c1[1] - c0[1]) * e;
+      this.cam = { z, x: this.w / 2 - cx * z, y: this.h / 2 - cy * z };
+      this.draw();
+      if (u < 1) this.camAnim = requestAnimationFrame(step); else { this.cam = cam; this.saveCam(); this.invalidate(); }
+    };
+    this.camAnim = requestAnimationFrame(step);
+  }
+
+  /** Fit a board (the main one by default) in the view. */
+  fit(pad = 60, board = MAIN) {
+    this.cam = this.camFor(board, pad);
     this.saveCam();
     this.invalidate();
   }
@@ -202,7 +225,7 @@ export class CanvasView {
   /** The drawing grid, anchored at the artboard's origin: major lines every `spacing`, minor between. */
   drawGrid(onlyPaper) {
     const g = this.grid;
-    if (!g.show || g.show === 'off') return;
+    if (!g.show || g.show === 'off' || this.presenting) return;
     if (onlyPaper !== (g.show === 'paper')) return;
     const { ctx } = this;
     const z = this.cam.z, major = g.spacing * z, minor = major / Math.max(1, g.subdivisions);
@@ -540,7 +563,7 @@ export class CanvasView {
   drawBoards(ctx, css) {
     const doc = this.store.doc, boards = boardsOf(doc);
     this.boardLabels = [];
-    if (boards.length < 2 && !this.selectedBoard) return;
+    if (this.presenting || (boards.length < 2 && !this.selectedBoard)) return;
     const text = css.getPropertyValue('--wb-text').trim() || '#ddd', muted = css.getPropertyValue('--wb-muted').trim() || '#888';
     const accent = css.getPropertyValue('--wb-accent-2').trim() || '#c8664f', sel = css.getPropertyValue('--wb-select').trim() || '#8a8a8a';
     ctx.save();

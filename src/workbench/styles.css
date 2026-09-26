@@ -611,3 +611,10 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 .assets-grid { grid-template-columns: repeat(auto-fill, minmax(var(--card, 140px), 1fr)) !important; }
 .assets-panel.compact .asset-tags, .assets-panel.compact .variant-card-footer, .assets-panel.compact .asset-kind { display: none; }
 .assets-panel.compact .variant-card-header { padding: 2px 4px; font-size: 10px; }
+
+/* Presenting: the canvas alone, the boards full-window */
+.presenting .wb { grid-template-columns: 0 1fr 0; grid-template-rows: 1fr 0; }
+.presenting .wb-dock, .presenting [data-floating], .presenting .wb-island, .presenting .wb-topbar, .presenting .wb-dock-hint { display: none !important; }
+.wb-present-hud { position: absolute; right: 18px; bottom: 14px; padding: 4px 10px; border-radius: 6px; background: color-mix(in srgb, var(--wb-panel) 80%, transparent); color: var(--wb-muted); font: 12px ui-sans-serif, system-ui, sans-serif; pointer-events: none; opacity: 0; }
+.wb-present-hud.fade { animation: wb-hud 2.4s ease forwards; }
+@keyframes wb-hud { 0% { opacity: 0; } 10% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }

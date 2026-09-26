@@ -36,6 +36,7 @@ export function defaultCommands(app) {
     cmd('edit.eyedropper', 'Edit', 'Eyedropper', ['i'], () => import('./colorPicker.js').then(m => m.eyedropToTarget(app))),
     cmd('view.fit', 'View', 'Fit the active board', ['f'], () => { app.canvas.fit(60, app.activeBoard); app.renderChrome(); }),
     cmd('tool.board', 'Tools', 'Board', ['shift+o'], () => app.setTool('board')),
+    cmd('view.present', 'View', 'Present the boards', ['mod+alt+p'], () => app.present()),
     cmd('board.next', 'View', 'Next board', ['alt+arrowright'], () => app.stepBoard(1)),
     cmd('board.prev', 'View', 'Previous board', ['alt+arrowleft'], () => app.stepBoard(-1)),
     cmd('view.toggle', 'View', 'Picture / process view', ['\\'], () => app.setViewMode(app.view.mode === 'picture' ? 'process' : 'picture')),

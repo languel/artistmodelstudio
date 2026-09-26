@@ -8,7 +8,7 @@
  * transform:  { x, y, scale }, artboard → screen
  */
 import { BRUSHES, mulberry32, resolveParams, installLines, KIT } from './brushes.js';
-import { boardDoc, MAIN } from './boards.js';
+import { boardDoc, boardsOf, MAIN } from './boards.js';
 import { drawNote, noteCorners } from './notes.js';
 
 export function renderDocument(ctx, doc, {
@@ -20,8 +20,8 @@ export function renderDocument(ctx, doc, {
   ctx.translate(transform.x, transform.y);
   ctx.scale(transform.scale, transform.scale);
   if (ground) {
-    ctx.fillStyle = doc.artboard.ground || '#ffffff';
-    ctx.fillRect(0, 0, width, height);
+    // Every board's paper (a single board, as exported, is just the artboard).
+    for (const b of boardsOf(doc)) { ctx.fillStyle = b.ground || '#ffffff'; ctx.fillRect(b.x, b.y, b.width, b.height); }
   }
   const rank = new Map(doc.stages.map((s, i) => [s.id, i]));
   const stageOf = new Map(doc.stages.map(s => [s.id, s]));
