@@ -58,7 +58,6 @@ project (shared: Assets, brush & sculpt libraries, settings)
 
 ## Open questions
 
-- The user's last message included "swap their positions" (the top-left menu island and the centre tools?). It was never clarified; the islands can be dragged in the meantime.
 - Walkthrough and study scripts may still assume a single artboard. Check them when touching boards.
 
 ## Conventions the user asked for
