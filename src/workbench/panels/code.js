@@ -2,6 +2,7 @@
  * Code: everything in the studio as code, in one editor with modes.
  *   Score      the drawing's score (write, run, exercises)
  *   Brush      a brush's code, with a live preview
+ *   Sculpt     a sculpt tool's code, with a preview sweep
  *   Selection  the selected marks as score code: edit and apply, they change in place
  *   Clip       a timeline clip as clip({ … })
  * Right-click a mark or a clip → Show code opens the matching mode.
@@ -9,10 +10,11 @@
 import { h } from '../ui.js';
 import { mountScript } from './script.js';
 import { mountBrushes } from './brushes.js';
+import { mountSculpts } from './sculpts.js';
 import { createCodeEditor } from '../codeEditor.js';
 import { selectionCode, applySelectionCode, replaceElements, clipCode, applyClipCode } from '../../process/codegen.js';
 
-const MODES = [['score', 'Score', 'The drawing as a score'], ['brush', 'Brush', 'Brushes are code'], ['selection', 'Selection', 'The selected marks as code'], ['clip', 'Clip', 'The selected timeline clip as code']];
+const MODES = [['score', 'Score', 'The drawing as a score'], ['brush', 'Brush', 'Brushes are code'], ['sculpt', 'Sculpt', 'Sculpt tools are code'], ['selection', 'Selection', 'The selected marks as code'], ['clip', 'Clip', 'The selected timeline clip as code']];
 
 export function mountCode(root, app) {
   let mode = localStorage.getItem('ams_code_mode') || 'score';
@@ -22,6 +24,7 @@ export function mountCode(root, app) {
 
   mountScript(views.score, app);
   mountBrushes(views.brush, app);
+  mountSculpts(views.sculpt, app);
   const sel = objectView(views.selection, app, {
     empty: 'Select marks on the canvas (or right-click one → Show code).',
     get: () => { const els = app.selectedElements(); return els.length ? { key: els.map(e => e.id).join(), text: selectionCode(els, app.store.doc), title: `${els.length} mark${els.length === 1 ? '' : 's'}` } : null; },
@@ -67,6 +70,7 @@ export function mountCode(root, app) {
     if (m === 'clip' && arg) app.selectClip?.(arg);
     setMode(m);
     if (m === 'brush' && arg) app.brushesPanel?.open(arg);
+    if (m === 'sculpt' && arg) app.sculptsPanel?.open(arg);
   };
   app.codeMode = m => setMode(m);
   setMode(mode);

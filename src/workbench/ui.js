@@ -117,3 +117,12 @@ if (typeof document !== 'undefined' && !globalThis.__amsNumDrag) {
     window.addEventListener('pointerup', up, true);
   }, true);
 }
+
+// Optional children: `cond ? h(…) : null` in append / replaceChildren leaves nothing (not the text "null").
+if (typeof Element !== 'undefined' && !Element.prototype.__amsSkipEmpty) {
+  Element.prototype.__amsSkipEmpty = true;
+  for (const name of ['append', 'replaceChildren', 'prepend']) {
+    const orig = Element.prototype[name];
+    Element.prototype[name] = function (...kids) { return orig.apply(this, kids.filter(k => k !== null && k !== undefined && k !== false)); };
+  }
+}

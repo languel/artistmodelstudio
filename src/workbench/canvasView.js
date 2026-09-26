@@ -8,21 +8,26 @@
  * guide (G), point (O), note (T). Freehand tools capture time and pressure
  * (mouse pressure is estimated from speed). Wheel pans; Ctrl/Cmd+wheel or pinch zooms.
  */
+import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
 import { renderDocument } from '../process/render.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
-import { BRUSHES, resolveParams } from '../process/brushes.js';
+import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
 import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
 
 const CAMERA_KEY = 'ams_workbench_camera_v1';
 export const TOOL_KEYS = { v: 'select', h: 'hand', p: 'line', e: 'gesture', a: 'plane', g: 'guide', o: 'point', t: 'note' };
 
+/** Tools where Shift+drag over a mark sculpts it (Guide keeps Shift for angle snapping). */
+const SHIFT_SCULPT = new Set(['select', 'line', 'plane', 'gesture']);
+
 export class CanvasView {
-  constructor(host, store, { getTool, getStage, getDefaults, onSelect, onTool, onNoteStyled, viewMode }) {
+  constructor(host, store, { getTool, getStage, getDefaults, getSculpt, onSelect, onTool, onNoteStyled, viewMode }) {
     this.host = host;
     this.store = store;
     this.getTool = getTool;
     this.getStage = getStage;
     this.getDefaults = getDefaults;
+    this.getSculpt = getSculpt;
     this.onSelect = onSelect;
     this.onNoteStyled = onNoteStyled;
     this.onTool = onTool;
@@ -139,6 +144,14 @@ export class CanvasView {
     }
     if (this.previewDoc) { this.drawPreviewOverlay?.(ctx, { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, this.w, this.h); return; }
     this.drawFrame(ctx, css.getPropertyValue('--wb-select').trim() || '#8a8a8a');
+    if (this.brushAt) {
+      const sc = this.getSculpt?.();
+      ctx.save();
+      ctx.strokeStyle = css.getPropertyValue('--wb-text').trim() || '#888'; ctx.globalAlpha = 0.7; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(this.brushAt[0], this.brushAt[1], sc?.radius || 40, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(this.brushAt[0], this.brushAt[1], (sc?.radius || 40) * (sc?.strength ?? 0.5), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
     if (this.marquee) {
       const [x0, y0] = this.toScreen(this.marquee.x0, this.marquee.y0), [x1, y1] = this.toScreen(this.marquee.x1, this.marquee.y1);
       ctx.save();
@@ -422,7 +435,10 @@ export class CanvasView {
       if (JSON.stringify(hd) !== JSON.stringify(this.hoverHandle)) { this.hoverHandle = hd; this.canvas.style.cursor = this.cursorFor(hd) || ''; if (!hd) this.updateCursor(); this.invalidate(); }
       const h = tool === 'select' && !hd ? this.hitTest(wx, wy)?.id || null : null;
       if (h !== this.hovered) { this.hovered = h; this.invalidate(); }
+      const brush = tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length);
+      if (brush || this.brushAt) { this.brushAt = brush ? [sx, sy] : null; this.invalidate(); }
     });
+    c.addEventListener('pointerleave', () => { if (this.brushAt) { this.brushAt = null; this.invalidate(); } });
 
     // Drop an asset (from the Assets panel) or image files anywhere on the canvas: it becomes a layer.
     // Listen on the whole stage area (islands and overlays sit above the canvas element).
@@ -464,6 +480,10 @@ export class CanvasView {
       const [sx, sy] = this.local(e);
       const [wx, wy] = this.toWorld(sx, sy);
       const tool = this.getTool();
+      // Sculpt: the Sculpt tool, or Shift+drag over a mark with most tools.
+      if (tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length && !(tool === 'select' && this.handleAt(sx, sy)))) {
+        return this.startSculpt(e, wx, wy, tool === 'sculpt' ? null : () => { if (tool === 'select') this.startSelectClick(e, wx, wy); });
+      }
       if (tool === 'select') {
         const hd = this.handleAt(sx, sy);
         if (hd) return this.startTransform(e, hd);
@@ -475,6 +495,72 @@ export class CanvasView {
       if (tool === 'note') { const [nx, ny] = this.snapPt(wx, wy); const [nsx, nsy] = this.toScreen(nx, ny); return this.startNote(nsx, nsy, nx, ny); }
       this.startStroke(e, tool, wx, wy);
     });
+  }
+
+  /** Marks the brush can sculpt at a world point: the selection if any, else any mark near it. */
+  sculptTargets(wx, wy) {
+    const r = (this.getSculpt?.().radius || 40) / this.cam.z;
+    const doc = this.store.doc;
+    const stageOk = e => { const st = doc.stages.find(x => x.id === e.stage); return st && st.visible && !st.locked; };
+    const pool = doc.elements.filter(e => SCULPTABLE(e) && this.editable(e) && !e.hidden && stageOk(e));
+    const sel = pool.filter(e => this.selected.has(e.id));
+    return (sel.length ? sel : pool).filter(e => nearMark(e.points, wx, wy, r, e.closed));
+  }
+
+  /**
+   * Sculpt stroke: every pointer move runs the current sculpt tool over the marks under the brush
+   * (the selection, if there is one). One undo step. `onClick` runs instead if the pointer never moved.
+   */
+  startSculpt(e, wx, wy, onClick = null) {
+    const sc = this.getSculpt();
+    const before = JSON.stringify(this.store.doc);
+    const marks = new Map();
+    let last = [wx, wy], moved = false, first = true;
+    const selIds = [...this.selected].filter(id => this.store.doc.elements.some(x => x.id === id && SCULPTABLE(x)));
+    const rng = mulberry32((Date.now() & 0xffff) + 1);
+    this.pointer = true;
+    const pass = ev => {
+      const [sx, sy] = this.local(ev);
+      const [x, y] = this.toWorld(sx, sy);
+      this.brushAt = [sx, sy];
+      const s = {
+        x, y, dx: x - last[0], dy: y - last[1], radius: sc.radius / this.cam.z, strength: sc.strength,
+        pressure: ev.pointerType === 'pen' ? (ev.pressure || 0.5) * 2 : 1, invert: ev.altKey, first, start: [wx, wy]
+      };
+      const els = selIds.length ? this.store.doc.elements.filter(el => selIds.includes(el.id)) : this.store.doc.elements.filter(el => SCULPTABLE(el) && this.editable(el) && !el.hidden);
+      for (const el of els) {
+        if (!marks.has(el.id)) marks.set(el.id, { orig: el.points.map(q => q.slice()), state: {} });
+        const out = sculptMark(sc.tool, el, s, sc.params?.[sc.tool], rng, marks.get(el.id));
+        if (out) el.points = out;
+      }
+      first = false;
+      last = [x, y];
+      this.invalidate();
+    };
+    const mv = ev => {
+      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
+      moved = true;
+      pass(ev);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+      this.pointer = false;
+      if (moved) this.store.commitFrom(before, `sculpt: ${sc.tool}`);
+      else if (onClick) onClick();
+      else { pass(e); this.store.commitFrom(before, `sculpt: ${sc.tool}`); }
+      this.invalidate();
+    };
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+  }
+
+  /** Shift-click in Select without dragging: add or remove the mark from the selection. */
+  startSelectClick(e, wx, wy) {
+    const hit = this.hitTest(wx, wy);
+    if (!hit) return;
+    const ids = hit.group && !(e.metaKey || e.ctrlKey) ? this.store.doc.elements.filter(x => x.group === hit.group && this.editable(x)).map(x => x.id) : [hit.id];
+    if (this.selected.has(hit.id)) this.select([...this.selected].filter(id => !ids.includes(id)));
+    else this.select(ids, true);
   }
 
   startPan(e) {
@@ -626,7 +712,7 @@ export class CanvasView {
 
   updateCursor() {
     const t = this.getTool();
-    this.canvas.style.cursor = this.space || t === 'hand' ? 'grab' : t === 'select' ? 'default' : t === 'note' ? 'text' : 'crosshair';
+    this.canvas.style.cursor = this.space || t === 'hand' ? 'grab' : t === 'select' ? 'default' : t === 'note' ? 'text' : t === 'sculpt' ? 'none' : 'crosshair';
   }
 
   /** PNG of the artboard as currently shown (picture or process view). */

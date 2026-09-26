@@ -3,6 +3,7 @@
  * and the process document at the center. Everything the user can do is also a
  * command (see mcp.js), so agents drive the same surface.
  */
+import { SCULPTS, loadSculptLibrary } from '../process/sculpt.js';
 import { ProcessStore, createDocument, normalizeDocument, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
 import { dslToProcess } from '../process/fromDsl.js';
@@ -54,6 +55,7 @@ const TOOLS = [
   ['point', 'Point: a mark at a place', 'O'], ['line', 'Line: a point that moved', 'P'], ['plane', 'Plane: an enclosed area', 'A'], null,
   ['gesture', 'Gesture: the movement behind a form', 'E'], ['guide', 'Guide: construction (straight; Shift snaps)', 'G'], ['note', 'Note: a written annotation', 'T']
 ];
+const SCULPT_KEY = 'ams_sculpt_v1';
 
 export class Workbench {
   constructor(root) {
@@ -72,6 +74,10 @@ export class Workbench {
     this.view = { mode: 'process', upTo: Infinity };
     this.activeStageId = this.store.doc.stages[this.store.doc.stages.length - 1]?.id;
     try { this.toolDefaults = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || '{}'); } catch { this.toolDefaults = {}; }
+    // Sculpt: the current sculpt tool, brush radius (screen px), strength, and each tool's params.
+    try { this.sculpt = { tool: 'push', radius: 40, strength: 0.5, params: {}, ...JSON.parse(localStorage.getItem(SCULPT_KEY) || '{}') }; } catch { this.sculpt = { tool: 'push', radius: 40, strength: 0.5, params: {} }; }
+    loadSculptLibrary();
+    if (!SCULPTS[this.sculpt.tool]) this.sculpt.tool = 'push';
     // Global paint: stroke and fill for new marks (null: the brush's own ink / no fill).
     // Plain colors for now; like brushes, strokes and fills are meant to become processes (code) too.
     try { this.paint = { stroke: null, fill: null, ...JSON.parse(localStorage.getItem('ams_paint') || '{}') }; } catch { this.paint = { stroke: null, fill: null }; }
@@ -106,6 +112,31 @@ export class Workbench {
   selectIds(ids) { this.canvas.select(ids); }
   groupSelection() { const ids = [...this.canvas.selected]; if (ids.length > 1) { this.store.group(ids); this.canvas.select(ids); } }
   ungroupSelection() { const ids = [...this.canvas.selected]; if (ids.length) this.store.ungroup(ids); }
+
+  /** Change the sculpt settings: { tool, radius, strength } or params for a tool ({ params: { amount } }). */
+  setSculpt(patch) {
+    const s = this.sculpt;
+    if (patch.params) s.params = { ...s.params, [s.tool]: { ...(s.params[s.tool] || {}), ...patch.params } };
+    for (const k of ['tool', 'radius', 'strength']) if (k in patch) s[k] = patch[k];
+    s.radius = Math.max(4, Math.min(400, s.radius)); s.strength = Math.max(0.02, Math.min(1, s.strength));
+    try { localStorage.setItem(SCULPT_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+    this.canvas?.invalidate();
+    this.emit('sculpt');
+    if ('tool' in patch) this.renderChrome();
+  }
+
+  sculptMenu(x, y) {
+    const cur = this.sculpt.tool;
+    showMenu([
+      { label: 'Sculpt' },
+      ...Object.entries(SCULPTS).map(([id, t]) => ({ label: `${id === cur ? '✓ ' : ''}${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); if (this.tool !== 'sculpt') this.setTool('sculpt'); } })),
+      '-',
+      { label: `Radius ${Math.round(this.sculpt.radius)} px`, keys: '[ ]', disabled: true },
+      { label: `Strength ${Math.round(this.sculpt.strength * 100)}%`, keys: 'Shift+[ ]', disabled: true },
+      '-',
+      { label: 'Show code', hint: 'Sculpt tools are code: fork one or write your own', run: () => this.openCode?.('sculpt', cur) }
+    ], x, y);
+  }
 
   /** Set the global stroke or fill; selected marks take it too. */
   setPaint(which, value) {
@@ -183,6 +214,7 @@ export class Workbench {
       getTool: () => this.tool,
       getStage: () => this.activeStage,
       getDefaults: r => this.defaults(r),
+      getSculpt: () => this.sculpt,
       onSelect: () => { this.emit('selection'); this.renderChrome(); },
       onNoteStyled: note => this.setDefaults('note', { note }),
       onTool: t => this.setTool(t),
@@ -324,6 +356,12 @@ export class Workbench {
       const [id, tip, key] = t;
       tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) }));
     }
+    // Sculpt: one button for the stack of sculpt tools (click again or right-click for the list).
+    const st = SCULPTS[this.sculpt.tool];
+    const sculptBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'sculpt' ? ' on' : ''}`, 'data-guide': 'tool:sculpt', title: `Sculpt: ${st?.label} (S; Shift+drag over a mark with other tools). Click again or right-click for the sculpt tools`, html: `${icon('sculpt')}<kbd>S</kbd><span class="wb-tool-caret"></span>` });
+    sculptBtn.addEventListener('click', ev => { if (this.tool === 'sculpt') { const r = sculptBtn.getBoundingClientRect(); this.sculptMenu(r.left, r.bottom + 4); } else this.setTool('sculpt'); });
+    sculptBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.sculptMenu(ev.clientX, ev.clientY); });
+    tools.append(h('div', { class: 'wb-sep' }), sculptBtn);
     // Snap to grid: on shows the grid at full strength; off, fainter.
     const snapKey = this.shortcuts?.label('view.snap') || '';
     tools.append(h('div', { class: 'wb-sep' }), this.paintSwatches(), h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''}`, html: icon('snap'), onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }) }));

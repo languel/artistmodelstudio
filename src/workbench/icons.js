@@ -5,6 +5,7 @@ export const ICONS = {
   select: svg('<path d="M5 3l14 8-6 1.5L10 19z"/>'),
   hand: svg('<path d="M8 13V5.5a1.5 1.5 0 013 0V12m0-1V4.5a1.5 1.5 0 013 0V12m0-1.5a1.5 1.5 0 013 0V15a6 6 0 01-6 6h-1a6 6 0 01-5-2.7L3.6 15a1.6 1.6 0 012.6-1.9L8 15"/>'),
   point: svg('<circle cx="12" cy="12" r="4" fill="currentColor"/>'),
+  sculpt: svg('<path d="M3 17c4-1 6-5 9-5s4 3 9 2"/><circle cx="12" cy="12" r="5.5" stroke-dasharray="2 2.2" opacity=".7"/>'),
   line: svg('<path d="M4 18c3-6 5-9 8-9s3 5 8-4"/>'),
   plane: svg('<path d="M5 7l9-3 5 7-4 8-10-2z" fill="currentColor" fill-opacity=".25"/>'),
   guide: svg('<path d="M3 17L21 7" stroke-dasharray="3 3"/>'),

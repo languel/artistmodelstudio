@@ -7,6 +7,7 @@ import { h, row, numberField, selectField, section, esc } from '../ui.js';
 import { colorField } from '../colorPicker.js';
 import { BRUSHES, brushesForRole, resolveParams } from '../../process/brushes.js';
 import { ROLES, BLENDS } from '../../process/document.js';
+import { SCULPTS, sculptParams } from '../../process/sculpt.js';
 import { NOTE_STYLES, NOTE_FONTS, noteProps } from '../../process/notes.js';
 
 export function mountProperties(el, app) {
@@ -54,8 +55,23 @@ export function mountProperties(el, app) {
     ));
   };
 
+  /** The sculpt tool: which one, brush radius and strength, and the tool's own params. */
+  const renderSculpt = () => {
+    const s = app.sculpt, t = SCULPTS[s.tool];
+    const vals = sculptParams(s.tool, s.params[s.tool]);
+    el.append(h('div', { class: 'wb-panel-title' }, 'Sculpt', h('span', { class: 'wb-muted' }, ` · ${t.label}`)));
+    el.append(section('Brush', true,
+      row('Tool', selectField(Object.entries(SCULPTS).map(([id, x]) => [id, x.label]), s.tool, v => app.setSculpt({ tool: v })), t.doc),
+      row('Radius', numberField({ value: Math.round(s.radius), min: 4, max: 400, step: 1, def: 40, title: 'Brush radius in screen pixels ([ and ])', onChange: v => app.setSculpt({ radius: v }) })),
+      row('Strength', numberField({ value: s.strength, min: 0.02, max: 1, step: 0.01, def: 0.5, title: 'Shift+[ and Shift+]', onChange: v => app.setSculpt({ strength: v }) })),
+      ...t.params.map(p => row(p.label, numberField({ value: vals[p.key], min: p.min, max: p.max, step: p.step, def: p.default, title: p.doc, onChange: v => app.setSculpt({ params: { [p.key]: v } }) }), p.doc)),
+      h('div', { class: 'wb-row wb-row-actions' }, h('button', { class: 'wb-btn', title: 'Sculpt tools are code: fork one or write your own', onclick: () => app.openCode?.('sculpt', s.tool) }, 'Show code'))
+    ));
+  };
+
   const renderDefaults = () => {
     const tool = app.tool;
+    if (tool === 'sculpt') return renderSculpt();
     if (!ROLES[tool]) {
       el.append(h('div', { class: 'wb-empty' }, 'Select something, or pick a drawing tool to set its defaults.'));
       return;
@@ -103,6 +119,7 @@ export function mountProperties(el, app) {
   app.on('clip-select', render);
   app.on('selection', () => { if (app.canvas?.selected.size) app.selectedClip = null; render(); });
   app.on('tool', render);
+  app.on('sculpt', () => { if (app.tool === 'sculpt' && !app.selectedElements().length) render(); });
   render();
 }
 
