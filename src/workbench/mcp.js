@@ -272,7 +272,7 @@ export function initWorkbenchMCP(app) {
     if (!t) throw new Error(`Unknown tool ${name}`);
     const { narrate, ...rest } = args || {};
     const g = app.guide;
-    app.emit('tool', name, rest, { replay, summary: summarize(name, rest) });
+    app.emit('tool-call', name, rest, { replay, summary: summarize(name, rest) });
     const visible = !READ_ONLY.test(name) || rest.open;
     const tabsBefore = { ...app.docks.state.active };
     if (visible) {

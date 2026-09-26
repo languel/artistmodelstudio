@@ -19,7 +19,7 @@ export class Recorder {
     try { this.settings = { autoWalkthroughs: true, autoAgents: true, idleStop: 90000, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch { this.settings = { autoWalkthroughs: true, autoAgents: true, idleStop: 90000 }; }
     app.store.subscribe((doc, reason) => this.onChange(reason));
     app.on('say', (text, meta) => this.onSay(text, meta));
-    app.on('tool', (name, args, info) => this.onTool(name, args, info));
+    app.on('tool-call', (name, args, info) => this.onTool(name, args, info));
   }
 
   setSettings(patch) { Object.assign(this.settings, patch); try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.settings)); } catch { /* ignore */ } }

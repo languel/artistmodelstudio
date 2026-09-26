@@ -84,7 +84,7 @@ export class Workbench {
 
   // ---- events ------------------------------------------------------------------
   on(name, fn) { (this.handlers.get(name) || this.handlers.set(name, new Set()).get(name)).add(fn); }
-  emit(name, ...a) { for (const fn of this.handlers.get(name) || []) fn(...a); }
+  emit(name, ...a) { for (const fn of this.handlers.get(name) || []) { try { fn(...a); } catch (err) { console.error(`${name} listener failed:`, err); } } }
   log(text, kind = 'info') { this.logLines.push({ t: Date.now(), text, kind }); if (this.logLines.length > 400) this.logLines.shift(); this.emit('log'); }
 
   // ---- state ---------------------------------------------------------------------
