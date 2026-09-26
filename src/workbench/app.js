@@ -24,6 +24,7 @@ import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
 import { icon, brushIcon, sculptIcon } from './icons.js';
 import { h, download, editInPlace } from './ui.js';
+import { mountScenes } from './panels/scenes.js';
 import { mountBoards } from './panels/boards.js';
 import { mountStages } from './panels/stages.js';
 import { mountProperties } from './panels/properties.js';
@@ -240,6 +241,56 @@ export class Workbench {
   }
 
   // ---- scenes ------------------------------------------------------------------------
+  /** A new project: one empty scene. With keep, every scene goes to Assets first (a folder per project). */
+  async newProject({ keep = true } = {}) {
+    if (keep) {
+      const folder = `Project ${new Date().toLocaleString()}`.replace(/[/:]/g, '-');
+      const prev = this.assetPanel?.folder;
+      if (this.assetPanel) this.assetPanel.folder = folder;
+      for (const s of this.scenes.all) { const d = await this.scenes.docOf(s.id); if (d) await this.saveDocToAssets(structuredClone(d)); }
+      if (this.assetPanel) this.assetPanel.folder = prev || '';
+      this.log(`Kept ${this.scenes.all.length} scene${this.scenes.all.length === 1 ? '' : 's'} in Assets → ${folder}.`);
+    }
+    await this.scenes.resetProject();
+  }
+
+  /** Let a toolbar island be dragged by a grip (its place is remembered; double-click the grip resets it). */
+  makeMovable(island, key) {
+    const grip = h('span', { class: 'wb-grip', title: 'Drag to move · double-click to put back' });
+    island.prepend(grip);
+    let places; try { places = JSON.parse(localStorage.getItem('ams_island_places') || '{}'); } catch { places = {}; }
+    const apply = () => {
+      const p = places[key];
+      island.classList.toggle('wb-floating-island', Boolean(p));
+      if (p) Object.assign(island.style, { left: `${p.x}px`, top: `${p.y}px` }); else Object.assign(island.style, { left: '', top: '' });
+    };
+    const save = () => { try { localStorage.setItem('ams_island_places', JSON.stringify(places)); } catch { /* ignore */ } };
+    apply();
+    grip.addEventListener('dblclick', () => { delete places[key]; save(); apply(); });
+    grip.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const host = this.stageArea.getBoundingClientRect(), r = island.getBoundingClientRect();
+      const ox = e.clientX - r.left, oy = e.clientY - r.top;
+      const mv = ev => {
+        const x = Math.max(0, Math.min(host.width - r.width, ev.clientX - host.left - ox)), y = Math.max(0, Math.min(host.height - r.height, ev.clientY - host.top - oy));
+        places[key] = { x: Math.round(x), y: Math.round(y) }; apply();
+      };
+      const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); save(); };
+      window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+    });
+  }
+
+  /** Show or hide parts of the interface: tools, view (the right island), zoom, panels, or all of it. */
+  setUI(patch) {
+    this.ui = { tools: true, view: true, zoom: true, panels: true, ...(this.ui || {}), ...patch };
+    if ('all' in patch) for (const k of ['tools', 'view', 'zoom', 'panels']) this.ui[k] = patch.all;
+    delete this.ui.all;
+    for (const k of ['tools', 'view', 'zoom', 'panels']) this.root.classList.toggle(`hide-${k}`, !this.ui[k]);
+    try { localStorage.setItem('ams_ui', JSON.stringify(this.ui)); } catch { /* ignore */ }
+    requestAnimationFrame(() => this.canvas?.resize());
+    this.emit('ui', this.ui);
+  }
+
   sceneMenu(x, y) {
     const S = this.scenes, cur = S.list.active;
     showMenu([
@@ -512,6 +563,7 @@ export class Workbench {
     this.history = new History(this);
     this.scenes = new Scenes(this);
     this.scenes.on(() => this.renderChrome());
+    try { const u = JSON.parse(localStorage.getItem('ams_ui') || 'null'); if (u) requestAnimationFrame(() => this.setUI(u)); } catch { /* ignore */ }
     // Performing: 1–9 go to a board; Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush there.
     try { this.slots = JSON.parse(localStorage.getItem('ams_brush_slots') || '{}'); } catch { this.slots = {}; }
     window.addEventListener('keydown', e => {
@@ -539,6 +591,7 @@ export class Workbench {
   registerPanels() {
     const reg = (id, title, iconName, natural, mount, extra = {}) => this.docks.register({ id, title, icon: iconName, natural, mount: el => mount(el, this), ...extra });
     reg('stages', 'Stages', 'stages', 'left', mountStages);
+    reg('scenes', 'Scenes', 'layers', 'left', mountScenes);
     reg('boards', 'Boards', 'board', 'left', mountBoards);
     reg('outliner', 'Outliner', 'layers', 'left', mountOutliner);
     reg('assets', 'Assets', 'assets', 'left', el => this.mountAssets(el));
@@ -617,20 +670,9 @@ export class Workbench {
   renderChrome() {
     if (!this.topbar) return;
     const doc = this.store.doc;
-    const title = h('input', { class: 'wb-title', 'data-guide': 'title', value: doc.title || 'Untitled', title: 'Title', onchange: e => this.store.change('title', d => { d.title = e.target.value.trim() || 'Untitled'; }) });
-    title.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); });
-    const stage = this.activeStage;
-    const sc = this.scenes?.all || [], si = sc.findIndex(s => s.id === this.scenes?.list.active);
-    const left = h('div', { class: 'wb-island' },
-      h('button', { class: 'wb-tool', 'data-guide': 'menu', title: 'Menu', html: icon('menu'), onclick: e => this.openMenu(e.currentTarget) }),
-      h('button', { class: 'wb-tool wb-scene-btn', 'data-guide': 'scenes', title: `Scenes: ${si + 1} of ${sc.length} (Alt+PageUp / PageDown to step)`, html: `${icon('layers')}<span>${si + 1}/${sc.length}</span>`, onclick: e => { const r = e.currentTarget.getBoundingClientRect(); this.sceneMenu(r.left, r.bottom + 6); } }),
-      title,
-      h('button', { class: 'wb-tool', title: 'Undo (Cmd+Z)', html: icon('undo'), onclick: () => this.store.undo() }),
-      h('button', { class: 'wb-tool', title: 'Redo (Shift+Cmd+Z)', html: icon('redo'), onclick: () => this.store.redo() }),
-      h('div', { class: 'wb-sep' }),
-      h('span', { class: 'wb-stagebadge', title: 'New marks go into this stage (Stages panel)', onclick: () => this.docks.open('stages') }, 'Stage', h('b', {}, stage ? stage.name : '—'))
-    );
-    const tools = h('div', { class: 'wb-island' });
+    // The chrome is minimal: tools in the middle, view controls and the menu on the right; scenes,
+    // boards, stages live in panels (right-click and Opt+right-click for properties).
+    const tools = h('div', { class: 'wb-island wb-tools-island' });
     for (const t of TOOLS) {
       if (!t) { tools.append(h('div', { class: 'wb-sep' })); continue; }
       const [id, tip, key] = t;
@@ -658,20 +700,25 @@ export class Workbench {
     const snapKey = this.shortcuts?.label('view.snap') || '';
     tools.append(h('div', { class: 'wb-sep' }), this.paintSwatches(), h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''} · right-click: grid and drawing settings`, html: icon('snap'), onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }), oncontextmenu: e => { e.preventDefault(); openGridParams(this, e.clientX, e.clientY + 8); } }));
     { const [id, tip, key] = NOTE_TOOL; tools.append(h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) })); }
-    const right = h('div', { class: 'wb-island' },
+    const right = h('div', { class: 'wb-island wb-view-island' },
+      h('button', { class: 'wb-tool', 'data-guide': 'menu', title: 'Menu', html: icon('menu'), onclick: e => this.openMenu(e.currentTarget) }),
+      h('div', { class: 'wb-sep' }),
       h('button', { class: 'wb-tool', 'data-guide': 'view', title: this.view.mode === 'process' ? 'Process: guides, gestures and notes shown (\\ for the picture)' : 'Picture: the finished picture (\\ for the process)', html: icon(this.view.mode === 'process' ? 'viewProcess' : 'viewPicture'), onclick: () => this.setViewMode(this.view.mode === 'picture' ? 'process' : 'picture') }),
       this.reference ? h('button', { class: `wb-tool${this.reference.visible ? ' on' : ''}`, title: `Reference underlay: ${this.reference.title} (R toggles)`, html: icon('picture'), onclick: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } }) : null,
       h('button', { class: `wb-tool${this.canvas.showPoints ? ' on' : ''}`, title: "Show marks' points (')", html: icon('points'), onclick: () => this.togglePoints() }),
       h('button', { class: 'wb-tool', 'data-guide': 'present', title: 'Present the boards (Opt+Cmd+P): ← → to move, Esc to leave', html: icon('play'), onclick: () => this.present(true) }),
       h('button', { class: 'wb-tool', title: 'Theme', html: icon(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun'), onclick: () => this.toggleTheme() })
     );
-    this.topbar.replaceChildren(left, tools, right);
+    // The menu island starts top-left, the tools top-centre; both can be dragged by their grip.
+    this.topbar.replaceChildren(right, tools, h('div', { class: 'wb-topbar-spacer' }));
+    this.makeMovable(right, 'view'); this.makeMovable(tools, 'tools');
     this.zoomIsland.replaceChildren(
       h('button', { class: 'wb-tool', title: 'Zoom out', html: icon('down'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1 / 1.2) }),
       h('span', {}, `${Math.round((this.canvas?.cam.z || 1) * 100)}%`),
       h('button', { class: 'wb-tool', title: 'Zoom in', html: icon('up'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1.2) }),
-      h('button', { class: 'wb-tool', title: 'Fit the artboard (F)', html: icon('fit'), onclick: () => { this.canvas.fit(); this.renderChrome(); } })
+      h('button', { class: 'wb-tool', title: 'Fit the active board (F)', html: icon('fit'), onclick: () => { this.canvas.fit(60, this.activeBoard || MAIN); this.renderChrome(); } })
     );
+    this.makeMovable(this.zoomIsland, 'zoom');
   }
 
   toggleTheme() {
@@ -834,7 +881,12 @@ export class Workbench {
   openMenu(anchor) {
     const r = anchor.getBoundingClientRect();
     showMenu([
-      { label: 'New drawing', hint: 'A new scene: the drawing you have stays as it is', run: () => this.scenes.create() },
+      { label: 'New scene', keys: this.shortcuts.label('scene.new'), hint: 'An empty drawing in this project; the others stay', run: () => this.scenes.create() },
+      { label: 'New project', hint: 'Start over with one empty scene', items: [
+        { label: 'Keep this project in Assets, then start', run: () => this.newProject({ keep: true }) },
+        { label: 'Start without keeping it', run: () => this.newProject({ keep: false }) },
+        { label: 'Cancel', run: () => {} }
+      ] },
       { label: 'Open file', hint: 'Process JSON, SVG with a process record, Excalidraw, or an image as reference', run: () => this.openFile() },
       { label: 'Save to Assets', keys: this.shortcuts.label('file.save'), run: () => this.saveToAssets() },
       { label: 'Export', items: [

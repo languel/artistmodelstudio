@@ -106,6 +106,11 @@ export function workbenchTools(app) {
       if (a.action === 'tool') app.setTool('brush');
       return { active: app.brush.id, params: app.brush.params[app.brush.id] || {}, slots: app.slots, tool: app.tool };
     } },
+    { name: 'ams_ui', description: 'Show or hide parts of the interface, for a clean view of just the drawing: tools, view (the right island with the menu), zoom, panels, or all. Omit everything to read the state.', inputSchema: S({ all: { type: 'boolean' }, tools: { type: 'boolean' }, view: { type: 'boolean' }, zoom: { type: 'boolean' }, panels: { type: 'boolean' } }), run: (a) => {
+      const patch = Object.fromEntries(['all', 'tools', 'view', 'zoom', 'panels'].filter(k => k in a).map(k => [k, Boolean(a[k])]));
+      if (Object.keys(patch).length) app.setUI(patch);
+      return { ui: app.ui || { tools: true, view: true, zoom: true, panels: true } };
+    } },
     { name: 'ams_scene', description: 'Scenes: a project holds several drawings, each with its boards, undo, History and Timeline (assets and brushes are shared). list; new {title?, doc?} (an empty drawing, or a copy of a process document) and open it; open {id}; duplicate; delete {id} (not the last; its drawing is gone unless saved to Assets); move {id, delta}; get {id} (another scene\'s document without opening it).', inputSchema: S({ action: { type: 'string', enum: ['list', 'new', 'open', 'duplicate', 'delete', 'move', 'get'] }, id: str('Scene id or title'), title: str(''), doc: { type: 'object' }, delta: num('±1') }, ['action']), run: async (a) => {
       const Sc = app.scenes;
       const find = k => Sc.all.find(s => s.id === k || String(s.title).toLowerCase() === String(k || '').toLowerCase());

@@ -144,7 +144,7 @@ export const WALKTHROUGHS = [
     title: 'Tour of the workbench',
     summary: 'The canvas, the tools, stages, properties, the score, the process view, and the helpers.',
     steps: [
-      { say: 'The artboard sits on an infinite canvas: doodle around it freely. Only the artboard is the picture.', target: 'title', click: false },
+      { say: 'The artboard sits on an infinite canvas: doodle around it freely. Only the artboard is the picture.', target: 'view', click: false },
       { say: 'Tools follow Kandinsky and Klee: point, line, plane. Guides and gestures are construction; notes are writing. Every mark belongs to a stage.', target: 'tool:point', click: false },
       { say: 'Line, the point that moved. Its time and pressure are recorded as you draw.', target: 'tool:line', click: false },
       { say: 'Stages are the process in order: analysis, concept, construction, structure, value, marks, notes. New marks go to the active stage.', target: 'panel:stages', click: false },

@@ -163,6 +163,36 @@ export class Scenes {
     return this.switchTo(next.id);
   }
 
+  /** Start over: one empty scene; the others are gone (keep them in Assets first to keep them). */
+  async resetProject() {
+    const old = this.list.scenes.map(s => s.id);
+    const id = newSceneId();
+    const d = createDocument({ title: 'Scene 1' });
+    this.list = { active: id, scenes: [{ id, title: d.title }] };
+    this.saveList();
+    for (const o of old) await del(o).catch(() => {});
+    this.memory.clear();
+    await put(id, { doc: d, saved: Date.now() });
+    this.open(d);
+  }
+
+  rename(id, title) {
+    if (id === this.list.active) { this.app.store.change('title', d => { d.title = title; }); return; }
+    const s = this.list.scenes.find(x => x.id === id);
+    if (!s) return;
+    s.title = title; this.saveList(); this.emit();
+    get(id).then(rec => { if (rec?.doc) { rec.doc.title = title; put(id, rec); } });
+  }
+
+  /** Put a scene at a place in the list. */
+  place(id, index) {
+    const i = this.list.scenes.findIndex(s => s.id === id);
+    if (i < 0) return;
+    const [s] = this.list.scenes.splice(i, 1);
+    this.list.scenes.splice(Math.max(0, Math.min(this.list.scenes.length, index)), 0, s);
+    this.saveList(); this.emit();
+  }
+
   /** Another scene's document (for exporting a project, or an agent reading it). */
   async docOf(id) {
     if (id === this.list.active) return this.app.store.doc;

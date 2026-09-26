@@ -636,3 +636,21 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 .wb-tp-row2 { grid-template-columns: 64px 1fr; }
 .wb-tp-seg { display: inline-flex; }
 .wb-tp-seg button { padding: 1px 8px; font-size: 11px; }
+
+/* The interface, part by part, hidden on request (Cmd+. hides all of it) */
+.hide-tools .wb-tools-island, .hide-view .wb-view-island, .hide-zoom .wb-zoom { display: none !important; }
+.hide-panels .wb { grid-template-columns: 0 1fr 0; grid-template-rows: 1fr 0; }
+.hide-panels .wb-dock, .hide-panels [data-floating], .hide-panels .wb-dock-hint { display: none !important; }
+.wb-topbar-spacer { flex: 1 1 0; }
+.wb-topbar { display: grid; grid-template-columns: 1fr auto 1fr; }
+.wb-topbar .wb-view-island { justify-self: end; }
+.wb-topbar-spacer { flex: none; }
+@media (max-width: 900px) { .wb-topbar { grid-template-columns: 0 auto 1fr; } }
+.wb-topbar .wb-view-island { justify-self: start; }
+.wb-grip { width: 6px; align-self: stretch; margin: 2px 2px 2px 0; border-radius: 3px; cursor: grab; background: radial-gradient(circle, var(--wb-muted) 0.8px, transparent 1.2px) 0 0 / 4px 4px; opacity: .5; }
+.wb-grip:hover { opacity: 1; }
+.wb-floating-island { position: absolute; z-index: 11; }
+.wb-topbar { display: flex !important; flex-wrap: wrap; justify-content: flex-start; }
+.wb-topbar .wb-tools-island { margin: 0 auto; }
+.wb-topbar .wb-topbar-spacer { display: none; }
+.wb-island > .wb-grip { flex: none; width: 6px !important; min-width: 0 !important; height: auto !important; padding: 0 !important; font-size: 0 !important; border: 0 !important; }
