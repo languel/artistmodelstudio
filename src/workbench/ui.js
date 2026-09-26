@@ -82,3 +82,38 @@ export function canvasBlob(c, type = 'image/png', quality) {
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return new Blob([bytes], { type });
 }
+
+/**
+ * Any number box: hold Cmd (Ctrl) and drag horizontally to change the value (Shift = fine).
+ * Fires input while dragging and change on release, like typing would.
+ */
+if (typeof document !== 'undefined' && !globalThis.__amsNumDrag) {
+  globalThis.__amsNumDrag = true;
+  document.addEventListener('pointerdown', e => {
+    const input = e.target;
+    if (!(e.metaKey || e.ctrlKey) || !(input instanceof HTMLInputElement) || input.type !== 'number' || input.disabled) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    const num = (v, d) => (v === '' || !Number.isFinite(Number(v)) ? d : Number(v));
+    const min = num(input.min, -Infinity), max = num(input.max, Infinity);
+    const step = input.step === 'any' ? 0.01 : num(input.step, 1);
+    const decimals = (String(step).split('.')[1] || '').length;
+    const sx = e.clientX, v0 = num(input.value, 0);
+    let moved = false;
+    document.body.style.cursor = 'ew-resize';
+    const mv = ev => {
+      const dx = ev.clientX - sx;
+      if (!moved && Math.abs(dx) < 2) return;
+      moved = true;
+      const v = Math.min(max, Math.max(min, Math.round((v0 + dx * step * (ev.shiftKey ? 0.1 : 1)) / step) * step));
+      input.value = String(+v.toFixed(decimals + 1));
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', mv, true); window.removeEventListener('pointerup', up, true);
+      document.body.style.cursor = '';
+      if (moved) input.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    window.addEventListener('pointermove', mv, true);
+    window.addEventListener('pointerup', up, true);
+  }, true);
+}
