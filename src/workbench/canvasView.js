@@ -47,7 +47,7 @@ export class CanvasView {
     // Note fonts are drawn on the canvas, so ask for them explicitly and redraw when they arrive.
     Promise.all(['22px Caveat', '17px "Patrick Hand"', '17px Newsreader'].map(f => document.fonts?.load(f).catch(() => null))).then(() => this.invalidate());
     this.upTo = Infinity;   // stage scrub
-    this.grid = { show: 'paper', style: 'lines', spacing: 100, subdivisions: 4, color: '#8a837840', snap: false };
+    this.grid = { show: 'paper', style: 'lines', spacing: 100, subdivisions: 4, color: '#8a837840', snap: false, snapMode: 'points' };
     try { Object.assign(this.grid, JSON.parse(localStorage.getItem('ams_grid_v2')) || {}); } catch { /* defaults */ }
     this.space = false;
     try { this.cam = JSON.parse(localStorage.getItem(CAMERA_KEY)) || null; } catch { this.cam = null; }
@@ -256,6 +256,21 @@ export class CanvasView {
     this.onGrid?.(this.grid);
   }
 
+  /**
+   * Where a point snaps in the current snap mode: a grid point ('points', and 'increments' when
+   * drawing), or the nearest point of another mark within 12 screen px ('objects'; unchanged if none).
+   */
+  snapTarget(x, y, exclude = null) {
+    if (this.grid.snapMode !== 'objects') return this.snapPt(x, y, true);
+    const r = 12 / this.cam.z;
+    let best = r, hit = null;
+    for (const e of this.store.doc.elements) {
+      if (e.hidden || (exclude && exclude.has(e.id)) || e.role === 'note') continue;
+      for (const q of e.points) { const d = Math.hypot(q[0] - x, q[1] - y); if (d < best) { best = d; hit = q; } }
+    }
+    return hit ? [hit[0], hit[1]] : [x, y];
+  }
+
   /** Nearest grid point (a subdivision) when snapping is on. */
   snapPt(x, y, force = false) {
     if (!this.grid.snap && !force) return [x, y];
@@ -418,7 +433,10 @@ export class CanvasView {
       if (ev.ctrlKey && tb) {
         const tax = ev.altKey ? (tb.x0 + tb.x1) / 2 : hd.hx < 0 ? tb.x1 : tb.x0, tay = ev.altKey ? (tb.y0 + tb.y1) / 2 : hd.hy < 0 ? tb.y1 : tb.y0;
         const tex = hd.hx < 0 ? tb.x0 : tb.x1, tey = hd.hy < 0 ? tb.y0 : tb.y1;
-        const [gx, gy] = this.snapPt(tex + (x - wx0), tey + (y - wy0), true);
+        const q = this.grid.spacing / Math.max(1, this.grid.subdivisions);
+        const [gx, gy] = this.grid.snapMode === 'increments'
+          ? [tex + Math.round((x - wx0) / q) * q, tey + Math.round((y - wy0) / q) * q]
+          : this.snapPt(tex + (x - wx0), tey + (y - wy0), true);   // (objects: edges still go to grid lines)
         if (hd.hx && tex !== tax) sx = (gx - tax) / (tex - tax);
         if (hd.hy && tey !== tay) sy = (gy - tay) / (tey - tay);
         if (!ev.altKey) { apply((px, py) => [tax + (px - tax) * sx, tay + (py - tay) * sy]); this.transformLabel = `${Math.round(sx * 100)}% × ${Math.round(sy * 100)}%`; return; }
@@ -808,12 +826,20 @@ export class CanvasView {
       this.pointer = true;
       const orig = new Map(this.store.doc.elements.filter(el => this.selected.has(el.id)).map(el => [el.id, el.points.map(p => p.slice())]));
       const b0 = this.selectionBounds();
+      // The selected point nearest the grab: it is what lands on the grid.
+      let anchor = null, best = Infinity;
+      for (const [, pts] of orig) for (const q of pts) { const d = Math.hypot(q[0] - wx, q[1] - wy); if (d < best) { best = d; anchor = q; } }
       const mv = ev => {
         const [x, y] = this.toWorld(...this.local(ev));
         let dx = x - wx, dy = y - wy;
         // With snap on, the selection's top-left corner lands on the grid.
-        // With snap on, or Ctrl held, the selection's top-left corner lands on the grid.
-        if ((this.grid.snap || ev.ctrlKey) && b0) { const [sx0, sy0] = this.snapPt(b0.x0 + dx, b0.y0 + dy, true); dx = sx0 - b0.x0; dy = sy0 - b0.y0; }
+        // With snap on, or Ctrl held: 'points' puts the mark's point nearest the grab on a grid point;
+        // 'increments' moves in whole grid steps from where the selection started.
+        if (this.grid.snap || ev.ctrlKey) {
+          const q = this.grid.spacing / Math.max(1, this.grid.subdivisions);
+          if (this.grid.snapMode === 'increments') { dx = Math.round(dx / q) * q; dy = Math.round(dy / q) * q; }
+          else if (anchor) { const [gx, gy] = this.snapTarget(anchor[0] + dx, anchor[1] + dy, this.selected); dx = gx - anchor[0]; dy = gy - anchor[1]; }
+        }
         if (!dx && !dy && !moved) return;
         moved = true;
         for (const el of this.store.doc.elements) { const o = orig.get(el.id); if (o) el.points = o.map(([px, py, t, p]) => [px + dx, py + dy, t, p]); }
@@ -852,7 +878,7 @@ export class CanvasView {
     const t0 = performance.now();
     if (tool === 'guide') [wx, wy] = this.snapPt(wx, wy);
     // The Brush tool draws with the active brush: a line, or a plane for a plane-only brush.
-    if (e.ctrlKey && tool !== 'guide') [wx, wy] = this.snapPt(wx, wy, true);
+    if (e.ctrlKey && tool !== 'guide') [wx, wy] = this.snapTarget(wx, wy);
     const role = tool === 'brush' ? (this.getDefaults('brush').role || 'line') : tool;
     const dkey = tool === 'brush' ? 'brush' : role;
     const d = this.getDefaults(dkey);
@@ -882,7 +908,7 @@ export class CanvasView {
         // Ctrl held: every point lands on the grid (whether grid snap is on or not).
         if (ev.ctrlKey) {
           snapped = true;
-          [x, y] = this.snapPt(x, y, true);
+          [x, y] = this.snapTarget(x, y);
           const prev = this.draft.points[this.draft.points.length - 1];
           if (prev && prev[0] === x && prev[1] === y) { this.invalidate(); return; }
         }
