@@ -179,7 +179,9 @@ export class CanvasView {
       ctx.restore();
     }
     if (this.draft) {
-      renderDocument(ctx, { ...doc, stages: [{ id: 'draft', visible: true }], elements: [this.draft] }, {
+      // A plane being drawn is closed the way it will be on release (no spikes where the ends meet).
+      const d = this.draft.role === 'plane' && this.draft.points.length > 5 ? { ...this.draft, points: closeLasso(this.draft.points, 6 / this.cam.z) } : this.draft;
+      renderDocument(ctx, { ...doc, stages: [{ id: 'draft', visible: true }], elements: [d] }, {
         mode: 'process', transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, ground: false
       });
     }

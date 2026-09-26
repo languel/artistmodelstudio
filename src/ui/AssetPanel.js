@@ -4,6 +4,7 @@
  * tag exactly), star ratings, double-click to rename or retag, export, and
  * "use as reference".
  */
+import { editable } from '../workbench/ui.js';
 import { askConfirm, askText } from '../workbench/dialog.js';
 import { icon } from './icons.js';
 import { matches } from '../assets/assetStore.js';
@@ -126,7 +127,7 @@ export class AssetPanel {
       <span class="crumb ${parts.length ? '' : 'current'}" data-path="">Assets</span>
       ${parts.map((p, i) => `<span class="crumb-sep">/</span><span class="crumb ${i === parts.length - 1 ? 'current' : ''}" data-path="${esc(parts.slice(0, i + 1).join('/'))}" title="Double-click to rename">${esc(p)}</span>`).join('')}
       ${parts.length ? `<button class="folder-chip folder-up" data-path="${esc(parts.slice(0, -1).join('/'))}" title="Up to ${esc(parts.slice(0, -1).join('/') || 'Assets')} · drop a card here to move it up">↑</button>` : ''}
-      <span class="crumb-subs">${subs.map(p => `<button class="folder-chip" data-path="${esc(p)}" title="Open · drop a card here to move it">${icon('folder', 'icon-sm')}${esc(p.split('/').pop())}<span class="folder-count">${count(p)}</span></button>`).join('')}</span>`;
+      <span class="crumb-subs">${subs.map(p => `<button class="folder-chip" data-path="${esc(p)}" title="Open · drop a card here to move it · Shift+double-click to rename">${icon('folder', 'icon-sm')}<span class="folder-name" data-folder-name="${esc(p)}">${esc(p.split('/').pop())}</span><span class="folder-count">${count(p)}</span></button>`).join('')}</span>`;
     crumbs.querySelectorAll('[data-path]').forEach(el => {
       el.addEventListener('click', () => { this.folder = el.dataset.path; this.draw(); });
       el.addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('text/asset-id')) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drop'); } });
@@ -141,6 +142,13 @@ export class AssetPanel {
     crumbs.querySelectorAll('.folder-chip:not(.folder-up)[data-path], .crumb[data-path]:not([data-path=""])').forEach(el => {
       el.addEventListener('contextmenu', ev => { ev.preventDefault(); this.folderMenu(el.dataset.path, ev); });
     });
+    // Shift+double-click renames a folder (chip or crumb) in place.
+    const renameFolder = (path, name) => {
+      const to = path.split('/').slice(0, -1).concat(name.replace(/\//g, '-')).join('/');
+      this.store.renameFolder(path, to).then(() => { if (this.folder === path || this.folder.startsWith(path + '/')) this.folder = to + this.folder.slice(path.length); this.refresh(); });
+    };
+    crumbs.querySelectorAll('[data-folder-name]').forEach(el => editable(el, `folder:${el.dataset.folderName}`, () => el.dataset.folderName.split('/').pop(), v => renameFolder(el.dataset.folderName, v)));
+    crumbs.querySelectorAll('.crumb[data-path]:not([data-path=""])').forEach(el => editable(el, `folder:${el.dataset.path}`, () => el.dataset.path.split('/').pop(), v => renameFolder(el.dataset.path, v)));
     crumbs.querySelectorAll('.crumb[data-path]:not([data-path=""])').forEach(el => {
       el.addEventListener('dblclick', () => this.editInline(el, el.textContent, name => {
         const path = el.dataset.path.split('/').slice(0, -1).concat(name.replace(/\//g, '-')).join('/');
@@ -199,6 +207,7 @@ export class AssetPanel {
       card.querySelector('[data-act="export"]').addEventListener('click', () => this.onExport?.(asset));
       card.querySelector('[data-act="delete"]').addEventListener('click', () => this.deleteAssets(this.sel.has(id) ? [...this.sel] : [id]));
       const title = card.querySelector('.asset-title');
+      editable(title, `asset:${id}`, () => asset.title, v => this.store.update(id, { title: v }));
       title.addEventListener('dblclick', () => this.editInline(title, asset.title, v => this.store.update(id, { title: v || asset.title })));
       const tags = card.querySelector('.asset-tags');
       tags.addEventListener('dblclick', () => this.editInline(tags, (asset.tags || []).join(', '), v =>

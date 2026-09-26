@@ -94,7 +94,7 @@ Every key can be changed in **Shortcuts** (menu, or Shift+Cmd+/): search, click 
 | Cmd+B, Opt+Cmd+B, Shift+Cmd+B | Toggle the left, right and bottom docks |
 | ? | Docs |
 
-In the Outliner and the Boards panel, double-click an item to frame it on the canvas and Shift+double-click to rename it in place (Enter keeps it, Esc puts it back).
+Shift+double-click renames in place anything with a name: marks, groups and stages in the Outliner, boards (panel and canvas), stages, timeline tracks, and asset titles and folders (Enter keeps it, Esc puts it back). In the Outliner and the Boards panel a plain double-click frames the item on the canvas.
 
 **Scenes** (the layers button beside the title): a project holds several drawings, each with its boards, its own undo and History, and its own Timeline; Assets, brushes and settings are shared. New, duplicate, reorder and delete scenes from the button's menu; Alt+PageDown and Alt+PageUp step through them, Opt+Cmd+N makes a new one. Opening a drawing from Assets (or a file) makes it a new scene, so the one you were working on stays as it was. Agents use ams_scene.
 

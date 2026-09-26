@@ -4,7 +4,7 @@
  * right-click for more. The selected clip's properties are in Properties.
  */
 import { askConfirm, askText } from '../dialog.js';
-import { editInPlace, h } from '../ui.js';
+import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
 import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf } from '../../process/take.js';
 import { showMenu } from '../menu.js';
@@ -165,7 +165,7 @@ export function mountTimeline(root, app) {
 
   const trackLabel = (tr, take, readOnly) => {
     const el = h('div', { class: `wb-tl-label${tr.muted ? ' muted' : ''}`, 'data-track-label': tr.id, title: `${TRACK_NAMES[tr.kind] || tr.kind} track · right-click for more` },
-      h('span', { class: 'wb-tl-labeltext' }, tr.name),
+      editable(h('span', { class: 'wb-tl-labeltext' }, tr.name), `track:${tr.id}`, () => tr.name, v => { tr.name = v; drawLanes(); }),
       take && !readOnly ? h('button', { class: 'wb-tl-mute', title: tr.muted ? 'Unmute' : 'Mute (the track does not play)', onclick: ev => { ev.stopPropagation(); tr.muted = !tr.muted; edited(); } }, tr.muted ? '○' : '●') : null);
     if (take && !readOnly) {
       el.addEventListener('dblclick', () => editInPlace(el.querySelector('.wb-tl-labeltext'), v => { tr.name = v; drawLanes(); }));

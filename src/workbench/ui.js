@@ -156,3 +156,38 @@ export function editInPlace(el, onCommit, value = el.textContent, onEnd = null) 
   el.addEventListener('blur', blur);
   for (const ev of ['pointerdown', 'mousedown', 'click', 'dblclick', 'dragstart']) el.addEventListener(ev, e => { if (el.isContentEditable) e.stopPropagation(); });
 }
+
+/**
+ * Shift+double-click renames anything registered here, in place. Lists redraw on a click, so the
+ * browser's own dblclick often never arrives: two Shift-presses on the same key within 450 ms count,
+ * and the field opens on the element that has that key after the redraw.
+ *   editable(el, key, get, set)  e.g. editable(span, 'board:b2', () => b.title, v => rename(v))
+ */
+const EDITABLE = new Map();
+export function editable(el, key, get, set) {
+  el.dataset.editKey = key;
+  EDITABLE.set(key, { get, set });
+  if (!el.title) el.title = 'Shift+double-click to rename';
+  return el;
+}
+if (typeof document !== 'undefined' && !globalThis.__amsEditable) {
+  globalThis.__amsEditable = true;
+  let last = { key: null, t: 0 }, pending = null;
+  document.addEventListener('pointerdown', e => {
+    const el = e.target.closest?.('[data-edit-key]');
+    if (!el || !e.shiftKey || el.isContentEditable) { last = { key: null, t: 0 }; return; }
+    const key = el.dataset.editKey, now = performance.now();
+    if (last.key === key && now - last.t < 450) { pending = key; last = { key: null, t: 0 }; e.preventDefault(); }
+    else last = { key, t: now };
+  }, true);
+  const open = e => {
+    if (!pending) return;
+    const key = pending; pending = null;
+    e.stopPropagation(); e.preventDefault();
+    const reg = EDITABLE.get(key);
+    const el = document.querySelector(`[data-edit-key="${CSS.escape(key)}"]`);
+    if (reg && el) editInPlace(el, v => reg.set(v), reg.get());
+  };
+  document.addEventListener('click', open, true);
+  document.addEventListener('dblclick', e => { if (e.target.closest?.('[data-edit-key]') && e.shiftKey) { e.stopPropagation(); e.preventDefault(); } }, true);
+}

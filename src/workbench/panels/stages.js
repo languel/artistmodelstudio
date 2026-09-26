@@ -1,5 +1,5 @@
 /** Stages: the process as ordered layers. Click to make a stage active (new marks go there). */
-import { h, selectField } from '../ui.js';
+import { h, selectField, editable } from '../ui.js';
 import { icon } from '../icons.js';
 import { STAGE_KINDS } from '../../process/document.js';
 
@@ -11,8 +11,10 @@ export function mountStages(el, app) {
     doc.stages.forEach((s, i) => {
       const count = doc.elements.filter(e => e.stage === s.id).length;
       const active = app.activeStageId === s.id;
-      const name = h('span', { class: 'wb-stage-name', title: 'Double-click to rename' }, `${i + 1}. ${s.name}`);
-      name.addEventListener('dblclick', () => {
+      const label = editable(h('span', {}, s.name), `stage:${s.id}`, () => app.store.doc.stages.find(x => x.id === s.id)?.name || '', v => app.store.updateStage(s.id, { name: v }));
+      const name = h('span', { class: 'wb-stage-name', title: 'Double-click or Shift+double-click to rename' }, `${i + 1}. `, label);
+      name.addEventListener('dblclick', e => {
+        if (e.shiftKey) return;
         const input = h('input', { class: 'wb-inline', value: s.name });
         name.replaceWith(input);
         input.focus(); input.select();
