@@ -126,6 +126,8 @@ Every key can be changed in **Shortcuts** (menu, or Shift+Cmd+/): search, click 
 
 **Sculpt** (S, or Shift+drag over a mark with Select, Line, Plane or Gesture): reshape marks by brushing them: Push, Grab, Smooth, Relax, Pinch (Alt inflates), Twist, Jitter, Simplify, Thicken (Alt thins). With a selection only the selected marks change. [ and ] set the brush radius, Shift+[ and Shift+] its strength; the Properties panel has each tool's settings. Click the Sculpt button again (or right-click it) for the list. Sculpt tools are code: Code → Sculpt shows each one as sculpt({ id, params, step(pts, s, p, k) }), to fork or write your own.
 
+**Opt+right-click** the canvas for the active tool's parameters as sliders: the sculpt tool's radius, strength and settings; the selected marks' brush; or a drawing tool's brush for new marks. Right-click a mark → Sculpt picks a sculpt tool for the selection.
+
 **Parameters in code** become controls in the code editor. Each params entry (key: [min, max, default, 'doc']) gets a slider: in Sculpt it sets the value in use, in Brush it rewrites the default. Any number followed by a range comment, like 0.4 /* 0..1 */, gets a slider that rewrites it. Cmd-drag any number in the code to scrub it (Shift for fine steps).
 
 **Right-click** a mark for its operations: arrange (front, forward, backward, back), move to stage, brush, simplify (fewer points, same shape), duplicate, group, lock, hide, delete. Right-click the empty canvas for select all, fit, grid, snap, and a note there.

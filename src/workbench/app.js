@@ -3,6 +3,7 @@
  * and the process document at the center. Everything the user can do is also a
  * command (see mcp.js), so agents drive the same surface.
  */
+import { openToolParams } from './toolParams.js';
 import { SCULPTS, loadSculptLibrary } from '../process/sculpt.js';
 import { ProcessStore, createDocument, normalizeDocument, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
@@ -222,7 +223,8 @@ export class Workbench {
     });
     this.canvas.drawReference = ctx => this.drawReference(ctx);
     this.canvas.onGrid = () => this.renderChrome();
-    this.canvas.onContext = (e, hit, at) => showMenu(this.contextItems(hit, at), e.clientX, e.clientY);
+    // Opt+right-click: the active tool's parameters as sliders; right-click: the menu.
+    this.canvas.onContext = (e, hit, at) => (e.altKey ? openToolParams(this, e.clientX, e.clientY) : showMenu(this.contextItems(hit, at), e.clientX, e.clientY));
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));
     KIT.onImageLoad = () => this.canvas.invalidate();
@@ -513,6 +515,12 @@ export class Workbench {
       ] },
       { label: 'Move to stage', items: this.store.doc.stages.map(st => ({ label: st.name, run: () => this.store.patchElements(ids, { stage: st.id }, 'stage') })) },
       brushes.length ? { label: 'Brush', items: brushes.map(b => ({ label: b.label, run: () => this.store.change('brush', d => { for (const el of d.elements) if (ids.includes(el.id)) el.realize = { brush: b.id, params: {} }; }) })) } : null,
+      lineish ? { label: 'Sculpt', hint: 'Brush the selected marks into shape (Shift+drag over a mark does it with any tool)', items: [
+        ...Object.entries(SCULPTS).map(([id, t]) => ({ label: `${id === this.sculpt.tool ? '✓ ' : ''}${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } })),
+        '-',
+        { label: 'Settings…', hint: 'Opt+right-click anywhere', run: () => { const [sx, sy] = this.canvas.toScreen(wx, wy); const r = this.canvas.canvas.getBoundingClientRect(); this.setTool('sculpt'); openToolParams(this, r.left + sx, r.top + sy); } },
+        { label: 'Show code', run: () => this.openCode?.('sculpt', this.sculpt.tool) }
+      ] } : null,
       lineish ? { label: 'Simplify', hint: 'Fewer points, same shape', items: [
         { label: 'Lightly', run: () => simplify(1.5) }, { label: 'Moderately', run: () => simplify(4) }, { label: 'Strongly', run: () => simplify(10) }
       ] } : null,

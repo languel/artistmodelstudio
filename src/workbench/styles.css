@@ -561,3 +561,12 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, [contentedita
 .cm-param input[type=range] { width: 72px; height: 12px; margin: 0; accent-color: var(--wb-muted); cursor: ew-resize; }
 .cm-param.live input[type=range] { accent-color: var(--wb-text); }
 .cm-param-value { font-size: 10px; color: var(--wb-muted); min-width: 2.5em; }
+
+/* Opt+right-click: tool parameters */
+.wb-tp { width: 260px; gap: 6px; }
+.wb-tp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--wb-muted); margin-bottom: 2px; }
+.wb-tp-head .wb-btn { padding: 1px 8px; }
+.wb-tp-row { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 6px; font-size: 11px; }
+.wb-tp-label { color: var(--wb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-tp-row input[type=range] { width: 100%; margin: 0; accent-color: var(--wb-text); }
+.wb-tp-value { text-align: right; font-family: var(--font-mono, ui-monospace, monospace); font-size: 10.5px; color: var(--wb-muted); }
