@@ -3,7 +3,7 @@
  * to rename; the dot marks the board models learn from. The blackboard (outside the boards) is
  * listed last with its marks.
  */
-import { h } from '../ui.js';
+import { h, editInPlace } from '../ui.js';
 import { icon } from '../icons.js';
 import { boardsOf, marksOf, BLACKBOARD, MAIN } from '../../process/boards.js';
 
@@ -16,8 +16,9 @@ export function mountBoards(el, app) {
     const list = h('div', { class: 'wb-list' });
     boards.forEach((b, i) => {
       const active = app.activeBoard === b.id;
-      const name = h('span', { class: 'wb-stage-name', title: 'Double-click to rename' }, `${i + 1}. ${b.title}`);
-      name.addEventListener('dblclick', () => app.renameBoard(b.id));
+      const title = h('span', { 'data-board-title': b.id }, b.title);
+      const name = h('span', { class: 'wb-stage-name', title: 'Double-click to rename' }, `${i + 1}. `, title);
+      name.addEventListener('dblclick', e => { e.stopPropagation(); editInPlace(title, v => app.store.updateBoard(b.id, { title: v })); });
       const row = h('div', { class: `wb-stage${active ? ' active' : ''}`, 'data-guide': `board:${b.title}`, draggable: b.main ? 'false' : 'true', onclick: e => { if (e.target.closest('button')) return; app.goToBoard(b.id); }, oncontextmenu: e => { e.preventDefault(); app.boardMenu(b.id, e.clientX, e.clientY); } },
         h('button', { class: `wb-icon-btn wb-train${train === b.id ? ' on' : ''}`, title: train === b.id ? 'Models learn from this board' : 'Train on this board', html: '<svg viewBox="0 0 24 24" width="12" height="12"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>', onclick: () => app.store.setTrainBoard(b.id) }),
         name,

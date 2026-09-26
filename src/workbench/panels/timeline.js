@@ -4,7 +4,7 @@
  * right-click for more. The selected clip's properties are in Properties.
  */
 import { askConfirm, askText } from '../dialog.js';
-import { h } from '../ui.js';
+import { editInPlace, h } from '../ui.js';
 import { icon } from '../icons.js';
 import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf } from '../../process/take.js';
 import { showMenu } from '../menu.js';
@@ -164,17 +164,17 @@ export function mountTimeline(root, app) {
   };
 
   const trackLabel = (tr, take, readOnly) => {
-    const el = h('div', { class: `wb-tl-label${tr.muted ? ' muted' : ''}`, title: `${TRACK_NAMES[tr.kind] || tr.kind} track · right-click for more` },
+    const el = h('div', { class: `wb-tl-label${tr.muted ? ' muted' : ''}`, 'data-track-label': tr.id, title: `${TRACK_NAMES[tr.kind] || tr.kind} track · right-click for more` },
       h('span', { class: 'wb-tl-labeltext' }, tr.name),
       take && !readOnly ? h('button', { class: 'wb-tl-mute', title: tr.muted ? 'Unmute' : 'Mute (the track does not play)', onclick: ev => { ev.stopPropagation(); tr.muted = !tr.muted; edited(); } }, tr.muted ? '○' : '●') : null);
     if (take && !readOnly) {
-      el.addEventListener('dblclick', async () => { const v = await askText('Track name', tr.name); if (v) { tr.name = v; drawLanes(); } });
+      el.addEventListener('dblclick', () => editInPlace(el.querySelector('.wb-tl-labeltext'), v => { tr.name = v; drawLanes(); }));
       el.addEventListener('contextmenu', ev => { ev.preventDefault(); showMenu(trackMenu(tr, take), ev.clientX, ev.clientY); });
     }
     return el;
   };
   const trackMenu = (tr, take) => [
-    { label: 'Rename', run: async () => { const v = await askText('Track name', tr.name); if (v) { tr.name = v; drawLanes(); } } },
+    { label: 'Rename', run: () => { const el = document.querySelector(`[data-track-label="${CSS.escape(tr.id)}"] .wb-tl-labeltext`); if (el) editInPlace(el, v => { tr.name = v; drawLanes(); }); } },
     { label: tr.muted ? 'Unmute' : 'Mute', run: () => { tr.muted = !tr.muted; edited(); } },
     { label: `Add a ${(TRACK_NAMES[tr.kind] || tr.kind).toLowerCase()} track`, run: () => { addTrack(take, tr.kind); drawLanes(); } },
     '-',

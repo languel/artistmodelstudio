@@ -624,3 +624,5 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 .wb-stage[draggable="true"] { cursor: grab; }
 .wb-stage.drop-above { box-shadow: inset 0 2px 0 var(--wb-accent-2); }
 .wb-stage.drop-below { box-shadow: inset 0 -2px 0 var(--wb-accent-2); }
+.wb-editing { outline: 1px solid var(--wb-accent-2) !important; outline-offset: 1px; border-radius: 2px; cursor: text; user-select: text; -webkit-user-select: text; white-space: pre; }
+.wb-board-rename { position: fixed; z-index: 90; font: 12px ui-sans-serif, system-ui, sans-serif; line-height: 18px; padding: 0 3px; color: var(--wb-text); background: var(--wb-panel); min-width: 40px; }

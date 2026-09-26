@@ -23,7 +23,7 @@ import { bundledReferences } from '../ui/ReferencePanel.js';
 import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
 import { icon } from './icons.js';
-import { h, download } from './ui.js';
+import { h, download, editInPlace } from './ui.js';
 import { mountBoards } from './panels/boards.js';
 import { mountStages } from './panels/stages.js';
 import { mountProperties } from './panels/properties.js';
@@ -290,12 +290,22 @@ export class Workbench {
     this.goToBoard(bs[(i + delta + bs.length) % bs.length].id);
   }
 
-  async renameBoard(id) {
+  /** Rename a board in place: on its title above the board, or in the Boards panel. */
+  renameBoard(id) {
     const b = boardById(this.store.doc, id);
     if (!b) return;
-    const { askText } = await import('./dialog.js');
-    const v = await askText('Board title', b.title);
-    if (v && v.trim() && v.trim() !== b.title) this.store.updateBoard(id, { title: v.trim() });
+    const commit = v => this.store.updateBoard(id, { title: v });
+    const label = (this.canvas.boardLabels || []).find(l => l.id === id);
+    if (label && label.y > 0 && label.x < this.canvas.w) {
+      // A field over the canvas title, same place, same type.
+      const r = this.canvas.canvas.getBoundingClientRect();
+      const el = h('span', { class: 'wb-board-rename', style: { left: `${r.left + label.x}px`, top: `${r.top + label.y}px` } }, b.title);
+      document.body.append(el);
+      editInPlace(el, commit, b.title, () => el.remove());
+      return;
+    }
+    const row = document.querySelector(`[data-board-title="${CSS.escape(id)}"]`);
+    if (row) editInPlace(row, commit);
   }
 
   boardMenu(id, x, y) {

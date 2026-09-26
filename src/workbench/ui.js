@@ -126,3 +126,33 @@ if (typeof Element !== 'undefined' && !Element.prototype.__amsSkipEmpty) {
     Element.prototype[name] = function (...kids) { return orig.apply(this, kids.filter(k => k !== null && k !== undefined && k !== false)); };
   }
 }
+
+/**
+ * Rename in place: the label's text becomes editable where it is. Enter (or clicking away) keeps
+ * it, Esc puts it back. onCommit(value) gets the new text when it changed and is not empty.
+ */
+export function editInPlace(el, onCommit, value = el.textContent, onEnd = null) {
+  if (!el || el.isContentEditable) return;
+  const before = value;
+  el.textContent = value;
+  el.contentEditable = 'plaintext-only';
+  el.spellcheck = false;
+  el.classList.add('wb-editing');
+  el.focus();
+  const r = document.createRange(); r.selectNodeContents(el);
+  const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  let done = false;
+  const finish = keep => {
+    if (done) return; done = true;
+    el.contentEditable = 'false'; el.classList.remove('wb-editing');
+    el.removeEventListener('keydown', key); el.removeEventListener('blur', blur);
+    const v = el.textContent.replace(/\s+/g, ' ').trim();
+    if (keep && v && v !== before) onCommit(v); else el.textContent = before;
+    onEnd?.();
+  };
+  const key = e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); finish(false); } };
+  const blur = () => finish(true);
+  el.addEventListener('keydown', key);
+  el.addEventListener('blur', blur);
+  for (const ev of ['pointerdown', 'mousedown', 'click', 'dblclick', 'dragstart']) el.addEventListener(ev, e => { if (el.isContentEditable) e.stopPropagation(); });
+}
