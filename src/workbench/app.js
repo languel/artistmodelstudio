@@ -360,6 +360,7 @@ export class Workbench {
     this.assetPanel = new AssetPanel({
       store: this.assetStore,
       onOpen: a => this.openAsset(a),
+      onPlace: a => { const c = this.canvas; this.placeAsset(a.id, c.toWorld(c.w / 2, c.h / 2)).catch(err => this.log(err.message, 'error')); },
       onUseAsReference: a => this.setReferenceFromBlob(a.blob, a.title),
       onExport: a => (a.kind === 'dataset' && a.program?.jsonl
         ? download(a.program.jsonl, `${a.title}.jsonl`, 'application/jsonl')

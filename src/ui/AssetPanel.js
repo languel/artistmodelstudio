@@ -7,6 +7,12 @@
 import { askConfirm, askText } from '../workbench/dialog.js';
 import { icon } from './icons.js';
 import { matches } from '../assets/assetStore.js';
+import { renderToCanvas } from '../process/render.js';
+import { normalizeDocument } from '../process/document.js';
+import { docAt } from '../process/take.js';
+import { rangeInput } from '../workbench/codeParams.js';
+
+const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return null; };
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const KIND_ICONS = { audio: 'play', text: 'script', take: 'play', walkthrough: 'play', dataset: 'database', process: 'paintBrush', variation: 'squaresPlus', painting: 'paintBrush', import: 'arrowUpTray', klee: 'photo' };
@@ -14,8 +20,10 @@ const KIND_TIPS = { process: 'Process document (workbench)', variation: 'Variati
 const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', walkthrough: 'Walkthroughs', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee' };
 
 export class AssetPanel {
-  constructor({ store, onUseAsReference, onExport, onOpen }) {
+  constructor({ store, onUseAsReference, onExport, onOpen, onPlace }) {
     this.onOpen = onOpen;
+    this.onPlace = onPlace;
+    this.previewId = null;
     this.store = store;
     this.onUseAsReference = onUseAsReference;
     this.onExport = onExport;
@@ -41,12 +49,21 @@ export class AssetPanel {
           <button id="assets-new-folder" class="btn-micro btn-icon-only" title="New folder here">${icon('folderPlus', 'icon-sm')}</button>
           <button id="assets-import-files" class="btn-micro btn-icon-only" title="Import files: images, SVG, audio, text, JSON (drawings and takes come back as themselves). Or drop files here.">${icon('arrowUpTray', 'icon-sm')}</button>
           <button id="assets-import" class="btn-micro btn-icon-only" title="Import a folder (subfolders are kept; a sources.json supplies titles)">${icon('folder', 'icon-sm')}</button>
+          <span class="assets-zoom" id="assets-zoom" title="Card size"></span>
           <input id="assets-import-input" type="file" webkitdirectory multiple hidden />
           <input id="assets-import-files-input" type="file" multiple hidden accept="image/*,.svg,audio/*,.mp3,.wav,.ogg,.m4a,text/*,.txt,.md,.json" />
         </div>
+        <div class="assets-preview" id="assets-preview"></div>
         <div class="assets-crumbs" id="assets-crumbs"></div>
         <div class="assets-grid" id="assets-grid"></div>
       </div>`;
+    // Card size.
+    const zoom = rangeInput({ min: 64, max: 260, step: 2, value: Number(ls('ams_assets_zoom')) || 140, title: 'Card size' });
+    const applyZoom = () => { container.querySelector('#assets-grid').style.setProperty('--card', `${zoom.value}px`); container.querySelector('.assets-panel').classList.toggle('compact', Number(zoom.value) < 110); };
+    zoom.addEventListener('input', () => { ls('ams_assets_zoom', zoom.value); applyZoom(); });
+    container.querySelector('#assets-zoom').append(zoom);
+    applyZoom();
+    this.drawPreview();
     const q = container.querySelector('#assets-q');
     q.addEventListener('input', () => { this.query = q.value; this.draw(); });
     container.querySelector('#assets-kind').addEventListener('change', e => { this.kind = e.target.value; this.draw(); });
@@ -87,6 +104,8 @@ export class AssetPanel {
     if (!this.container) return;
     [this.assets, this.folderList] = await Promise.all([this.store.all(), this.store.folders()]);
     this.draw();
+    if (this.previewId && !this.assets.some(a => a.id === this.previewId)) this.previewId = null;
+    this.drawPreview();
   }
 
   /** Assets in the current folder, or anywhere below it while searching. */
@@ -137,13 +156,13 @@ export class AssetPanel {
           <span class="asset-title" title="${esc(a.title)}">${esc(a.title)}</span>
           <span class="asset-kind" title="${esc(KIND_TIPS[a.kind] || a.kind)}">${icon(KIND_ICONS[a.kind] || 'photo', 'icon-sm')}</span>
         </div>
-        <div class="variant-thumb-wrap" title="Double-click to show in the main preview">
+        <div class="variant-thumb-wrap" title="Click to preview · double-click to open">
           <img class="variant-thumb" src="${a.thumb}" alt="${esc(a.title)}" draggable="false" />
         </div>
         <div class="asset-tags" title="Double-click to edit tags (comma separated)">${a.tags?.length ? a.tags.map(t => `<span class="asset-tag">#${esc(t)}</span>`).join('') : '<span class="asset-tag muted">#</span>'}${this.query && a.folder !== this.folder ? `<span class="asset-folder">${esc(a.folder || '/')}</span>` : ''}</div>
         <div class="variant-card-footer">
           <div class="asset-actions">
-            <button class="btn-micro btn-icon-only" data-act="open" title="Show in the main preview">${icon('expand', 'icon-sm')}</button>
+            <button class="btn-micro btn-icon-only" data-act="open" title="Preview (above)">${icon('expand', 'icon-sm')}</button>
             <button class="btn-micro btn-icon-only" data-act="ref" title="Use as reference">${icon('photo', 'icon-sm')}</button>
             <button class="btn-micro btn-icon-only" data-act="export" title="Export">${icon('arrowDownTray', 'icon-sm')}</button>
             <button class="btn-micro btn-icon-only" data-act="delete" title="Delete">${icon('trash', 'icon-sm')}</button>
@@ -165,6 +184,7 @@ export class AssetPanel {
         } else if (e.metaKey || e.ctrlKey) { this.sel.has(id) ? this.sel.delete(id) : this.sel.add(id); this.anchor = id; }
         else { this.sel = new Set([id]); this.anchor = id; }
         this.markSelection();
+        if (!e.shiftKey && !(e.metaKey || e.ctrlKey)) this.preview(id);
       });
       card.addEventListener('dragstart', e => {
         if (!this.sel.has(id)) { this.sel = new Set([id]); this.anchor = id; this.markSelection(); }
@@ -174,7 +194,7 @@ export class AssetPanel {
         this.store.update(id, { rating: asset.rating === r ? 0 : r });
       }));
       card.querySelector('.variant-thumb-wrap').addEventListener('dblclick', () => this.onOpen?.(asset));
-      card.querySelector('[data-act="open"]').addEventListener('click', () => this.onOpen?.(asset));
+      card.querySelector('[data-act="open"]').addEventListener('click', () => this.preview(id, true));
       card.querySelector('[data-act="ref"]').addEventListener('click', () => this.onUseAsReference?.(asset));
       card.querySelector('[data-act="export"]').addEventListener('click', () => this.onExport?.(asset));
       card.querySelector('[data-act="delete"]').addEventListener('click', () => this.deleteAssets(this.sel.has(id) ? [...this.sel] : [id]));
@@ -184,6 +204,71 @@ export class AssetPanel {
       tags.addEventListener('dblclick', () => this.editInline(tags, (asset.tags || []).join(', '), v =>
         this.store.update(id, { tags: v.split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean) })));
     });
+  }
+
+  /** Show an asset in the preview pane (it opens the pane if asked). */
+  preview(id, reveal = false) {
+    this.previewId = id;
+    if (reveal) ls('ams_assets_preview', 'open');
+    this.drawPreview();
+  }
+
+  drawPreview() {
+    const pane = this.container?.querySelector('#assets-preview');
+    if (!pane) return;
+    const open = ls('ams_assets_preview') !== 'closed';
+    const a = this.assets.find(x => x.id === this.previewId);
+    const btn = (label, title, fn, iconName) => { const b = document.createElement('button'); b.className = 'btn-micro' + (iconName ? ' btn-icon-only' : ''); b.title = title; if (iconName) b.innerHTML = icon(iconName, 'icon-sm'); else b.textContent = label; b.addEventListener('click', fn); return b; };
+    const head = document.createElement('div');
+    head.className = 'assets-preview-head';
+    const title = document.createElement('span');
+    title.className = 'assets-preview-title';
+    title.textContent = a ? a.title : 'Preview';
+    const toggle = btn('', open ? 'Hide the preview' : 'Show the preview', () => { ls('ams_assets_preview', open ? 'closed' : 'open'); this.drawPreview(); }, open ? 'minus' : 'plus');
+    head.append(toggle, title);
+    if (a) {
+      const canOpen = a.program?.type === 'ams-process' || a.program?.actions || a.kind === 'take' || a.kind === 'walkthrough' || a.kind === 'dataset';
+      if (canOpen) head.append(btn('', a.program?.type === 'ams-process' || a.program?.actions ? 'Open as the drawing (replaces the canvas; Undo brings yours back)' : 'Open', () => this.onOpen?.(a), 'arrowRight'));
+      if (this.onPlace && a.kind !== 'dataset' && a.kind !== 'walkthrough') head.append(btn('', 'Place on the canvas (a drawing comes in as a group; a picture as a layer)', () => this.onPlace(a), 'squaresPlus'));
+      if (a.blob?.type?.startsWith('image/')) head.append(btn('', 'Use as the reference under the artboard', () => this.onUseAsReference?.(a), 'photo'));
+    }
+    pane.replaceChildren(head);
+    pane.classList.toggle('closed', !open);
+    if (!open) return;
+    const body = document.createElement('div');
+    body.className = 'assets-preview-body';
+    pane.append(body);
+    if (!a) { body.innerHTML = '<p class="assets-empty">Click a card to preview it.</p>'; return; }
+    const info = document.createElement('div');
+    info.className = 'assets-preview-info';
+    const program = a.program;
+    try {
+      if (program?.type === 'ams-process' || (a.kind === 'take' && program?.baseline)) {
+        const doc = normalizeDocument(a.kind === 'take' ? docAt(program, program.duration ?? Infinity) : program);
+        const scale = Math.min(1, 600 / Math.max(doc.artboard.width, doc.artboard.height));
+        const c = renderToCanvas(doc, { scale, mode: 'picture' });
+        c.className = 'assets-preview-media';
+        body.append(c);
+        info.textContent = a.kind === 'take'
+          ? `Take · ${program.clips?.length || 0} clips · ${Math.round((program.duration || 0) / 1000)} s (as it ends)`
+          : `${doc.elements.length} marks · ${doc.stages.length} stages · ${doc.artboard.width}×${doc.artboard.height}`;
+      } else if (a.kind === 'audio' && a.blob) {
+        const au = document.createElement('audio'); au.controls = true; au.src = URL.createObjectURL(a.blob); au.className = 'assets-preview-audio';
+        body.append(au);
+        info.textContent = a.meta?.file || 'audio';
+      } else if (a.kind === 'text' && a.blob) {
+        const pre = document.createElement('pre'); pre.className = 'assets-preview-text';
+        a.blob.text().then(t => { pre.textContent = t.slice(0, 4000) + (t.length > 4000 ? '\n…' : ''); });
+        body.append(pre);
+      } else if (a.thumb || a.blob?.type?.startsWith('image/')) {
+        const img = document.createElement('img'); img.className = 'assets-preview-media';
+        img.src = a.blob?.type?.startsWith('image/') ? URL.createObjectURL(a.blob) : a.thumb;
+        body.append(img);
+        info.textContent = [a.width && a.height ? `${a.width}×${a.height}` : '', a.meta?.artist, a.meta?.year].filter(Boolean).join(' · ');
+      } else info.textContent = a.kind;
+    } catch (err) { info.textContent = `No preview: ${err.message}`; }
+    if (a.tags?.length) info.textContent += `${info.textContent ? ' · ' : ''}${a.tags.map(t => `#${t}`).join(' ')}`;
+    body.append(info);
   }
 
   markSelection() {
