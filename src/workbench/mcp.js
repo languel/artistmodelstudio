@@ -99,6 +99,21 @@ export function workbenchTools(app) {
       return { image };
     } },
     { name: 'ams_process_sheet', description: 'PNG process sheet of a board (main unless given): each stage built up, plus decisions.', inputSchema: S({ board: str('Board id or title') }), run: (a) => ({ image: png(processSheet(boardDoc(doc(), (a.board && findBoard(doc(), a.board)?.id) || MAIN))) }) },
+    { name: 'ams_scene', description: 'Scenes: a project holds several drawings, each with its boards, undo, History and Timeline (assets and brushes are shared). list; new {title?, doc?} (an empty drawing, or a copy of a process document) and open it; open {id}; duplicate; delete {id} (not the last; its drawing is gone unless saved to Assets); move {id, delta}; get {id} (another scene\'s document without opening it).', inputSchema: S({ action: { type: 'string', enum: ['list', 'new', 'open', 'duplicate', 'delete', 'move', 'get'] }, id: str('Scene id or title'), title: str(''), doc: { type: 'object' }, delta: num('±1') }, ['action']), run: async (a) => {
+      const Sc = app.scenes;
+      const find = k => Sc.all.find(s => s.id === k || String(s.title).toLowerCase() === String(k || '').toLowerCase());
+      const list = () => ({ scenes: Sc.all.map((s, i) => ({ index: i, id: s.id, title: s.title, open: s.id === Sc.list.active })) });
+      if (a.action === 'list') return list();
+      if (a.action === 'new') { await Sc.create({ doc: a.doc || null, title: a.title || null }); return list(); }
+      if (a.action === 'duplicate') { await Sc.duplicate(); return list(); }
+      const s = find(a.id);
+      if (!s) throw new Error(`No scene “${a.id}”`);
+      if (a.action === 'open') await Sc.switchTo(s.id);
+      if (a.action === 'delete') await Sc.remove(s.id);
+      if (a.action === 'move') Sc.move(s.id, a.delta || 1);
+      if (a.action === 'get') return await Sc.docOf(s.id);
+      return list();
+    } },
     { name: 'ams_page', description: 'The drawing as a page (self-contained HTML): every board with marks or text as a section (title, picture, process view, replay, its text in Markdown), after an intro. Set a board\'s text with ams_board update {patch: {text}}; the intro with intro here (kept in the drawing). download: true also saves the file.', inputSchema: S({ intro: str('Markdown before the boards (kept)'), title: str('Page title (default: the drawing\'s)'), boards: { type: 'array', items: { type: 'string' }, description: 'Board ids or titles, in order (default: all with marks or text)' }, download: { type: 'boolean' } }), run: (a) => {
       if (a.intro !== undefined) app.store.change('page intro', d => { d.meta = { ...(d.meta || {}), intro: a.intro }; }, { by: 'agent' });
       const ids = a.boards ? a.boards.map(k => findBoard(doc(), k)?.id).filter(Boolean) : null;

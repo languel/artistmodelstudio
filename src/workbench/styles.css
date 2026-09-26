@@ -619,3 +619,5 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 .wb-present-hud.fade { animation: wb-hud 2.4s ease forwards; }
 @keyframes wb-hud { 0% { opacity: 0; } 10% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
 .wb-board-strip .wb-ctl-strip { flex: 1 1 100%; }
+.wb-scene-btn { width: auto !important; padding: 0 6px; gap: 3px; display: inline-flex; align-items: center; }
+.wb-scene-btn span { font-size: 10.5px; color: var(--wb-muted); }

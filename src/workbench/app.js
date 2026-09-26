@@ -6,6 +6,7 @@
 import { openToolParams } from './toolParams.js';
 import { boardDoc, boardById, boardsOf, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
 import { sceneHtml, docFromPage } from '../process/page.js';
+import { Scenes } from './scenes.js';
 import { SCULPTS, loadSculptLibrary } from '../process/sculpt.js';
 import { ProcessStore, createDocument, normalizeDocument, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
@@ -225,6 +226,22 @@ export class Workbench {
     this.renderChrome();
   }
 
+  // ---- scenes ------------------------------------------------------------------------
+  sceneMenu(x, y) {
+    const S = this.scenes, cur = S.list.active;
+    showMenu([
+      { label: 'Scenes' },
+      ...S.all.map((s, i) => ({ label: `${s.id === cur ? '✓ ' : ''}${i + 1}. ${s.title || 'Untitled'}`, run: () => S.switchTo(s.id) })),
+      '-',
+      { label: 'New scene', hint: 'An empty drawing; this one stays as it is', run: () => S.create() },
+      { label: 'Duplicate this scene', run: () => S.duplicate() },
+      { label: 'Move earlier', disabled: S.all[0]?.id === cur, run: () => S.move(cur, -1) },
+      { label: 'Move later', disabled: S.all.at(-1)?.id === cur, run: () => S.move(cur, 1) },
+      S.all.length > 1 ? '-' : null,
+      S.all.length > 1 ? { label: 'Delete this scene…', items: [{ label: 'Save it to Assets first', run: async () => { await this.saveToAssets(); S.remove(cur); } }, { label: `Delete “${S.current?.title || 'Untitled'}”`, run: () => S.remove(cur) }, { label: 'Cancel', run: () => {} }] } : null
+    ], x, y);
+  }
+
   // ---- presenting ---------------------------------------------------------------------
   /**
    * Present: the boards full-window, in order, with eased moves between them. → / Space / PageDown
@@ -436,6 +453,8 @@ export class Workbench {
     this.openCode ??= openCodeFirst;
     loadLibrary();
     this.history = new History(this);
+    this.scenes = new Scenes(this);
+    this.scenes.on(() => this.renderChrome());
     this.recorder = new Recorder(this);
     this.player = new TakePlayer(this);
     this.shortcuts = new Shortcuts(this);
@@ -493,10 +512,11 @@ export class Workbench {
       this.log(`Dataset “${a.title}”: ${added} new decision labels added to Decide.`);
       return;
     }
-    if (a.program?.type === 'ams-process') { this.loadDocument(a.program, 'open asset'); this.log(`Opened “${a.title}”.`); return; }
+    // A drawing opens as a new scene: the one you were working on stays as it was.
+    if (a.program?.type === 'ams-process') { await this.scenes.create({ doc: a.program, title: a.title }); this.log(`Opened “${a.title}” as a new scene.`); return; }
     if (a.program?.actions) {
       const doc = dslToProcess(a.program, { title: a.title, width: a.width || 1000, height: a.height || 1000 });
-      this.loadDocument(doc, 'open converted asset');
+      await this.scenes.create({ doc, title: a.title });
       this.log(`Opened “${a.title}” (converted from the first-phase drawing language).`);
       return;
     }
@@ -533,8 +553,10 @@ export class Workbench {
     const title = h('input', { class: 'wb-title', 'data-guide': 'title', value: doc.title || 'Untitled', title: 'Title', onchange: e => this.store.change('title', d => { d.title = e.target.value.trim() || 'Untitled'; }) });
     title.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); });
     const stage = this.activeStage;
+    const sc = this.scenes?.all || [], si = sc.findIndex(s => s.id === this.scenes?.list.active);
     const left = h('div', { class: 'wb-island' },
       h('button', { class: 'wb-tool', 'data-guide': 'menu', title: 'Menu', html: icon('menu'), onclick: e => this.openMenu(e.currentTarget) }),
+      h('button', { class: 'wb-tool wb-scene-btn', 'data-guide': 'scenes', title: `Scenes: ${si + 1} of ${sc.length} (Alt+PageUp / PageDown to step)`, html: `${icon('layers')}<span>${si + 1}/${sc.length}</span>`, onclick: e => { const r = e.currentTarget.getBoundingClientRect(); this.sceneMenu(r.left, r.bottom + 6); } }),
       title,
       h('button', { class: 'wb-tool', title: 'Undo (Cmd+Z)', html: icon('undo'), onclick: () => this.store.undo() }),
       h('button', { class: 'wb-tool', title: 'Redo (Shift+Cmd+Z)', html: icon('redo'), onclick: () => this.store.redo() }),
@@ -802,8 +824,7 @@ export class Workbench {
           doc = j.type === 'excalidraw' || Array.isArray(j.elements) && j.elements[0]?.type && !j.stages ? fromExcalidraw(j) : j.actions ? dslToProcess(j) : j;
         }
         doc.title ||= f.name.replace(/\.[^.]+$/, '');
-        this.loadDocument(doc, 'open file');
-        this.canvas.fit();
+        await this.scenes.create({ doc, title: doc.title });
         this.log(`Opened ${f.name}.`);
       } catch (err) { this.log(`Could not open ${f.name}: ${err.message}`, 'error'); }
     });
