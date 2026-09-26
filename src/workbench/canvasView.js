@@ -836,7 +836,7 @@ export class CanvasView {
     const role = tool === 'brush' ? (this.getDefaults('brush').role || 'line') : tool;
     const dkey = tool === 'brush' ? 'brush' : role;
     const d = this.getDefaults(dkey);
-    this.draft = normalizeElement({ role, stage: 'draft', points: [[wx, wy, 0, pressureOf(e, 0)]], realize: d.realize, color: d.color, ...(d.fill ? { fill: d.fill } : {}), seed: 1 }, 'draft');
+    this.draft = normalizeElement({ role, stage: 'draft', points: [[wx, wy, 0, pressureOf(e, 0)]], realize: d.realize, color: d.color, ...(d.fill ? { fill: d.fill } : {}), ...(d.path === 'straight' ? { path: 'straight' } : {}), seed: 1 }, 'draft');
     let last = [wx, wy, t0];
     this.pointer = true;
     const straight = tool === 'guide';
@@ -917,7 +917,7 @@ export class CanvasView {
     const e = this.store.addElement({
       role, stage: stage.id, points, realize: structuredClone(d.realize || DEFAULT_REALIZE[role]),
       color: d.color || null, ...(d.fill ? { fill: d.fill } : {}), why: d.why || '', by: { kind: 'user', name: 'you' },
-      ...(d.opacity < 1 ? { opacity: d.opacity } : {}), ...(d.blend && d.blend !== 'normal' ? { blend: d.blend } : {}),
+      ...(d.opacity < 1 ? { opacity: d.opacity } : {}), ...(d.blend && d.blend !== 'normal' ? { blend: d.blend } : {}), ...(d.path === 'straight' ? { path: 'straight' } : {}),
       ...(role === 'note' ? { note: structuredClone(d.note || {}) } : {}), ...extra
     });
     if (d.sticky === false || role === 'note') this.onTool?.('select');

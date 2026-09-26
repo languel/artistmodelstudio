@@ -23,7 +23,7 @@ import { createDocument, normalizeDocument, newId, STAGE_KINDS } from './documen
 import { BRUSHES, mulberry32, installLines, defSource, registerBrush, isBuiltin } from './brushes.js';
 import { findBoard, newBoardId, nextBoardPlace } from './boards.js';
 
-const ELEMENT_KEYS = new Set(['why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id']);
+const ELEMENT_KEYS = new Set(['path', 'fill', 'why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id']);
 
 /** 1D/2D value noise (seeded, smooth), enough for gentle variation. */
 function makeNoise(rng) {
@@ -113,7 +113,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
       realize: { brush, params },
       color: el.color || null,
       text: el.text,
-      ...Object.fromEntries(['label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group'].filter(k => el[k] !== undefined).map(k => [k, el[k]])),
+      ...Object.fromEntries(['label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'path', 'fill'].filter(k => el[k] !== undefined).map(k => [k, el[k]])),
       why: el.why || '',
       by: el.by || by,
       seed: el.seed ?? Math.floor(rng() * 1e9),

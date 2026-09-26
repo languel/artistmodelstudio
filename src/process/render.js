@@ -41,6 +41,7 @@ export function renderDocument(ctx, doc, {
     const construction = brush.construction || e.role === 'guide' || e.role === 'gesture' || e.role === 'note';
     if (construction) { overlay.push(e); continue; }
     env.rng = mulberry32(e.seed || 1);
+    env.straight = e.path === 'straight';
     if (e.color === 'none') {
       // No stroke: only the fill (a plane's brush paints it).
       if (e.fill && e.role === 'plane') withLook(ctx, e, () => brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env));
@@ -58,6 +59,7 @@ export function renderDocument(ctx, doc, {
   if (mode === 'process') {
     for (const e of overlay) {
       env.rng = mulberry32(e.seed || 1);
+      env.straight = e.path === 'straight';
       if (e.role === 'note') { if (showNotes) withLook(ctx, e, () => drawNote(ctx, e)); continue; }
       const brushId = BRUSHES[e.realize?.brush]?.construction ? e.realize.brush : 'guide';
       withLook(ctx, e, () => BRUSHES[brushId].draw(ctx, e, resolveParams(brushId, e.realize.params), env));
@@ -102,7 +104,7 @@ export function renderToCanvas(doc, { scale = 1, mode = 'picture', upTo = Infini
 
 /** Fill: the inside of a closed mark, painted under its stroke. */
 function fillShape(ctx, e) {
-  const pts = KIT.smoothPath(e.points, true);
+  const pts = e.path === 'straight' ? e.points : KIT.smoothPath(e.points, true);
   ctx.save();
   ctx.fillStyle = e.fill;
   KIT.tracePath(ctx, pts, true);
@@ -113,7 +115,7 @@ function fillShape(ctx, e) {
 function strokeShape(ctx, e) {
   ctx.save();
   ctx.strokeStyle = e.color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
-  KIT.tracePath(ctx, KIT.smoothPath(e.points, true), true);
+  KIT.tracePath(ctx, e.path === 'straight' ? e.points : KIT.smoothPath(e.points, true), true);
   ctx.stroke();
   ctx.restore();
 }

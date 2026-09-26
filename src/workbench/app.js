@@ -218,7 +218,7 @@ export class Workbench {
       return { ...this.defaults(r), role: r, realize: { brush: b, params: { ...(this.brush.params[b] || {}) } } };
     }
     const d = this.toolDefaults[role] || {};
-    return { color: (role !== 'note' && this.paint?.stroke) || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...(role === 'note' ? { note: d.note || {} } : {}) };
+    return { color: (role !== 'note' && this.paint?.stroke) || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...(d.path === 'straight' ? { path: 'straight' } : {}), ...(role === 'note' ? { note: d.note || {} } : {}) };
   }
 
   // ---- boards ----------------------------------------------------------------------
@@ -473,7 +473,7 @@ export class Workbench {
     if (patch.realize) d.realize = { brush: patch.realize.brush || d.realize.brush, params: patch.realize.brush && patch.realize.brush !== d.realize.brush ? {} : { ...d.realize.params, ...(patch.realize.params || {}) } };
     if ('color' in patch) d.color = patch.color;
     if ('why' in patch) d.why = patch.why;
-    for (const k of ['opacity', 'blend']) if (k in patch) d[k] = patch[k];
+    for (const k of ['opacity', 'blend', 'path']) if (k in patch) d[k] = patch[k];
     if (patch.note) d.note = { ...(d.note || {}), ...patch.note };
     this.toolDefaults[role] = d;
     try { localStorage.setItem(DEFAULTS_KEY, JSON.stringify(this.toolDefaults)); } catch { /* ignore */ }

@@ -116,7 +116,8 @@ export function normalizeElement(e, stage) {
     ...(e.src ? { src: String(e.src) } : {}),
     ...(e.asset ? { asset: String(e.asset) } : {}),
     ...(Number.isFinite(Number(e.opacity)) && Number(e.opacity) < 1 ? { opacity: Math.max(0, Number(e.opacity)) } : {}),
-    ...(e.blend && e.blend !== 'normal' ? { blend: String(e.blend) } : {})
+    ...(e.blend && e.blend !== 'normal' ? { blend: String(e.blend) } : {}),
+    ...(e.path === 'straight' ? { path: 'straight' } : {})
   };
 }
 

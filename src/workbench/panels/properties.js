@@ -152,7 +152,8 @@ export function mountProperties(el, app) {
 function lookSection(e, onChange) {
   return section('Look', true,
     row('Opacity', numberField({ value: e.opacity ?? 1, min: 0, max: 1, step: 0.05, def: 1, title: 'The whole element’s opacity (on top of the brush’s own)', onChange: v => onChange({ opacity: v }) })),
-    row('Blend', selectField(BLENDS.map(b => [b, b]), e.blend || 'normal', v => onChange({ blend: v }), 'How the element mixes with what is under it')));
+    row('Blend', selectField(BLENDS.map(b => [b, b]), e.blend || 'normal', v => onChange({ blend: v }), 'How the element mixes with what is under it')),
+    row('Path', selectField([['smooth', 'Smooth'], ['straight', 'Straight']], e.path === 'straight' ? 'straight' : 'smooth', v => onChange({ path: v === 'straight' ? 'straight' : undefined }), 'Smooth: a curve through the points. Straight: straight segments between them')));
 }
 
 /** Notes: style, lettering, size, wrap width, background. The text color is the element's color. */
