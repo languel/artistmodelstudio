@@ -6,6 +6,9 @@ Artist Model Studio is a training ground for that question: *creative coding for
 
 - **Workbench** (`/`): an infinite canvas with dockable panels (after underscores). Draw with time and pressure, work in stages, edit with an outliner, transforms and a right-click menu, place images as layers, write and run scores in a real code editor, study processes (filmstrip, decisions, reasons, process sheets), generate with models or agents, and keep everything in Assets. A command palette (Cmd+K), searchable docs, reassignable shortcuts and walkthroughs come with it.
 - **Brushes are code**: every brush, the built-ins included, is a small program you (or a model, or an agent) can read, fork and write, with a live preview; drawings carry the brushes they use.
+- **Sculpting**: push, grab, smooth, relax, pinch, twist, jitter, simplify (or resample) and thicken marks with a brush (after threegrease), from a Sculpt tool or Shift+drag. Sculpt tools are code as well.
+- **Parameters are controls**: parameters declared in code become sliders that act on the selection, the active brush or the tool in use. They also appear in the preview and on Opt+right-click, and any number in code can be scrubbed.
+- **Timeline and History**: record takes as clips on editor-style tracks (drawing, narration, titles, camera, audio) and export video with sound. History keeps every change, to preview, restore or drag onto the Timeline.
 - **Studies**: *Study: Senecio* walks through studying a painting, writing its methods as brushes and a score, reproducing it, and drawing a new subject in its manner.
 - **Decisions**: the Decide panel turns drawing into typed decisions a small local model (lev) can learn from your choices.
 - **Exercises** after Kandinsky, Klee and the algorists: the same briefs for students and models.

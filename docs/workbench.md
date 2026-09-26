@@ -20,15 +20,15 @@ and collapse, as in underscores:
 |---|---|
 | Stages | The process as ordered layers: show, lock, rename, kind, reorder. New marks go to the active stage. |
 | Outliner | Every mark by stage and group: select (Shift for a range, Cmd to toggle), rename, drag to reorder or move between stages and groups, hide, lock, delete. Cmd+G / Shift+Cmd+G group and ungroup. |
-| Assets | Saved processes, earlier generations, imports, and the Klee references (search, folders, stars, tags). |
+| Assets | Saved processes, takes, earlier generations, imports (images, audio, text, SVG, JSON; files or whole folders, subfolders kept), and the Klee references. Search, folders (right-click to remove), stars, tags; click, Shift and Cmd select several to drag or delete. |
 | Properties | The selection, or the current tool's defaults: role, stage, brush and its parameters, color, the reason (why), the author. |
-| Code | Everything as code, in modes. **Score:** write or load a score (Cmd+Enter runs it; the exercises live here). **Brush:** read, fork and write brushes with a live preview. **Selection:** the selected marks as score code; edit and Apply, and they change in place (same ids). **Clip:** a timeline clip as `clip({ … })`. Right-click a mark or a clip → Show code. |
+| Code | Everything as code, in modes. **Score:** write or load a score (Cmd+Enter runs it; the exercises live here). **Brush:** read, fork and write brushes with a live preview. **Sculpt:** the sculpt tools, with a preview sweep. **Selection:** the selected marks as score code; edit and Apply, and they change in place (same ids). **Clip:** a timeline clip as `clip({ … })`. Right-click a mark or a clip → Show code. Parameters are sliders (see *Parameters in code*); two glyphs at the right of the tabs toggle line numbers and where sliders go. |
 | Process | Picture or process view, stage scrub and replay, a filmstrip, decisions, reasons, the editing record, and the process sheet. |
 | Generate | Engines and models write scores. Candidates can be opened, saved, or read as scores. |
 | Assistant | Chat with any engine (Ollama, WebGPU, OpenRouter…). It acts through the same tools as an agent, visibly. *How did you do that?* replays its last session. |
 | Decide | The drawing as a sequence of typed decisions, answered by a policy you can train (see below). |
 | Docs | The documentation, with search and collapsible contents. Parts are generated from the code: brushes, vocabulary, exercises, tools. It also holds the walkthroughs and the training estimator. |
-| Settings | Artboard size (presets, rotate) and paper, theme, grid (on the paper or everywhere, lines or dots, spacing, subdivisions, color, snap), reference opacity, the guide. Cmd+, |
+| Settings | Artboard size (presets, rotate) and paper, theme, accent color (record, playhead, points), grid (on the paper or everywhere, lines or dots, spacing, subdivisions, color, snap), reference opacity, the guide. Cmd+, |
 | Shortcuts | Every command and its keys, searchable. Click a key to reassign it; a key taken from another command moves. Shift+Cmd+/ |
 | Timeline | Record, review and edit takes (bottom dock): transport, tracks of clips, summary, walkthrough, export (playable HTML, project zip, video, JSON). |
 | Log | What happened, including every agent action (in purple). |
@@ -54,12 +54,18 @@ Walkthroughs set the layout they need (through `ams_layout`) and put yours back 
 | A | Plane: freehand lasso |
 | E | Gesture: construction, hidden in the picture view |
 | G | Guide: straight; Shift snaps to 15° steps |
-| T | Note |
+| B | Brush: draw with the active brush (click the button again or right-click for the list; picking one with marks selected applies it, Cmd-click only picks) |
+| S | Sculpt (see below); Shift+drag over a mark sculpts it with most tools. `[` `]` radius, Shift+`[` `]` strength |
+| T | Note (after the grid toggle in the toolbar) |
+| ' | Show every mark's points as faint dots |
+| Opt+right-click | The active tool's parameters as sliders, where you click |
 | F | Fit the artboard |
 | \ | Toggle the picture / process view |
 | R | Toggle the reference underlay |
 | Cmd+Z / Shift+Cmd+Z | Undo / redo |
 | Cmd+S | Save to Assets |
+
+**Stroke and fill:** two swatches in the toolbar. New marks take them, and selected marks change with them. Right-click for none, brush ink or swap; the color picker has a None button (or type `none`).
 
 Opening an image asset (or an image file) puts it under the artboard as a reference. It isn't part
 of the picture, and the Generate panel can send it to vision models.
@@ -67,7 +73,7 @@ of the picture, and the Generate panel can send it to vision models.
 ## Editing
 
 - **Transforms:** select, then hover near the frame. A corner scales (Shift keeps proportions, Alt from the center), a side stretches, just inside (or outside) a corner rotates (Shift snaps to 15°).
-- **Right-click** a mark: arrange, move to stage, brush, simplify (fewer points, same shape), duplicate, group, lock, hide, delete. Right-click the empty canvas: select all, fit, grid, snap, a note there.
+- **Right-click** a mark: arrange, move to stage, brush, sculpt, simplify (fewer points, same shape), duplicate, group, lock, hide, delete. Right-click the empty canvas: select all, fit, grid, snap, a note there.
 - **Image layers:** drag an asset from Assets (or image files from the desktop) onto the canvas. Pictures become image layers that move, scale and rotate like any mark and travel inside the drawing; a saved drawing comes in as a group of its marks.
 - **Look:** every element has an opacity and a blend mode (Properties → Look).
 - **Notes:** notebook (handwriting on the page), sticky, index card or plain; font, size, width, paper. Drag a side to re-wrap, a corner to scale the lettering. A new note starts from the last note you styled.
@@ -99,6 +105,78 @@ brush({
 ```
 
 The kit: `k.frames(e)` (the walk with normals, speed and pressure), `k.smoothPath`, `k.spans` (for fills), `k.rotatePts`, `k.tracePath`, `k.segment`, `k.beginInk`, `k.draw(id, …)` (another brush), `k.rng()`, `k.noise(x, y)`, `k.image(src)`. The Brushes panel lists built-in, library and drawing brushes; scores define brushes with the same `brush({...})`; agents use `ams_brush`. A brush that fails draws plainly (and warns once) instead of breaking the drawing. Brush code runs in the page: open drawings from people you trust.
+
+## Marks and points
+
+A drawing is a set of **stages** holding **marks**. Each mark has:
+
+- **role:** point, line, plane, guide, gesture or note (and image, for pictures placed as layers).
+- **points:** `[x, y, t, pressure]`, in artboard units. `t` is milliseconds from the start of the stroke; pressure is 0 to 1 as recorded, and can go above 1 when a line is thickened.
+- **brush and params:** the brush that realizes the mark (`realize: { brush, params }`).
+- **color and fill:** stroke color, plus an optional fill (painted under the stroke for closed lines; for planes the fill drives the brush and the stroke outlines it).
+- **why and by:** the reason for the mark and who made it (you, a model, an agent).
+
+Curves are the points themselves. The renderer passes a Catmull-Rom spline through them, so a line is always smooth through every point. This keeps marks simple enough to write as code and to learn from.
+
+## Sculpting
+
+Sculpt tools come from threegrease's sculpt brushes. A smooth falloff across the brush circle weights every change. `[` and `]` set the radius, Shift+`[` and Shift+`]` the strength. With a selection, only the selected marks change. Each drag is one undo step.
+
+| Tool | Does | Alt | Cmd |
+|---|---|---|---|
+| Push | points follow the cursor | | |
+| Grab | picks up the points under the brush and moves them | | |
+| Smooth | points move toward their neighbours; pressure evens out too | | |
+| Relax | evens out spacing without changing the shape | | |
+| Pinch | points gather toward the cursor | inflate | |
+| Twist | points turn around the cursor | other way | |
+| Jitter | a seeded tremor | | |
+| Simplify | fewer points, same shape (tolerance) | resample: more points, graded by the falloff (density) | |
+| Thicken | raises pressure, so pressure-aware brushes draw wider | thinner | past the usual limit (up to 10) |
+
+Tools that bend lines add points under the brush first, so a mark with few points can still bend and swell smoothly.
+
+A sculpt tool is code:
+
+```js
+sculpt({
+  id: 'comb',
+  label: 'Comb',
+  doc: 'Points drift across the direction you move.',
+  refine: true,
+  params: { amount: [0, 1, 0.3, 'How strongly each pass acts'] },
+  step(pts, s, p, k) {
+    return pts.map(q => {
+      const w = k.w(q) * p.amount
+      return w ? [q[0] - s.dy * w, q[1] + s.dx * w, q[2], q[3]] : q
+    })
+  }
+})
+```
+
+- `pts` are the mark's points.
+- `s` is the stroke: cursor `x, y`, movement `dx, dy`, `radius`, `strength`, `invert` (Alt), `boost` (Cmd), the points when the stroke began (`orig`) and `state` kept for the stroke.
+- `k` is the kit: `w(pt)` is the brush weight at a point, plus `falloff`, `mean`, `rdp`, `refine`, `nearMark` and `rng`.
+
+**Code → Sculpt** shows every tool, with a preview sweep. Fork one or write your own; saved tools go to your library and appear in the toolbar list.
+
+## Parameters in code
+
+Parameters in code are controls:
+
+- **Declared params:** `key: [min, max, default, 'doc']` in a `params` block gets a slider.
+  - With marks selected that use the brush, the slider sets their value.
+  - Otherwise it sets the active brush, the tool's defaults, or the sculpt tool in use.
+  - Only when nothing uses it does it rewrite the default in the code.
+  - Hovering a slider says what it acts on.
+- **Range comments:** any number followed by one, like `0.4 /* 0..1 */`, gets a slider that rewrites the number.
+- **Cmd-drag** any number in the code to scrub it (Shift for fine steps). Cmd-drag also works in every number box in the app.
+
+Two glyph toggles at the right of the Code panel's tab bar set how the editors look: line numbers on or off, and where sliders go (on the code lines, beside the preview, or off). Sliders look the same everywhere: in the code, in the preview strip and in the Opt+right-click popover.
+
+This is the first step toward every value in code being something you can play.
+
+Ink draws round joins (a quad per segment and a disc per point, filled as one shape), so thick and thickened lines turn smoothly.
 
 ## Lines
 
@@ -190,3 +268,10 @@ Policies:
 
 What you choose and what the agent answers become labels in lev's format. Export them and train a local
 policy with `training/decisions/` (see its README).
+
+## Next
+
+- **A modifier stack:** non-destructive, Blender-like operations on a mark, with Apply to make them destructive.
+- **A direct point editor** building on the points view.
+- **Richer range comments,** with colors, choices and switches.
+- **Scenes,** kept separate from stages.
