@@ -90,7 +90,11 @@ export class Workbench {
   // ---- state ---------------------------------------------------------------------
   get activeStage() { return this.store.doc.stages.find(s => s.id === this.activeStageId) || this.store.doc.stages[0]; }
   setActiveStage(id) { this.activeStageId = id; this.emit('stage'); this.renderChrome(); }
-  setTool(t) { this.tool = t; this.canvas?.updateCursor(); this.emit('tool'); this.renderChrome(); }
+  setTool(t) {
+    // Choosing a tool means drawing again: leave a take being reviewed.
+    if (this.player?.take) this.player.close();
+    this.tool = t; this.canvas?.updateCursor(); this.emit('tool'); this.renderChrome();
+  }
   setViewMode(m) { this.view.mode = m; this.canvas.invalidate(); this.emit('view'); this.renderChrome(); }
   setUpTo(i) { this.view.upTo = i; this.canvas.upTo = i; this.canvas.invalidate(); this.emit('view'); }
   selectedElements() { return this.store.doc.elements.filter(e => this.canvas?.selected.has(e.id)); }

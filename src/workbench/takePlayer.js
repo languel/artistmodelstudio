@@ -19,6 +19,16 @@ export class TakePlayer {
       if (!this.take) return;
       drawPen(ctx, app.canvas.previewDoc, tf);
       drawCaptions(ctx, this.take, this.t, W, H);
+      // A quiet label: this is a recording, not the drawing (Esc or any tool goes back).
+      ctx.save();
+      ctx.font = '12px Inter, system-ui, sans-serif';
+      const label = `Reviewing: ${this.take.title}`;
+      const w = Math.min(W - 24, ctx.measureText(label).width + 20);
+      ctx.fillStyle = 'rgba(20,19,18,0.72)';
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(12, 12, w, 24, 12) : ctx.rect(12, 12, w, 24); ctx.fill();
+      ctx.fillStyle = '#f3efe6'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, 22, 24, w - 20);
+      ctx.restore();
     };
   }
 

@@ -192,6 +192,7 @@ export function mountTimeline(root, app) {
   };
   const attach = () => { if (!P() || !R()) return setTimeout(attach, 30); P().on(sync); drawBar(); drawLanes(); loadTakes(); };
   app.on('recording', () => { drawBar(); drawLanes(); });
-  app.on('take', take => { loadTakes(); if (!P().take) { P().load(take); fitZoom(); } drawBar(); drawLanes(); });
+  // A finished recording goes to the list; it is reviewed only when opened (the canvas stays yours).
+  app.on('take', () => { loadTakes(); drawBar(); drawLanes(); });
   attach();
 }
