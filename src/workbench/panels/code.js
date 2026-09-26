@@ -11,6 +11,8 @@ import { h } from '../ui.js';
 import { mountScript } from './script.js';
 import { mountBrushes } from './brushes.js';
 import { mountSculpts } from './sculpts.js';
+import { codeView, setCodeView, onCodeView } from '../codeView.js';
+import { icon } from '../icons.js';
 import { createCodeEditor } from '../codeEditor.js';
 import { selectionCode, applySelectionCode, replaceElements, clipCode, applyClipCode } from '../../process/codegen.js';
 
@@ -20,7 +22,22 @@ export function mountCode(root, app) {
   let mode = localStorage.getItem('ams_code_mode') || 'score';
   const bar = h('div', { class: 'wb-seg wb-code-modes' });
   const views = Object.fromEntries(MODES.map(([id]) => [id, h('div', { class: 'wb-code-view', 'data-mode': id })]));
-  root.append(bar, ...Object.values(views));
+  // Code view toggles (all editors): line numbers, and where param sliders go.
+  const toggles = h('div', { class: 'wb-code-toggles' });
+  const SLIDERS = [['code', 'slidersCode', 'Sliders on the code lines'], ['preview', 'slidersPreview', 'Sliders beside the preview'], ['off', 'slidersOff', 'No sliders (Cmd-drag numbers still works)']];
+  const drawToggles = () => {
+    const v = codeView();
+    const i = SLIDERS.findIndex(s => s[0] === v.sliders);
+    const [, ic, tip] = SLIDERS[Math.max(0, i)];
+    toggles.replaceChildren(
+      h('button', { class: `wb-icon-btn${v.lineNumbers ? ' on' : ''}`, title: v.lineNumbers ? 'Hide line numbers' : 'Show line numbers', html: icon('lineNumbers'), onclick: () => setCodeView({ lineNumbers: !v.lineNumbers }) }),
+      h('button', { class: 'wb-icon-btn', title: `${tip} (click for the next)`, html: icon(ic), onclick: () => setCodeView({ sliders: SLIDERS[(i + 1) % SLIDERS.length][0] }) }));
+    for (const el of Object.values(views)) el.classList.toggle('sliders-preview', v.sliders === 'preview');
+  };
+  onCodeView(drawToggles);
+  drawToggles();
+  root.classList.add('wb-code-panel');
+  root.append(h('div', { class: 'wb-code-top' }, bar, toggles), ...Object.values(views));
 
   mountScript(views.score, app);
   mountBrushes(views.brush, app);

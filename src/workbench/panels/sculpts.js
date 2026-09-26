@@ -6,6 +6,7 @@ import { askConfirm } from '../dialog.js';
 import { h, selectField } from '../ui.js';
 import { SCULPTS, sculptSource, compileSculpt, saveSculpt, deleteSculpt, isBuiltinSculpt, sculptMark, sculptParams } from '../../process/sculpt.js';
 import { mulberry32 } from '../../process/brushes.js';
+import { controlStrip } from '../codeParams.js';
 import { createCodeEditor } from '../codeEditor.js';
 
 const TEMPLATE = id => `sculpt({
@@ -38,11 +39,12 @@ export function mountSculpts(root, app) {
   let current = app.sculpt?.tool || 'push';
   let def = null;
   const status = h('div', { class: 'wb-script-out' });
-  const preview = h('canvas', { class: 'wb-brush-preview', width: 600, height: 200 });
+  const preview = h('canvas', { class: 'wb-brush-preview', width: 480, height: 120 });
+  const previewRow = h('div', { class: 'wb-preview-row' }, preview);
   const host = h('div', { class: 'wb-code-host wb-brush-code' });
   const picker = h('div', { class: 'wb-row wb-row-actions' });
   const actions = h('div', { class: 'wb-row wb-row-actions' });
-  root.append(picker, preview, host, status, actions);
+  root.append(picker, previewRow, host, status, actions);
 
   const draw = () => {
     const ctx = preview.getContext('2d'), W = preview.width, H = preview.height;
@@ -77,6 +79,8 @@ export function mountSculpts(root, app) {
     draw();
   };
   const editor = createCodeEditor(host, { value: '', onRun: () => save(), onChange: v => compile(v) });
+  // Param sliders beside the preview (Code view: sliders in preview).
+  previewRow.append(controlStrip(editor));
 
   const save = () => {
     try {

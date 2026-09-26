@@ -1,7 +1,8 @@
 /**
  * Parameters in code, as controls in the editor (after underscores and Strudel's inline sliders):
  *
- *   params: { amount: [0, 1, 0.5, 'doc'] }    a param declaration gets a slider in the gutter. With a
+ *   params: { amount: [0, 1, 0.5, 'doc'] }    a param declaration gets a slider (on its line, or in a
+ *                                            preview strip: controlStrip). With a
  *                                            live source (the Sculpt panel) it sets the value in use;
  *                                            otherwise it rewrites the default in the code.
  *   0.4 /* 0..1 *\/                          a number with a range comment gets a slider that
@@ -10,8 +11,7 @@
  *
  * The code stays the truth: sliders that rewrite write plain numbers back into it.
  */
-import { ViewPlugin, EditorView, GutterMarker, gutter } from '@codemirror/view';
-import { RangeSet } from '@codemirror/state';
+import { ViewPlugin, EditorView, Decoration, WidgetType } from '@codemirror/view';
 
 const NUM = '-?(?:\\d+\\.?\\d*|\\.\\d+)';
 const PARAM_RE = new RegExp(`(^|[\\s{,])([A-Za-z_$][\\w$]*)\\s*:\\s*\\[\\s*(${NUM})\\s*,\\s*(${NUM})\\s*,\\s*(${NUM})`, 'g');
@@ -78,47 +78,96 @@ export function paintRange(input) {
   input.style.setProperty('--p', `${((Number(input.value) - min) / ((max - min) || 1)) * 100}%`);
 }
 
-/** The controls on one line, in the gutter: [slider] opacity: [0, 1, 1…]. */
-class LineControls extends GutterMarker {
+/**
+ * One control: a slider bound to a code control `c`. With `live` it drives the value in use,
+ * else it rewrites the number in the code (found again by id, as positions move while typing).
+ */
+export function makeControl(c, view, liveSrc) {
+  const step = c.step || stepFor(c.min, c.max);
+  const target = liveSrc && c.kind === 'param' ? liveSrc.target?.() : null;
+  const live = liveSrc && c.kind === 'param' && !(liveSrc.target && !target) ? liveSrc : null;
+  const liveVal = live ? live.get(c.key) : undefined;
+  const name = c.kind === 'param' ? c.key : 'value';
+  const tip = v => (live ? `${name} = ${fmt(v, step)} on ${target || 'the tool in use'} (the code keeps the default)` : `${name} = ${fmt(v, step)} (${c.min}…${c.max})`);
+  const input = rangeInput({ min: c.min, max: c.max, step, value: liveVal ?? c.value });
+  input.title = tip(Number(input.value));
+  if (live) input.classList.add('live');
+  const listeners = [];
+  input.addEventListener('input', () => {
+    const v = Number(input.value);
+    input.title = tip(v);
+    for (const f of listeners) f(v);
+    if (live && live.set(c.key, v) !== false) return;
+    const cur = findControls(view.state.doc.toString()).find(x => x.id === c.id);
+    if (cur) view.dispatch({ changes: { from: cur.from, to: cur.to, insert: fmt(v, step) } });
+  });
+  for (const ev of ['mousedown', 'pointerdown', 'keydown', 'click']) input.addEventListener(ev, e => e.stopPropagation());
+  return { input, step, name, onInput: f => listeners.push(f), value: () => Number(input.value) };
+}
+
+/** The sliders of one line, overlaid on the line's right side. */
+class LineControls extends WidgetType {
   constructor(cs, view, live) { super(); this.cs = cs; this.view = view; this.live = live; }
   eq(o) { return o.live === this.live && o.cs.length === this.cs.length && o.cs.every((c, i) => c.id === this.cs[i].id && c.min === this.cs[i].min && c.max === this.cs[i].max); }
   toDOM() {
     const wrap = document.createElement('span');
     wrap.className = 'cm-param';
-    for (const c of this.cs) wrap.append(this.control(c));
+    for (const c of this.cs) wrap.append(makeControl(c, this.view, this.live).input);
     return wrap;
   }
-  control(c) {
-    const step = c.step || stepFor(c.min, c.max);
-    const target = this.live && c.kind === 'param' ? this.live.target?.() : null;
-    const live = this.live && c.kind === 'param' && !(this.live.target && !target) ? this.live : null;
-    const liveVal = live ? live.get(c.key) : undefined;
-    const name = c.kind === 'param' ? c.key : 'value';
-    const tip = v => (live ? `${name} = ${fmt(v, step)} on ${target || 'the tool in use'} (the code keeps the default)` : `${name} = ${fmt(v, step)} (${c.min}…${c.max})`);
-    const input = rangeInput({ min: c.min, max: c.max, step, value: liveVal ?? c.value });
-    input.title = tip(Number(input.value));
-    if (live) input.classList.add('live');
-    input.addEventListener('input', () => {
-      const v = Number(input.value);
-      input.title = tip(v);
-      if (live && live.set(c.key, v) !== false) return;
-      // Rewrite the number in the code: find this control again (positions move as the text changes).
-      const cur = findControls(this.view.state.doc.toString()).find(x => x.id === c.id);
-      if (cur) this.view.dispatch({ changes: { from: cur.from, to: cur.to, insert: fmt(v, step) } });
-    });
-    for (const ev of ['mousedown', 'pointerdown', 'keydown', 'click']) input.addEventListener(ev, e => e.stopPropagation());
-    return input;
-  }
+  ignoreEvent() { return true; }
 }
 
+const lineMark = Decoration.line({ class: 'cm-has-param' });
 function build(view, live) {
   const byLine = new Map();
   for (const c of findControls(view.state.doc.toString())) {
-    const line = view.state.doc.lineAt(c.from).from;
-    if (!byLine.has(line)) byLine.set(line, []);
-    byLine.get(line).push(c);
+    const line = view.state.doc.lineAt(c.from);
+    if (!byLine.has(line.from)) byLine.set(line.from, { line, cs: [] });
+    byLine.get(line.from).cs.push(c);
   }
-  return RangeSet.of([...byLine].sort((a, b) => a[0] - b[0]).map(([at, cs]) => new LineControls(cs, view, live).range(at)));
+  const out = [];
+  for (const { line, cs } of [...byLine.values()].sort((a, b) => a.line.from - b.line.from)) {
+    out.push(lineMark.range(line.from), Decoration.widget({ widget: new LineControls(cs, view, live), side: 1 }).range(line.to));
+  }
+  return Decoration.set(out, true);
+}
+
+/**
+ * A strip of the code's controls (for a preview area): label, slider, value. It follows the code:
+ * rebuilt when controls appear or go, values refreshed when numbers change.
+ */
+export function controlStrip(editor) {
+  const el = document.createElement('div');
+  el.className = 'wb-ctl-strip';
+  let sig = '', rows = [];
+  const refresh = () => {
+    const cs = findControls(editor.value);
+    const live = editor.getLive?.();
+    const next = cs.map(c => `${c.id}:${c.min}:${c.max}`).join('|') + (live ? `#${live.target?.() || 'live'}` : '');
+    if (next === sig) {
+      // Same controls: only follow values changed in the code (not the one being dragged).
+      rows.forEach((r, i) => { if (document.activeElement !== r.ctl.input && !r.live) { r.ctl.input.value = String(cs[i].value); paintRange(r.ctl.input); r.out.textContent = fmt(cs[i].value, r.ctl.step); } });
+      return;
+    }
+    sig = next;
+    el.replaceChildren();
+    rows = cs.map(c => {
+      const ctl = makeControl(c, editor.view, live);
+      const out = document.createElement('span'); out.className = 'wb-ctl-value'; out.textContent = fmt(ctl.value(), ctl.step);
+      ctl.onInput(v => { out.textContent = fmt(v, ctl.step); });
+      const lab = document.createElement('span'); lab.className = 'wb-ctl-label'; lab.textContent = c.kind === 'param' ? c.key : `line ${editor.view.state.doc.lineAt(c.from).number}`;
+      const row = document.createElement('label'); row.className = 'wb-ctl-row'; row.title = ctl.input.title;
+      row.append(lab, ctl.input, out);
+      el.append(row);
+      return { ctl, out, live: ctl.input.classList.contains('live') };
+    });
+    el.hidden = !rows.length;
+  };
+  editor.onDocChange(refresh);
+  editor.onLiveChange(() => { sig = ''; refresh(); });
+  refresh();
+  return el;
 }
 
 /** Cmd-drag a number literal to change it (Shift: fine steps). */
@@ -151,16 +200,17 @@ const scrub = EditorView.domEventHandlers({
 });
 
 /**
- * The extension. `live` (optional): { get(key), set(key, value) } — param sliders then drive the
- * values in use instead of rewriting defaults.
+ * The extension. `getLive()`: { get(key), set(key, value), target?() } or null — param sliders
+ * then drive the values in use instead of rewriting defaults. `overlay`: sliders on the lines.
  */
-export function codeParams(getLive = () => null) {
+export function codeParams(getLive = () => null, { overlay = true } = {}) {
+  if (!overlay) return [scrub];
   const plugin = ViewPlugin.fromClass(class {
-    constructor(view) { this.live = getLive(); this.markers = build(view, this.live); }
+    constructor(view) { this.live = getLive(); this.decorations = build(view, this.live); }
     update(u) {
       const live = getLive();
-      if (u.docChanged || live !== this.live) { this.live = live; this.markers = build(u.view, live); }
+      if (u.docChanged || live !== this.live) { this.live = live; this.decorations = build(u.view, live); }
     }
-  });
-  return [plugin, gutter({ class: 'cm-param-gutter', markers: v => v.plugin(plugin)?.markers || RangeSet.empty }), scrub];
+  }, { decorations: v => v.decorations });
+  return [plugin, scrub];
 }

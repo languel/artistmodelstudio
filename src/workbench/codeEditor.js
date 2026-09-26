@@ -15,6 +15,7 @@ import { tags as t } from '@lezer/highlight';
 import { SCRIPT_VOCAB } from '../process/script.js';
 import { BRUSHES } from '../process/brushes.js';
 import { codeParams } from './codeParams.js';
+import { codeView, onCodeView } from './codeView.js';
 
 const VOCAB = new Map(SCRIPT_VOCAB.map(v => [v.name, v]));
 const KIT_DOCS = [
@@ -106,12 +107,15 @@ const hoverDocs = hoverTooltip((view, pos) => {
 export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLines = () => [], placeholder = '' } = {}) {
   const wrap = new Compartment();
   let live = null;
+  const nums = new Compartment(), params = new Compartment();
+  const docFns = [], liveFns = [];
+  const paramsExt = () => codeParams(() => live, { overlay: codeView().sliders === 'code' });
   const view = new EditorView({
     parent,
     state: EditorState.create({
       doc: value,
       extensions: [
-        lineNumbers(), foldGutter(), codeParams(() => live), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(),
+        nums.of(codeView().lineNumbers ? lineNumbers() : []), foldGutter(), params.of(paramsExt()), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(),
         indentOnInput(), bracketMatching(), closeBrackets(), highlightSelectionMatches(), lintGutter(), linter(() => [], { delay: 1e9 }),
         javascript(), syntaxHighlighting(highlight), theme, hoverDocs,  
         autocompletion({ override: [scoreCompletions(getDocLines)], icons: false }),
@@ -121,20 +125,24 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
           { key: 'Mod-Enter', run: () => { onRun?.(); return true; } },
           ...closeBracketsKeymap, ...completionKeymap, ...searchKeymap, ...foldKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap
         ]),
-        EditorView.updateListener.of(u => { if (u.docChanged) { onChange?.(u.state.doc.toString()); view.dispatch(setDiagnostics(u.state, [])); } }),
+        EditorView.updateListener.of(u => { if (u.docChanged) { onChange?.(u.state.doc.toString()); for (const f of docFns) f(); view.dispatch(setDiagnostics(u.state, [])); } }),
         // Keep workbench shortcuts (V, H, P…) from firing while typing.
         EditorView.domEventHandlers({ keydown: e => { e.stopPropagation(); return false; } })
       ]
     })
   });
   let wrapping = true;
+  onCodeView(v => view.dispatch({ effects: [nums.reconfigure(v.lineNumbers ? lineNumbers() : []), params.reconfigure(paramsExt())] }));
   return {
     view,
     get value() { return view.state.doc.toString(); },
     set value(v) { if (v !== view.state.doc.toString()) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v } }); },
     focus: () => view.focus(),
     /** Param sliders drive live values ({ get(key), set(key, v) }) instead of rewriting defaults; null: rewrite. */
-    setLive(l) { live = l; view.dispatch({}); },
+    setLive(l) { live = l; view.dispatch({}); for (const f of liveFns) f(); },
+    getLive: () => live,
+    onDocChange: f => docFns.push(f),
+    onLiveChange: f => liveFns.push(f),
     toggleWrap() { wrapping = !wrapping; view.dispatch({ effects: wrap.reconfigure(wrapping ? EditorView.lineWrapping : []) }); return wrapping; },
     /** Mark a line (1-based) with an error message; null clears. */
     markError(line, message) {

@@ -6,6 +6,7 @@
 import { askConfirm, askText } from '../dialog.js';
 import { h, selectField } from '../ui.js';
 import { BRUSHES, brushSource, compileBrush, saveLibraryBrush, deleteLibraryBrush, isBuiltin, resolveParams, mulberry32 } from '../../process/brushes.js';
+import { controlStrip } from '../codeParams.js';
 import { createCodeEditor } from '../codeEditor.js';
 
 const TEMPLATE = id => `brush({
@@ -40,11 +41,12 @@ export function mountBrushes(root, app) {
   let current = 'ink';
   let def = null;
   const status = h('div', { class: 'wb-script-out' });
-  const preview = h('canvas', { class: 'wb-brush-preview', width: 600, height: 220 });
+  const preview = h('canvas', { class: 'wb-brush-preview', width: 480, height: 130 });
+  const previewRow = h('div', { class: 'wb-preview-row' }, preview);
   const host = h('div', { class: 'wb-code-host wb-brush-code' });
   const picker = h('div', { class: 'wb-row wb-row-actions' });
   const actions = h('div', { class: 'wb-row wb-row-actions' });
-  root.append(picker, preview, host, status, actions);
+  root.append(picker, previewRow, host, status, actions);
 
   const scopeOf = id => (isBuiltin(id) ? 'built-in' : BRUSHES[id]?.scope === 'doc' ? 'this drawing' : 'library');
   const draw = () => {
@@ -67,6 +69,8 @@ export function mountBrushes(root, app) {
     draw();
   };
   const editor = createCodeEditor(host, { value: brushSource(current), onChange: () => { clearTimeout(timer); timer = setTimeout(check, 250); }, onRun: () => save() });
+  // Param sliders beside the preview (Code view: sliders in preview).
+  previewRow.append(controlStrip(editor));
 
   // Param sliders act on the marks: the selected ones drawn with this brush, else the current tool's
   // defaults if it uses this brush; otherwise they rewrite the code's defaults (preview only).
