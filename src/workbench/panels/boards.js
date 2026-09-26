@@ -18,14 +18,34 @@ export function mountBoards(el, app) {
       const active = app.activeBoard === b.id;
       const name = h('span', { class: 'wb-stage-name', title: 'Double-click to rename' }, `${i + 1}. ${b.title}`);
       name.addEventListener('dblclick', () => app.renameBoard(b.id));
-      list.append(h('div', { class: `wb-stage${active ? ' active' : ''}`, 'data-guide': `board:${b.title}`, onclick: e => { if (e.target.closest('button')) return; app.goToBoard(b.id); }, oncontextmenu: e => { e.preventDefault(); app.boardMenu(b.id, e.clientX, e.clientY); } },
+      const row = h('div', { class: `wb-stage${active ? ' active' : ''}`, 'data-guide': `board:${b.title}`, draggable: b.main ? 'false' : 'true', onclick: e => { if (e.target.closest('button')) return; app.goToBoard(b.id); }, oncontextmenu: e => { e.preventDefault(); app.boardMenu(b.id, e.clientX, e.clientY); } },
         h('button', { class: `wb-icon-btn wb-train${train === b.id ? ' on' : ''}`, title: train === b.id ? 'Models learn from this board' : 'Train on this board', html: '<svg viewBox="0 0 24 24" width="12" height="12"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>', onclick: () => app.store.setTrainBoard(b.id) }),
         name,
         h('span', { class: 'wb-muted', title: `${b.width}×${b.height}` }, String(marksOf(doc, b.id).length)),
         b.main ? h('span', { class: 'wb-kind' }, 'main') : h('span', {}),
         !b.main ? h('button', { class: 'wb-icon-btn', title: 'Earlier', html: icon('up'), onclick: () => app.store.moveBoard(b.id, -1) }) : null,
         !b.main ? h('button', { class: 'wb-icon-btn', title: 'Later', html: icon('down'), onclick: () => app.store.moveBoard(b.id, 1) }) : null,
-        h('button', { class: 'wb-icon-btn', title: 'More', html: icon('menu'), onclick: e => app.boardMenu(b.id, e.clientX, e.clientY) })));
+        h('button', { class: 'wb-icon-btn', title: 'More', html: icon('menu'), onclick: e => app.boardMenu(b.id, e.clientX, e.clientY) }));
+      // Drag a board to reorder (the main board stays first); drop above or below a row.
+      row.addEventListener('dragstart', e => { e.dataTransfer.setData('text/ams-board', b.id); e.dataTransfer.effectAllowed = 'move'; });
+      row.addEventListener('dragover', e => {
+        if (![...e.dataTransfer.types].includes('text/ams-board')) return;
+        e.preventDefault();
+        const r = row.getBoundingClientRect(), below = b.main || e.clientY > r.top + r.height / 2;
+        row.classList.toggle('drop-above', !below); row.classList.toggle('drop-below', below);
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drop-above', 'drop-below'));
+      row.addEventListener('drop', e => {
+        const moving = e.dataTransfer.getData('text/ams-board');
+        const below = row.classList.contains('drop-below');
+        row.classList.remove('drop-above', 'drop-below');
+        if (!moving || moving === b.id) return;
+        e.preventDefault();
+        const others = doc.boards.filter(x => x.id !== moving).map(x => x.id);
+        const at = b.main ? 0 : others.indexOf(b.id) + (below ? 1 : 0);
+        app.store.placeBoard(moving, at);
+      });
+      list.append(row);
     });
     const scratch = marksOf(doc, BLACKBOARD).length;
     list.append(h('div', { class: 'wb-stage wb-blackboard', title: 'Marks outside the boards: kept, but in no board’s picture' },

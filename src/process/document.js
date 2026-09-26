@@ -393,6 +393,16 @@ export class ProcessStore {
     }, opts);
   }
 
+  /** Put a board at a place in the sequence (0 = right after the main board). */
+  placeBoard(id, index, opts) {
+    return this.change('reorder boards', d => {
+      const i = d.boards.findIndex(b => b.id === id);
+      if (i < 0) return;
+      const [b] = d.boards.splice(i, 1);
+      d.boards.splice(Math.max(0, Math.min(d.boards.length, index)), 0, b);
+    }, opts);
+  }
+
   /** Put marks on a board (MAIN, an id, or BLACKBOARD). */
   assignBoard(ids, id, opts) {
     return this.change('move to board', d => { for (const e of d.elements) if (ids.includes(e.id)) { if (!id || id === MAIN) delete e.board; else e.board = id; } }, opts);
