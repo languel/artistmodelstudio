@@ -55,9 +55,11 @@ export function mountCode(root, app) {
     if (m === 'selection') sel.refresh(true);
     if (m === 'clip') clip.refresh(true);
   };
-  app.on('selection', () => { if (mode === 'selection') sel.refresh(); });
-  app.on('clip-select', () => { if (mode === 'clip') clip.refresh(); });
-  app.store.subscribe(() => { if (mode === 'selection') sel.refresh(); });
+  // Only when the Code panel is showing (the editor is not cheap to refill).
+  const visible = () => root.isConnected && root.offsetParent !== null;
+  app.on('selection', () => { if (mode === 'selection' && visible()) sel.refresh(); });
+  app.on('clip-select', () => { if (mode === 'clip' && visible()) clip.refresh(); });
+  app.store.subscribe(() => { if (mode === 'selection' && visible()) sel.refresh(); });
 
   /** Open the Code panel in a mode: 'score' | 'brush' (id) | 'selection' | 'clip' (clip). */
   app.openCode = (m = 'score', arg) => {

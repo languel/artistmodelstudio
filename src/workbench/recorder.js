@@ -76,7 +76,7 @@ export class Recorder {
     if (this.take?.source === 'agent') this.idleTimer = setTimeout(() => this.stop(), this.settings.idleStop);
   }
 
-  push(clip) { const c = { id: clipId(), fx: {}, seq: this.take.clips.length, ...clip }; this.take.clips.push(c); touch(this.take); this.poke(); return c; }
+  push(clip) { const c = { id: clipId(), fx: {}, seq: this.take.clips.length, ...clip }; this.take.clips.push(c); touch(this.take); this.poke(); this.app.emit('recording-update', c); return c; }
 
   onChange(reason) {
     if (!this.take) return;

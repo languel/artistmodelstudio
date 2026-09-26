@@ -21,7 +21,12 @@ export function mountTimeline(root, app) {
   const body = h('div', { class: 'wb-tl-body' }, labels, lanes);
   root.append(h('div', { class: 'wb-tl' }, bar, body));
 
-  const select = c => { selected = c; app.selectedClip = c; app.emit('clip-select', c); drawLanes(); };
+  // Selecting only moves the highlight (rebuilding the lanes would replace a clip mid-drag).
+  const select = c => {
+    selected = c; app.selectedClip = c;
+    for (const el of lanes.querySelectorAll('.wb-tl-clip')) el.classList.toggle('sel', Boolean(c) && el.dataset.id === c.id);
+    app.emit('clip-select', c);
+  };
   app.selectClip = select;
   const edited = () => { P().changed(); drawLanes(); app.emit('clip-select', selected); };
 
@@ -39,7 +44,7 @@ export function mountTimeline(root, app) {
     bar.replaceChildren(
       h('button', { class: `wb-icon-btn wb-tl-rec${rec ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : 'Record: everything that happens becomes a take', html: rec ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>', onclick: () => (rec ? R().stop() : R().start()) }),
       h('button', { class: 'wb-icon-btn', title: 'Play / pause (Space in the timeline)', disabled: !take, html: p?.playing ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : icon('play'), onclick: () => p.toggle() }),
-      h('span', { class: 'wb-tl-time' }, take ? `${fmt(p.t)} / ${fmt(p.duration)}` : rec ? 'recording…' : '0:00.0'),
+      h('span', { class: 'wb-tl-time' }, take ? `${fmt(p.t)} / ${fmt(p.duration)}` : rec ? `● ${fmt(R().now())}` : '0:00.0'),
       rate,
       h('button', { class: `wb-icon-btn${p?.loop ? ' on' : ''}`, title: 'Loop', disabled: !take, html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a6 6 0 016-6h8l-3-3M20 12a6 6 0 01-6 6H6l3 3"/></svg>', onclick: () => { p.loop = !p.loop; drawBar(); } }),
       sel,
@@ -115,21 +120,24 @@ export function mountTimeline(root, app) {
   // ---- lanes ---------------------------------------------------------------------------------
   const fitZoom = () => { const d = P().duration; const w = lanes.clientWidth || 600; pps = Math.max(2, Math.min(400, (w - 40) / Math.max(1, d / 1000))); };
   const x = ms => (ms / 1000) * pps;
+  const live = () => (!P()?.take && R()?.recording ? R().take : null);
   const drawLanes = () => {
-    const p = P(), take = p?.take;
+    const p = P(), rec = live(), take = p?.take || rec;
     labels.replaceChildren(h('div', { class: 'wb-tl-rulerlabel' }), ...TRACKS.map(tr => h('div', { class: 'wb-tl-label' }, TRACK_LABEL[tr])));
-    if (!take) { lanes.replaceChildren(h('div', { class: 'wb-tl-empty' }, R()?.recording ? 'Recording… stop to review.' : 'Record, or open a take.')); return; }
-    const d = p.duration, W = Math.max(lanes.clientWidth, x(d) + 80);
+    if (!take) { lanes.replaceChildren(h('div', { class: 'wb-tl-empty' }, 'Record, or open a take.')); return; }
+    const now = rec ? R().now() : p.t;
+    const d = rec ? now : p.duration, W = Math.max(lanes.clientWidth, x(d) + 120);
     const ruler = h('div', { class: 'wb-tl-ruler', style: { width: `${W}px` } });
     const step = pps > 80 ? 1 : pps > 25 ? 5 : pps > 8 ? 10 : 30;
     for (let s = 0; s * 1000 <= d + step * 1000; s += step) ruler.append(h('span', { style: { left: `${x(s * 1000)}px` } }, fmt(s * 1000).replace(/\.0$/, '')));
     const rows = TRACKS.map(tr => {
       const row = h('div', { class: 'wb-tl-row', style: { width: `${W}px` } });
-      for (const c of take.clips.filter(c => c.track === tr)) row.append(clipEl(c));
+      for (const c of take.clips.filter(c => c.track === tr)) row.append(clipEl(c, Boolean(rec)));
       return row;
     });
-    const head = h('div', { class: 'wb-tl-playhead', style: { left: `${x(p.t)}px` } });
+    const head = h('div', { class: `wb-tl-playhead${rec ? ' live' : ''}`, style: { left: `${x(now)}px` } });
     lanes.replaceChildren(ruler, ...rows, head);
+    if (rec) { lanes.scrollLeft = Math.max(0, x(now) - lanes.clientWidth + 80); return; }   // follow the recording; read-only until it stops
     // Scrub by clicking or dragging on the ruler or empty lanes.
     const scrub = ev => { const r = lanes.getBoundingClientRect(); p.seek(((ev.clientX - r.left + lanes.scrollLeft) / pps) * 1000); };
     for (const el of [ruler, ...rows]) el.addEventListener('pointerdown', ev => {
@@ -140,11 +148,12 @@ export function mountTimeline(root, app) {
     });
   };
 
-  const clipEl = c => {
+  const clipEl = (c, readOnly = false) => {
     const w = Math.max(6, x(c.dur || 0));
     const text = c.track === 'say' || c.track === 'title' ? c.text : c.track === 'draw' ? drawLabel(c) : c.track === 'camera' ? `${Math.round((c.z || 1) * 100)}%` : c.label || c.name || '';
-    const el = h('div', { class: `wb-tl-clip t-${c.track}${selected?.id === c.id ? ' sel' : ''}`, style: { left: `${x(c.start)}px`, width: `${w}px` }, title: `${TRACK_LABEL[c.track]} · ${fmt(c.start)} · ${(c.dur / 1000).toFixed(1)} s\n${text}` },
+    const el = h('div', { class: `wb-tl-clip t-${c.track}${selected?.id === c.id ? ' sel' : ''}`, 'data-id': c.id, style: { left: `${x(c.start)}px`, width: `${w}px` }, title: `${TRACK_LABEL[c.track]} · ${fmt(c.start)} · ${(c.dur / 1000).toFixed(1)} s\n${text}` },
       h('span', { class: 'wb-tl-cliptext' }, text), h('span', { class: 'wb-tl-grip', title: 'Drag to retime' }));
+    if (readOnly) return el;
     el.addEventListener('pointerdown', ev => {
       if (ev.button !== 0) return;
       ev.stopPropagation(); select(c);
@@ -194,7 +203,14 @@ export function mountTimeline(root, app) {
     if (p.playing) { const hx = x(p.t); if (hx > lanes.scrollLeft + lanes.clientWidth - 40) lanes.scrollLeft = hx - 60; }
   };
   const attach = () => { if (!P() || !R()) return setTimeout(attach, 30); P().on(sync); drawBar(); drawLanes(); loadTakes(); };
-  app.on('recording', () => { drawBar(); drawLanes(); });
+  let liveTimer = 0, liveQueued = false;
+  const liveRedraw = () => { if (liveQueued) return; liveQueued = true; setTimeout(() => { liveQueued = false; if (live()) { drawLanes(); const t = bar.querySelector('.wb-tl-time'); if (t) t.textContent = `● ${fmt(R().now())}`; } }, 200); };
+  app.on('recording-update', liveRedraw);
+  app.on('recording', on => {
+    clearInterval(liveTimer);
+    if (on) { if (!P().take) pps = 40; liveTimer = setInterval(liveRedraw, 500); }
+    drawBar(); drawLanes();
+  });
   // A finished recording goes to the list; it is reviewed only when opened (the canvas stays yours).
   app.on('take', () => { loadTakes(); drawBar(); drawLanes(); });
   attach();

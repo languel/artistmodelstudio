@@ -94,6 +94,11 @@ export function clipCode(c) {
   const o = {};
   for (const k of [...CLIP_ORDER, ...Object.keys(c)]) if (k in c && !(k in o) && !['id', 'seq'].includes(k)) o[k] = c[k];
   if (o.src && String(o.src).length > 200) o.src = KEEP_SRC;
+  // A drawing change can be large: summarize it; it is kept unless you write a new one.
+  if (o.diff && JSON.stringify(o.diff).length > 2000) {
+    const d = o.diff;
+    o.diff = `kept: ${[d.add?.length && `${d.add.length} added`, d.update?.length && `${d.update.length} changed`, d.remove?.length && `${d.remove.length} removed`].filter(Boolean).join(', ') || 'document settings'}`;
+  }
   const head = `// ${c.track} clip · ${(c.start / 1000).toFixed(1)}–${((c.start + c.dur) / 1000).toFixed(1)} s (times in ms)`;
   return `${head}\nclip(${JSON.stringify(o, null, 2)})\n`;
 }
@@ -107,6 +112,7 @@ export function applyClipCode(clip, source) {
   } catch (err) { return { error: err.message }; }
   if (!out || typeof out !== 'object') return { error: 'The code must call clip({ … })' };
   if (out.src === KEEP_SRC) out.src = clip.src;
+  if (typeof out.diff === 'string' && out.diff.startsWith('kept')) out.diff = clip.diff;
   if (!Number.isFinite(Number(out.start)) || !Number.isFinite(Number(out.dur))) return { error: 'start and dur must be numbers (ms)' };
   return { fields: { ...out, start: Math.max(0, Math.round(out.start)), dur: Math.max(0, Math.round(out.dur)) } };
 }

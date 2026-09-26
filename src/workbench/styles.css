@@ -490,3 +490,5 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-code-modes { margin-bottom: 6px; align-self: flex-start; }
 .wb-code-view { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .wb-code-view[hidden] { display: none; }
+
+.wb-tl-playhead.live { box-shadow: 0 0 0 1px color-mix(in srgb, var(--wb-accent-2) 40%, transparent); }
