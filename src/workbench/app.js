@@ -143,6 +143,12 @@ export class Workbench {
     ], x, y);
   }
 
+  togglePoints() {
+    this.canvas.showPoints = !this.canvas.showPoints;
+    try { localStorage.setItem('ams_show_points', this.canvas.showPoints ? '1' : '0'); } catch { /* ignore */ }
+    this.canvas.invalidate(); this.renderChrome();
+  }
+
   /** Set the global stroke or fill; selected marks take it too. */
   setPaint(which, value) {
     this.paint[which] = value || null;
@@ -281,6 +287,7 @@ export class Workbench {
     this.canvas.drawReference = ctx => this.drawReference(ctx);
     this.canvas.onGrid = () => this.renderChrome();
     // Opt+right-click: the active tool's parameters as sliders; right-click: the menu.
+    try { this.canvas.showPoints = localStorage.getItem('ams_show_points') === '1'; } catch { /* ignore */ }
     this.canvas.onContext = (e, hit, at) => (e.altKey ? openToolParams(this, e.clientX, e.clientY) : showMenu(this.contextItems(hit, at), e.clientX, e.clientY));
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));
@@ -433,6 +440,7 @@ export class Workbench {
     const right = h('div', { class: 'wb-island' },
       h('button', { class: 'wb-tool', 'data-guide': 'view', title: this.view.mode === 'process' ? 'Process: guides, gestures and notes shown (\\ for the picture)' : 'Picture: the finished picture (\\ for the process)', html: icon(this.view.mode === 'process' ? 'viewProcess' : 'viewPicture'), onclick: () => this.setViewMode(this.view.mode === 'picture' ? 'process' : 'picture') }),
       this.reference ? h('button', { class: `wb-tool${this.reference.visible ? ' on' : ''}`, title: `Reference underlay: ${this.reference.title} (R toggles)`, html: icon('picture'), onclick: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } }) : null,
+      h('button', { class: `wb-tool${this.canvas.showPoints ? ' on' : ''}`, title: "Show marks' points (')", html: icon('points'), onclick: () => this.togglePoints() }),
       h('button', { class: 'wb-tool', title: 'Theme', html: icon(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun'), onclick: () => this.toggleTheme() })
     );
     this.topbar.replaceChildren(left, tools, right);

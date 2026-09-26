@@ -160,9 +160,14 @@ export const SCULPTS = {
   },
 
   simplify: {
-    label: 'Simplify', doc: 'Fewer points under the brush, same shape (Ramer–Douglas–Peucker on the part you brush).',
+    label: 'Simplify', doc: 'Fewer points under the brush, same shape (Ramer–Douglas–Peucker on the part you brush). Alt: resample, more points, evenly spaced.',
     params: [param('tolerance', 'Tolerance', 0, 0.2, 0.005, 0.03, 'How far the shape may move, as a fraction of the brush radius.')],
     step(pts, s, p, k) {
+      if (s.invert) {
+        // Resample: split what the brush covers into even steps (the finer, the stronger).
+        const step = s.radius * Math.max(0.03, 0.25 * (1 - s.strength));
+        return k.refine(pts, step, (a, b) => k.nearMark([a, b], s.x, s.y, s.radius), s.closed);
+      }
       const eps = s.radius * p.tolerance * s.strength;
       const out = [];
       let run = [];

@@ -144,6 +144,23 @@ export class CanvasView {
     }
     if (this.previewDoc) { this.drawPreviewOverlay?.(ctx, { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, this.w, this.h); return; }
     this.drawFrame(ctx, css.getPropertyValue('--wb-select').trim() || '#8a8a8a');
+    // Points: every mark's points as faint dots (brighter on the selection).
+    if (this.showPoints) {
+      const doc = this.previewDoc || this.store.doc;
+      const vis = new Set(doc.stages.filter(s => s.visible).map(s => s.id));
+      const col = css.getPropertyValue('--wb-text').trim() || '#888';
+      ctx.save();
+      ctx.fillStyle = col;
+      ctx.strokeStyle = css.getPropertyValue('--wb-bg').trim() || css.getPropertyValue('--wb-panel').trim() || '#111'; ctx.lineWidth = 1;
+      for (const e of doc.elements) {
+        if (e.hidden || !vis.has(e.stage) || ['note', 'image'].includes(e.role)) continue;
+        const sel = this.selected.has(e.id);
+        ctx.globalAlpha = sel ? 0.9 : 0.45;
+        const rr = sel ? 2.4 : 1.8;
+        for (const q of e.points) { const [x, y] = this.toScreen(q[0], q[1]); ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+      }
+      ctx.restore();
+    }
     if (this.brushAt) {
       const sc = this.getSculpt?.();
       ctx.save();
