@@ -7,6 +7,7 @@ import { h, row, numberField, selectField, section, esc } from '../ui.js';
 import { colorField } from '../colorPicker.js';
 import { BRUSHES, brushesForRole, resolveParams } from '../../process/brushes.js';
 import { ROLES, BLENDS } from '../../process/document.js';
+import { boardById, marksOf, trainBoard } from '../../process/boards.js';
 import { SCULPTS, sculptParams } from '../../process/sculpt.js';
 import { NOTE_STYLES, NOTE_FONTS, noteProps } from '../../process/notes.js';
 
@@ -15,6 +16,7 @@ export function mountProperties(el, app) {
     el.innerHTML = '';
     if (app.selectedClip && app.player?.take?.clips.includes(app.selectedClip)) return renderClip(app.selectedClip);
     const sel = app.selectedElements();
+    if (!sel.length && app.canvas?.selectedBoard) return renderBoard(app.canvas.selectedBoard);
     if (!sel.length) return renderDefaults();
     const e = sel[0];
     const multi = sel.length > 1;
@@ -69,6 +71,22 @@ export function mountProperties(el, app) {
     ));
   };
 
+  /** A board: title, size, paper; what it holds. */
+  const renderBoard = id => {
+    const b = boardById(app.store.doc, id);
+    if (!b) return renderDefaults();
+    const title = h('input', { class: 'wb-inline', value: b.title });
+    title.addEventListener('change', () => { if (title.value.trim()) app.store.updateBoard(b.id, { title: title.value.trim() }); });
+    title.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') title.blur(); });
+    el.append(h('div', { class: 'wb-panel-title' }, 'Board', h('span', { class: 'wb-muted' }, b.main ? ' · main' : '')));
+    el.append(section('Board', true,
+      row('Title', title),
+      row('Width', numberField({ value: b.width, min: 40, max: 10000, step: 10, def: 1000, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { width: Math.round(v) }); } })),
+      row('Height', numberField({ value: b.height, min: 40, max: 10000, step: 10, def: 1000, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { height: Math.round(v) }); } })),
+      row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app })),
+      h('div', { class: 'wb-muted wb-small' }, `${marksOf(app.store.doc, b.id).length} marks${trainBoard(app.store.doc) === b.id ? ' · models learn from this board' : ''}`)));
+  };
+
   const renderDefaults = () => {
     const tool = app.tool;
     if (tool === 'sculpt') return renderSculpt();
@@ -119,6 +137,7 @@ export function mountProperties(el, app) {
   app.on('clip-select', render);
   app.on('selection', () => { if (app.canvas?.selected.size) app.selectedClip = null; render(); });
   app.on('tool', render);
+  app.on('board', render);
   app.on('brush', () => { if (app.tool === 'brush' && !app.selectedElements().length) render(); });
   app.on('sculpt', () => { if (app.tool === 'sculpt' && !app.selectedElements().length) render(); });
   render();

@@ -17,7 +17,7 @@ let seq = 0;
 export const clipId = () => `clip-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 
 // ---- diffs ----------------------------------------------------------------------------------
-const DOC_KEYS = ['title', 'artboard', 'stages', 'decisions', 'groups', 'brushes', 'lines', 'meta'];
+const DOC_KEYS = ['title', 'artboard', 'stages', 'decisions', 'groups', 'brushes', 'lines', 'meta', 'boards', 'train'];
 
 /** What changed between two documents, element by element (unchanged parts are not repeated). */
 export function diffDocs(prev, next) {

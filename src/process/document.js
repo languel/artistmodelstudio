@@ -11,6 +11,7 @@
  * Pure data + a tiny observable store with undo. No DOM.
  */
 import { installLines, embedBrushes } from './brushes.js';
+import { migrateBoards, boardsOf, newBoardId, nextBoardPlace, boardForPoints, MAIN, BLACKBOARD } from './boards.js';
 
 export const PROCESS_VERSION = 1;
 
@@ -84,6 +85,8 @@ export function normalizeDocument(doc) {
   d.lines = d.lines && typeof d.lines === 'object' ? d.lines : {};
   d.groups = d.groups && typeof d.groups === 'object' ? d.groups : {};
   d.brushes = d.brushes && typeof d.brushes === 'object' ? d.brushes : {};
+  migrateBoards(d);
+  if (d.train && !boardsOf(d).some(b => b.id === d.train)) delete d.train;
   installLines(d);
   return d;
 }
@@ -106,6 +109,7 @@ export function normalizeElement(e, stage) {
     created: e.created || Date.now(),
     ...(e.label ? { label: String(e.label) } : {}),
     ...(e.group ? { group: String(e.group) } : {}),
+    ...(e.board && e.board !== MAIN ? { board: String(e.board) } : {}),
     ...(e.hidden ? { hidden: true } : {}),
     ...(e.locked ? { locked: true } : {}),
     ...(e.note && typeof e.note === 'object' ? { note: { ...e.note } } : {}),
@@ -185,6 +189,8 @@ export class ProcessStore {
   addElement(el, opts) {
     return this.change(`add ${el.role || 'element'}`, d => {
       const e = normalizeElement(el, el.stage || d.stages[0].id);
+      // A mark goes to the board it lands on (the blackboard outside them), unless told.
+      if (!('board' in el)) { const b = boardForPoints(d, e.points); if (b !== MAIN) e.board = b; }
       d.elements.push(e);
       return e;
     }, opts);
@@ -333,6 +339,65 @@ export class ProcessStore {
       for (const e of d.elements) if (e.stage === id) e.stage = fallback;
     });
   }
+
+  // ---- boards ---------------------------------------------------------------------------
+  /** Add a board ({ title, width, height, x, y, ground }); placed right of the others unless x, y given. Returns it. */
+  addBoard(b = {}, opts) {
+    return this.change('add board', d => {
+      const width = Number(b.width) || d.artboard.width, height = Number(b.height) || d.artboard.height;
+      const place = Number.isFinite(b.x) && Number.isFinite(b.y) ? { x: b.x, y: b.y, width, height } : nextBoardPlace(d, width, height);
+      const board = { id: b.id && !boardsOf(d).some(x => x.id === b.id) ? String(b.id) : newBoardId(d), title: b.title || `Board ${boardsOf(d).length + 1}`, ...place, ground: b.ground || d.artboard.ground };
+      d.boards.push(board);
+      // Marks already lying inside it (from the blackboard) join it, when it was placed on purpose.
+      if (b.adopt ?? (Number.isFinite(b.x) && Number.isFinite(b.y))) for (const e of d.elements) if (e.board === BLACKBOARD && boardForPoints(d, e.points) === board.id) e.board = board.id;
+      return board;
+    }, opts);
+  }
+
+  /** Change a board: title, ground, size, place. The main board changes the artboard (it cannot move). */
+  updateBoard(id, patch, opts) {
+    return this.change('board', d => {
+      if (id === MAIN) {
+        if ('title' in patch) d.artboard.title = patch.title;
+        for (const k of ['width', 'height', 'ground']) if (k in patch) d.artboard[k] = patch[k];
+        return;
+      }
+      const b = d.boards.find(x => x.id === id);
+      if (!b) return;
+      if (('x' in patch || 'y' in patch) && patch.moveMarks !== false) {
+        const dx = (patch.x ?? b.x) - b.x, dy = (patch.y ?? b.y) - b.y;
+        for (const e of d.elements) if (e.board === id) e.points = e.points.map(([x, y, t, p]) => [x + dx, y + dy, t, p]);
+      }
+      for (const k of ['title', 'ground', 'width', 'height', 'x', 'y']) if (k in patch) b[k] = patch[k];
+    }, opts);
+  }
+
+  /** Remove a board: its marks go to the blackboard, or are deleted with it. */
+  removeBoard(id, { deleteMarks = false } = {}, opts) {
+    if (id === MAIN) return;
+    return this.change('remove board', d => {
+      d.boards = d.boards.filter(b => b.id !== id);
+      if (deleteMarks) d.elements = d.elements.filter(e => e.board !== id);
+      else for (const e of d.elements) if (e.board === id) e.board = BLACKBOARD;
+      if (d.train === id) delete d.train;
+    }, opts);
+  }
+
+  /** Move a board in the sequence (the main board stays first). */
+  moveBoard(id, delta, opts) {
+    return this.change('reorder boards', d => {
+      const i = d.boards.findIndex(b => b.id === id), j = i + delta;
+      if (i < 0 || j < 0 || j >= d.boards.length) return;
+      const [b] = d.boards.splice(i, 1); d.boards.splice(j, 0, b);
+    }, opts);
+  }
+
+  /** Put marks on a board (MAIN, an id, or BLACKBOARD). */
+  assignBoard(ids, id, opts) {
+    return this.change('move to board', d => { for (const e of d.elements) if (ids.includes(e.id)) { if (!id || id === MAIN) delete e.board; else e.board = id; } }, opts);
+  }
+
+  setTrainBoard(id, opts) { return this.change('training board', d => { if (!id || id === MAIN) delete d.train; else d.train = id; }, opts); }
 
   addDecision(dec, opts) {
     return this.change('decision', d => { const x = { id: newId('dec'), t: Date.now(), ...dec }; d.decisions.push(x); return x; }, opts);

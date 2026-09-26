@@ -14,11 +14,14 @@
  *   plane([[...], ...], { brush: 'hatch', angle: 30, spacing: 8 })
  *   point(700, 300, { size: 40, why: 'the weight' })
  *   note(40, 40, 'Kandinsky: a point high right feels light')
+ *   board('A line')                                  // later marks land on this board (made if new);
+ *                                                    // coordinates are fractions of *this* board
  *
  * Helpers: random(a?, b?), noise(x, y?), seed(n), sin, cos, PI, TAU, lerp, map, range(n).
  */
 import { createDocument, normalizeDocument, newId, STAGE_KINDS } from './document.js';
 import { BRUSHES, mulberry32, installLines, defSource, registerBrush, isBuiltin } from './brushes.js';
+import { findBoard, newBoardId, nextBoardPlace } from './boards.js';
 
 const ELEMENT_KEYS = new Set(['why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id']);
 
@@ -59,10 +62,12 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
   const abm = String(source).match(/\bartboard\(\s*([\d.]+)\s*,\s*([\d.]+)/);
   const W = abm ? Number(abm[1]) : doc.artboard.width, H = abm ? Number(abm[2]) : doc.artboard.height;
   const frac = units === 'fraction';
-  const aspect = W / H;
+  // The board marks land on: the main board (the artboard) until board(…) picks another.
+  let tgt = { id: null, x: 0, y: 0, w: W, h: H };
+  const aspect = () => tgt.w / tgt.h;
   let maxRaw = 0;
-  // Score coordinates → artboard units (fractions are scaled by the artboard's width and height).
-  const toAb = pts => pts.map(q => { maxRaw = Math.max(maxRaw, Math.abs(q[0]), Math.abs(q[1])); return frac ? [q[0] * W, q[1] * H, ...q.slice(2)] : q; });
+  // Score coordinates → world units: fractions of the current board (or its own units), at its place.
+  const toAb = pts => pts.map(q => { maxRaw = Math.max(maxRaw, Math.abs(q[0]), Math.abs(q[1])); return frac ? [tgt.x + q[0] * tgt.w, tgt.y + q[1] * tgt.h, ...q.slice(2)] : [tgt.x + q[0], tgt.y + q[1], ...q.slice(2)]; });
   const logs = [];
 
   const ensureStage = () => {
@@ -108,7 +113,8 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
       why: el.why || '',
       by: el.by || by,
       seed: el.seed ?? Math.floor(rng() * 1e9),
-      created: clock
+      created: clock,
+      ...(tgt.id ? { board: tgt.id } : {})
     };
     doc.elements.push(e);
     return e.id;
@@ -116,6 +122,24 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
 
   const api = {
     artboard(width = 1000, height = 1000, ground = '#f3efe6') { doc.artboard = { width, height, ground }; return doc.artboard; },
+    /**
+     * board(title, { width, height, x, y, ground }): later marks land on this board, made if new
+     * (right of the others); coordinates are then fractions of it. board() goes back to the main one.
+     * Returns { id, title, width, height }.
+     */
+    board(key, opts = {}) {
+      if (key == null || key === '' || key === 'main') { tgt = { id: null, x: 0, y: 0, w: W, h: H }; return { id: 'main', title: doc.artboard.title || 'Main', width: W, height: H }; }
+      doc.boards = Array.isArray(doc.boards) ? doc.boards : [];
+      let b = findBoard(doc, key);
+      if (!b) {
+        const width = Number(opts.width) || W, height = Number(opts.height) || H;
+        const place = Number.isFinite(opts.x) && Number.isFinite(opts.y) ? { x: opts.x, y: opts.y, width, height } : nextBoardPlace(doc, width, height);
+        b = { id: newBoardId(doc), title: String(key), ...place, ground: opts.ground || doc.artboard.ground };
+        doc.boards.push(b);
+      }
+      tgt = b.main ? { id: null, x: 0, y: 0, w: W, h: H } : { id: b.id, x: b.x, y: b.y, w: b.width, h: b.height };
+      return { id: b.id, title: b.title, width: b.width, height: b.height };
+    },
     stage(name, kind = 'marks', opts = {}) {
       const k = STAGE_KINDS.includes(kind) ? kind : 'marks';
       let s = doc.stages.find(x => x.name === name);
@@ -170,12 +194,12 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
       for (let i = 0; i < steps; i++) {
         h += turn(i, i / Math.max(1, steps - 1)) || 0;
         const a = (h * Math.PI) / 180;
-        x += Math.cos(a) * step; y += Math.sin(a) * step * (frac ? aspect : 1);   // in fractions, keep the walk's shape
+        x += Math.cos(a) * step; y += Math.sin(a) * step * (frac ? aspect() : 1);   // in fractions, keep the walk's shape
         pts.push([x, y]);
       }
       return pts;
     },
-    circle(cx, cy, r, n = 48) { const ry = frac ? r * aspect : r; return Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * ry]); },
+    circle(cx, cy, r, n = 48) { const ry = frac ? r * aspect() : r; return Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * ry]); },
     units() { /* read before the run: units('fraction') or units('artboard') */ },
     width: W, height: H,
     rect(x, y, w, h) { return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]; },
@@ -210,6 +234,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
 export const SCRIPT_REFERENCE = `// Coordinates are fractions of the artboard (0..1); width and height give its size. units('artboard') for absolute.
 artboard(w, h, ground)
 stage(name, kind)            kind: ${STAGE_KINDS.join(' | ')}
+board(title, {width, height})   later marks land on this board (made if new); fractions are of this board. board() = main
 point(x, y, {size, color, why})
 line(points, {brush, width, pressure, taper, wobble, color, why, pressures: t => 0..1})
 plane(points, {brush: flat | hatch | stipple, angle, spacing, density, color, why})
@@ -230,6 +255,7 @@ export const SCRIPT_VOCAB = [
   ['height', 'height', 'The artboard height in artboard units (coordinates are fractions: 0..1 down).'],
   ['units', "units('fraction' | 'artboard')", "Coordinates as fractions of the artboard (the default) or in artboard units."],
   ['brush', "brush({ id, label, roles, doc, params: { key: [min, max, default, doc] }, draw(ctx, e, p, k) { … } })", 'Define a brush in code (the drawing keeps it). k is the brush kit: k.frames, k.smoothPath, k.spans, k.segment, k.beginInk, k.rng, k.noise, k.draw.'],
+  ['board', "board(title, { width, height, x, y, ground })", 'Later marks land on this board (made if new, right of the others); coordinates are fractions of it. board() goes back to the main board. Returns { id, title, width, height }.'],
   ['stage', "stage(name, kind)", `Start a stage; later marks land in it. kind: ${STAGE_KINDS.join(', ')}.`],
   ['point', 'point(x, y, { size, color, why })', 'A mark at a place.'],
   ['points', 'points([[x, y], …], opts)', 'Several points with the same options.'],

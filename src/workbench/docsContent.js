@@ -124,6 +124,8 @@ Every key can be changed in **Shortcuts** (menu, or Shift+Cmd+/): search, click 
 | Cmd+B, Opt+Cmd+B, Shift+Cmd+B | Toggle the left, right and bottom docks |
 | ? | Docs |
 
+**Boards** (Shift+O, or the Boards panel): a drawing can hold several artboards, like slides. The main board is the artboard at the origin; drag out more with the Board tool. A board's title sits above it: click it to select the board, drag it to move the board with its marks, double-click to rename, right-click for export (PNG, SVG, process sheet, p5), training, order, duplicate and delete. The selected board's corner resizes it. Marks belong to the board they are drawn on; outside the boards is the blackboard, kept but in no board's picture. F fits the active board; Alt+→ and Alt+← go to the next and previous board. In a score, board('Title') makes a board (if new) and later marks land on it, in fractions of that board; board() goes back to the main one. Models learn from the board marked with the dot in the Boards panel (the main one unless you choose).
+
 **Points** (' or the dotted-curve button top right): every mark's points as faint dots, brighter on the selection.
 
 **Brush** (B): draw with the active brush. Click the Brush button again (or right-click it) to pick one: with marks selected, the picked brush goes onto them too (Cmd-click only picks it). The active brush keeps its settings: Opt+right-click, Properties and the sliders in Code → Brush change it (with nothing selected), until you change them again.

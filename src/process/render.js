@@ -8,6 +8,7 @@
  * transform:  { x, y, scale }, artboard → screen
  */
 import { BRUSHES, mulberry32, resolveParams, installLines, KIT } from './brushes.js';
+import { boardDoc, MAIN } from './boards.js';
 import { drawNote, noteCorners } from './notes.js';
 
 export function renderDocument(ctx, doc, {
@@ -90,7 +91,8 @@ function withLook(ctx, e, draw) {
 }
 
 /** Render to an offscreen canvas at the artboard's size (or scaled), for exports and thumbnails. */
-export function renderToCanvas(doc, { scale = 1, mode = 'picture', upTo = Infinity } = {}) {
+export function renderToCanvas(doc, { scale = 1, mode = 'picture', upTo = Infinity, board = MAIN } = {}) {
+  doc = boardDoc(doc, board);
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.round(doc.artboard.width * scale));
   c.height = Math.max(1, Math.round(doc.artboard.height * scale));

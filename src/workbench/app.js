@@ -4,6 +4,7 @@
  * command (see mcp.js), so agents drive the same surface.
  */
 import { openToolParams } from './toolParams.js';
+import { boardDoc, boardById, boardsOf, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
 import { SCULPTS, loadSculptLibrary } from '../process/sculpt.js';
 import { ProcessStore, createDocument, normalizeDocument, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
@@ -20,6 +21,7 @@ import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
 import { icon } from './icons.js';
 import { h, download } from './ui.js';
+import { mountBoards } from './panels/boards.js';
 import { mountStages } from './panels/stages.js';
 import { mountProperties } from './panels/properties.js';
 import { mountScript } from './panels/script.js';
@@ -52,7 +54,7 @@ import { Guide } from './guide.js';
 const DOC_KEY = 'ams_process_doc_v1';
 const DEFAULTS_KEY = 'ams_tool_defaults_v1';
 const TOOLS = [
-  ['select', 'Select and move', 'V'], ['hand', 'Pan', 'H'], null,
+  ['select', 'Select and move', 'V'], ['hand', 'Pan', 'H'], ['board', 'Board: drag out a new artboard (Shift keeps it square)', '⇧O'], null,
   ['point', 'Point: a mark at a place', 'O'], ['line', 'Line: a point that moved', 'P'], ['plane', 'Plane: an enclosed area', 'A'], null,
   ['gesture', 'Gesture: the movement behind a form', 'E'], ['guide', 'Guide: construction (straight; Shift snaps)', 'G']
 ];
@@ -202,6 +204,62 @@ export class Workbench {
     return { color: (role !== 'note' && this.paint?.stroke) || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...(role === 'note' ? { note: d.note || {} } : {}) };
   }
 
+  // ---- boards ----------------------------------------------------------------------
+  /** Go to a board: it becomes active and fills the view. */
+  goToBoard(id, { fit = true } = {}) {
+    const b = boardById(this.store.doc, id);
+    if (!b) return;
+    this.activeBoard = b.id;
+    this.canvas.selectBoard(b.id);
+    if (fit) this.canvas.fit(60, b.id);
+    this.emit('board');
+    this.renderChrome();
+  }
+
+  stepBoard(delta) {
+    const bs = boardsOf(this.store.doc);
+    const i = Math.max(0, bs.findIndex(b => b.id === this.activeBoard));
+    this.goToBoard(bs[(i + delta + bs.length) % bs.length].id);
+  }
+
+  async renameBoard(id) {
+    const b = boardById(this.store.doc, id);
+    if (!b) return;
+    const { askText } = await import('./dialog.js');
+    const v = await askText('Board title', b.title);
+    if (v && v.trim() && v.trim() !== b.title) this.store.updateBoard(id, { title: v.trim() });
+  }
+
+  boardMenu(id, x, y) {
+    const doc = this.store.doc, b = boardById(doc, id), n = boardsOf(doc).length;
+    if (!b) return;
+    const marks = doc.elements.filter(e => (e.board || MAIN) === id).length;
+    showMenu([
+      { label: `${b.title}` },
+      { label: 'Go to', run: () => this.goToBoard(id) },
+      { label: 'Rename…', run: () => this.renameBoard(id) },
+      { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['p5', 'p5.js sketch']].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
+      { label: (doc.train || MAIN) === id ? '✓ Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
+      b.main ? null : { label: 'Earlier', run: () => this.store.moveBoard(id, -1) },
+      b.main ? null : { label: 'Later', run: () => this.store.moveBoard(id, 1) },
+      { label: 'Duplicate', run: () => this.duplicateBoard(id) },
+      b.main || n < 2 ? null : '-',
+      b.main ? null : { label: `Delete (its ${marks} marks go to the blackboard)`, run: () => { this.store.removeBoard(id); if (this.activeBoard === id) this.goToBoard(MAIN, { fit: false }); } },
+      b.main || !marks ? null : { label: `Delete with its ${marks} marks`, items: [{ label: `Delete ${marks} marks`, run: () => { this.store.removeBoard(id, { deleteMarks: true }); if (this.activeBoard === id) this.goToBoard(MAIN, { fit: false }); } }, { label: 'Cancel', run: () => {} }] }
+    ], x, y);
+  }
+
+  /** A copy of a board and its marks, placed after the others. */
+  duplicateBoard(id) {
+    const doc = this.store.doc, b = boardById(doc, id);
+    const nb = this.store.addBoard({ title: `${b.title} copy`, width: b.width, height: b.height, ground: b.ground, adopt: false });
+    const ids = doc.elements.filter(e => (e.board || MAIN) === id).map(e => e.id);
+    const nbPlaced = boardById(this.store.doc, nb.id);
+    const copies = this.store.duplicate(ids, nbPlaced.x - b.x, nbPlaced.y - b.y);
+    this.store.assignBoard(copies, nb.id);
+    this.goToBoard(nb.id);
+  }
+
   /** The active brush: { id } to pick one, { params } to set the active brush's params. */
   setBrush(patch) {
     const b = this.brush;
@@ -299,6 +357,10 @@ export class Workbench {
     try { const ac = localStorage.getItem('ams_accent'); if (ac) document.documentElement.style.setProperty('--wb-accent-2', ac); } catch { /* ignore */ }
     try { this.canvas.showPoints = localStorage.getItem('ams_show_points') === '1'; } catch { /* ignore */ }
     this.canvas.onContext = (e, hit, at) => (e.altKey ? openToolParams(this, e.clientX, e.clientY) : showMenu(this.contextItems(hit, at), e.clientX, e.clientY));
+    this.activeBoard = MAIN;
+    this.canvas.onBoardSelect = id => { this.activeBoard = id; this.emit('board'); };
+    this.canvas.onBoardRename = id => this.renameBoard(id);
+    this.canvas.onBoardContext = (id, e) => this.boardMenu(id, e.clientX, e.clientY);
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));
     KIT.onImageLoad = () => this.canvas.invalidate();
@@ -340,6 +402,7 @@ export class Workbench {
   registerPanels() {
     const reg = (id, title, iconName, natural, mount, extra = {}) => this.docks.register({ id, title, icon: iconName, natural, mount: el => mount(el, this), ...extra });
     reg('stages', 'Stages', 'stages', 'left', mountStages);
+    reg('boards', 'Boards', 'board', 'left', mountBoards);
     reg('outliner', 'Outliner', 'layers', 'left', mountOutliner);
     reg('assets', 'Assets', 'assets', 'left', el => this.mountAssets(el));
     reg('properties', 'Properties', 'properties', 'right', mountProperties);
@@ -651,8 +714,12 @@ export class Workbench {
 
   slug() { return String(this.store.doc.title || 'drawing').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'drawing'; }
 
-  async exportAs(kind) {
-    const doc = this.store.doc, s = this.slug();
+  /** Export a board (the main one unless given) as png, sheet, svg, json, excalidraw or p5. */
+  async exportAs(kind, board = this.activeBoard || MAIN) {
+    const b = boardById(this.store.doc, board) || boardById(this.store.doc, MAIN);
+    // json keeps the whole drawing (every board); the rest is one board as a picture.
+    const doc = kind === 'json' ? this.store.doc : boardDoc(this.store.doc, b.id);
+    const s = b.main ? this.slug() : `${this.slug()}-${String(b.title).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     if (kind === 'png') renderToCanvas(doc, { scale: 2, mode: this.view.mode }).toBlob(b => download(b, `${s}.png`, 'image/png'));
     else if (kind === 'sheet') processSheet(doc).toBlob(b => download(b, `${s}-process.png`, 'image/png'));
     else if (kind === 'svg') download(toSVG(doc, { mode: this.view.mode }), `${s}.svg`, 'image/svg+xml');
@@ -662,7 +729,7 @@ export class Workbench {
       const zip = createZip([{ name: 'index.html', data: p5IndexHtml(doc.title) }, { name: 'sketch.js', data: toP5(doc) }]);
       download(new Blob([zip], { type: 'application/zip' }), `${s}-p5.zip`, 'application/zip');
     }
-    this.log(`Exported ${kind}.`);
+    this.log(`Exported ${kind}${b.main ? '' : ` (${b.title})`}.`);
   }
 
   openFile() {

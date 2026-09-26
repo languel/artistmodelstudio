@@ -23,6 +23,7 @@ export const ICONS = {
   assets: svg('<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>'),
   log: svg('<path d="M4 6h16M4 12h10M4 18h13"/>'),
   exercise: svg('<path d="M4 5h11l5 5v9H4z"/><path d="M8 13l2 2 5-5"/>'),
+  board: svg('<rect x="3.5" y="6" width="11" height="12" rx="1"/><rect x="9.5" y="3" width="11" height="12" rx="1" opacity=".55"/>'),
   menu: svg('<path d="M4 7h16M4 12h16M4 17h16"/>'),
   undo: svg('<path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 010 10h-2"/>'),
   redo: svg('<path d="M15 7l5 5-5 5"/><path d="M20 12H9a5 5 0 000 10h2"/>'),

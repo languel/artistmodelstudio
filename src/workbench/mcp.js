@@ -9,6 +9,7 @@ import { EXERCISES } from '../process/exercises.js';
 import { ROLES, STAGE_KINDS, normalizeElement } from '../process/document.js';
 import { BRUSHES } from '../process/brushes.js';
 import { toSVG, toExcalidraw, toP5, processSheet } from '../process/exports.js';
+import { boardsOf, findBoard, boardDoc, marksOf, trainBoard, MAIN, BLACKBOARD } from '../process/boards.js';
 import { matches } from '../assets/assetStore.js';
 import { describeRegion } from '../perception/analyze.js';
 import { download } from './ui.js';
@@ -28,6 +29,8 @@ export function workbenchTools(app) {
   return [
     { name: 'ams_wb_state', description: 'Workbench state: title, artboard, stages (with element counts), active stage, tool, view, selection, reference underlay.', inputSchema: S(), run: () => ({
       title: doc().title, artboard: doc().artboard,
+      boards: boardsOf(doc()).map((b, i) => ({ index: i, id: b.id, title: b.title, x: b.x, y: b.y, width: b.width, height: b.height, marks: marksOf(doc(), b.id).length, main: b.main })),
+      blackboard: marksOf(doc(), BLACKBOARD).length, activeBoard: app.activeBoard || MAIN, trainBoard: trainBoard(doc()),
       stages: doc().stages.map((s, i) => ({ index: i, ...s, elements: doc().elements.filter(e => e.stage === s.id).length })),
       elements: doc().elements.length, decisions: doc().decisions.length,
       activeStage: app.activeStage?.id, tool: app.tool, view: app.view.mode === 'process' ? { ...app.view, upTo: Number.isFinite(app.view.upTo) ? app.view.upTo : null } : { ...app.view, upTo: null },
@@ -48,15 +51,19 @@ export function workbenchTools(app) {
       const res = loadScore(app, a.source, a.seed ?? 1, a.by || { kind: 'model', name: 'agent' }, a.title);
       return res.error ? { error: res.error, logs: res.logs } : { stages: res.doc.stages.map(s => s.name), elements: res.doc.elements.length, decisions: res.doc.decisions.length, logs: res.logs };
     } },
-    { name: 'ams_get', description: 'The process document as JSON, SVG (with records), Excalidraw, or a p5 sketch.', inputSchema: S({ format: { type: 'string', enum: ['json', 'svg', 'excalidraw', 'p5'] } }), run: (a) => {
+    { name: 'ams_get', description: 'The process document as JSON (the whole drawing, every board), or one board (main unless board is given) as SVG (with records), Excalidraw, a p5 sketch, or JSON of that board alone.', inputSchema: S({ format: { type: 'string', enum: ['json', 'svg', 'excalidraw', 'p5'] }, board: str('Board id or title (for one board)') }), run: (a) => {
       const f = a.format || 'json';
-      return f === 'svg' ? { svg: toSVG(doc()) } : f === 'excalidraw' ? toExcalidraw(doc()) : f === 'p5' ? { sketch: toP5(doc()) } : doc();
+      const one = a.board ? boardDoc(doc(), (findBoard(doc(), a.board) || {}).id || MAIN) : boardDoc(doc(), MAIN);
+      return f === 'svg' ? { svg: toSVG(one) } : f === 'excalidraw' ? toExcalidraw(one) : f === 'p5' ? { sketch: toP5(one) } : a.board ? one : doc();
     } },
     { name: 'ams_set', description: 'Replace the process document (JSON).', inputSchema: S({ doc: { type: 'object' } }, ['doc']), run: (a) => { app.loadDocument(a.doc, 'agent set'); return { ok: true }; } },
-    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color, why, text (notes).', inputSchema: S({ role: str('Role'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), by: { type: 'object' } }, ['role', 'points']), run: (a) => {
+    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color, why, text (notes). With board (id or title), points are relative to that board\'s top-left and the mark joins it; without, points are world units and the mark joins the board it lands on (the blackboard outside boards).', inputSchema: S({ role: str('Role'), board: str('Board id or title'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), by: { type: 'object' } }, ['role', 'points']), run: (a) => {
       const st = doc().stages.find(s => s.id === a.stage || s.name === a.stage) || app.activeStage;
       a.points = normalizePoints(a.points);
-      const el = app.store.addElement({ role: a.role, stage: st.id, points: a.points.map((p, i) => [p[0], p[1], p[2] ?? i * 16, p[3] ?? 0.5]), realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, why: a.why, text: a.text, by: a.by || { kind: 'model', name: 'agent' } }, { by: 'agent' });
+      const bd = a.board ? findBoard(doc(), a.board) : null;
+      if (a.board && !bd) throw new Error(`No board “${a.board}” (ams_board lists them)`);
+      const ox = bd?.x || 0, oy = bd?.y || 0;
+      const el = app.store.addElement({ role: a.role, stage: st.id, ...(bd ? { board: bd.main ? undefined : bd.id } : {}), points: a.points.map((p, i) => [p[0] + ox, p[1] + oy, p[2] ?? i * 16, p[3] ?? 0.5]), realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, why: a.why, text: a.text, by: a.by || { kind: 'model', name: 'agent' } }, { by: 'agent' });
       return { id: el.id, stage: st.name };
     } },
     { name: 'ams_update', description: 'Change an element: any of stage, role, color, why, text, realize {brush, params}, points.', inputSchema: S({ id: str('Element id'), patch: { type: 'object' } }, ['id', 'patch']), run: (a) => ({ ok: Boolean(app.store.updateElement(a.id, a.patch, 'agent edit', { by: 'agent' })) }) },
@@ -78,19 +85,34 @@ export function workbenchTools(app) {
     { name: 'ams_view', description: 'View: mode picture|process, upTo stage index (null = all), fit, tool, select ids.', inputSchema: S({ mode: str('picture | process'), upTo: { type: ['number', 'null'] }, fit: { type: 'boolean' }, tool: str(''), select: { type: 'array', items: { type: 'string' } } }), run: (a) => {
       if (a.mode) app.setViewMode(a.mode);
       if ('upTo' in a) app.setUpTo(a.upTo === null ? Infinity : a.upTo);
-      if (a.fit) app.canvas.fit();
+      if (a.fit) app.canvas.fit(60, app.activeBoard);
       if (a.tool) app.setTool(a.tool);
       if (a.select) app.selectIds(a.select);
       return { ok: true };
     } },
-    { name: 'ams_snapshot', description: 'PNG of the artboard (picture or process view), optionally up to a stage.', inputSchema: S({ mode: str('picture | process'), scale: num('Scale (default 0.6)'), upTo: num('Stage index') }), run: (a) => {
+    { name: 'ams_snapshot', description: 'PNG of a board (the main one unless board is given), picture or process view, optionally up to a stage.', inputSchema: S({ mode: str('picture | process'), scale: num('Scale (default 0.6)'), upTo: num('Stage index'), board: str('Board id or title') }), run: (a) => {
       const prev = app.canvas.upTo;
       if (a.upTo !== undefined) app.canvas.upTo = a.upTo;
-      const image = png(app.canvas.snapshot(a.mode || app.view.mode, a.scale || 0.6));
+      const image = png(app.canvas.snapshot(a.mode || app.view.mode, a.scale || 0.6, (a.board && findBoard(doc(), a.board)?.id) || MAIN));
       app.canvas.upTo = prev;
       return { image };
     } },
-    { name: 'ams_process_sheet', description: 'PNG process sheet: each stage built up, plus decisions.', inputSchema: S(), run: () => ({ image: png(processSheet(doc())) }) },
+    { name: 'ams_process_sheet', description: 'PNG process sheet of a board (main unless given): each stage built up, plus decisions.', inputSchema: S({ board: str('Board id or title') }), run: (a) => ({ image: png(processSheet(boardDoc(doc(), (a.board && findBoard(doc(), a.board)?.id) || MAIN))) }) },
+    { name: 'ams_board', description: 'Boards (artboards; the main one is the drawing\'s artboard at the origin). list; add {title, width, height, x?, y?, ground?} (placed right of the others unless x, y); update {id, patch: {title, width, height, x, y, ground}} (moving a board moves its marks); move {id, delta} in the sequence; delete {id, deleteMarks?} (marks go to the blackboard unless deleteMarks); go {id} (make active and fit the view); train {id} (the board models learn from); assign {id, ids} (put marks on a board; id "_" is the blackboard). Scores use board(title) to draw on a board.', inputSchema: S({ action: { type: 'string', enum: ['list', 'add', 'update', 'move', 'delete', 'go', 'train', 'assign'] }, id: str('Board id or title'), title: str(''), width: num(''), height: num(''), x: num(''), y: num(''), ground: str(''), patch: { type: 'object' }, delta: num('±1'), deleteMarks: { type: 'boolean' }, ids: { type: 'array', items: { type: 'string' } } }, ['action']), run: (a) => {
+      const list = () => boardsOf(doc()).map((b, i) => ({ index: i, id: b.id, title: b.title, x: b.x, y: b.y, width: b.width, height: b.height, ground: b.ground, marks: marksOf(doc(), b.id).length, main: b.main, train: trainBoard(doc()) === b.id }));
+      if (a.action === 'list') return { boards: list(), blackboard: marksOf(doc(), BLACKBOARD).length, active: app.activeBoard || MAIN };
+      if (a.action === 'add') { const b = app.store.addBoard({ title: a.title, width: a.width, height: a.height, x: a.x, y: a.y, ground: a.ground }, { by: 'agent' }); return b; }
+      if (a.action === 'assign' && a.id === BLACKBOARD) { app.store.assignBoard(a.ids || [], BLACKBOARD, { by: 'agent' }); return { ok: true }; }
+      const b = findBoard(doc(), a.id);
+      if (!b) throw new Error(`No board “${a.id}”`);
+      if (a.action === 'update') app.store.updateBoard(b.id, a.patch || {}, { by: 'agent' });
+      if (a.action === 'move') app.store.moveBoard(b.id, a.delta || 1, { by: 'agent' });
+      if (a.action === 'delete') app.store.removeBoard(b.id, { deleteMarks: Boolean(a.deleteMarks) }, { by: 'agent' });
+      if (a.action === 'go') app.goToBoard(b.id);
+      if (a.action === 'train') app.store.setTrainBoard(b.id, { by: 'agent' });
+      if (a.action === 'assign') app.store.assignBoard(a.ids || [], b.id, { by: 'agent' });
+      return { ok: true, boards: list() };
+    } },
     { name: 'ams_save', description: 'Save the drawing (image + process) to Assets.', inputSchema: S({ title: str('') }), run: async (a) => {
       if (a.title) app.store.change('title', d => { d.title = a.title; }, { by: 'agent' });
       const x = await app.saveToAssets();

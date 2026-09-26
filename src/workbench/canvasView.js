@@ -9,6 +9,7 @@
  * (mouse pressure is estimated from speed). Wheel pans; Ctrl/Cmd+wheel or pinch zooms.
  */
 import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
+import { boardsOf, boardDoc, boardAt, boardForPoints, MAIN, BLACKBOARD } from '../process/boards.js';
 import { renderDocument } from '../process/render.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
 import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
@@ -76,10 +77,12 @@ export class CanvasView {
     if (this.cam) this.draw(); else this.invalidate();
   }
 
-  fit(pad = 60) {
-    const { width, height } = this.store.doc.artboard;
+  /** Fit a board (the main one by default) in the view. */
+  fit(pad = 60, board = MAIN) {
+    const b = boardsOf(this.store.doc).find(x => x.id === board) || boardsOf(this.store.doc)[0];
+    const { width, height } = b;
     const z = Math.min((this.w - pad * 2) / width, (this.h - pad * 2) / height);
-    this.cam = { z, x: (this.w - width * z) / 2, y: (this.h - height * z) / 2 };
+    this.cam = { z, x: (this.w - width * z) / 2 - b.x * z, y: (this.h - height * z) / 2 - b.y * z };
     this.saveCam();
     this.invalidate();
   }
@@ -111,12 +114,15 @@ export class CanvasView {
     ctx.fillRect(0, 0, this.w, this.h);
     this.drawGrid(false);
     const doc = this.previewDoc || this.store.doc;   // a take being played shows its own document
-    const [ax, ay] = this.toScreen(0, 0);
+    const boards = boardsOf(doc);
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 18;
-    ctx.fillStyle = doc.artboard.ground;
-    ctx.fillRect(ax, ay, doc.artboard.width * this.cam.z, doc.artboard.height * this.cam.z);
+    for (const b of boards) {
+      const [bx, by] = this.toScreen(b.x, b.y);
+      ctx.fillStyle = b.ground;
+      ctx.fillRect(bx, by, b.width * this.cam.z, b.height * this.cam.z);
+    }
     ctx.restore();
     this.drawGrid(true);
     if (this.grid.show === 'everywhere') { const keep = this.grid.show; this.grid.show = 'paper'; this.drawGrid(true); this.grid.show = keep; }
@@ -143,6 +149,7 @@ export class CanvasView {
       });
     }
     if (this.previewDoc) { this.drawPreviewOverlay?.(ctx, { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, this.w, this.h); return; }
+    this.drawBoards(ctx, css);
     this.drawFrame(ctx, css.getPropertyValue('--wb-select').trim() || '#8a8a8a');
     // Points: every mark's points as faint dots (brighter on the selection).
     if (this.showPoints) {
@@ -203,9 +210,10 @@ export class CanvasView {
     let x0 = 0, y0 = 0, x1 = this.w, y1 = this.h;
     ctx.save();
     if (onlyPaper) {
-      const ab = this.store.doc.artboard, [ax, ay] = this.toScreen(0, 0);
-      x0 = Math.max(0, ax); y0 = Math.max(0, ay); x1 = Math.min(this.w, ax + ab.width * z); y1 = Math.min(this.h, ay + ab.height * z);
-      ctx.beginPath(); ctx.rect(ax, ay, ab.width * z, ab.height * z); ctx.clip();
+      // Every board's paper (anchored at the world origin, so boards share one grid).
+      ctx.beginPath();
+      for (const b of boardsOf(this.previewDoc || this.store.doc)) { const [bx, by] = this.toScreen(b.x, b.y); ctx.rect(bx, by, b.width * z, b.height * z); }
+      ctx.clip();
     }
     ctx.strokeStyle = ctx.fillStyle = g.color;
     const strength = g.snap ? 1 : 0.5;   // fainter when marks don't snap to it
@@ -361,7 +369,7 @@ export class CanvasView {
     const up = () => {
       window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
       this.pointer = false; this.transforming = null; this.transformLabel = null;
-      if (changed) this.store.commitFrom(before, hd.kind === 'rotate' ? 'rotate' : 'scale');
+      if (changed) { this.rehome(originals.keys()); this.store.commitFrom(before, hd.kind === 'rotate' ? 'rotate' : 'scale'); }
       // A resized note sets the size and width of the next one (not its angle).
       if (changed && hd.kind !== 'rotate' && notes.size === 1) {
         const n = this.store.doc.elements.find(el => notes.has(el.id));
@@ -477,8 +485,14 @@ export class CanvasView {
       if (id) this.onDropAsset?.(id, at);
       else if (e.dataTransfer.files?.length) this.onDropFiles?.([...e.dataTransfer.files], at);
     });
+    c.addEventListener('dblclick', e => {
+      const bh = this.boardHandleAt(...this.local(e));
+      if (bh?.kind === 'title') this.onBoardRename?.(bh.id);
+    });
     c.addEventListener('contextmenu', e => {
       e.preventDefault();
+      const bh = this.boardHandleAt(...this.local(e));
+      if (bh) { this.selectBoard(bh.id); this.onBoardContext?.(bh.id, e); return; }
       const [wx, wy] = this.toWorld(...this.local(e));
       const hit = this.hitTest(wx, wy);
       if (hit && !this.selected.has(hit.id)) {
@@ -497,6 +511,13 @@ export class CanvasView {
       const [sx, sy] = this.local(e);
       const [wx, wy] = this.toWorld(sx, sy);
       const tool = this.getTool();
+      // Boards: their titles (and the selected board's corner) work with Select and the Board tool.
+      if (tool === 'select' || tool === 'board') {
+        const bh = this.boardHandleAt(sx, sy);
+        if (bh) return this.startBoardDrag(e, bh);
+        if (tool === 'board') return this.startBoardRect(e, wx, wy);
+        if (this.selectedBoard && !this.hitTest(wx, wy)) this.selectBoard(null);
+      }
       // Sculpt: the Sculpt tool, or Shift+drag over a mark with most tools.
       if (tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length && !(tool === 'select' && this.handleAt(sx, sy)))) {
         return this.startSculpt(e, wx, wy, tool === 'sculpt' ? null : () => { if (tool === 'select') this.startSelectClick(e, wx, wy); });
@@ -512,6 +533,117 @@ export class CanvasView {
       if (tool === 'note') { const [nx, ny] = this.snapPt(wx, wy); const [nsx, nsy] = this.toScreen(nx, ny); return this.startNote(nsx, nsy, nx, ny); }
       this.startStroke(e, tool, wx, wy);
     });
+  }
+
+  // ---- boards --------------------------------------------------------------------
+  /** Titles above the boards (click to select, drag to move with their marks), the selected board's frame and corner. */
+  drawBoards(ctx, css) {
+    const doc = this.store.doc, boards = boardsOf(doc);
+    this.boardLabels = [];
+    if (boards.length < 2 && !this.selectedBoard) return;
+    const text = css.getPropertyValue('--wb-text').trim() || '#ddd', muted = css.getPropertyValue('--wb-muted').trim() || '#888';
+    const accent = css.getPropertyValue('--wb-accent-2').trim() || '#c8664f', sel = css.getPropertyValue('--wb-select').trim() || '#8a8a8a';
+    ctx.save();
+    ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+    ctx.textBaseline = 'bottom';
+    boards.forEach((b, i) => {
+      const [bx, by] = this.toScreen(b.x, b.y), w = b.width * this.cam.z, h = b.height * this.cam.z;
+      const on = this.selectedBoard === b.id;
+      const label = `${i + 1}  ${b.title}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
+      const tw = Math.min(ctx.measureText(label).width, Math.max(40, w));
+      ctx.fillStyle = on ? text : muted;
+      ctx.fillText(label, bx, by - 5, Math.max(40, w));
+      this.boardLabels.push({ id: b.id, x: bx - 2, y: by - 20, w: tw + 4, h: 18 });
+      if (on) {
+        ctx.strokeStyle = sel; ctx.lineWidth = 1.5; ctx.strokeRect(bx - 0.5, by - 0.5, w + 1, h + 1);
+        ctx.fillStyle = accent; ctx.fillRect(bx + w - 5, by + h - 5, 10, 10);
+      }
+    });
+    ctx.restore();
+  }
+
+  /** The board title (or the selected board's resize corner) under a screen point. */
+  boardHandleAt(sx, sy) {
+    const doc = this.store.doc;
+    if (this.selectedBoard) {
+      const b = boardsOf(doc).find(x => x.id === this.selectedBoard);
+      if (b) { const [bx, by] = this.toScreen(b.x + b.width, b.y + b.height); if (Math.abs(sx - bx) < 8 && Math.abs(sy - by) < 8) return { id: b.id, kind: 'resize' }; }
+    }
+    const l = (this.boardLabels || []).find(r => sx >= r.x && sx <= r.x + r.w && sy >= r.y && sy <= r.y + r.h);
+    return l ? { id: l.id, kind: 'title' } : null;
+  }
+
+  selectBoard(id) {
+    if (id && this.selected.size) this.select([]);
+    this.selectedBoard = id || null;
+    if (id) this.onBoardSelect?.(id);
+    this.invalidate();
+  }
+
+  /** Drag a board by its title (its marks come along), or resize it from its corner. One undo step. */
+  startBoardDrag(e, hd) {
+    const doc = this.store.doc;
+    const b0 = boardsOf(doc).find(b => b.id === hd.id);
+    if (!b0) return;
+    this.selectBoard(hd.id);
+    if (hd.kind === 'title' && b0.main) return;   // the main board stays at the origin
+    const before = JSON.stringify(doc);
+    const [wx, wy] = this.toWorld(...this.local(e));
+    const marks = doc.elements.filter(el => el.board === hd.id).map(el => [el, el.points.map(p => p.slice())]);
+    let moved = false;
+    this.pointer = true;
+    const mv = ev => {
+      const [x, y] = this.toWorld(...this.local(ev));
+      let dx = x - wx, dy = y - wy;
+      if (!moved && Math.hypot(dx, dy) * this.cam.z < 3) return;
+      moved = true;
+      if (hd.kind === 'resize') {
+        let [w, h] = [Math.max(40, b0.width + dx), Math.max(40, b0.height + dy)];
+        if (this.grid.snap) [w, h] = this.snapPt(w, h);
+        if (b0.main) Object.assign(doc.artboard, { width: Math.round(w), height: Math.round(h) });
+        else Object.assign(doc.boards.find(b => b.id === hd.id), { width: Math.round(w), height: Math.round(h) });
+      } else {
+        if (this.grid.snap) { const [sx0, sy0] = this.snapPt(b0.x + dx, b0.y + dy); dx = sx0 - b0.x; dy = sy0 - b0.y; }
+        Object.assign(doc.boards.find(b => b.id === hd.id), { x: Math.round(b0.x + dx), y: Math.round(b0.y + dy) });
+        for (const [el, pts] of marks) el.points = pts.map(([px, py, t, p]) => [px + Math.round(b0.x + dx) - b0.x, py + Math.round(b0.y + dy) - b0.y, t, p]);
+      }
+      this.invalidate();
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+      this.pointer = false;
+      if (moved) this.store.commitFrom(before, hd.kind === 'resize' ? 'resize board' : 'move board');
+    };
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+  }
+
+  /** Board tool: drag out a rectangle, it becomes a board. */
+  startBoardRect(e, wx, wy) {
+    [wx, wy] = this.snapPt(wx, wy);
+    this.marquee = { x0: wx, y0: wy, x1: wx, y1: wy };
+    this.pointer = true;
+    const mv = ev => { let [x, y] = this.toWorld(...this.local(ev)); [x, y] = this.snapPt(x, y); if (ev.shiftKey) { const s = Math.max(Math.abs(x - wx), Math.abs(y - wy)); x = wx + Math.sign(x - wx || 1) * s; y = wy + Math.sign(y - wy || 1) * s; } this.marquee.x1 = x; this.marquee.y1 = y; this.invalidate(); };
+    const up = () => {
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+      this.pointer = false;
+      const m = this.marquee; this.marquee = null;
+      const x = Math.min(m.x0, m.x1), y = Math.min(m.y0, m.y1), w = Math.abs(m.x1 - m.x0), h = Math.abs(m.y1 - m.y0);
+      if (w * this.cam.z > 12 && h * this.cam.z > 12) { const b = this.store.addBoard({ x: Math.round(x), y: Math.round(y), width: Math.round(w), height: Math.round(h) }); this.selectBoard(b.id); this.onTool?.('select'); }
+      this.invalidate();
+    };
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+  }
+
+  /** Marks that moved go to the board they now lie on (the blackboard outside boards). Mutates the doc. */
+  rehome(ids) {
+    const set = new Set(ids);
+    for (const el of this.store.doc.elements) {
+      if (!set.has(el.id)) continue;
+      const b = boardForPoints(this.store.doc, el.points);
+      if (b === MAIN) delete el.board; else el.board = b;
+    }
   }
 
   /** Marks the brush can sculpt at a world point: the selection if any, else any mark near it. */
@@ -613,7 +745,7 @@ export class CanvasView {
       const up = () => {
         window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
         this.pointer = false;
-        if (moved) this.store.commitFrom(before, 'move');
+        if (moved) { this.rehome(orig.keys()); this.store.commitFrom(before, 'move'); }
       };
       window.addEventListener('pointermove', mv);
       window.addEventListener('pointerup', up);
@@ -735,11 +867,12 @@ export class CanvasView {
   }
 
   /** PNG of the artboard as currently shown (picture or process view). */
-  snapshot(mode = this.viewMode(), scale = 1) {
+  snapshot(mode = this.viewMode(), scale = 1, board = MAIN) {
     const c = document.createElement('canvas');
-    const { width, height } = this.store.doc.artboard;
+    const doc = boardDoc(this.store.doc, board);
+    const { width, height } = doc.artboard;
     c.width = Math.round(width * scale); c.height = Math.round(height * scale);
-    renderDocument(c.getContext('2d'), this.store.doc, { mode, upTo: this.upTo, transform: { x: 0, y: 0, scale } });
+    renderDocument(c.getContext('2d'), doc, { mode, upTo: this.upTo, transform: { x: 0, y: 0, scale } });
     return c;
   }
 }
