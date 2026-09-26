@@ -121,6 +121,14 @@ export function normalizeElement(e, stage) {
   };
 }
 
+/** Are three points on one straight line, with b between a and c? */
+function collinear(a, b, c) {
+  if (!a || !c) return false;
+  const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  const dot = (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1]);
+  return Math.abs(cross) < 1e-6 && dot >= 0;
+}
+
 /** Bounding box of an element's points. */
 export function bounds(e) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -339,6 +347,46 @@ export class ProcessStore {
       d.stages = d.stages.filter(s => s.id !== id);
       for (const e of d.elements) if (e.stage === id) e.stage = fallback;
     });
+  }
+
+  /**
+   * Snap marks to a grid of step q (artboard units):
+   *   points    every point to the nearest grid point
+   *   tidy      points, then repeated points merged and points in the middle of straight runs dropped
+   *   topleft   the whole mark moves so its top-left corner is on the grid (shape unchanged)
+   *   center    the whole mark moves so its center is on the grid
+   * One undo step. Returns how many marks changed.
+   */
+  snapMarks(ids, mode, q, opts) {
+    const g = v => Math.round(v / q) * q;
+    return this.change(`snap ${mode}`, d => {
+      let n = 0;
+      for (const e of d.elements) {
+        if (!ids.includes(e.id) || !e.points.length) continue;
+        if (mode === 'topleft' || mode === 'center') {
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (const [x, y] of e.points) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+          const [ax, ay] = mode === 'center' ? [(x0 + x1) / 2, (y0 + y1) / 2] : [x0, y0];
+          const dx = g(ax) - ax, dy = g(ay) - ay;
+          e.points = e.points.map(([x, y, t, p]) => [x + dx, y + dy, t, p]);
+        } else {
+          let pts = e.points.map(([x, y, t, p]) => [g(x), g(y), t, p]);
+          if (mode === 'tidy') {
+            pts = pts.filter((p, i) => i === 0 || p[0] !== pts[i - 1][0] || p[1] !== pts[i - 1][1]);
+            if (e.closed && pts.length > 1 && pts[0][0] === pts.at(-1)[0] && pts[0][1] === pts.at(-1)[1]) pts = pts.slice(0, -1);
+            // Drop points on a straight run (collinear with both neighbours, going the same way).
+            pts = pts.filter((p, i) => {
+              if (i === 0 || i === pts.length - 1) return !(e.closed && pts.length > 3 && collinear(pts.at(i - 1), p, pts[(i + 1) % pts.length]));
+              return !collinear(pts[i - 1], p, pts[i + 1]);
+            });
+            if (pts.length < 2) pts = e.points.slice(0, 2).map(([x, y, t, p]) => [g(x), g(y), t, p]);
+          }
+          e.points = pts;
+        }
+        n++;
+      }
+      return n;
+    }, opts);
   }
 
   // ---- boards ---------------------------------------------------------------------------

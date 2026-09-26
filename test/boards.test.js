@@ -158,3 +158,17 @@ describe('simplify on a closed path', () => {
     expect(out.map(p => p.join(','))).toEqual(expect.arrayContaining(['100,0', '100,100', '0,100']));
   });
 });
+
+describe('snapping marks', () => {
+  it('points, tidy, and position', () => {
+    const s = new ProcessStore();
+    const a = s.addElement({ role: 'line', points: [[12, 3], [24, 2], [37, 1], [49, 26], [51, 49]] });
+    s.snapMarks([a.id], 'points', 25);
+    expect(s.doc.elements[0].points.map(p => p.slice(0, 2))).toEqual([[0, 0], [25, 0], [25, 0], [50, 25], [50, 50]]);
+    s.snapMarks([a.id], 'tidy', 25);
+    expect(s.doc.elements[0].points.map(p => p.slice(0, 2))).toEqual([[0, 0], [25, 0], [50, 25], [50, 50]]);
+    const b = s.addElement({ role: 'line', points: [[13, 13], [33, 20]] });
+    s.snapMarks([b.id], 'topleft', 25);
+    expect(s.doc.elements[1].points[0].slice(0, 2)).toEqual([25, 25]);
+  });
+});

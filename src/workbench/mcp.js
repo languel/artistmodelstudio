@@ -106,6 +106,10 @@ export function workbenchTools(app) {
       if (a.action === 'tool') app.setTool('brush');
       return { active: app.brush.id, params: app.brush.params[app.brush.id] || {}, slots: app.slots, tool: app.tool };
     } },
+    { name: 'ams_snap', description: 'Snap marks to the grid (one undo step). mode: points (every point to the nearest grid point), tidy (points, then repeated points merged and points on straight runs dropped), topleft or center (the whole mark moves so that corner or its center lands on the grid). step: grid multiples (1 = the finest grid lines; 2, 4… quantize coarser).', inputSchema: S({ ids: { type: 'array', items: { type: 'string' } }, mode: { type: 'string', enum: ['points', 'tidy', 'topleft', 'center'] }, step: num('Grid multiple (default 1)') }, ['ids', 'mode']), run: (a) => {
+      const q = app.canvas.grid.spacing / Math.max(1, app.canvas.grid.subdivisions) * (a.step || 1);
+      return { changed: app.store.snapMarks(a.ids, a.mode, q, { by: 'agent' }), step: q };
+    } },
     { name: 'ams_ui', description: 'Show or hide parts of the interface, for a clean view of just the drawing: tools, view (the right island with the menu), zoom, panels, or all; perf shows the performance readout. Omit everything to read the state (it includes the last canvas redraw in ms).', inputSchema: S({ perf: { type: 'boolean' }, all: { type: 'boolean' }, tools: { type: 'boolean' }, view: { type: 'boolean' }, zoom: { type: 'boolean' }, panels: { type: 'boolean' } }), run: (a) => {
       const patch = Object.fromEntries(['all', 'tools', 'view', 'zoom', 'panels'].filter(k => k in a).map(k => [k, Boolean(a[k])]));
       if (Object.keys(patch).length) app.setUI(patch);

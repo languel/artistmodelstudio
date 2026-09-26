@@ -892,6 +892,19 @@ export class Workbench {
       ] } : null,
       '-',
       { label: 'Duplicate', run: () => { const out = this.store.duplicate(ids, 20 / z, 20 / z); this.canvas.select(out); } },
+      { label: 'Snap', hint: 'To the grid (its finest lines); one undo step', items: (() => {
+        const q = this.canvas.grid.spacing / Math.max(1, this.canvas.grid.subdivisions);
+        const snap = (mode, k = 1) => { const n = this.store.snapMarks(ids, mode, q * k); this.log(`Snapped ${n} mark${n === 1 ? '' : 's'} (${mode}${k > 1 ? `, ${k}× grid` : ''}).`); };
+        return [
+          { label: 'Points to grid', hint: 'Every point to the nearest grid point', run: () => snap('points') },
+          { label: 'Points to grid, tidy', hint: 'Then repeated points merged and points on straight runs dropped', run: () => snap('tidy') },
+          { label: 'Position: top-left', hint: 'The whole mark moves; its top-left corner lands on the grid', run: () => snap('topleft') },
+          { label: 'Position: center', hint: 'The whole mark moves; its center lands on the grid', run: () => snap('center') },
+          '-',
+          { label: 'Quantize 2× grid', hint: 'Points to a grid twice as coarse, tidied', run: () => snap('tidy', 2) },
+          { label: 'Quantize 4× grid', hint: 'Points to a grid four times as coarse, tidied', run: () => snap('tidy', 4) }
+        ];
+      })() },
       { label: 'Copy as', items: [
         { label: 'SVG', hint: 'The selection as SVG (with its process record), on the clipboard', run: () => this.copySelection('svg', ids) },
         { label: 'PNG', hint: 'The selection as a picture (transparent), on the clipboard', run: () => this.copySelection('png', ids) }
