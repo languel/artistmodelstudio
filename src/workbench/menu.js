@@ -15,7 +15,7 @@ export function showMenu(items, x, y) {
       if (!it) continue;
       if (it === '-') { m.append(h('hr')); continue; }
       if (it.label && !it.run && !it.items) { m.append(h('div', { class: 'wb-menu-label' }, it.label)); continue; }
-      const b = h('button', { title: it.hint || '', class: it.items ? 'wb-menu-sub' : '', disabled: it.disabled || false },
+      const b = h('button', { title: it.hint || '', class: `${it.items ? 'wb-menu-sub' : ''}${it.active ? ' active' : ''}`, disabled: it.disabled || false },
         it.icon ? h('span', { class: 'wb-menu-icon', html: it.icon }) : null, h('span', { class: it.icon ? 'wb-menu-text' : '' }, it.label), it.keys ? h('kbd', {}, it.keys) : it.items ? h('span', { class: 'wb-menu-arrow' }, '›') : null);
       if (it.items) {
         const open = () => { const br = b.getBoundingClientRect(); build(it.items, br.right + 2, br.top - 4, level + 1, br); };

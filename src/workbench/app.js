@@ -143,7 +143,7 @@ export class Workbench {
     const cur = this.sculpt.tool;
     showMenu([
       { label: 'Sculpt' },
-      ...Object.entries(SCULPTS).map(([id, t]) => ({ icon: sculptIcon(id), label: `${id === cur ? '✓ ' : ''}${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); if (this.tool !== 'sculpt') this.setTool('sculpt'); } })),
+      ...Object.entries(SCULPTS).map(([id, t]) => ({ icon: sculptIcon(id), active: id === cur, label: `${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); if (this.tool !== 'sculpt') this.setTool('sculpt'); } })),
       '-',
       { label: `Radius ${Math.round(this.sculpt.radius)} px`, keys: '[ ]', disabled: true },
       { label: `Strength ${Math.round(this.sculpt.strength * 100)}%`, keys: 'Shift+[ ]', disabled: true },
@@ -234,7 +234,7 @@ export class Workbench {
     const S = this.scenes, cur = S.list.active;
     showMenu([
       { label: 'Scenes' },
-      ...S.all.map((s, i) => ({ label: `${s.id === cur ? '✓ ' : ''}${i + 1}. ${s.title || 'Untitled'}`, run: () => S.switchTo(s.id) })),
+      ...S.all.map((s, i) => ({ active: s.id === cur, label: `${i + 1}. ${s.title || 'Untitled'}`, run: () => S.switchTo(s.id) })),
       '-',
       { label: 'New scene', hint: 'An empty drawing; this one stays as it is', run: () => S.create() },
       { label: 'Duplicate this scene', run: () => S.duplicate() },
@@ -320,7 +320,7 @@ export class Workbench {
       { label: 'Rename…', run: () => this.renameBoard(id) },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
       { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['p5', 'p5.js sketch']].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
-      { label: (doc.train || MAIN) === id ? '✓ Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
+      { active: (doc.train || MAIN) === id, label: (doc.train || MAIN) === id ? 'Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
       b.main ? null : { label: 'Earlier', run: () => this.store.moveBoard(id, -1) },
       b.main ? null : { label: 'Later', run: () => this.store.moveBoard(id, 1) },
       { label: 'Duplicate', run: () => this.duplicateBoard(id) },
@@ -387,7 +387,7 @@ export class Workbench {
     const ids = Object.keys(BRUSHES).filter(id => !BRUSHES[id].construction && BRUSHES[id].roles?.some(r => ['line', 'plane', 'gesture'].includes(r)));
     showMenu([
       { label: 'Brush' },
-      ...ids.map(id => ({ icon: brushIcon(id), label: `${id === cur ? '✓ ' : ''}${BRUSHES[id].label}`, hint: `${BRUSHES[id].doc}${this.canvas.selected.size ? ' · applies to the selection (Cmd-click: only pick it)' : ''}`, run: ev => this.pickBrush(id, { apply: !(ev?.metaKey || ev?.ctrlKey) }) })),
+      ...ids.map(id => ({ icon: brushIcon(id), active: id === cur, label: `${BRUSHES[id].label}`, hint: `${BRUSHES[id].doc}${this.canvas.selected.size ? ' · applies to the selection (Cmd-click: only pick it)' : ''}`, run: ev => this.pickBrush(id, { apply: !(ev?.metaKey || ev?.ctrlKey) }) })),
       '-',
       { label: 'Settings…', hint: 'Opt+right-click on the canvas', run: () => { this.setTool('brush'); openToolParams(this, x, y); } },
       { label: 'Show code', run: () => this.openCode?.('brush', cur) },
@@ -627,7 +627,7 @@ export class Workbench {
     }
     // Construction: gesture and guide share a button showing the one in use (E, G still pick directly).
     const con = CONSTRUCTION.find(c => c[0] === this.tool) || CONSTRUCTION.find(c => c[0] === this.constructTool) || CONSTRUCTION[0];
-    const conMenu = (x, y) => showMenu([{ label: 'Construction' }, ...CONSTRUCTION.map(([id, tip, key]) => ({ icon: icon(id), label: `${id === con[0] ? '✓ ' : ''}${tip.split(':')[0]}`, hint: tip, keys: key, run: () => this.setTool(id) }))], x, y);
+    const conMenu = (x, y) => showMenu([{ label: 'Construction' }, ...CONSTRUCTION.map(([id, tip, key]) => ({ icon: icon(id), active: id === con[0], label: `${tip.split(':')[0]}`, hint: tip, keys: key, run: () => this.setTool(id) }))], x, y);
     const conBtn = h('button', { class: `wb-tool wb-tool-stack${CONSTRUCTION.some(c => c[0] === this.tool) ? ' on' : ''}`, 'data-guide': `tool:${con[0]}`, title: `${con[1]} (${con[2]}). Click again or right-click for gesture and guide`, html: `${icon(con[0])}<kbd>${con[2]}</kbd><span class="wb-tool-caret"></span>` });
     conBtn.addEventListener('click', () => { if (CONSTRUCTION.some(c => c[0] === this.tool)) { const r = conBtn.getBoundingClientRect(); conMenu(r.left, r.bottom + 4); } else this.setTool(con[0]); });
     conBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); conMenu(ev.clientX, ev.clientY); });
@@ -798,7 +798,7 @@ export class Workbench {
       { label: 'Move to stage', items: this.store.doc.stages.map(st => ({ label: st.name, run: () => this.store.patchElements(ids, { stage: st.id }, 'stage') })) },
       brushes.length ? { label: 'Brush', items: brushes.map(b => ({ icon: brushIcon(b.id), label: b.label, run: () => this.store.change('brush', d => { for (const el of d.elements) if (ids.includes(el.id)) el.realize = { brush: b.id, params: {} }; }) })) } : null,
       lineish ? { label: 'Sculpt', hint: 'Brush the selected marks into shape (Shift+drag over a mark does it with any tool)', items: [
-        ...Object.entries(SCULPTS).map(([id, t]) => ({ icon: sculptIcon(id), label: `${id === this.sculpt.tool ? '✓ ' : ''}${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } })),
+        ...Object.entries(SCULPTS).map(([id, t]) => ({ icon: sculptIcon(id), active: id === this.sculpt.tool, label: `${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } })),
         '-',
         { label: 'Settings…', hint: 'Opt+right-click anywhere', run: () => { const [sx, sy] = this.canvas.toScreen(wx, wy); const r = this.canvas.canvas.getBoundingClientRect(); this.setTool('sculpt'); openToolParams(this, r.left + sx, r.top + sy); } },
         { label: 'Show code', run: () => this.openCode?.('sculpt', this.sculpt.tool) }

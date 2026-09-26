@@ -628,5 +628,7 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 .wb-board-rename { position: fixed; z-index: 90; font: 12px ui-sans-serif, system-ui, sans-serif; line-height: 18px; padding: 0 3px; color: var(--wb-text); background: var(--wb-panel); min-width: 40px; }
 
 .wb-custom-icon { display: inline-block; width: 16px; height: 16px; background: currentColor; -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; }
-.wb-menu-icon { display: inline-flex; width: 16px; margin-right: 8px; opacity: .85; flex: none; }
+.wb-menu-icon { display: inline-flex; width: 16px; margin-right: -8px; opacity: .85; flex: none; }
 .wb-menu-text { flex: 1; text-align: left; }
+.wb-menu button.active { background: color-mix(in srgb, var(--wb-text) 12%, transparent); font-weight: 500; }
+.wb-menu button.active .wb-menu-icon { opacity: 1; }
