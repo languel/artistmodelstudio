@@ -29,12 +29,22 @@ const TEMPLATE = id => `brush({
 })
 `;
 
-/** A sample walk that is slow, then fast, then lingers, and a plane to fill. */
-function sample(w, h) {
-  const pts = []; let x = w * 0.06, y = h * 0.42, hd = -15, t = 0;
-  for (let i = 0; i < 90; i++) { const u = i / 89; hd += Math.sin(i / 6) * 8; x += Math.cos(hd * Math.PI / 180) * w * 0.0105; y += Math.sin(hd * Math.PI / 180) * w * 0.0105; t += u < 0.3 ? 60 : u < 0.7 ? 10 : 35; pts.push([x, y, t, 0.5 + 0.3 * Math.sin(i / 9)]); }
-  const plane = Array.from({ length: 40 }, (_, i) => { const a = i / 40 * Math.PI * 2; return [w * 0.8 + Math.cos(a) * h * 0.28, h * 0.52 + Math.sin(a) * h * 0.3, 0, 0.5]; });
-  return { line: { role: 'line', points: pts, closed: false, color: null, seed: 3 }, plane: { role: 'plane', points: plane, closed: true, color: null, seed: 5 } };
+/**
+ * A sample walk that is slow, then fast, then lingers, and a plane to fill, fitted into the preview:
+ * the walk in the left part (all of it when there is no plane), the plane on the right.
+ */
+function sample(W, H, { line = true, plane = true, pad = 10 } = {}) {
+  const raw = []; let x = 0, y = 0, hd = -15, t = 0;
+  for (let i = 0; i < 90; i++) { const u = i / 89; hd += Math.sin(i / 6) * 8; x += Math.cos(hd * Math.PI / 180); y += Math.sin(hd * Math.PI / 180); t += u < 0.3 ? 60 : u < 0.7 ? 10 : 35; raw.push([x, y, t, 0.5 + 0.3 * Math.sin(i / 9)]); }
+  const box = { x0: pad, y0: pad, x1: (plane && line ? W * 0.66 : W) - pad, y1: H - pad };
+  const xs = raw.map(q => q[0]), ys = raw.map(q => q[1]);
+  const [mx, Mx, my, My] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const k = Math.min((box.x1 - box.x0) / ((Mx - mx) || 1), (box.y1 - box.y0) / ((My - my) || 1));
+  const ox = box.x0 + ((box.x1 - box.x0) - (Mx - mx) * k) / 2, oy = box.y0 + ((box.y1 - box.y0) - (My - my) * k) / 2;
+  const pts = raw.map(([px, py, pt, pp]) => [ox + (px - mx) * k, oy + (py - my) * k, pt, pp]);
+  const r = Math.min(H / 2 - pad, (line ? W * 0.34 : W) / 2 - pad), cx = line ? W * 0.83 : W / 2, cy = H / 2;
+  const planePts = Array.from({ length: 40 }, (_, i) => { const a = i / 40 * Math.PI * 2; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.92, 0, 0.5]; });
+  return { line: { role: 'line', points: pts, closed: false, color: null, seed: 3 }, plane: { role: 'plane', points: planePts, closed: true, color: null, seed: 5 } };
 }
 
 export function mountBrushes(root, app) {
@@ -51,12 +61,19 @@ export function mountBrushes(root, app) {
   const scopeOf = id => (isBuiltin(id) ? 'built-in' : BRUSHES[id]?.scope === 'doc' ? 'this drawing' : 'library');
   const draw = () => {
     const ctx = preview.getContext('2d'), W = preview.width, H = preview.height;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // A fresh context each time: a brush that left state behind (alpha, transform) must not leak.
+    if (ctx.reset) ctx.reset(); else { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.setLineDash([]); }
     ctx.fillStyle = app.store.doc.artboard.ground || '#f3efe6'; ctx.fillRect(0, 0, W, H);
     if (!def) return;
-    const s = sample(W, H), p = Object.fromEntries(def.params.map(q => [q.key, q.default]));
+    // The values the sliders act on (the selected marks, or the tool's defaults), over the code's defaults.
+    const p = { ...Object.fromEntries(def.params.map(q => [q.key, q.default])), ...(livePreviewParams() || {}) };
+    const roles = def.roles || [];
+    const hasLine = ['line', 'gesture', 'guide', 'point'].some(r => roles.includes(r)), hasPlane = roles.includes('plane');
+    const s = sample(W, H, { line: hasLine, plane: hasPlane, pad: 6 + Math.min(H / 8, Number(p.width ?? p.size ?? 4) * 1.5) });
+    // Drawn in the color of the marks the sliders act on (else the brush's own ink).
+    const color = liveColor();
+    if (color) { s.line.color = color; s.plane.color = color; }
     try {
-      const roles = def.roles || [];
       if (roles.includes('line') || roles.includes('gesture') || roles.includes('guide')) def.draw(ctx, s.line, p, { rng: mulberry32(3), scale: 1 });
       if (roles.includes('plane')) def.draw(ctx, s.plane, p, { rng: mulberry32(5), scale: 1 });
       if (roles.includes('point')) def.draw(ctx, { ...s.line, role: 'point', points: s.line.points.filter((_, i) => i % 15 === 0) }, p, { rng: mulberry32(3), scale: 1 });
@@ -82,6 +99,18 @@ export function mountBrushes(root, app) {
     return null;
   };
   let before = null, commitTimer = 0, fromEditor = false;
+  const liveColor = () => {
+    const t = targets();
+    if (t?.kind === 'sel') return app.store.doc.elements.find(e => e.id === t.ids[0])?.color || null;
+    if (t?.kind === 'tool') return app.defaults(app.tool).color || null;
+    return null;
+  };
+  const livePreviewParams = () => {
+    const t = targets();
+    if (t?.kind === 'sel') return app.store.doc.elements.find(e => e.id === t.ids[0])?.realize.params;
+    if (t?.kind === 'tool') return app.defaults(app.tool).realize.params;
+    return null;
+  };
   const live = {
     target: () => targets()?.label || null,
     get: key => {
@@ -94,12 +123,13 @@ export function mountBrushes(root, app) {
       const t = targets();
       if (!t) return false;
       fromEditor = true;
-      if (t.kind === 'tool') app.setDefaults(app.tool, { realize: { params: { [key]: v } } });
+      if (t.kind === 'tool') { app.setDefaults(app.tool, { realize: { params: { [key]: v } } }); requestAnimationFrame(draw); }
       else {
         // Direct edits while dragging; one undo step when the slider rests.
         before ??= JSON.stringify(app.store.doc);
         for (const e of app.store.doc.elements) if (t.ids.includes(e.id)) e.realize.params = { ...(e.realize.params || {}), [key]: v };
         app.canvas.invalidate();
+        requestAnimationFrame(draw);
         clearTimeout(commitTimer);
         commitTimer = setTimeout(() => { const b = before; before = null; fromEditor = true; app.store.commitFrom(b, 'brush param'); fromEditor = false; }, 350);
       }
@@ -108,7 +138,7 @@ export function mountBrushes(root, app) {
     }
   };
   editor.setLive(live);
-  const refreshLive = () => { if (!fromEditor) editor.setLive({ ...live }); };
+  const refreshLive = () => { if (!fromEditor) { editor.setLive({ ...live }); draw(); } };
   app.on('selection', refreshLive);
   app.on('tool', refreshLive);
 
