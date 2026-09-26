@@ -10,7 +10,7 @@
  *
  * step runs for each mark under the brush, every time the pointer moves. It gets:
  *   pts  the mark's points [x, y, t, pressure] (artboard units), to change or replace
- *   s    the stroke: { x, y, dx, dy, radius, strength, pressure, invert, closed, first,
+ *   s    the stroke: { x, y, dx, dy, radius, strength, pressure, invert, boost (Cmd held), closed, first,
  *        start: [x, y], orig (this mark's points when the stroke began), state (kept for the stroke) }
  *   p    the tool's params
  *   k    the kit: w(pt) (falloff × strength at the cursor), falloff(d, r), mean(pts, i, closed),
@@ -175,11 +175,11 @@ export const SCULPTS = {
   },
 
   thicken: {
-    label: 'Thicken', doc: 'Raises the pressure under the brush, so pressure-aware brushes (Ink) draw wider (Alt: thinner). Pressure can go past 1 (a mouse line is already near 1), up to 2.',
+    label: 'Thicken', doc: 'Raises the pressure under the brush, so pressure-aware brushes (Ink) draw wider (Alt: thinner). Pressure can go past 1 (a mouse line is already near 1): up to 2, or up to 10 with Cmd held.',
     params: [param('amount', 'Amount', 0, 0.5, 0.01, 0.12, 'Pressure added per pass.')],
     step(pts, s, p, k) {
       const dir = s.invert ? -1 : 1;
-      return pts.map(q => { const w = k.w(q); return w ? [q[0], q[1], q[2], Math.max(0.02, Math.min(2, (q[3] ?? 0.5) + dir * w * p.amount))] : q; });
+      return pts.map(q => { const w = k.w(q); return w ? [q[0], q[1], q[2], Math.max(0.02, Math.min(s.boost ? 10 : 2, (q[3] ?? 0.5) + dir * w * p.amount * (s.boost ? 3 : 1)))] : q; });
     }
   }
 };

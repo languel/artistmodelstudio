@@ -525,7 +525,7 @@ export class CanvasView {
       this.brushAt = [sx, sy];
       const s = {
         x, y, dx: x - last[0], dy: y - last[1], radius: sc.radius / this.cam.z, strength: sc.strength,
-        pressure: ev.pointerType === 'pen' ? (ev.pressure || 0.5) * 2 : 1, invert: ev.altKey, first, start: [wx, wy]
+        pressure: ev.pointerType === 'pen' ? (ev.pressure || 0.5) * 2 : 1, invert: ev.altKey, boost: ev.metaKey || ev.ctrlKey, first, start: [wx, wy]
       };
       const els = selIds.length ? this.store.doc.elements.filter(el => selIds.includes(el.id)) : this.store.doc.elements.filter(el => SCULPTABLE(el) && this.editable(el) && !el.hidden);
       for (const el of els) {
