@@ -525,3 +525,7 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-dialog-input { width: 100%; box-sizing: border-box; }
 textarea.wb-dialog-input { min-height: 90px; }
 .wb-dialog-row { display: flex; justify-content: flex-end; gap: 6px; }
+
+/* New / renamed folder: the chip is the field (no box inside a box) */
+.folder-chip.editing { cursor: text; border-color: var(--wb-accent, var(--accent)); }
+.folder-chip.editing input, .folder-chip.editing input:focus { all: unset; width: 10ch; min-width: 4ch; font: inherit; color: inherit; }
