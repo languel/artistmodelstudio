@@ -12,13 +12,15 @@ import documentSrc from './document.js?raw';
 import brushesSrc from './brushes.js?raw';
 import notesSrc from './notes.js?raw';
 import renderSrc from './render.js?raw';
+import scriptSrc from './script.js?raw';
+import controlsSrc from './controls.js?raw';
 
 const strip = src => src
   .replace(/^import[^;]*;\s*$/gm, '')
   .replace(/^export\s+\{[^}]*\};?\s*$/gm, '')
   .replace(/^export\s+(default\s+)?/gm, '');
 /** The studio's renderer, as one script (no imports): the page draws every board itself. */
-const runtime = () => [boardsSrc, documentSrc, brushesSrc, notesSrc, renderSrc].map(strip).join('\n;\n');
+export const pageRuntime = () => [boardsSrc, documentSrc, brushesSrc, notesSrc, renderSrc, scriptSrc, controlsSrc].map(strip).join('\n;\n');
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
@@ -46,7 +48,7 @@ export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.me
     <span class="meta">${n} marks · ${stages} stage${stages === 1 ? '' : 's'} · ${b.width}×${b.height}</span>
   </div>` : ''}
   ${b.text ? `<div class="text">${md(b.text)}</div>` : ''}
-  ${b.code ? `<details class="code"><summary>The score</summary><pre><code>${esc(b.code)}</code></pre></details>` : ''}
+  ${b.code ? `<div class="live" data-for="${esc(b.id)}"></div><details class="code"${n ? '' : ' open'}><summary>The score</summary><pre><code data-code-for="${esc(b.id)}">${esc(b.code)}</code></pre></details>` : ''}
 </section>`;
   });
   const payload = JSON.stringify(doc).replace(/</g, '\\u003c');
@@ -77,6 +79,10 @@ figure.fig canvas { display: block; width: 100%; height: 100%; }
 .bar button { font: inherit; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
 .bar button.on { color: var(--ink); border-color: var(--muted); }
 .bar .meta { margin-left: auto; color: var(--muted); }
+.live { display: grid; grid-template-columns: max-content 1fr 3.5em; gap: 6px 10px; align-items: center; margin: -8px 0 18px; font: 13px ui-sans-serif, system-ui, sans-serif; color: var(--muted); }
+.live:empty { display: none; }
+.live input[type=range] { width: 100%; accent-color: var(--ink); }
+.live output { text-align: right; font: 12px ui-monospace, Menlo, monospace; }
 .text p, .text li { max-width: 68ch; }
 .text table { border-collapse: collapse; font: 14px ui-sans-serif, system-ui, sans-serif; margin: 12px 0; }
 .text th, .text td { border-bottom: 1px solid var(--line); padding: 5px 10px; text-align: left; }
@@ -101,7 +107,7 @@ ${sections.join('\n')}
 <script type="application/json" id="ams-doc">${payload}</script>
 <noscript><p>The drawings on this page are drawn by a script: allow scripts to see them.</p></noscript>
 <script>
-${runtime().replace(/<\/script/gi, '<\\/script')}
+${pageRuntime().replace(/<\/script/gi, '<\\/script')}
 ;
 ${PAGE_UI}
 </script>
@@ -148,6 +154,43 @@ const PAGE_UI = String.raw`
       v.timer = setInterval(() => { v.shown++; v.draw(); if (v.shown >= order.length) { clearInterval(v.timer); v.shown = Infinity; } }, step);
       v.draw();
     });
+    // Board code: its numbers are sliders; moving one reruns the code here and redraws the board.
+    const live = document.querySelector('.live[data-for="' + CSS.escape(id) + '"]');
+    const codeEl = document.querySelector('code[data-code-for="' + CSS.escape(id) + '"]');
+    const b = boardById(doc, id);
+    if (live && b && b.code) {
+      let code = b.code;
+      const rerun = () => {
+        const res = runScript(code, { base: { ...createDocument({ width: one.artboard.width, height: one.artboard.height, ground: one.artboard.ground }), stages: [] }, by: { kind: 'code', name: id } });
+        if (res.error) return;
+        const made = res.doc.elements.map(e => ({ ...e, by: { kind: 'code', name: id } }));
+        const stageOf = new Map(res.doc.stages.map(s => [s.id, (one.stages.find(t => t.name === s.name) || one.stages[0]).id]));
+        for (const e of made) e.stage = stageOf.get(e.stage) || one.stages[0].id;
+        one.elements = [...one.elements.filter(e => !(e.by && e.by.kind === 'code' && e.by.name === id)), ...made];
+        order.length = 0;
+        const rk = new Map(one.stages.map((s, i) => [s.id, i]));
+        one.elements.map((e, i) => [e, i]).sort((a, c) => (rk.get(a[0].stage) ?? 0) - (rk.get(c[0].stage) ?? 0) || a[1] - c[1]).forEach(x => order.push(x[0]));
+        v.draw();
+      };
+      for (const c of findControls(code)) {
+        const step = c.step || stepFor(c.min, c.max);
+        const label = document.createElement('span');
+        label.textContent = c.kind === 'param' ? c.key : c.name || 'line ' + (code.slice(0, c.from).split('\n').length);
+        const input = document.createElement('input');
+        input.type = 'range'; input.min = c.min; input.max = c.max; input.step = step; input.value = c.value;
+        const out = document.createElement('output'); out.textContent = fmt(c.value, step);
+        input.addEventListener('input', () => {
+          const cur = findControls(code).find(x => x.id === c.id);
+          if (!cur) return;
+          const val = fmt(Number(input.value), step);
+          code = code.slice(0, cur.from) + val + code.slice(cur.to);
+          out.textContent = val;
+          if (codeEl) codeEl.textContent = code;
+          rerun();
+        });
+        live.append(label, input, out);
+      }
+    }
     views.push(v);
   }
   const all = () => views.forEach(v => v.draw());

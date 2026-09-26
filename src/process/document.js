@@ -398,6 +398,36 @@ export class ProcessStore {
     return this.change('move to board', d => { for (const e of d.elements) if (ids.includes(e.id)) { if (!id || id === MAIN) delete e.board; else e.board = id; } }, opts);
   }
 
+  /**
+   * Run a board's own code: its score runs with the board as its artboard (fractions of the board),
+   * and the marks it makes replace the ones its last run made. The code is kept on the board.
+   * One undo step. Returns { error, line, logs, marks }.
+   */
+  runBoardCode(id, source, run, opts) {
+    const b = boardsOf(this.doc).find(x => x.id === id);
+    if (!b) return { error: 'No such board' };
+    const res = run(source, { base: { ...createDocument({ width: b.width, height: b.height, ground: b.ground }), stages: [] }, by: { kind: 'code', name: b.id } });
+    if (res.error) return { error: res.error, line: res.errorLine, logs: res.logs };
+    this.change('board code', d => {
+      const mine = e => e.by?.kind === 'code' && e.by?.name === id;
+      d.elements = d.elements.filter(e => !mine(e));
+      d.decisions = d.decisions.filter(x => !(x.by?.kind === 'code' && x.by?.name === id));
+      Object.assign(d.brushes, res.doc.brushes || {});
+      Object.assign(d.lines, res.doc.lines || {});
+      const stageId = new Map();
+      for (const s of res.doc.stages) {
+        let t = d.stages.find(x => x.name === s.name);
+        if (!t) { t = { ...s, id: newId('stage') }; d.stages.push(t); }
+        stageId.set(s.id, t.id);
+      }
+      const onBoard = id === MAIN ? undefined : id;
+      for (const e of res.doc.elements) d.elements.push({ ...e, id: newId(e.role), stage: stageId.get(e.stage) || d.stages[0].id, by: { kind: 'code', name: id }, ...(onBoard ? { board: onBoard } : {}), points: e.points.map(([x, y, t, p]) => [x + b.x, y + b.y, t, p]) });
+      for (const x of res.doc.decisions) d.decisions.push({ ...x, id: newId('dec'), stage: stageId.get(x.stage) || d.stages[0].id, by: { kind: 'code', name: id } });
+      if (id === MAIN) d.artboard.code = source; else d.boards.find(x => x.id === id).code = source;
+    }, opts);
+    return { error: null, logs: res.logs, marks: res.doc.elements.length };
+  }
+
   setTrainBoard(id, opts) { return this.change('training board', d => { if (!id || id === MAIN) delete d.train; else d.train = id; }, opts); }
 
   addDecision(dec, opts) {

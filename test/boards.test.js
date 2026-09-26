@@ -69,3 +69,37 @@ describe('exports with boards', () => {
     expect(svg).not.toContain('data-ams-role="point"');
   });
 });
+
+describe('board code', () => {
+  it('runs into its board (fractions of the board) and replaces its last run', () => {
+    const s = new ProcessStore();
+    const b = s.addBoard({ title: 'Points', x: 2000, y: 100, width: 400, height: 200 });
+    s.addElement({ role: 'line', board: b.id, points: [[2010, 110], [2020, 120]] });   // drawn by hand: kept
+    let r = s.runBoardCode(b.id, `for (const i of range(3)) point(i / 2, 0.5)`, runScript);
+    expect(r.error).toBeNull();
+    expect(r.marks).toBe(3);
+    const pts = s.doc.elements.filter(e => e.role === 'point');
+    expect(pts.map(e => e.points[0].slice(0, 2))).toEqual([[2000, 200], [2200, 200], [2400, 200]]);
+    expect(pts.every(e => e.board === b.id)).toBe(true);
+    r = s.runBoardCode(b.id, `point(0.5, 0.5)`, runScript);
+    expect(s.doc.elements.filter(e => e.role === 'point').length).toBe(1);
+    expect(s.doc.elements.filter(e => e.role === 'line').length).toBe(1);
+    expect(s.doc.boards[0].code).toBe('point(0.5, 0.5)');
+    expect(s.runBoardCode(b.id, `point(`, runScript).error).toBeTruthy();
+  });
+});
+
+import { sceneHtml, pageRuntime, docFromPage } from '../src/process/page.js';
+describe('the page', () => {
+  it('its runtime parses, and the drawing comes back out of it', () => {
+    expect(() => new Function(pageRuntime())).not.toThrow();
+    const s = new ProcessStore();
+    const b = s.addBoard({ title: 'Points', width: 400, height: 200 });
+    s.runBoardCode(b.id, `const n = 3 /* 1..9 */\nfor (const i of range(n)) point(i / 2, 0.5)`, runScript);
+    s.updateBoard(b.id, { text: 'Three **points**.' });
+    const html = sceneHtml(s.doc);
+    expect(html).toContain('<strong>points</strong>');
+    expect(html).toContain('data-code-for="' + b.id + '"');
+    expect(docFromPage(html).boards[0].title).toBe('Points');
+  });
+});

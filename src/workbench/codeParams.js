@@ -13,53 +13,8 @@
  */
 import { ViewPlugin, EditorView, Decoration, WidgetType } from '@codemirror/view';
 
-const NUM = '-?(?:\\d+\\.?\\d*|\\.\\d+)';
-const PARAM_RE = new RegExp(`(^|[\\s{,])([A-Za-z_$][\\w$]*)\\s*:\\s*\\[\\s*(${NUM})\\s*,\\s*(${NUM})\\s*,\\s*(${NUM})`, 'g');
-const RANGE_RE = new RegExp(`(${NUM})(\\s*/\\*\\s*(${NUM})\\s*\\.\\.\\s*(${NUM})(?:\\s*(?:step|:)\\s*(${NUM}))?\\s*\\*/)`, 'g');
-
-const decimalsOf = s => (String(s).split('.')[1] || '').length;
-const fmt = (v, step) => { const d = Math.min(6, Math.max(decimalsOf(step), 0)); return String(+v.toFixed(d)); };
-const stepFor = (min, max) => { const r = Math.abs(max - min) || 1; const e = Math.floor(Math.log10(r)) - 2; return 10 ** e; };
-
-/** Where the params block(s) are: `params: {` … matching `}`. */
-function paramBlocks(text) {
-  const out = [];
-  const re = /\bparams\s*:\s*\{/g;
-  let m;
-  while ((m = re.exec(text))) {
-    let depth = 0, i = m.index + m[0].length - 1;
-    for (; i < text.length; i++) { if (text[i] === '{') depth++; else if (text[i] === '}' && --depth === 0) break; }
-    out.push([m.index + m[0].length, i]);
-  }
-  return out;
-}
-
-/** Every control in the text: { kind, id, from, to (the number to rewrite), at (widget pos), min, max, value, key }. */
-export function findControls(text) {
-  const out = [];
-  for (const [a, b] of paramBlocks(text)) {
-    const body = text.slice(a, b);
-    PARAM_RE.lastIndex = 0;
-    let m;
-    while ((m = PARAM_RE.exec(body))) {
-      const key = m[2], min = Number(m[3]), max = Number(m[4]), value = Number(m[5]);
-      const vFrom = a + m.index + m[0].length - m[5].length;
-      // The widget sits after the declaration's closing bracket.
-      const close = text.indexOf(']', vFrom);
-      let at = close < 0 ? vFrom + m[5].length : close + 1;
-      if (text[at] === ',') at++;
-      out.push({ kind: 'param', id: `p:${key}`, key, min, max, value, from: vFrom, to: vFrom + m[5].length, at });
-    }
-  }
-  RANGE_RE.lastIndex = 0;
-  let m, n = 0;
-  while ((m = RANGE_RE.exec(text))) {
-    const min = Number(m[3]), max = Number(m[4]);
-    if (!(max > min)) continue;
-    out.push({ kind: 'range', id: `r:${n++}`, min, max, step: m[5] ? Number(m[5]) : null, value: Number(m[1]), from: m.index, to: m.index + m[1].length, at: m.index });
-  }
-  return out;
-}
+import { NUM, decimalsOf, fmt, stepFor, findControls } from '../process/controls.js';
+export { findControls };
 
 /** The shared slider look (code, canvas popovers): the filled part follows the value. */
 export function rangeInput({ min, max, step, value, title = '' }) {
@@ -87,7 +42,7 @@ export function makeControl(c, view, liveSrc) {
   const target = liveSrc && c.kind === 'param' ? liveSrc.target?.() : null;
   const live = liveSrc && c.kind === 'param' && !(liveSrc.target && !target) ? liveSrc : null;
   const liveVal = live ? live.get(c.key) : undefined;
-  const name = c.kind === 'param' ? c.key : 'value';
+  const name = c.kind === 'param' ? c.key : c.name || 'value';
   const tip = v => (live ? `${name} = ${fmt(v, step)} on ${target || 'the tool in use'} (the code keeps the default)` : `${name} = ${fmt(v, step)} (${c.min}…${c.max})`);
   const input = rangeInput({ min: c.min, max: c.max, step, value: liveVal ?? c.value });
   input.title = tip(Number(input.value));
@@ -156,7 +111,7 @@ export function controlStrip(editor) {
       const ctl = makeControl(c, editor.view, live);
       const out = document.createElement('span'); out.className = 'wb-ctl-value'; out.textContent = fmt(ctl.value(), ctl.step);
       ctl.onInput(v => { out.textContent = fmt(v, ctl.step); });
-      const lab = document.createElement('span'); lab.className = 'wb-ctl-label'; lab.textContent = c.kind === 'param' ? c.key : `line ${editor.view.state.doc.lineAt(c.from).number}`;
+      const lab = document.createElement('span'); lab.className = 'wb-ctl-label'; lab.textContent = c.kind === 'param' ? c.key : c.name || `line ${editor.view.state.doc.lineAt(c.from).number}`;
       const row = document.createElement('label'); row.className = 'wb-ctl-row'; row.title = ctl.input.title;
       row.append(lab, ctl.input, out);
       el.append(row);

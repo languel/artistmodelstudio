@@ -11,12 +11,13 @@ import { h } from '../ui.js';
 import { mountScript } from './script.js';
 import { mountBrushes } from './brushes.js';
 import { mountSculpts } from './sculpts.js';
+import { mountBoardCode } from './boardCode.js';
 import { codeView, setCodeView, onCodeView } from '../codeView.js';
 import { icon } from '../icons.js';
 import { createCodeEditor } from '../codeEditor.js';
 import { selectionCode, applySelectionCode, replaceElements, clipCode, applyClipCode } from '../../process/codegen.js';
 
-const MODES = [['score', 'Score', 'The drawing as a score'], ['brush', 'Brush', 'Brushes are code'], ['sculpt', 'Sculpt', 'Sculpt tools are code'], ['selection', 'Selection', 'The selected marks as code'], ['clip', 'Clip', 'The selected timeline clip as code']];
+const MODES = [['score', 'Score', 'The drawing as a score'], ['brush', 'Brush', 'Brushes are code'], ['sculpt', 'Sculpt', 'Sculpt tools are code'], ['board', 'Board', 'The active board’s own code: it redraws the board, live'], ['selection', 'Selection', 'The selected marks as code'], ['clip', 'Clip', 'The selected timeline clip as code']];
 
 export function mountCode(root, app) {
   let mode = localStorage.getItem('ams_code_mode') || 'score';
@@ -42,6 +43,7 @@ export function mountCode(root, app) {
   mountScript(views.score, app);
   mountBrushes(views.brush, app);
   mountSculpts(views.sculpt, app);
+  mountBoardCode(views.board, app);
   const sel = objectView(views.selection, app, {
     empty: 'Select marks on the canvas (or right-click one → Show code).',
     get: () => { const els = app.selectedElements(); return els.length ? { key: els.map(e => e.id).join(), text: selectionCode(els, app.store.doc), title: `${els.length} mark${els.length === 1 ? '' : 's'}` } : null; },
@@ -88,6 +90,7 @@ export function mountCode(root, app) {
     setMode(m);
     if (m === 'brush' && arg) app.brushesPanel?.open(arg);
     if (m === 'sculpt' && arg) app.sculptsPanel?.open(arg);
+    if (m === 'board' && arg) app.boardCode?.open(arg);
   };
   app.codeMode = m => setMode(m);
   setMode(mode);
