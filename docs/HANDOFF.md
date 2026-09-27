@@ -66,6 +66,7 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
     - `getSource(…, { peek })`: frozen renders don't keep sources awake.
 25. **Bake to image:** `app.bakeMarks(ids, { rect })` and `app.bakeBoard(id)` make one image mark with `e.bake` provenance, in one undo step.
 26. **Fixes:** autosave is throttled (a live board starved the debounce) and flushed on `pagehide`; video assets; large GIFs; MediaPipe video mode for streams.
+27. **Live redraws are quiet:** store listeners get transient changes only with `subscribe(fn, { live: true })` (the canvas, autosave). Panels no longer rebuild under the pointer.
 
 ## How the model fits
 
@@ -110,6 +111,10 @@ project (shared: Assets, brush & sculpt libraries, settings)
 - Walkthrough and study scripts may still assume a single artboard. Check them when touching boards.
 
 ## Conventions the user asked for
+
+- Live boards run only while on screen: keep it.
+- Pedagogical demos favor few, simple, smooth curves (use Simplify), not dense point lists.
+- p5 exports stay minimal and clean (no extra UI); many points go in a data array with a loop, not long `vertex` lists.
 
 - **Interface:**
   - Minimal chrome: icons over text labels, panels opened as needed, right-click and Opt+right-click for properties.
