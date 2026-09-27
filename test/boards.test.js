@@ -185,5 +185,8 @@ describe('minimal p5', () => {
     expect(src).toContain('circle(50, 50, 12)');
     expect(src).toContain('endShape()');
     expect(() => new Function(src)).not.toThrow();
+    const v1 = toP5Min(doc, { version: '1' });
+    expect(v1).toContain('curveVertex(10, 10)');
+    expect(v1).not.toContain('splineVertex');
   });
 });

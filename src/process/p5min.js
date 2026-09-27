@@ -9,7 +9,9 @@ import { rdp } from './sculpt.js';
 const r1 = v => Math.round(v * 10) / 10;
 const DEFAULT_INK = '#1d1b19';
 
-export function toP5Min(doc, { title = doc.title || 'drawing' } = {}) {
+/** version: '2' (p5.js 2.x: splineVertex, the default) or '1' (p5.js 1.x: curveVertex). */
+export function toP5Min(doc, { title = doc.title || 'drawing', version = '2' } = {}) {
+  const v1 = String(version) === '1';
   const { width, height, ground } = doc.artboard;
   const rank = new Map(doc.stages.map((s, i) => [s.id, i]));
   const marks = doc.elements
@@ -49,13 +51,18 @@ export function toP5Min(doc, { title = doc.title || 'drawing' } = {}) {
     const pts = kept.map(([x, y]) => `${r1(x)}, ${r1(y)}`);
     const straight = e.path === 'straight' || kept.length < 3;
     say('beginShape()');
-    // p5 2.x: splineVertex passes through every point (ends included); endShape(CLOSE) closes smoothly.
-    for (const v of pts) say(`${straight ? 'vertex' : 'splineVertex'}(${v})`);
-    say(closed ? 'endShape(CLOSE)' : 'endShape()');
+    if (straight) for (const v of pts) say(`vertex(${v})`);
+    else if (!v1) for (const v of pts) say(`splineVertex(${v})`);   // p5 2.x: through every point, ends included
+    else {
+      // p5 1.x: curveVertex needs a control point before the first and after the last (closed: wrap around).
+      const seq = closed ? [pts.at(-1), ...pts, pts[0], pts[1]] : [pts[0], ...pts, pts.at(-1)];
+      for (const v of seq) say(`curveVertex(${v})`);
+    }
+    say(closed && (straight || !v1) ? 'endShape(CLOSE)' : 'endShape()');
   }
 
   return `// ${title}: drawn in Artist Model Studio
-// ${marks.length} mark${marks.length === 1 ? '' : 's'}, as plain p5.js 2.x calls.
+// ${marks.length} mark${marks.length === 1 ? '' : 's'}, as plain p5.js ${v1 ? '1.x' : '2.x'} calls.
 
 function setup() {
   createCanvas(${Math.round(width)}, ${Math.round(height)});

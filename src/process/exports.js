@@ -254,10 +254,11 @@ ${strip(scriptSrc)}
 `;
 }
 
-export function p5IndexHtml(title = 'Artist Model Studio sketch') {
+/** version: '2' (the latest p5.js 2.x, default) or '1' (the latest 1.x). */
+export function p5IndexHtml(title = 'Artist Model Studio sketch', version = '2') {
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${esc(title)}</title>
-<script src="https://cdn.jsdelivr.net/npm/p5@2.3.3/lib/p5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5@${version === '1' ? '1' : '2'}/lib/p5.min.js"></script>
 <style>html,body{margin:0;background:#222;display:grid;place-items:center;min-height:100vh}</style>
 </head><body><script src="sketch.js"></script></body></html>`;
 }

@@ -41,6 +41,8 @@ export function mountSettings(root, app) {
         row('Lazy', numberField({ value: app.lazy.radius, min: 0, max: 200, step: 1, def: 0, title: 'The pen trails the cursor on a string this long (screen px): wobbles smaller than the string never reach the line, corners get rounded. 0 = off. Also on right-click of the grid button', onChange: v => app.setLazy({ radius: v }) }), 'Lazy drawing: steadier lines'),
         row('Simplify', numberField({ value: app.lazy.simplify || 0, min: 0, max: 40, step: 0.5, def: 0, title: 'On release, points the line does not need are dropped: how far (screen px) the shape may move. 0 = off', onChange: v => app.setLazy({ simplify: v }) })),
         row('Smoothing', numberField({ value: app.lazy.smoothing, min: 0, max: 0.95, step: 0.01, def: 0, title: 'Each step the pen covers only part of the way (0.5 = half): higher is smoother and lags more. 0 = off', onChange: v => app.setLazy({ smoothing: v }) }))),
+      section('Export', true,
+        row('p5.js', selectField([['2', '2.x (latest)'], ['1', '1.x']], app.p5Version(), v => { try { localStorage.setItem('ams_p5_version', v); } catch { /* ignore */ } }), 'The p5.js version p5 exports target: 2.x uses splineVertex, 1.x curveVertex')),
       gridSection(app),
       section('Guide', true,
         row('Show agents', check(app.guide.enabled, v => { app.guide.enabled = v; ls('ams_guide_enabled', v ? '1' : '0'); }, 'Move a cursor and narrate when an agent or walkthrough acts')),

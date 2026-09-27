@@ -216,6 +216,9 @@ export class Workbench {
     this.log(v === 'default' ? 'Workspace background: the theme’s.' : `Workspace background: ${v}.`);
   }
 
+  /** The p5.js version exports target: '2' (the latest 2.x, default) or '1'. Settings → Export. */
+  p5Version() { try { return localStorage.getItem('ams_p5_version') === '1' ? '1' : '2'; } catch { return '2'; } }
+
   togglePoints() {
     this.canvas.showPoints = !this.canvas.showPoints;
     try { localStorage.setItem('ams_show_points', this.canvas.showPoints ? '1' : '0'); } catch { /* ignore */ }
@@ -1018,7 +1021,7 @@ export class Workbench {
     const d = this.selectionDoc(ids);
     if (!d) return null;
     if (kind === 'svg') return new Blob([toSVG(d, { mode: this.view.mode })], { type: 'image/svg+xml' });
-    if (kind === 'p5') return new Blob([toP5Min({ ...d, artboard: { ...d.artboard, ground: '#ffffff' } }, { title: d.title })], { type: 'text/javascript' });
+    if (kind === 'p5') return new Blob([toP5Min({ ...d, artboard: { ...d.artboard, ground: '#ffffff' } }, { title: d.title, version: this.p5Version() })], { type: 'text/javascript' });
     const scale = Math.min(4, 2000 / Math.max(d.artboard.width, d.artboard.height));
     return canvasBlob(renderToCanvas(d, { scale, mode: this.view.mode }));
   }
@@ -1055,10 +1058,10 @@ export class Workbench {
     else if (kind === 'svg') download(toSVG(doc, { mode: this.view.mode }), `${s}.svg`, 'image/svg+xml');
     else if (kind === 'json') download(JSON.stringify(doc, null, 2), `${s}.ams.json`, 'application/json');
     else if (kind === 'page') download(sceneHtml(this.store.doc), `${this.slug()}.html`, 'text/html');
-    else if (kind === 'p5min') download(toP5Min(doc), `${s}-sketch.js`, 'text/javascript');
+    else if (kind === 'p5min') download(toP5Min(doc, { version: this.p5Version() }), `${s}-sketch.js`, 'text/javascript');
     else if (kind === 'excalidraw') download(JSON.stringify(toExcalidraw(doc), null, 2), `${s}.excalidraw`, 'application/json');
     else if (kind === 'p5') {
-      const zip = createZip([{ name: 'index.html', data: p5IndexHtml(doc.title) }, { name: 'sketch.js', data: toP5(doc) }]);
+      const zip = createZip([{ name: 'index.html', data: p5IndexHtml(doc.title, this.p5Version()) }, { name: 'sketch.js', data: toP5(doc) }]);
       download(new Blob([zip], { type: 'application/zip' }), `${s}-p5.zip`, 'application/zip');
     }
     this.log(`Exported ${kind}${b.main || kind === 'page' || kind === 'json' ? '' : ` (${b.title})`}.`);
