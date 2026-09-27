@@ -79,7 +79,8 @@ describe('a board\'s code as a p5 sketch', () => {
 for (const i of range(10)) point(i / 10, 0.5, { size: 8, color: s.color(i / 10, 0.5) })
 line([[0.1, 0.2], [0.5, 0.3], [0.9, 0.2]], { width: 4 })`;
     const out = toP5Code(src, { board: { title: 'Dots', width: 400, height: 300, ground: '#fff' }, sources: { seurat: { file: 'seurat.jpg', kind: 'image' } } });
-    expect(out).toContain("sources[\"seurat\"] = loadImage(\"seurat.jpg\")");
+    expect(out).toContain("sources[\"seurat\"] = await loadImage(\"seurat.jpg\")");
+    expect(out).toContain("async function setup()");
     expect(out).toContain('drawPoint(i / 10, 0.5');
     expect(out).toContain('drawLine([[0.1, 0.2]');
     expect(out).toContain('function source(name)');

@@ -17,13 +17,15 @@ const RENAMES = [['point', 'drawPoint'], ['line', 'drawLine'], ['plane', 'drawPl
  * 'image' | 'animated' | 'video' } } for the sources it reads. loop: redraw every frame (a board
  * that follows moving sources).
  */
-export function toP5Code(source, { board, sources = {}, loop = false, seed = 1 } = {}) {
+export function toP5Code(source, { board, sources = {}, loop = false, seed = 1, version = '2' } = {}) {
+  const v1 = String(version) === '1';
   let code = String(source).replace(/\r/g, '');
   for (const [from, to] of RENAMES) code = code.replace(new RegExp(`(?<![.\\w$])${from}\\s*\\(`, 'g'), `${to}(`);
   const absolute = /\bunits\(\s*['"]artboard['"]\s*\)/.test(code);
   code = code.replace(/^\s*units\([^)]*\)\s*;?\s*$/gm, '').replace(/^\s*artboard\([^)]*\)\s*;?\s*$/gm, '');
   const uses = word => new RegExp(`(?<![.\\w$])${word}\\s*\\(`).test(code);
   const missing = ['fit', 'brush', 'board', 'decide', 'sculpt', 'guide', 'gesture'].filter(uses);
+  const landmarks = /\.(pose|hands|mask)\b/.test(code);
   const names = Object.keys(sources).filter(n => new RegExp(`source\\(\\s*['"\`]${n}['"\`]`).test(code));
   const moving = names.some(n => sources[n].kind !== 'image');
 
@@ -41,7 +43,7 @@ export function toP5Code(source, { board, sources = {}, loop = false, seed = 1 }
 function drawPoint(x, y, o = {}) {
   noStroke();
   fill(o.color || ${INK});
-  circle(x${S}, y${SY}, o.size ?? 6);
+  circle(x${S}, y${SY}, o.size ?? 12);
 }`);
   if (need.has('drawLine')) defs.push(`// A line through a list of points: smooth unless its path is 'straight'.
 function drawLine(pts, o = {}) {
@@ -56,7 +58,16 @@ function drawPlane(pts, o = {}) {
   fill(o.color || ${INK});
   shape(pts, o.path !== 'straight', true);
 }`);
-  if (need.has('shape')) defs.push(`function shape(pts, smooth, closed) {
+  if (need.has('shape')) defs.push(v1 ? `function shape(pts, smooth, closed) {
+  beginShape();
+  if (!smooth) for (const [x, y] of pts) vertex(x${S}, y${SY});
+  else {
+    // curveVertex needs a control point before the first and after the last (closed: wrap around).
+    const seq = closed ? [pts.at(-1), ...pts, pts[0], pts[1]] : [pts[0], ...pts, pts.at(-1)];
+    for (const [x, y] of seq) curveVertex(x${S}, y${SY});
+  }
+  if (closed && !smooth) endShape(CLOSE); else endShape();
+}` : `function shape(pts, smooth, closed) {
   beginShape();
   for (const [x, y] of pts) {
     if (smooth) splineVertex(x${S}, y${SY});
@@ -109,25 +120,22 @@ function source(name) {
   return {
     rgb,
     color: (x, y) => '#' + rgb(x, y).map(c => hex(c, 2)).join(''),
-    value: (x, y) => { const [r, g, b] = rgb(x, y); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; },
-    pose: [], hands: [], mask: () => 0   // landmarks: see ml5.js (bodyPose, handPose, bodySegmentation)
+    value: (x, y) => { const [r, g, b] = rgb(x, y); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; }${landmarks ? `,
+    pose: [], hands: [], mask: () => 0   // landmarks: not in plain p5 (see ml5.js: bodyPose, handPose, bodySegmentation)` : ''}
   };
 }`);
 
   const files = names.map(n => sources[n]);
-  const preload = names.length ? `let sources = {};
-${names.every(n => sources[n].kind === 'camera') ? '' : `
-
-function preload() {
-${names.filter(n => sources[n].kind !== 'camera').map(n => sources[n].kind === 'video'
-    ? `  sources[${JSON.stringify(n)}] = createVideo(${JSON.stringify(sources[n].file)});\n  sources[${JSON.stringify(n)}].hide();`
-    : `  sources[${JSON.stringify(n)}] = loadImage(${JSON.stringify(sources[n].file)});`).join('\n')}
-}
-`}` : '';
-  const startVideo = [
-    ...names.filter(n => sources[n].kind === 'camera').map(n => `  sources[${JSON.stringify(n)}] = createCapture(VIDEO);\n  sources[${JSON.stringify(n)}].hide();`),
-    ...names.filter(n => sources[n].kind === 'video').map(n => `  sources[${JSON.stringify(n)}].loop();\n  sources[${JSON.stringify(n)}].volume(0);`)
+  const q = JSON.stringify;
+  // p5 2.x loads files with await in an async setup(); p5 1.x in preload().
+  const loads = names.filter(n => sources[n].kind === 'image' || sources[n].kind === 'animated')
+    .map(n => `sources[${q(n)}] = ${v1 ? '' : 'await '}loadImage(${q(sources[n].file)});`);
+  const starts = [
+    ...names.filter(n => sources[n].kind === 'video').map(n => `  sources[${q(n)}] = createVideo(${q(sources[n].file)});\n  sources[${q(n)}].hide();\n  sources[${q(n)}].volume(0);\n  sources[${q(n)}].loop();`),
+    ...names.filter(n => sources[n].kind === 'camera').map(n => `  sources[${q(n)}] = createCapture(VIDEO);\n  sources[${q(n)}].hide();`)
   ];
+  const preload = !names.length ? '' : `let sources = {};\n${v1 && loads.length ? `\nfunction preload() {\n${loads.map(l => `  ${l}`).join('\n')}\n}\n` : ''}`;
+  const startVideo = [...(v1 ? [] : loads.map(l => `  ${l}`)), ...starts];
   const frames = names.filter(n => sources[n].kind === 'animated').map(n => `  sources[${JSON.stringify(n)}].setFrame(frameCount % sources[${JSON.stringify(n)}].numFrames());   // the GIF's next frame`);
   const looping = loop && moving;
 
@@ -138,7 +146,7 @@ ${names.filter(n => sources[n].kind !== 'camera').map(n => sources[n].kind === '
 
   return `${head}
 ${preload ? `\n${preload}` : ''}
-function setup() {
+${v1 || !loads.length ? '' : 'async '}function setup() {
   createCanvas(${Math.round(board?.width || 800)}, ${Math.round(board?.height || 600)});
 ${startVideo.join('\n')}${startVideo.length ? '\n' : ''}  ${looping ? 'frameRate(12);' : 'noLoop();'}
 }

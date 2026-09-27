@@ -1209,7 +1209,7 @@ export class Workbench {
       sources[d.name] = { file, kind: t.startsWith('video/') ? 'video' : ext === 'gif' ? 'animated' : 'image' };
       files.push({ name: file, data: a.blob });
     }
-    return { code: toP5Code(b.code, { board: b, sources, loop: Boolean(b.follow) }), files };
+    return { code: toP5Code(b.code, { board: b, sources, loop: Boolean(b.follow), version: this.p5Version() }), files };
   }
 
   async exportAs(kind, board = this.activeBoard || MAIN) {
