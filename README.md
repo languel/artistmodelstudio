@@ -58,6 +58,10 @@ Pick **Reference Fitter** as the engine, choose a reference in the **Reference**
 - Measured so far: LoRA on 3,264 examples takes about 30 min (LFM2.5-350M) and 60 min (Qwen3-0.6B) on an M5 Max; results are in [training/klee/README.md](training/klee/README.md).
 - The **preference export** currently treats a viewed/selected candidate as chosen and the others as rejected; explicit Keep/Reject judgments are planned before using it for training.
 
+## One file
+
+`npm run build:single` makes the workbench one self-contained HTML file, `dist-single/ams.html` (about 3 MB): open it from disk, for example in a transparent browser window used as an overlay (CloudyWindow), and set `/transparent` in the command palette. In-browser models (WebGPU) and the dev server's agent relay are left out; Assets, scenes and settings live in the browser as usual.
+
 ## Documentation
 
 - [Reference Fitter, continuous mode and p5 export](docs/reference-fitter.md)

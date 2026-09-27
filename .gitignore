@@ -10,3 +10,4 @@ training/klee/data/sft/
 training/decisions/labels/
 training/decisions/suites/
 exports/
+dist-single/
