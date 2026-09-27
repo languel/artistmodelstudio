@@ -4,7 +4,7 @@ Where Artist Model Studio stands, how the new parts fit together, and what is ne
 
 ## State
 
-Everything is on `main`. The tag `milestone-sculpt-params` marks the state before scenes and boards. There are 170 tests (`npx vitest run`). Always run `npm run build` before committing: quoting in the docs strings has broken the build before. The dev server is at `localhost:3017`.
+Everything is on `main`. The tag `milestone-sculpt-params` marks the state before scenes and boards. There are 174 tests (`npx vitest run`). Always run `npm run build` before committing: quoting in the docs strings has broken the build before. The dev server is at `localhost:3017`.
 
 In one session (26 Sep) these were added, in order:
 
@@ -69,6 +69,12 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 27. **Live redraws are quiet:** store listeners get transient changes only with `subscribe(fn, { live: true })` (the canvas, autosave). Panels no longer rebuild under the pointer.
 28. **p5 for teaching:** `p5min` writes long runs as data and a loop; `src/process/p5code.js` (`toP5Code`) exports a board's own code as p5 (Export → p5 (its code), `ams_get p5code`, `app.p5CodeFor`). p5 2.x has no `preload()`: files load with `await` in an async `setup()`.
 29. **The sampling lesson:** `examples/lessons/sampling/` (lesson as data, PD media), the scene “Lesson: Pointillism and Expressionism, by sampling”, a tour take in Assets, `scripts/lesson-sampling-p5.mjs` and `scripts/lesson-sampling-report.mjs`.
+30. **ml5.js and brushes in p5 exports; memory and saving:**
+    - `toP5Code` loads ml5 models for the landmarks the code reads, only for the sources that read them, and keeps custom brushes as functions with a small kit.
+    - Undo is capped by memory (`trimPast`). Baked pictures are let go off screen.
+    - The open scene persists to IndexedDB (`scenes.persist`, `restoreNewer`); localStorage is used only when the drawing fits.
+    - The performance readout shows the browser's fps and canvas redraws.
+    - Animated sources detect each frame with the full pose model; video mode kept only for video and cameras. MediaPipe still misses some Muybridge frames, where ml5's BlazePose does better.
 
 ## How the model fits
 

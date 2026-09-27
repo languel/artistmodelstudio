@@ -24,12 +24,12 @@ async function load() {
 
 // mode: 'IMAGE' (each picture on its own) or 'VIDEO' (a stream: tracks between frames, steadier).
 // A video task belongs to one stream (its timestamps must increase), so it is kept per stream.
-async function task(kind, mode = 'IMAGE', stream = '') {
-  const key = mode === 'VIDEO' ? `${kind}:video:${stream}` : kind;
+async function task(kind, mode = 'IMAGE', stream = '', full = false) {
+  const key = mode === 'VIDEO' ? `${kind}:video:${stream}` : full ? `${kind}:full` : kind;
   if (cache[key]) return cache[key];
   const { mod, fileset } = await load();
   const runningMode = mode;
-  if (kind === 'pose') cache[key] = await mod.PoseLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: mode === 'VIDEO' ? MODELS.poseFull : MODELS.pose, delegate: 'GPU' }, runningMode, numPoses: 2 });
+  if (kind === 'pose') cache[key] = await mod.PoseLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: mode === 'VIDEO' || full ? MODELS.poseFull : MODELS.pose, delegate: 'GPU' }, runningMode, numPoses: 2 });
   if (kind === 'hands') cache[key] = await mod.HandLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: MODELS.hands, delegate: 'GPU' }, runningMode, numHands: 2 });
   if (kind === 'segment') cache[key] = await mod.ImageSegmenter.createFromOptions(fileset, { baseOptions: { modelAssetPath: MODELS.segment, delegate: 'GPU' }, runningMode, outputCategoryMask: false, outputConfidenceMasks: true });
   return cache[key];
@@ -93,9 +93,9 @@ export async function detectFigure(img, { width, height }) {
  * Raw results for streams, normalized to the image (0..1): pose (33 landmarks per person, with
  * visibility), hands (21 per hand), or a person mask (a small confidence grid).
  */
-export async function detectRaw(kind, img, { stream = null, t = 0 } = {}) {
+export async function detectRaw(kind, img, { stream = null, t = 0, full = false } = {}) {
   // A stream (a camera, a video, an animated image) is tracked in video mode: steadier, and faster.
-  const run = async (name, onVideo, onImage) => { const tk = await task(name, stream ? 'VIDEO' : 'IMAGE', stream || ''); return stream ? tk[onVideo](img, t) : tk[onImage](img); };
+  const run = async (name, onVideo, onImage) => { const tk = await task(name, stream ? 'VIDEO' : 'IMAGE', stream || '', full); return stream ? tk[onVideo](img, t) : tk[onImage](img); };
   if (kind === 'pose') { const r = await run('pose', 'detectForVideo', 'detect'); return (r.landmarks || []).map(p => p.map(q => ({ x: q.x, y: q.y, v: q.visibility ?? 1 }))); }
   if (kind === 'hands') { const r = await run('hands', 'detectForVideo', 'detect'); return (r.landmarks || []).map(p => p.map(q => ({ x: q.x, y: q.y }))); }
   if (kind === 'mask') {

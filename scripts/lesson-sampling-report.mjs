@@ -13,7 +13,9 @@ const code = src => esc(src.trim()).replace(/(\/\/[^\n]*|\/\*.*?\*\/)/g, '<span 
 
 let n = 0;
 const sections = LESSON.sections.map(sec => {
-  const [ref, ...examples] = sec.boards;
+  // A section opens with its source (a board shown as a reference), or, without one, the source its examples read.
+  const ref = sec.boards.find(b => b.reference) || { source: sec.boards[0].source };
+  const examples = sec.boards.filter(b => !b.reference);
   const src = LESSON.sources[ref.source];
   const refPic = src.animated ? img('walk-anim.gif', 'image/gif') : img(`${ref.id}.jpg`);
   return `
@@ -23,7 +25,7 @@ const sections = LESSON.sections.map(sec => {
       <div>
         <h2>${esc(sec.title)}</h2>
         <p>${esc(sec.text)}</p>
-        <p class="source-note">In the studio: <code>source('${ref.source}')</code></p>
+        <p class="source-note">In the studio: <code>source('${ref.source}')</code>${sec.ml5 ? '. In p5.js: <a href="https://ml5js.org/">ml5.js</a> <code>bodyPose(\'BlazePose\')</code>, loaded by the sketch' : ''}</p>
       </div>
     </header>
     ${examples.map(b => {
@@ -114,7 +116,7 @@ figcaption { font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
     <p class="sub">${esc(LESSON.subtitle)}</p>
     <div class="idea">
       <div><b>The one idea</b><p>A picture is a function from a place to a color. Ask it, then decide what to draw there.</p></div>
-      <div><b>Three answers</b><p>Seurat: a dot of pure color. Munch: a stroke that follows the form, in the color of the feeling. Muybridge: the same questions, asked of a moving picture.</p></div>
+      <div><b>Four answers</b><p>Seurat: a dot of pure color. Munch: a stroke that follows the form, in the color of the feeling. Muybridge: the same questions, asked of a moving picture. And a model's answer: where the body is.</p></div>
       <div><b>Three ways to read it</b><p>Each example has pseudocode, the studio's code (fractions of the board), and a p5.js sketch made from that code.</p></div>
     </div>
   </header>
@@ -122,6 +124,7 @@ figcaption { font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
   <footer class="foot">
     <p>Made in Artist Model Studio as the scene “Lesson: ${esc(LESSON.title)}”: one board per example, each running its own code. The boards of the walk follow their source and redraw as it plays.</p>
     <p>The p5.js sketches are for p5 2.x: images load with <code>await loadImage()</code> in an async <code>setup()</code>, and the studio words they use (<code>drawPoint</code>, <code>drawLine</code>, <code>source</code>) are defined at the end of each sketch. Put the picture next to the sketch and open it through a local server.</p>
+    <p>The body examples load ml5.js (<code>await ml5.bodyPose('BlazePose')</code>, the same 33 points as the studio) and ask it about each frame of the walk. The custom brush in example 10 runs unchanged in p5: <code>brush()</code> keeps it, and a small kit (<code>frames</code>, <code>smoothPath</code>, <code>source</code>…) lets it draw on p5's <code>drawingContext</code>. On this old photograph ml5's BlazePose finds the walker more reliably than the studio's MediaPipe model, which misses some frames.</p>
     <p>Pictures: Georges Seurat, Edvard Munch and Eadweard Muybridge, all public domain, from Wikimedia Commons.</p>
   </footer>
 </div>

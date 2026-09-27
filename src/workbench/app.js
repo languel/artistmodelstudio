@@ -55,7 +55,7 @@ import { eyedropToTarget, openPicker, parseColor, formatColor } from './colorPic
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 import { Sources } from './sources.js';
-import { toP5Code, p5SketchHtml } from '../process/p5code.js';
+import { toP5Code, p5SketchHtml, usesMl5 } from '../process/p5code.js';
 import { readRecently } from '../process/streams.js';
 import { mountSources } from './panels/sources.js';
 import { Guide } from './guide.js';
@@ -1257,7 +1257,7 @@ export class Workbench {
     else if (kind === 'p5code') {
       const r = await this.p5CodeFor(b.id);
       if (!r) { this.log(`“${b.title}” has no code of its own to export (Code → Board).`); return; }
-      const files = [{ name: 'index.html', data: p5SketchHtml(b.title, this.p5Version()) }, { name: 'sketch.js', data: r.code }];
+      const files = [{ name: 'index.html', data: p5SketchHtml(b.title, this.p5Version(), { ml5: usesMl5(r.code) }) }, { name: 'sketch.js', data: r.code }];
       for (const f of r.files) files.push({ name: f.name, data: new Uint8Array(await f.data.arrayBuffer()) });
       const zip = createZip(files);
       download(new Blob([zip], { type: 'application/zip' }), `${s}-p5-code.zip`, 'application/zip');

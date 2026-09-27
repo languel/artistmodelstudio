@@ -217,6 +217,57 @@ for (const i of range(n)) {
 }
 ` }
       ]
+    },
+    {
+      title: 'The body as a source',
+      text: 'A model can answer other questions about a picture: where is the body, where are its shoulders, elbows, knees? In the studio MediaPipe finds 33 points; in p5.js, ml5.js does the same (bodyPose with the BlazePose model gives the same 33 points). The points move with the walk, so the drawing does too.',
+      ml5: true,
+      boards: [
+        { id: 'gesture', title: '9 · Pose: a gesture drawing', source: 'walk', w: 360, h: 640, follow: true,
+          idea: 'source().pose is a list of people, each 33 points. Join the points of each limb (shoulder, elbow, wrist; hip, knee, ankle, foot) with one smooth line: not a skeleton of sticks, but a gesture drawing, the few lines that carry the movement.',
+          pseudo: `every frame of the walk:
+  for each person the model finds
+    for each limb (two arms, two legs, the torso)
+      draw one smooth line through its points
+    draw the head as a dot at the nose`,
+          code: `// The body as a source: 33 points per person. Each limb becomes one smooth line.
+const s = source('walk')
+const limbs = [[11, 13, 15], [12, 14, 16],             // arms: shoulder, elbow, wrist
+  [23, 25, 27, 31], [24, 26, 28, 32],                    // legs: hip, knee, ankle, foot
+  [11, 12, 24, 23, 11]]                                  // the torso, around
+for (const p of s.pose) {
+  for (const limb of limbs) line(limb.map(i => [p[i].x, p[i].y]), { brush: 'pen', width: 9, color: '#c0392b' })
+  point(p[0].x, p[0].y, { size: 44, color: '#c0392b' })
+}
+` },
+        { id: 'bodybrush', title: '10 · A brush that samples: Seurat on the body', source: 'walk', w: 360, h: 640, follow: true,
+          idea: 'A brush is a function too: it walks along a mark and decides what to put down. This one stamps dots across the line, colored from Seurat\'s painting at each place. The walk gives the lines, the painting gives the color: two sources, one drawing.',
+          pseudo: `brush "seurat": for each step along a line
+  (x, y) ← the step, moved a little across the line at random
+  draw a dot there, in the color of the painting at (x, y)
+every frame of the walk:
+  draw each limb as a line with the brush "seurat"`,
+          code: `// A brush is a function: walk along the mark, stamp dots colored from another picture.
+brush({
+  id: 'seurat', label: 'Seurat', roles: ['line'], doc: 'Dots along the line, colored from a painting.',
+  params: { size: [2, 30, 10, 'Dot size'], spread: [0, 60, 26, 'How far dots stray across the line'] },
+  draw(ctx, e, p, k) {
+    const painting = k.source('seurat')
+    for (const f of k.frames(e, 24)) {
+      const across = (k.rng() - 0.5) * p.spread
+      const x = f.x + f.nx * across, y = f.y + f.ny * across
+      ctx.fillStyle = painting.colorAt(x, y)
+      ctx.beginPath()
+      ctx.arc(x, y, p.size / 2, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+})
+const s = source('walk')
+const limbs = [[11, 13, 15], [12, 14, 16], [23, 25, 27, 31], [24, 26, 28, 32], [11, 12, 24, 23, 11]]
+for (const p of s.pose) for (const limb of limbs) line(limb.map(i => [p[i].x, p[i].y]), { brush: 'seurat' })
+` }
+      ]
     }
   ]
 };

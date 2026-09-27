@@ -144,9 +144,19 @@ export class Sources {
     try {
       const { detectRaw } = await import('../perception/mediapipe.js');
       const img = e.live?.canvas || e.still;
-      // Live sources are tracked (video mode, timestamps that only increase); a still is one image.
-      const opts = e.live ? { stream: e.id || (e.id = `s${Math.random().toString(36).slice(2, 8)}`), t: (e.t = Math.max((e.t || 0) + 1, Math.round(performance.now()))) } : {};
-      for (const kind of e.want) e.landmarks[kind] = await detectRaw(kind, img, opts);
+      // A video or camera is tracked (video mode: steadier, timestamps that only increase). An animated
+      // picture loops and jumps back, which throws a tracker off, so each frame is its own image
+      // (the full model); a still is one image.
+      const tracked = e.live && e.live.kind !== 'animated';
+      const opts = tracked ? { stream: e.id || (e.id = `s${Math.random().toString(36).slice(2, 8)}`), t: (e.t = Math.max((e.t || 0) + 1, Math.round(performance.now()))) } : { full: true };
+      for (const kind of e.want) {
+        const r = await detectRaw(kind, img, opts), now = performance.now();
+        // A frame where the model finds nobody, just after one where it did, is usually a miss:
+        // the last answer is kept for a moment (people who really leave go after half a second).
+        const empty = !r || (Array.isArray(r) && !r.length);
+        if (!empty) { e.landmarks[kind] = r; (e.foundAt ||= {})[kind] = now; }
+        else if (now - (e.foundAt?.[kind] || 0) > 600) e.landmarks[kind] = r;
+      }
       e.landmarkVersion = e.version;
       this.emit(e.def.name);
     } catch (err) {

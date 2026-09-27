@@ -110,3 +110,31 @@ describe('undo memory', () => {
     expect(store.undo()).toBe(true);
   });
 });
+
+describe('p5 sketches with ml5.js and brushes', () => {
+  it('loads ml5 bodyPose (BlazePose) for .pose and asks it about the source that uses it', () => {
+    const out = toP5Code(`const s = source('walk')
+for (const p of s.pose) line([[p[11].x, p[11].y], [p[13].x, p[13].y]])`, { sources: { walk: { file: 'walk.gif', kind: 'animated' }, seurat: { file: 'seurat.jpg', kind: 'image' } }, loop: true });
+    expect(out).toContain("bodyPose = await ml5.bodyPose('BlazePose')");
+    expect(out).toContain('ask(bodyPose, "walk", \'pose\')');
+    expect(out).not.toContain('"seurat"');   // not read: not loaded
+    expect(out).toContain('pose: (found[name].pose || [])');
+    expect(() => new Function(out)).not.toThrow();
+  });
+  it('watches a camera continuously', () => {
+    const out = toP5Code(`const c = source('cam'); for (const h of c.hands) point(h[8].x, h[8].y)`, { sources: { cam: { kind: 'camera' } }, loop: true });
+    expect(out).toContain('handPose = await ml5.handPose()');
+    expect(out).toContain('handPose.detectStart(sources["cam"]');
+    expect(() => new Function(out)).not.toThrow();
+  });
+  it('keeps custom brushes as functions, with a small kit', () => {
+    const out = toP5Code(`brush({ id: 'teeth', roles: ['line'], params: { bite: [0, 20, 6] }, draw(ctx, e, p, k) { for (const f of k.frames(e)) k.segment(ctx, f.x, f.y, f.x + f.nx * p.bite, f.y + f.ny * p.bite) } })
+line([[0.1, 0.5], [0.5, 0.4], [0.9, 0.5]], { brush: 'teeth' })`, { board: { width: 400, height: 300 } });
+    expect(out).not.toContain('Not in this sketch');
+    expect(out).toContain('function brush(def)');
+    expect(out).toContain("if (o.brush && brushes[o.brush]) return useBrush(pts, o, 'line')");
+    expect(out).toContain('def.draw(drawingContext, e, p, kit)');
+    expect(out).toContain('frames(e, n = 4)');
+    expect(() => new Function(out)).not.toThrow();
+  });
+});

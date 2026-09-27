@@ -374,7 +374,13 @@ From the menu:
   - `point`, `line`, `plane`, `rect` and `circle` clash with p5, so they become `drawPoint`, `drawLine`, `drawPlane`, `rectPoints` and `circlePoints`.
   - `source('name')` samples a `loadImage` (animated GIFs step with `setFrame`), a `createVideo` or `createCapture(VIDEO)`, fitted like the studio does.
   - For p5 2.x, files load with `await` in an async `setup()`; 1.x uses `preload()` and `curveVertex`.
-  - `fit()`, custom brushes and landmarks are not carried over, and a comment says so.
+  - **Landmarks** come from [ml5.js](https://ml5js.org/), loaded only when the code reads `.pose`, `.hands` or `.mask(…)`:
+    - `bodyPose('BlazePose')`: the same 33 points as the studio.
+    - `handPose()`: 21 points per hand.
+    - `bodySegmentation('SelfieSegmentation', { maskType: 'person' })` for the mask.
+    - Videos and cameras are watched with `detectStart`; pictures and GIF frames are asked with `detect` each time they are drawn. `index.html` loads ml5 too.
+  - **Custom brushes** run as written: `brush()` keeps them, and `drawLine` / `drawPlane` / `drawPoint` hand a mark (`points` of `[x, y, t, p]` in pixels, `color`, `closed`) to the brush's `draw(ctx, e, p, k)` on p5's `drawingContext`. The kit is small: `frames`, `smoothPath`, `tracePath`, `segment`, `beginInk`, `rng`, `noise`, `source` (with `colorAt` / `valueAt` in pixels).
+  - `fit()` is not carried over, and a comment says so.
 - **p5.js version:** Settings → Export: 2.x (latest, the default) or 1.x (`curveVertex`). The full export loads `p5@2` or `p5@1`.
 - **Page (HTML):** see *Scenes, boards and pages*.
 - **Process sheet:** a PNG of the stages and the decisions.
@@ -384,7 +390,7 @@ From the menu:
 ## Lessons
 
 `examples/lessons/sampling/lesson.js` is a lesson as data: *Pointillism and Expressionism, by sampling*.
-- **Sections:** Seurat, Munch and Muybridge, each a public-domain source (`media/`, with `RIGHTS.md`).
+- **Sections:** Seurat, Munch and Muybridge, each a public-domain source (`media/`, with `RIGHTS.md`), and *The body as a source* (pose, and a custom brush; ml5.js in the p5 versions).
 - **Examples:** each is a board with an idea, pseudocode and code.
 - **Scripts:**
   - `scripts/lesson-sampling-p5.mjs` writes each example as a p5 sketch (`exports/lesson-sampling/p5/`).

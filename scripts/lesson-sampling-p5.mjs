@@ -3,19 +3,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LESSON } from '../examples/lessons/sampling/lesson.js';
-import { toP5Code, p5SketchHtml } from '../src/process/p5code.js';
+import { toP5Code, p5SketchHtml, usesMl5 } from '../src/process/p5code.js';
 
 const out = path.resolve('exports/lesson-sampling/p5');
 const media = path.resolve('examples/lessons/sampling/media');
 for (const sec of LESSON.sections) for (const b of sec.boards) {
   if (!b.code) continue;
-  const src = LESSON.sources[b.source];
-  const sources = { [b.source]: { file: src.file, kind: src.animated ? 'animated' : 'image' } };
+  // Every source the code reads (a brush may read a second one).
+  const names = Object.keys(LESSON.sources).filter(n => new RegExp(`source\\(\\s*'${n}'`).test(b.code));
+  const sources = Object.fromEntries(names.map(n => [n, { file: LESSON.sources[n].file, kind: LESSON.sources[n].animated ? 'animated' : 'image' }]));
   const code = toP5Code(b.code, { board: { title: b.title, width: b.w, height: b.h, ground: b.ground || '#f3efe6' }, sources, loop: Boolean(b.follow) });
   const dir = path.join(out, b.id);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'sketch.js'), code);
-  fs.writeFileSync(path.join(dir, 'index.html'), p5SketchHtml(b.title));
-  fs.copyFileSync(path.join(media, src.file), path.join(dir, src.file));
+  fs.writeFileSync(path.join(dir, 'index.html'), p5SketchHtml(b.title, '2', { ml5: usesMl5(code) }));
+  for (const n of names) fs.copyFileSync(path.join(media, LESSON.sources[n].file), path.join(dir, LESSON.sources[n].file));
   console.log(b.id, code.split('\n').length, 'lines');
 }
