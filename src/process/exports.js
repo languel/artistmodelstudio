@@ -29,12 +29,13 @@ const r2 = v => Math.round(v * 100) / 100;
 
 /** Enough of CanvasRenderingContext2D for the brushes, writing SVG elements. */
 class SvgContext {
-  constructor() { this.out = []; this.state = { fillStyle: '#000', strokeStyle: '#000', lineWidth: 1, globalAlpha: 1, dash: [], lineCap: 'butt' }; this.stack = []; this.d = ''; }
+  constructor() { this.out = []; this.state = { fillStyle: '#000', strokeStyle: '#000', lineWidth: 1, globalAlpha: 1, dash: [], lineCap: 'butt', lineJoin: 'miter' }; this.stack = []; this.d = ''; }
   get fillStyle() { return this.state.fillStyle; } set fillStyle(v) { this.state.fillStyle = v; }
   get strokeStyle() { return this.state.strokeStyle; } set strokeStyle(v) { this.state.strokeStyle = v; }
   get lineWidth() { return this.state.lineWidth; } set lineWidth(v) { this.state.lineWidth = v; }
   get globalAlpha() { return this.state.globalAlpha; } set globalAlpha(v) { this.state.globalAlpha = v; }
   get lineCap() { return this.state.lineCap; } set lineCap(v) { this.state.lineCap = v; }
+  get lineJoin() { return this.state.lineJoin; } set lineJoin(v) { this.state.lineJoin = v; }
   set font(v) { this.state.font = v; }
   setLineDash(d) { this.state.dash = d; }
   save() { this.stack.push({ ...this.state }); }
@@ -47,7 +48,7 @@ class SvgContext {
   fill() { this.out.push(`<path d="${this.d}" fill="${esc(this.state.fillStyle)}"${this.state.globalAlpha < 1 ? ` fill-opacity="${this.state.globalAlpha}"` : ''}/>`); }
   stroke() {
     const s = this.state;
-    this.out.push(`<path d="${this.d}" fill="none" stroke="${esc(s.strokeStyle)}" stroke-width="${r2(s.lineWidth)}"${s.globalAlpha < 1 ? ` stroke-opacity="${s.globalAlpha}"` : ''}${s.dash.length ? ` stroke-dasharray="${s.dash.map(r2).join(' ')}"` : ''}${s.lineCap !== 'butt' ? ` stroke-linecap="${s.lineCap}"` : ''}/>`);
+    this.out.push(`<path d="${this.d}" fill="none" stroke="${esc(s.strokeStyle)}" stroke-width="${r2(s.lineWidth)}"${s.globalAlpha < 1 ? ` stroke-opacity="${s.globalAlpha}"` : ''}${s.dash.length ? ` stroke-dasharray="${s.dash.map(r2).join(' ')}"` : ''}${s.lineCap !== 'butt' ? ` stroke-linecap="${s.lineCap}"` : ''}${s.lineJoin && s.lineJoin !== 'miter' ? ` stroke-linejoin="${s.lineJoin}"` : ''}/>`);
   }
   fillRect(x, y, w, h) { this.out.push(`<rect x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" fill="${esc(this.state.fillStyle)}"/>`); }
   strokeRect() {}

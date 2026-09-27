@@ -62,6 +62,7 @@ const F = 'fill="currentColor" stroke="none"';
 /** Each built-in brush and sculpt tool drawn as what it does; custom ones get the generic icon. */
 const BRUSH_ICONS = {
   ink: `<path ${F} d="M3.5 19.5c3-6 7-10.5 13-12.5 2-.6 3.6 0 3.8.9.2 1-1 1.4-2.6 1.9-4.8 1.6-9.3 5.4-12.8 10.3z"/>`,
+  pen: '<path d="M3.5 18.5c3.5-6.5 8-10.5 16.5-11" stroke-width="2.4"/>',
   speed: '<path d="M3 17c4-7 9-9 18-8" opacity=".5"/><path d="M6 11l1 5M10 9l.5 5M14 8l.2 4.5M18 7.8v4"/>',
   restate: '<path d="M3 17c4-6 9-9 18-9"/><path d="M3 14c4-6 9-8 18-8" opacity=".6"/><path d="M4 19.5c4-6 9-9 17-9.5" opacity=".4"/>',
   zigzag: '<path d="M3 15l3-5 3 7 3-7 3 7 3-7 3 5"/>',

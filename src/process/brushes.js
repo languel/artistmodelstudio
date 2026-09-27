@@ -201,6 +201,26 @@ export const BRUSHES = {
   },
 
 
+  pen: {
+    label: 'Pen', roles: ['line', 'gesture', 'plane', 'guide'], doc: 'A line of one width everywhere, with round ends and joins: pressure and speed do not change it.',
+    params: [
+      param('width', 'Width', 0.25, 60, 0.25, 3, 'Stroke width in artboard units.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
+    ],
+    draw(ctx, e, p, k) {
+      const pts = k.smoothPath(e.points, e.closed);
+      if (pts.length < 2) return k.draw('dot', ctx, e, { size: p.width, opacity: p.opacity });
+      ctx.save();
+      ctx.globalAlpha *= p.opacity;
+      ctx.strokeStyle = e.color || k.INK;
+      ctx.lineWidth = p.width;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      k.tracePath(ctx, pts, e.closed);
+      ctx.stroke();
+      ctx.restore();
+    }
+  },
+
   speed: {
     label: 'Speed lines', roles: ['line', 'gesture'], doc: 'After Ngan: short lines across the walk, as long as the hand was fast. Slow passages stay thin and dense.',
     params: [...speedParams(1.2, 60), param('every', 'Every', 1, 12, 1, 1, 'Draw one mark every n samples.'), ...lineParams(0.75)],
@@ -581,7 +601,8 @@ export function resolveParams(brushId, params = {}) {
 
 /** Brushes for a role; lines a document defined itself are listed only for that document. */
 export function brushesForRole(role, doc = null) {
-  return Object.entries(BRUSHES).filter(([id, b]) => b.roles.includes(role) && (!b.custom || b.scope === 'library' || doc?.lines?.[id] || doc?.brushes?.[id])).map(([id, b]) => ({ id, label: b.label }));
+  // Picture brushes first (Ink, Pen, …), construction ones (Guide) last.
+  return Object.entries(BRUSHES).filter(([id, b]) => b.roles.includes(role) && (!b.custom || b.scope === 'library' || doc?.lines?.[id] || doc?.brushes?.[id])).sort((a, b) => Number(Boolean(a[1].construction)) - Number(Boolean(b[1].construction))).map(([id, b]) => ({ id, label: b.label }));
 }
 
 /**
