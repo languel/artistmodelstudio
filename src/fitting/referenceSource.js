@@ -70,6 +70,8 @@ export class LiveSource {
     if (typeof ImageDecoder === 'undefined') return null;
     const decoder = new ImageDecoder({ data: blob.stream(), type: blob.type });
     await decoder.tracks.ready;
+    // A large file streams in: the frame count is only final once it has all arrived.
+    await decoder.completed?.catch(() => {});
     const track = decoder.tracks.selectedTrack;
     if (!track || track.frameCount < 2) {
       decoder.close();

@@ -52,7 +52,7 @@ export class AssetPanel {
           <button id="assets-import" class="btn-micro btn-icon-only" title="Import a folder (subfolders are kept; a sources.json supplies titles)">${icon('folder', 'icon-sm')}</button>
           <span class="assets-zoom" id="assets-zoom" title="Card size"></span>
           <input id="assets-import-input" type="file" webkitdirectory multiple hidden />
-          <input id="assets-import-files-input" type="file" multiple hidden accept="image/*,.svg,audio/*,.mp3,.wav,.ogg,.m4a,text/*,.txt,.md,.json" />
+          <input id="assets-import-files-input" type="file" multiple hidden accept="image/*,.svg,video/*,.mp4,.mov,audio/*,.mp3,.wav,.ogg,.m4a,text/*,.txt,.md,.json" />
         </div>
         <div class="assets-preview" id="assets-preview"></div>
         <div class="assets-crumbs" id="assets-crumbs"></div>

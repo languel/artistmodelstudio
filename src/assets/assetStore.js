@@ -48,6 +48,7 @@ export async function blobToImage(blob) {
 export function fileKind(f) {
   const t = f.type || '', n = (f.name || '').toLowerCase();
   if (t.startsWith('image/') || n.endsWith('.svg')) return 'image';
+  if (t.startsWith('video/') || /\.(mp4|mov|m4v)$/.test(n)) return 'video';
   if (t.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|flac|webm)$/.test(n)) return 'audio';
   if (t === 'application/json' || n.endsWith('.json')) return 'json';
   if (t.startsWith('text/') || /\.(txt|md|markdown|csv|js|py)$/.test(n)) return 'text';
@@ -80,8 +81,26 @@ async function cardThumb(blob, kind) {
   return { thumb: c.toDataURL('image/webp', 0.85), width: 0, height: 0 };
 }
 
+/** A video's first frame (a moment in), for its card. */
+async function videoThumb(blob) {
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.preload = 'auto';
+  v.src = URL.createObjectURL(blob);
+  try {
+    await new Promise((ok, fail) => { v.onloadeddata = ok; v.onerror = () => fail(new Error('This video cannot be decoded')); });
+    v.currentTime = Math.min(0.5, (v.duration || 1) / 4);
+    await new Promise(ok => { v.onseeked = ok; setTimeout(ok, 1500); });
+    const k = Math.min(1, THUMB / Math.max(v.videoWidth, v.videoHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(v.videoWidth * k)); c.height = Math.max(1, Math.round(v.videoHeight * k));
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    return { thumb: c.toDataURL('image/webp', 0.85), width: v.videoWidth, height: v.videoHeight };
+  } finally { URL.revokeObjectURL(v.src); }
+}
+
 async function makeThumb(blob) {
   const kind = blob.kindHint;
+  if (kind === 'video' || (blob.type || '').startsWith('video/')) return videoThumb(blob);
   if (kind === 'audio' || kind === 'text' || kind === 'json') return cardThumb(blob, kind);
   // createImageBitmap works in background tabs too (img.decode() can wait until the tab is shown).
   const img = typeof createImageBitmap === 'function' ? await createImageBitmap(blob).catch(() => blobToImage(blob)) : await blobToImage(blob);
@@ -286,6 +305,11 @@ export class AssetStore {
           const j = JSON.parse(await f.text());
           if (j?.type === 'ams-process' || j?.type === 'ams-take') { await this.importStudioJSON(j, f.name, folder); n++; continue; }
         } catch { /* plain JSON: kept as text */ }
+      }
+      if (kind === 'video') {
+        await this.add(f, { title: f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' '), kind: 'video', folder, tags: ['video'], meta: { file: f.name, type: f.type } });
+        n++;
+        continue;
       }
       if (kind !== 'image') {
         f.kindHint = kind;

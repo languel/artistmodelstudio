@@ -6,6 +6,7 @@
 const CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21';
 const MODELS = {
   pose: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+  poseFull: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',
   segment: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
   hands: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
 };
@@ -21,13 +22,17 @@ async function load() {
   return vision;
 }
 
-async function task(kind) {
-  if (cache[kind]) return cache[kind];
+// mode: 'IMAGE' (each picture on its own) or 'VIDEO' (a stream: tracks between frames, steadier).
+// A video task belongs to one stream (its timestamps must increase), so it is kept per stream.
+async function task(kind, mode = 'IMAGE', stream = '') {
+  const key = mode === 'VIDEO' ? `${kind}:video:${stream}` : kind;
+  if (cache[key]) return cache[key];
   const { mod, fileset } = await load();
-  if (kind === 'pose') cache.pose = await mod.PoseLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: MODELS.pose, delegate: 'GPU' }, runningMode: 'IMAGE', numPoses: 2 });
-  if (kind === 'hands') cache.hands = await mod.HandLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: MODELS.hands, delegate: 'GPU' }, runningMode: 'IMAGE', numHands: 2 });
-  if (kind === 'segment') cache.segment = await mod.ImageSegmenter.createFromOptions(fileset, { baseOptions: { modelAssetPath: MODELS.segment, delegate: 'GPU' }, runningMode: 'IMAGE', outputCategoryMask: false, outputConfidenceMasks: true });
-  return cache[kind];
+  const runningMode = mode;
+  if (kind === 'pose') cache[key] = await mod.PoseLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: mode === 'VIDEO' ? MODELS.poseFull : MODELS.pose, delegate: 'GPU' }, runningMode, numPoses: 2 });
+  if (kind === 'hands') cache[key] = await mod.HandLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: MODELS.hands, delegate: 'GPU' }, runningMode, numHands: 2 });
+  if (kind === 'segment') cache[key] = await mod.ImageSegmenter.createFromOptions(fileset, { baseOptions: { modelAssetPath: MODELS.segment, delegate: 'GPU' }, runningMode, outputCategoryMask: false, outputConfidenceMasks: true });
+  return cache[key];
 }
 
 /** Cover-fit mapping from normalized image coordinates to the artboard. */
@@ -88,11 +93,13 @@ export async function detectFigure(img, { width, height }) {
  * Raw results for streams, normalized to the image (0..1): pose (33 landmarks per person, with
  * visibility), hands (21 per hand), or a person mask (a small confidence grid).
  */
-export async function detectRaw(kind, img) {
-  if (kind === 'pose') { const r = (await task('pose')).detect(img); return (r.landmarks || []).map(p => p.map(q => ({ x: q.x, y: q.y, v: q.visibility ?? 1 }))); }
-  if (kind === 'hands') { const r = (await task('hands')).detect(img); return (r.landmarks || []).map(p => p.map(q => ({ x: q.x, y: q.y }))); }
+export async function detectRaw(kind, img, { stream = null, t = 0 } = {}) {
+  // A stream (a camera, a video, an animated image) is tracked in video mode: steadier, and faster.
+  const run = async (name, onVideo, onImage) => { const tk = await task(name, stream ? 'VIDEO' : 'IMAGE', stream || ''); return stream ? tk[onVideo](img, t) : tk[onImage](img); };
+  if (kind === 'pose') { const r = await run('pose', 'detectForVideo', 'detect'); return (r.landmarks || []).map(p => p.map(q => ({ x: q.x, y: q.y, v: q.visibility ?? 1 }))); }
+  if (kind === 'hands') { const r = await run('hands', 'detectForVideo', 'detect'); return (r.landmarks || []).map(p => p.map(q => ({ x: q.x, y: q.y }))); }
   if (kind === 'mask') {
-    const r = (await task('segment')).segment(img), m = r.confidenceMasks?.[0];
+    const r = await run('segment', 'segmentForVideo', 'segment'), m = r.confidenceMasks?.[0];
     if (!m) return null;
     const out = { w: m.width, h: m.height, data: Float32Array.from(m.getAsFloat32Array()) };
     m.close?.();

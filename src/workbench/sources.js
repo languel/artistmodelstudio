@@ -135,7 +135,9 @@ export class Sources {
     try {
       const { detectRaw } = await import('../perception/mediapipe.js');
       const img = e.live?.canvas || e.still;
-      for (const kind of e.want) e.landmarks[kind] = await detectRaw(kind, img);
+      // Live sources are tracked (video mode, timestamps that only increase); a still is one image.
+      const opts = e.live ? { stream: e.id || (e.id = `s${Math.random().toString(36).slice(2, 8)}`), t: (e.t = Math.max((e.t || 0) + 1, Math.round(performance.now()))) } : {};
+      for (const kind of e.want) e.landmarks[kind] = await detectRaw(kind, img, opts);
       e.landmarkVersion = e.version;
       this.emit(e.def.name);
     } catch (err) {

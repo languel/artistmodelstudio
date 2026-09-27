@@ -105,11 +105,14 @@ export class Workbench {
     try { this.paint = { stroke: null, fill: null, ...JSON.parse(localStorage.getItem('ams_paint') || '{}') }; } catch { this.paint = { stroke: null, fill: null }; }
     this.reference = null; // { img, opacity, visible, title }
     this.assetStore = new AssetStore();
+    // Whatever is waiting to be saved is saved when the page goes away.
+    window.addEventListener('pagehide', () => { if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = 0; try { localStorage.setItem(DOC_KEY, JSON.stringify(this.store.doc)); } catch { /* quota */ } } });
     this.sources = new Sources(this);
     this.artists = new ArtistRegistry();
     this.store.subscribe((doc, reason) => {
-      clearTimeout(this.saveTimer);
-      this.saveTimer = setTimeout(() => { try { localStorage.setItem(DOC_KEY, JSON.stringify(this.store.doc)); } catch { /* quota */ } }, 300);
+      // At most one save per interval, not a debounce: a board following its sources changes the
+      // drawing many times a second, and a debounce would never save while it runs.
+      if (!this.saveTimer) this.saveTimer = setTimeout(() => { this.saveTimer = 0; try { localStorage.setItem(DOC_KEY, JSON.stringify(this.store.doc)); } catch { /* quota */ } }, reason === 'live board code' ? 1000 : 300);
       if (!this.store.doc.stages.some(s => s.id === this.activeStageId)) this.activeStageId = this.store.doc.stages[0]?.id;
       this.emit('document', reason);
       this.renderChrome();
@@ -681,6 +684,8 @@ export class Workbench {
   }
 
   async openAsset(a) {
+    // A video (or an animated image) opens as a source: code reads it by name.
+    if (a.kind === 'video' || a.blob?.type?.startsWith('video/')) { const name = await this.sources.add({ kind: 'asset', assetId: a.id }); this.docks.open('sources'); this.log(`Source “${name}”: source('${name}') in code.`); return; }
     if (a.kind === 'audio' || a.kind === 'text') { this.docks.open('timeline'); this.log(`Drag “${a.title}” onto the Timeline (or the canvas, for text).`); return; }
     if (a.kind === 'take' && a.program?.clips) { await this.openTake(a.id); return; }
     if (a.kind === 'walkthrough' && a.program?.steps) { await this.walkthroughs.loadUser(); this.walkthroughs.start(a.program.id); return; }
