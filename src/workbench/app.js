@@ -121,6 +121,7 @@ export class Workbench {
     // Choosing a tool means drawing again: leave a take being reviewed.
     if (this.player?.take) this.player.close();
     if (t === 'gesture' || t === 'guide') this.constructTool = t;
+    this.canvas?.finishClickPath?.();
     this.tool = t; this.canvas?.updateCursor(); this.emit('tool'); this.renderChrome();
   }
   setViewMode(m) { this.view.mode = m; this.canvas.invalidate(); this.emit('view'); this.renderChrome(); }

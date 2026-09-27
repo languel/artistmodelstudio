@@ -191,8 +191,9 @@ export class CanvasView {
       // Shown as it will be on release: a plane closed smoothly, and simplified live when Simplify is on.
       let d = this.draft;
       const simp = this.getLazy?.()?.simplify || 0;
-      if (simp > 0 && d.points.length > 3 && !this.draftStraight) d = { ...d, points: rdp(d.points, simp / this.cam.z) };
-      if (d.role === 'plane' && d.points.length > 5) d = { ...d, points: closeLasso(d.points, 6 / this.cam.z) };
+      // (A path made point by point keeps its points as clicked.)
+      if (!this.clickPath && simp > 0 && d.points.length > 3 && !this.draftStraight) d = { ...d, points: rdp(d.points, simp / this.cam.z) };
+      if (!this.clickPath && d.role === 'plane' && d.points.length > 5) d = { ...d, points: closeLasso(d.points, 6 / this.cam.z) };
       this.draftShown = d;
       renderDocument(ctx, { ...doc, stages: [{ id: 'draft', visible: true }], elements: [d] }, {
         mode: 'process', transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, ground: false
@@ -542,6 +543,25 @@ export class CanvasView {
       if (e.code === 'Space') { this.space = true; c.style.cursor = 'grab'; e.preventDefault(); }
     });
     window.addEventListener('keyup', e => { if (e.code === 'Space') { this.space = false; this.updateCursor(); } });
+    // While drawing: double-tap Tab toggles the path (smooth / straight); a point-by-point path takes
+    // Enter or Esc (finish) and Backspace (remove the last point).
+    window.addEventListener('keydown', e => {
+      if (!this.draft) return;
+      if (e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault(); e.stopPropagation();
+        const now = performance.now();
+        if (now - (this.lastTab || 0) < 400) { this.draft.path = this.draft.path === 'straight' ? undefined : 'straight'; this.lastTab = 0; this.flash(this.draft.path === 'straight' ? 'Straight' : 'Smooth'); this.invalidate(); }
+        else this.lastTab = now;
+        return;
+      }
+      if (!this.clickPath) return;
+      if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.finishClickPath(); }
+      else if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault(); e.stopPropagation();
+        const pts = this.draft.points;
+        if (pts.length > 2) { pts.splice(pts.length - 2, 1); this.clickPath.last = { t: 0, p: pts.at(-2) }; this.invalidate(); } else { this.clickPath = null; this.draft = null; window.removeEventListener('pointermove', this.clickMove); this.invalidate(); }
+      }
+    }, true);
 
     c.addEventListener('pointermove', e => {
       if (this.pointer) return;
@@ -601,6 +621,7 @@ export class CanvasView {
       if (f && f !== document.body && f.closest?.('input, textarea, select, [contenteditable]') && !f.classList.contains('wb-note-input')) f.blur();
       if (e.button === 1 || this.space || this.getTool() === 'hand' || this.previewDoc) return this.startPan(e);
       if (e.button !== 0) return;
+      if (this.clickPath) { this.clickPathClick(e); return; }
       c.setPointerCapture(e.pointerId);
       const [sx, sy] = this.local(e);
       const [wx, wy] = this.toWorld(sx, sy);
@@ -710,6 +731,52 @@ export class CanvasView {
     };
     window.addEventListener('pointermove', mv);
     window.addEventListener('pointerup', up);
+  }
+
+  // ---- paths made point by point ---------------------------------------------------------
+  /** After a click (no drag): each click adds a point; a rubber band shows the next segment. */
+  startClickPath(role, dkey) {
+    const first = this.draft.points[0];
+    this.clickPath = { role, dkey, t0: performance.now(), last: { t: performance.now(), p: first } };
+    this.draft.points = [first, first.slice()];
+    this.clickMove = ev => {
+      if (!this.clickPath || !this.draft) return;
+      let [x, y] = this.toWorld(...this.local(ev));
+      if (ev.ctrlKey) [x, y] = this.snapTarget(x, y);
+      this.draft.points[this.draft.points.length - 1] = [x, y, performance.now() - this.clickPath.t0, 0.5];
+      this.invalidate();
+    };
+    window.addEventListener('pointermove', this.clickMove);
+    this.invalidate();
+  }
+
+  /** A click while making a path: a new point, or close (on the first point), or finish (double-click). */
+  clickPathClick(e) {
+    const cp = this.clickPath, pts = this.draft.points.slice(0, -1);
+    let [x, y] = this.toWorld(...this.local(e));
+    if (e.ctrlKey) [x, y] = this.snapTarget(x, y);
+    const now = performance.now(), near = (a, b, r) => Math.hypot(a[0] - b[0], a[1] - b[1]) < r / this.cam.z;
+    if (pts.length >= 2 && near([x, y], pts[0], 8)) return this.finishClickPath({ close: true });
+    if (now - cp.last.t < 350 && near([x, y], cp.last.p, 6)) return this.finishClickPath();
+    const p = [x, y, now - cp.t0, 0.5];
+    cp.last = { t: now, p };
+    this.draft.points = [...pts, p, p.slice()];
+    this.invalidate();
+  }
+
+  /** End a point-by-point path: it becomes a mark (closed if asked; a plane always is). */
+  finishClickPath({ close = false } = {}) {
+    const cp = this.clickPath;
+    if (!cp) return;
+    window.removeEventListener('pointermove', this.clickMove);
+    let pts = this.draft ? this.draft.points.slice(0, -1) : [];
+    const path = this.draft?.path;
+    // Drop a double-click's repeated last point.
+    while (pts.length > 1 && Math.hypot(pts.at(-1)[0] - pts.at(-2)[0], pts.at(-1)[1] - pts.at(-2)[1]) < 1e-6) pts = pts.slice(0, -1);
+    this.clickPath = null; this.draft = null;
+    const extra = { ...(path === 'straight' ? { path: 'straight' } : {}), ...(close && cp.role !== 'plane' ? { closed: true } : {}) };
+    if (pts.length >= (cp.role === 'plane' ? 3 : 2)) this.commitNew(cp.role, pts, extra, cp.dkey);
+    this.invalidate();
   }
 
   /** Board tool: drag out a rectangle, it becomes a board. */
@@ -923,7 +990,10 @@ export class CanvasView {
     const up = () => {
       window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
       this.pointer = false;
+      // A click without a drag starts a path made point by point (click, click, … double-click or Enter).
+      if (!straight && this.draft.points.length === 1 && tool !== 'point') { this.rope = null; this.startClickPath(role, dkey); return; }
       let pts = this.draft.points;
+      const pathMode = this.draft.path;
       this.draft = null;
       this.rope = null;
       // A lasso: cut the tails where start and end overshoot, and smooth the seam (no spikes at the closure).
@@ -935,8 +1005,8 @@ export class CanvasView {
       // Auto simplify: fewer points within a tolerance (screen px), same shape; ends and time kept.
       if (!straight && lazy.simplify > 0 && pts.length > 3) { const out = rdp(pts, lazy.simplify / this.cam.z); if (out.length >= minPts) pts = out; }
       // A line drawn back to where it started closes: a closed path, without a duplicate end point.
-      let extra = {};
-      if (role !== 'plane' && !straight && pts.length > 3 && Math.hypot(pts[0][0] - pts.at(-1)[0], pts[0][1] - pts.at(-1)[1]) < 6 / this.cam.z) { pts = pts.slice(0, -1); extra = { closed: true }; }
+      let extra = pathMode === 'straight' ? { path: 'straight' } : {};
+      if (role !== 'plane' && !straight && pts.length > 3 && Math.hypot(pts[0][0] - pts.at(-1)[0], pts[0][1] - pts.at(-1)[1]) < 6 / this.cam.z) { pts = pts.slice(0, -1); extra = { ...extra, closed: true }; }
       if (pts.length >= minPts) this.commitNew(role, pts, extra, dkey);
       else this.invalidate();
     };
