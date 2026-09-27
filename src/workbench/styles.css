@@ -649,7 +649,7 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 .wb-topbar .wb-view-island { justify-self: start; }
 .wb-grip { width: 6px; align-self: stretch; margin: 2px 2px 2px 0; border-radius: 3px; cursor: grab; background: radial-gradient(circle, var(--wb-muted) 0.8px, transparent 1.2px) 0 0 / 4px 4px; opacity: .5; }
 .wb-grip:hover { opacity: 1; }
-.wb-floating-island { position: absolute; z-index: 11; }
+.wb-floating-island { position: absolute; z-index: 11; right: auto !important; bottom: auto !important; height: auto !important; width: auto !important; transform: none !important; }
 .wb-topbar { display: flex !important; flex-wrap: wrap; justify-content: flex-start; }
 .wb-topbar .wb-tools-island { margin: 0 auto; }
 .wb-topbar .wb-topbar-spacer { display: none; }
