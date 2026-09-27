@@ -107,13 +107,15 @@ export class Workbench {
     this.reference = null; // { img, opacity, visible, title }
     this.assetStore = new AssetStore();
     // Whatever is waiting to be saved is saved when the page goes away.
-    window.addEventListener('pagehide', () => { if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = 0; try { localStorage.setItem(DOC_KEY, JSON.stringify(this.store.doc)); } catch { /* quota */ } } });
+    window.addEventListener('pagehide', () => { if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = 0; this.saveDoc(); } if (this.persistTimer) { clearTimeout(this.persistTimer); this.persistTimer = 0; this.scenes?.persist().catch(() => {}); } });
     this.sources = new Sources(this);
     this.artists = new ArtistRegistry();
     this.store.subscribe((doc, reason) => {
       // At most one save per interval, not a debounce: a board following its sources changes the
       // drawing many times a second, and a debounce would never save while it runs.
-      if (!this.saveTimer) this.saveTimer = setTimeout(() => { this.saveTimer = 0; try { localStorage.setItem(DOC_KEY, JSON.stringify(this.store.doc)); } catch { /* quota */ } }, reason === 'live board code' ? 1000 : 300);
+      if (!this.saveTimer) this.saveTimer = setTimeout(() => { this.saveTimer = 0; this.saveDoc(); }, reason === 'live board code' ? 1000 : 300);
+      // The scene store (IndexedDB) keeps it too, less often: it has room for large drawings.
+      if (!this.persistTimer && this.scenes && reason !== 'scene') this.persistTimer = setTimeout(() => { this.persistTimer = 0; this.scenes.persist().catch(() => {}); }, reason === 'live board code' ? 5000 : 1500);
       if (reason === 'live board code') return;   // a live redraw: saved, drawn; the panels stay as they are
       if (!this.store.doc.stages.some(s => s.id === this.activeStageId)) this.activeStageId = this.store.doc.stages[0]?.id;
       this.emit('document', reason);
@@ -186,21 +188,40 @@ export class Workbench {
     this.emit('lazy');
   }
 
-  /** A small performance readout beside the zoom control: fps while redrawing, the last redraw, marks. */
+  /**
+   * Save the open drawing in localStorage (quick, but a few MB at most). When it does not fit, the
+   * stale copy is removed, so a reload takes the scene store's copy instead of an older drawing.
+   */
+  saveDoc() {
+    try { localStorage.setItem(DOC_KEY, JSON.stringify(this.store.doc)); localStorage.setItem(`${DOC_KEY}_saved`, String(Date.now())); }
+    catch {
+      try { localStorage.removeItem(DOC_KEY); localStorage.setItem(`${DOC_KEY}_saved`, '0'); } catch { /* ignore */ }
+      if (!this.warnedQuota) { this.warnedQuota = true; this.log('This drawing is too large for quick saving; it is kept in the scene store instead.'); }
+    }
+  }
+
+  /** A small performance readout beside the zoom control: the browser's fps, canvas redraws and their time, marks. */
   togglePerf(on = !this.perfOn) {
     this.perfOn = on;
     try { localStorage.setItem('ams_perf', on ? '1' : '0'); } catch { /* ignore */ }
     cancelAnimationFrame(this.perfRaf);
     this.renderChrome();
     if (!on) return;
-    let frames = this.canvas.stats?.frames || 0, t = performance.now(), fps = 0;
+    // Two rates: the browser's frames (is the app smooth?) and the canvas's redraws (is it busy?).
+    // A still drawing redraws nothing, which is right: it shows as idle, not as 0 fps.
+    let draws = this.canvas.stats?.frames || 0, frames = 0, t = performance.now();
     const tick = now => {
+      frames++;
       if (now - t >= 500) {
-        const f = this.canvas.stats?.frames || 0;
-        fps = Math.round(((f - frames) * 1000) / (now - t)); frames = f; t = now;
+        const d = this.canvas.stats?.frames || 0, secs = (now - t) / 1000;
+        const fps = Math.round(frames / secs), rd = Math.round((d - draws) / secs);
+        draws = d; frames = 0; t = now;
         const s = this.canvas.stats;
-        if (this.perfEl) this.perfEl.textContent = `${fps} fps · ${s ? s.draw.toFixed(1) : '–'} ms · ${this.store.doc.elements.length} marks`;
-        this.perfEl?.classList.toggle('slow', Boolean(s && s.avg > 16));
+        if (this.perfEl) {
+          this.perfEl.textContent = `${fps} fps · ${rd ? `${rd} redraws/s · ${s ? s.draw.toFixed(1) : '–'} ms` : 'idle'} · ${this.store.doc.elements.length} marks`;
+          this.perfEl.title = 'fps: the browser\'s frame rate. Redraws: how often the canvas repaints (only when something changes), and the last repaint\'s time.';
+        }
+        this.perfEl?.classList.toggle('slow', fps < 30 || Boolean(rd && s && s.avg > 16));
       }
       this.perfRaf = requestAnimationFrame(tick);
     };
@@ -625,6 +646,13 @@ export class Workbench {
     loadLibrary();
     this.history = new History(this);
     this.scenes = new Scenes(this);
+    // The scene store may hold a newer (or larger) copy of the open scene than localStorage did.
+    // (No time recorded yet, as before this was added: trust localStorage if it has a drawing.)
+    {
+      let t = 0;
+      try { const v = localStorage.getItem(`${DOC_KEY}_saved`); t = v != null ? Number(v) || 0 : localStorage.getItem(DOC_KEY) ? Infinity : 0; } catch { /* ignore */ }
+      if (t !== Infinity) this.scenes.restoreNewer(t).catch(() => {});
+    }
     this.scenes.on(() => this.renderChrome());
     try { const u = JSON.parse(localStorage.getItem('ams_ui') || 'null'); if (u) requestAnimationFrame(() => this.setUI(u)); } catch { /* ignore */ }
     // Performing: 1–9 go to a board; Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush there.

@@ -716,11 +716,14 @@ export class CanvasView {
     for (const b of boards) {
       if (this.isBoardLive(b.id)) { this.baked.delete(b.id); continue; }
       if (busy.has(b.id)) continue;   // its picture is kept: edits end in a store change, which drops it
-      done.add(b.id);
-      if (!this.boardOnScreen(b)) continue;
+      // Off screen: not drawn, and its picture is let go (memory stays with what you see).
+      if (!this.boardOnScreen(b)) { done.add(b.id); this.baked.delete(b.id); continue; }
       const m = 0.25 * Math.max(b.width, b.height), W = b.width + 2 * m, H = b.height + 2 * m;
-      let s = zb * dpr;
-      if (Math.max(W, H) * s > 4096) s = 4096 / Math.max(W, H);
+      const s = zb * dpr;
+      // Zoomed in so far that its picture would be larger than twice the screen: drawn live instead
+      // (only a few boards can be that close, and a huge picture costs more than it saves).
+      if (Math.max(W, H) * s > 2 * Math.max(this.w, this.h) * dpr) { this.baked.delete(b.id); continue; }
+      done.add(b.id);
       const key = `${s.toFixed(4)}|${mode}|${this.upTo}`;
       let c = this.baked.get(b.id);
       if (!c || c.key !== key) {

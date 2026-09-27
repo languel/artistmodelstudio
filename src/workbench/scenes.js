@@ -63,6 +63,26 @@ export class Scenes {
     return { doc: structuredClone(app.store.doc), cam: { ...app.canvas.cam }, activeBoard: app.activeBoard || 'main', takeId: app.player?.take?.assetId || null, saved: Date.now() };
   }
 
+  /**
+   * Keep the open scene in IndexedDB as it changes (the app calls this, throttled). localStorage holds
+   * only a few MB, so a large drawing is safe only here. Returns when written.
+   */
+  async persist() {
+    const rec = { ...this.snapshot(), saved: Date.now() };
+    await put(this.list.active, rec);
+    return rec.saved;
+  }
+
+  /**
+   * At start: if the open scene's IndexedDB copy is newer than what localStorage gave the app (or
+   * localStorage had no room for it), open that one.
+   */
+  async restoreNewer(localSaved = 0) {
+    const rec = await get(this.list.active).catch(() => null);
+    if (rec?.doc && (rec.saved || 0) > localSaved) { this.open(rec.doc, rec); return true; }
+    return false;
+  }
+
   async saveCurrent() {
     const app = this.app, h = app.history;
     this.memory.set(this.list.active, {

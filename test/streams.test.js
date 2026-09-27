@@ -98,3 +98,15 @@ line([[0.1, 0.2], [0.5, 0.3], [0.9, 0.2]], { width: 4 })`;
     expect(() => new Function(out)).not.toThrow();
   });
 });
+
+describe('undo memory', () => {
+  it('keeps fewer steps for a large drawing', () => {
+    const store = new ProcessStore(createDocument());
+    for (let i = 0; i < 20; i++) store.change('x', d => { d.meta = { ...(d.meta || {}), pad: 'x'.repeat(1000) + i }; });
+    expect(store.past.length).toBe(20);
+    store.trimPast(200, 5000);
+    expect(store.past.length).toBeLessThan(20);
+    expect(store.past.reduce((a, x) => a + x.length, 0)).toBeLessThanOrEqual(5000 + store.past[0].length);
+    expect(store.undo()).toBe(true);
+  });
+});

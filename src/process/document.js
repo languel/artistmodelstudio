@@ -155,6 +155,16 @@ export class ProcessStore {
    * reach only listeners that ask for them with { live: true } (the canvas, autosave), so panels are
    * not rebuilt under the pointer.
    */
+  /**
+   * Undo keeps whole snapshots: at most 200 steps, and at most about 150 MB of them (a large drawing,
+   * like a lesson of many thousand marks, keeps fewer steps rather than filling memory).
+   */
+  trimPast(maxSteps = 200, maxChars = 150e6) {
+    let total = 0;
+    for (const x of this.past) total += x.length;
+    while (this.past.length > 1 && (this.past.length > maxSteps || total > maxChars)) total -= this.past.shift().length;
+  }
+
   subscribe(fn, { live = false } = {}) { fn.live = live; this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit(reason, transient = false) { for (const fn of this.listeners) if (!transient || fn.live) fn(this.doc, reason); }
 
@@ -163,7 +173,7 @@ export class ProcessStore {
     // transient: a live redraw (a board following its sources): no undo step, not in the log.
     if (!transient) {
       this.past.push(JSON.stringify(this.doc));
-      if (this.past.length > 200) this.past.shift();
+      this.trimPast();
       this.future = [];
     }
     const result = fn(this.doc);
@@ -177,7 +187,7 @@ export class ProcessStore {
   commitFrom(before, label, { by = 'user' } = {}) {
     if (before === JSON.stringify(this.doc)) return;
     this.past.push(before);
-    if (this.past.length > 200) this.past.shift();
+    this.trimPast();
     this.future = [];
     this.log.push({ t: Date.now(), label, by });
     this.emit(label);
@@ -198,6 +208,7 @@ export class ProcessStore {
   redo() {
     if (!this.future.length) return false;
     this.past.push(JSON.stringify(this.doc));
+    this.trimPast();
     this.doc = JSON.parse(this.future.pop());
     this.emit('redo');
     return true;
