@@ -167,11 +167,20 @@ export const BRUSHES = {
       const len = [0];
       for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
       const total = len[len.length - 1] || 1;
+      // Pressure sets the width, averaged along the line over about 1.5 widths: a mouse's jittery
+      // pressure (it comes from speed) swells gently instead of beading like a sausage. The taper at
+      // the ends is applied after, so ends stay sharp.
+      const press = pts.map(q => 1 - p.pressure + p.pressure * (q[3] ?? 0.5) * 2);
+      const reach = Math.max(1, p.width * 1.5), sm = new Array(pts.length);
+      for (let i = 0, a = 0, b = 0, sum = 0; i < pts.length; i++) {
+        while (b < pts.length && len[b] <= len[i] + reach) sum += press[b++];
+        while (len[a] < len[i] - reach) sum -= press[a++];
+        sm[i] = sum / (b - a);
+      }
       const half = pts.map((q, i) => {
         const u = len[i] / total;
         const taper = p.taper > 0 && !e.closed ? Math.min(1, Math.min(u, 1 - u) / (p.taper / 2)) : 1;
-        const pressure = 1 - p.pressure + p.pressure * (q[3] ?? 0.5) * 2;
-        return Math.max(0.15, p.width * 0.5 * pressure * (0.35 + 0.65 * taper));
+        return Math.max(0.15, p.width * 0.5 * sm[i] * (0.35 + 0.65 * taper));
       });
       // Round joins: every segment is its own quad (its own direction), every point a disc; one
       // fill of all of them (same winding), so thick turns stay round and nothing overlaps darker.
