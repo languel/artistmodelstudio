@@ -357,7 +357,7 @@ Every other board is paused and **baked**: drawn once into a picture and shown a
 - The image records what went into it (`e.bake`), and Undo brings the marks back.
 - Baked images are ordinary marks: add them to Assets, or use them as thumbnails.
 
-Agents use `ams_source`: list, add, remove, update, sample (colors, values and landmarks at points), frame (a PNG), show, follow.
+Agents use `ams_get` with `format: 'p5code'` for a board's code as p5, and `ams_source`: list, add, remove, update, sample (colors, values and landmarks at points), frame (a PNG), show, follow.
 
 ## Exports
 
@@ -368,11 +368,29 @@ From the menu:
 - **p5 (minimal code):** a short `sketch.js` of plain p5 calls for teaching (also Copy as → p5 code on a selection).
   - Lines are `beginShape()` with `splineVertex` (smooth) or `vertex` (straight); planes are filled shapes, points circles, notes text.
   - Only the points that shape each line are kept. Brush textures are left out; a comment names each mark's brush.
+  - Runs of five or more marks of one kind (or many points) become a data array and a loop: `const dots = [[x, y, size, color], …]`, or a list of point lists for lines and planes. A small `shape()` helper draws them. Values that are the same for the whole run are set once.
+- **p5 (its code):** a board's own code as a p5 sketch (zip: `index.html`, `sketch.js`, and the media of the sources it reads).
+  - The score is kept as written. The studio words it uses are defined after it in plain p5, and only those.
+  - `point`, `line`, `plane`, `rect` and `circle` clash with p5, so they become `drawPoint`, `drawLine`, `drawPlane`, `rectPoints` and `circlePoints`.
+  - `source('name')` samples a `loadImage` (animated GIFs step with `setFrame`), a `createVideo` or `createCapture(VIDEO)`, fitted like the studio does.
+  - For p5 2.x, files load with `await` in an async `setup()`; 1.x uses `preload()` and `curveVertex`.
+  - `fit()`, custom brushes and landmarks are not carried over, and a comment says so.
 - **p5.js version:** Settings → Export: 2.x (latest, the default) or 1.x (`curveVertex`). The full export loads `p5@2` or `p5@1`.
 - **Page (HTML):** see *Scenes, boards and pages*.
 - **Process sheet:** a PNG of the stages and the decisions.
 - **Process JSON.**
 - **Excalidraw:** round-trips to underscores through `customData.ams`.
+
+## Lessons
+
+`examples/lessons/sampling/lesson.js` is a lesson as data: *Pointillism and Expressionism, by sampling*.
+- **Sections:** Seurat, Munch and Muybridge, each a public-domain source (`media/`, with `RIGHTS.md`).
+- **Examples:** each is a board with an idea, pseudocode and code.
+- **Scripts:**
+  - `scripts/lesson-sampling-p5.mjs` writes each example as a p5 sketch (`exports/lesson-sampling/p5/`).
+  - `scripts/lesson-sampling-report.mjs` writes the lesson as one HTML page. It uses the board pictures saved from the studio.
+
+Examples for teaching favor few, simple, smooth curves over dense point lists.
 
 ## Agents
 

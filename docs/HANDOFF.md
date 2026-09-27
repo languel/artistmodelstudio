@@ -4,7 +4,7 @@ Where Artist Model Studio stands, how the new parts fit together, and what is ne
 
 ## State
 
-Everything is on `main`. The tag `milestone-sculpt-params` marks the state before scenes and boards. There are 165 tests (`npx vitest run`). Always run `npm run build` before committing: quoting in the docs strings has broken the build before. The dev server is at `localhost:3017`.
+Everything is on `main`. The tag `milestone-sculpt-params` marks the state before scenes and boards. There are 170 tests (`npx vitest run`). Always run `npm run build` before committing: quoting in the docs strings has broken the build before. The dev server is at `localhost:3017`.
 
 In one session (26 Sep) these were added, in order:
 
@@ -67,6 +67,8 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 25. **Bake to image:** `app.bakeMarks(ids, { rect })` and `app.bakeBoard(id)` make one image mark with `e.bake` provenance, in one undo step.
 26. **Fixes:** autosave is throttled (a live board starved the debounce) and flushed on `pagehide`; video assets; large GIFs; MediaPipe video mode for streams.
 27. **Live redraws are quiet:** store listeners get transient changes only with `subscribe(fn, { live: true })` (the canvas, autosave). Panels no longer rebuild under the pointer.
+28. **p5 for teaching:** `p5min` writes long runs as data and a loop; `src/process/p5code.js` (`toP5Code`) exports a board's own code as p5 (Export → p5 (its code), `ams_get p5code`, `app.p5CodeFor`). p5 2.x has no `preload()`: files load with `await` in an async `setup()`.
+29. **The sampling lesson:** `examples/lessons/sampling/` (lesson as data, PD media), the scene “Lesson: Pointillism and Expressionism, by sampling”, a tour take in Assets, `scripts/lesson-sampling-p5.mjs` and `scripts/lesson-sampling-report.mjs`.
 
 ## How the model fits
 

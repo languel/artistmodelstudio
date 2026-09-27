@@ -259,7 +259,9 @@ The **Sources** panel lists the project's streams: the camera, and images or vid
 | \`fit(source('cam'), { shapes, live })\` | redraw as plane marks (shape fitting) |
 | \`k.source('cam').colorAt(x, y)\` | in brushes and sculpts, world units |
 
-A board that **follows** its sources (the loop glyph in Code → Board) runs its code again on each new frame: with \`live: true\`, \`fit\` replaces a few shapes per frame, the continuous redraw. The redraw glyph in Sources sets it all up on the active board; the eye shows a source under a board.`)),
+A board that **follows** its sources (the loop glyph in Code → Board) runs its code again on each new frame: with \`live: true\`, \`fit\` replaces a few shapes per frame, the continuous redraw. The redraw glyph in Sources sets it all up on the active board; the eye shows a source under a board.
+
+A board's code exports as a p5.js sketch (the board's menu → Export → **p5 (its code)**): the code as written, the studio words it uses defined in p5, and its pictures in the zip.`)),
 
     T('score-exercises', 'Scores', 'Exercises', 'The syllabus: point, line, plane, rhythm, algorists.', () => h('div', {},
       prose('The same exercises for students and models, comparable stage by stage. Load one, read it, change a decision, run it again.'),
