@@ -102,7 +102,22 @@ export class DockManager {
   }
 
   tabsFor(dock) {
-    return [...this.panels.values()].filter(p => this.state.panels[p.id].placement === dock && this.state.panels[p.id].open);
+    // In the order the tabs were arranged (dragged along the row), else the order they were registered.
+    const order = this.state.order || [], all = [...this.panels.keys()];
+    const rank = id => { const i = order.indexOf(id); return i < 0 ? order.length + all.indexOf(id) : i; };
+    return [...this.panels.values()].filter(p => this.state.panels[p.id].placement === dock && this.state.panels[p.id].open).sort((a, b) => rank(a.id) - rank(b.id));
+  }
+
+  /** Put a tab before another in its row (the order is kept for every dock). */
+  reorder(id, beforeId) {
+    const all = [...this.panels.keys()];
+    const order = (this.state.order || []).filter(x => all.includes(x));
+    for (const x of all) if (!order.includes(x)) order.push(x);
+    order.splice(order.indexOf(id), 1);
+    const at = beforeId ? order.indexOf(beforeId) : order.length;
+    order.splice(at < 0 ? order.length : at, 0, id);
+    this.state.order = order;
+    this.save(); this.render();
   }
 
   mountBody(p) {
@@ -201,9 +216,26 @@ export class DockManager {
       const s = this.state.panels[id];
       let dragging = false, ox = 0, oy = 0;
       const hint = this.root.querySelector('.wb-dock-hint');
+      // Dragging along its tab row reorders; leaving the row (up or down) floats the panel.
+      const bar = floatWin ? null : el.closest('.wb-tabs');
+      let reordering = false, before = undefined;
+      const marker = () => bar?.querySelectorAll('.wb-tab').forEach(t => t.classList.toggle('drop-before', t.dataset.guide === `tab:${before}`));
       const moveH = ev => {
         const dx = ev.clientX - sx, dy = ev.clientY - sy;
-        if (!dragging && Math.hypot(dx, dy) < 6) return;
+        if (!dragging && !reordering && Math.hypot(dx, dy) < 6) return;
+        if (bar && !dragging) {
+          const r = bar.getBoundingClientRect();
+          if (ev.clientY > r.top - 18 && ev.clientY < r.bottom + 18) {
+            reordering = true;
+            const tabs = [...bar.querySelectorAll('.wb-tab')].filter(t => t !== el);
+            const next = tabs.find(t => { const b = t.getBoundingClientRect(); return ev.clientX < b.left + b.width / 2; });
+            before = next ? next.dataset.guide.slice(4) : null;
+            el.classList.add('dragging');
+            marker();
+            return;
+          }
+          reordering = false; before = undefined; el.classList.remove('dragging'); marker();
+        }
         if (!dragging) {
           dragging = true;
           if (s.placement !== 'floating') {
@@ -222,6 +254,7 @@ export class DockManager {
         window.removeEventListener('pointermove', moveH);
         window.removeEventListener('pointerup', up);
         hint.dataset.target = '';
+        if (reordering) { el.classList.remove('dragging'); if (before !== undefined) this.reorder(id, before); return; }
         if (!dragging) { onClick?.(); return; }
         const target = this.dockTarget(ev.clientX, ev.clientY, this.panels.get(id).allowBottom);
         if (target !== 'floating') this.move(id, target);

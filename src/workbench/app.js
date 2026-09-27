@@ -613,9 +613,9 @@ export class Workbench {
 
   registerPanels() {
     const reg = (id, title, iconName, natural, mount, extra = {}) => this.docks.register({ id, title, icon: iconName, natural, mount: el => mount(el, this), ...extra });
-    reg('stages', 'Stages', 'stages', 'left', mountStages);
     reg('scenes', 'Scenes', 'scenes', 'left', mountScenes);
     reg('boards', 'Boards', 'board', 'left', mountBoards);
+    reg('stages', 'Stages', 'stages', 'left', mountStages);
     reg('outliner', 'Outliner', 'layers', 'left', mountOutliner);
     reg('assets', 'Assets', 'assets', 'left', el => this.mountAssets(el));
     reg('properties', 'Properties', 'properties', 'right', mountProperties);
@@ -628,7 +628,7 @@ export class Workbench {
     reg('settings', 'Settings', 'gear', 'right', mountSettings);
     reg('shortcuts', 'Shortcuts', 'keyboard', 'right', mountShortcuts);
     reg('timeline', 'Timeline', 'film', 'bottom', mountTimeline);
-    reg('history', 'History', 'undo', 'bottom', mountHistory);
+    reg('history', 'History', 'history', 'bottom', mountHistory);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }
 

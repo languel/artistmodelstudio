@@ -102,6 +102,8 @@ Shift+double-click renames in place anything with a name: marks, groups and stag
 
 **Performance**: right-click the zoom control (or the command palette: performance readout) for frames per second while the canvas redraws, the last redraw in milliseconds, and the number of marks; a redraw slower than 16 ms shows in the accent color. ams_ui reports the last redraw too.
 
+**Panel tabs**: drag a tab along its row to reorder it (kept); drag it away from the row to float the panel, and to a side to dock it. The left dock starts with Scenes, Boards, Stages, Outliner and Assets.
+
 **The interface** is kept minimal: the tools island (top centre) and the menu island (top left: the menu, view, points, present, theme). Drag an island by its grip to move it; double-click the grip to put it back. Cmd+. hides all of the interface, leaving only the drawing (again to bring it back); the command palette (and ams_ui) shows or hides the tools, the menu island, the zoom controls or the panels one by one. Scenes, boards and stages live in their panels; right-click and Opt+right-click for properties.
 
 **Scenes** (the Scenes panel): a project holds several drawings, each with its boards, its own undo and History, and its own Timeline; Assets, brushes and settings are shared. New, duplicate, reorder and delete scenes from the button's menu; Alt+PageDown and Alt+PageUp step through them, Opt+Cmd+N makes a new one. Opening a drawing from Assets (or a file) makes it a new scene, so the one you were working on stays as it was. Agents use ams_scene.
