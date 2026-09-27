@@ -543,17 +543,13 @@ export class CanvasView {
       if (e.code === 'Space') { this.space = true; c.style.cursor = 'grab'; e.preventDefault(); }
     });
     window.addEventListener('keyup', e => { if (e.code === 'Space') { this.space = false; this.updateCursor(); } });
-    // While drawing: double-tap Tab toggles the path (smooth / straight); a point-by-point path takes
+    // While drawing: CapsLock switches the path (smooth / straight); a point-by-point path takes
     // Enter or Esc (finish) and Backspace (remove the last point).
+    window.addEventListener('keyup', e => { if (this.draft && (e.key === 'CapsLock' || e.code === 'CapsLock')) this.applyCaps(e); }, true);
     window.addEventListener('keydown', e => {
       if (!this.draft) return;
-      if (e.key === 'Tab' && !e.shiftKey) {
-        e.preventDefault(); e.stopPropagation();
-        const now = performance.now();
-        if (now - (this.lastTab || 0) < 400) { this.draft.path = this.draft.path === 'straight' ? undefined : 'straight'; this.lastTab = 0; this.flash(this.draft.path === 'straight' ? 'Straight' : 'Smooth'); this.invalidate(); }
-        else this.lastTab = now;
-        return;
-      }
+      // CapsLock on: the path is the opposite of the tool's (straight instead of smooth, or back).
+      if (e.key === 'CapsLock' || e.code === 'CapsLock') { this.applyCaps(e); return; }
       if (!this.clickPath) return;
       if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.finishClickPath(); }
       else if (e.key === 'Backspace' || e.key === 'Delete') {
@@ -733,6 +729,15 @@ export class CanvasView {
     window.addEventListener('pointerup', up);
   }
 
+  /** CapsLock (read from any key or pointer event) flips the drawn path from the tool's setting. */
+  applyCaps(ev) {
+    if (!this.draft || !ev?.getModifierState) return;
+    const caps = ev.getModifierState('CapsLock');
+    const base = this.draftBasePath;   // the tool's own path setting
+    const want = caps ? (base === 'straight' ? undefined : 'straight') : base;
+    if (this.draft.path !== want) { this.draft.path = want; this.flash(want === 'straight' ? 'Straight' : 'Smooth'); this.invalidate(); }
+  }
+
   // ---- paths made point by point ---------------------------------------------------------
   /** After a click (no drag): each click adds a point; a rubber band shows the next segment. */
   startClickPath(role, dkey) {
@@ -741,6 +746,7 @@ export class CanvasView {
     this.draft.points = [first, first.slice()];
     this.clickMove = ev => {
       if (!this.clickPath || !this.draft) return;
+      this.applyCaps(ev);
       let [x, y] = this.toWorld(...this.local(ev));
       if (ev.ctrlKey) [x, y] = this.snapTarget(x, y);
       this.draft.points[this.draft.points.length - 1] = [x, y, performance.now() - this.clickPath.t0, 0.5];
@@ -951,6 +957,8 @@ export class CanvasView {
     const d = this.getDefaults(dkey);
     this.draft = normalizeElement({ role, stage: 'draft', points: [[wx, wy, 0, pressureOf(e, 0)]], realize: d.realize, color: d.color, ...(d.fill ? { fill: d.fill } : {}), ...(d.path === 'straight' ? { path: 'straight' } : {}), seed: 1 }, 'draft');
     let last = [wx, wy, t0];
+    this.draftBasePath = d.path === 'straight' ? 'straight' : undefined;
+    this.applyCaps(e);
     this.pointer = true;
     const straight = tool === 'guide';
     this.draftStraight = straight;
@@ -959,6 +967,7 @@ export class CanvasView {
     const lazyOn = !straight && (lazy.radius > 0 || lazy.smoothing > 0);   // (lazy.simplify applies on release)
     let pen = [wx, wy], snapped = Boolean(e.ctrlKey);
     const mv = ev => {
+      this.applyCaps(ev);
       let [x, y] = this.toWorld(...this.local(ev));
       if (lazyOn) {
         pen = lazyStep(pen, [x, y], lazy.radius / this.cam.z, lazy.smoothing);
