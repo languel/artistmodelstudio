@@ -9,6 +9,7 @@ import { EXERCISES } from '../process/exercises.js';
 import { ROLES, STAGE_KINDS, normalizeElement } from '../process/document.js';
 import { BRUSHES } from '../process/brushes.js';
 import { toSVG, toExcalidraw, toP5, processSheet } from '../process/exports.js';
+import { toP5Min } from '../process/p5min.js';
 import { sceneHtml } from '../process/page.js';
 import { boardsOf, findBoard, boardDoc, marksOf, trainBoard, MAIN, BLACKBOARD } from '../process/boards.js';
 import { matches } from '../assets/assetStore.js';
@@ -52,9 +53,10 @@ export function workbenchTools(app) {
       const res = loadScore(app, a.source, a.seed ?? 1, a.by || { kind: 'model', name: 'agent' }, a.title);
       return res.error ? { error: res.error, logs: res.logs } : { stages: res.doc.stages.map(s => s.name), elements: res.doc.elements.length, decisions: res.doc.decisions.length, logs: res.logs };
     } },
-    { name: 'ams_get', description: 'The process document as JSON (the whole drawing, every board), or one board (main unless board is given) as SVG (with records), Excalidraw, a p5 sketch, or JSON of that board alone.', inputSchema: S({ format: { type: 'string', enum: ['json', 'svg', 'excalidraw', 'p5'] }, board: str('Board id or title (for one board)') }), run: (a) => {
+    { name: 'ams_get', description: 'The process document as JSON (the whole drawing, every board), or one board (main unless board is given) as SVG (with records), Excalidraw, a p5 sketch (p5: re-runs the score with the studio runtime; p5min: a short sketch of plain p5 calls for teaching), or JSON of that board alone.', inputSchema: S({ format: { type: 'string', enum: ['json', 'svg', 'excalidraw', 'p5', 'p5min'] }, board: str('Board id or title (for one board)') }), run: (a) => {
       const f = a.format || 'json';
       const one = a.board ? boardDoc(doc(), (findBoard(doc(), a.board) || {}).id || MAIN) : boardDoc(doc(), MAIN);
+      if (f === 'p5min') return { sketch: toP5Min(one) };
       return f === 'svg' ? { svg: toSVG(one) } : f === 'excalidraw' ? toExcalidraw(one) : f === 'p5' ? { sketch: toP5(one) } : a.board ? one : doc();
     } },
     { name: 'ams_set', description: 'Replace the process document (JSON).', inputSchema: S({ doc: { type: 'object' } }, ['doc']), run: (a) => { app.loadDocument(a.doc, 'agent set'); return { ok: true }; } },

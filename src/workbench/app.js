@@ -8,6 +8,7 @@ import { boardDoc, boardById, boardsOf, MAIN, BLACKBOARD, boardForPoints, trainB
 import { sceneHtml, docFromPage } from '../process/page.js';
 import { Scenes } from './scenes.js';
 import { runScoreInto } from '../process/script.js';
+import { toP5Min } from '../process/p5min.js';
 import { SCULPTS, loadSculptLibrary } from '../process/sculpt.js';
 import { ProcessStore, createDocument, normalizeDocument, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
@@ -425,7 +426,7 @@ export class Workbench {
       { label: 'Go to', run: () => this.goToBoard(id) },
       { label: 'Rename…', run: () => this.renameBoard(id) },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
-      { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['p5', 'p5.js sketch']].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
+      { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)']].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
       { active: (doc.train || MAIN) === id, label: (doc.train || MAIN) === id ? 'Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
       b.main ? null : { label: 'Earlier', run: () => this.store.moveBoard(id, -1) },
       b.main ? null : { label: 'Later', run: () => this.store.moveBoard(id, 1) },
@@ -939,7 +940,8 @@ export class Workbench {
       })() },
       { label: 'Copy as', items: [
         { label: 'SVG', hint: 'The selection as SVG (with its process record), on the clipboard', run: () => this.copySelection('svg', ids) },
-        { label: 'PNG', hint: 'The selection as a picture (transparent), on the clipboard', run: () => this.copySelection('png', ids) }
+        { label: 'PNG', hint: 'The selection as a picture (transparent), on the clipboard', run: () => this.copySelection('png', ids) },
+        { label: 'p5 code', hint: 'The selection as a minimal p5 sketch (plain calls), on the clipboard', run: () => this.copySelection('p5', ids) }
       ] },
       { label: 'Add to Assets', items: [
         { label: 'As PNG', hint: 'A picture of the selection; opens again as a drawing', run: () => this.selectionToAssets('png', ids) },
@@ -973,6 +975,7 @@ export class Workbench {
         { label: 'SVG', hint: 'With the full process record inside; opens again as a process', run: () => this.exportAs('svg') },
         { label: 'p5.js sketch', hint: 'A zip whose sketch re-runs the score', run: () => this.exportAs('p5') },
         { label: 'Process sheet', hint: 'Stages, decisions and reasons on one page (PNG)', run: () => this.exportAs('sheet') },
+        { label: 'p5 (minimal code)', hint: 'The active board as a short sketch.js of plain p5 calls, for teaching (brush textures left out)', run: () => this.exportAs('p5min') },
         { label: 'Page (HTML)', hint: 'Every board as a section: picture, process, replay and its text. The drawing travels inside', run: () => this.exportAs('page') },
         { label: 'JSON', hint: 'The process document', run: () => this.exportAs('json') },
         { label: 'Excalidraw', run: () => this.exportAs('excalidraw') }
@@ -1015,6 +1018,7 @@ export class Workbench {
     const d = this.selectionDoc(ids);
     if (!d) return null;
     if (kind === 'svg') return new Blob([toSVG(d, { mode: this.view.mode })], { type: 'image/svg+xml' });
+    if (kind === 'p5') return new Blob([toP5Min({ ...d, artboard: { ...d.artboard, ground: '#ffffff' } }, { title: d.title })], { type: 'text/javascript' });
     const scale = Math.min(4, 2000 / Math.max(d.artboard.width, d.artboard.height));
     return canvasBlob(renderToCanvas(d, { scale, mode: this.view.mode }));
   }
@@ -1023,7 +1027,7 @@ export class Workbench {
     try {
       const blob = await this.selectionBlob(kind, ids);
       if (!blob) return;
-      if (kind === 'svg') await navigator.clipboard.writeText(await blob.text());
+      if (kind === 'svg' || kind === 'p5') await navigator.clipboard.writeText(await blob.text());
       else await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       this.log(`Copied the selection as ${kind.toUpperCase()}.`);
     } catch (err) { this.log(`Could not copy: ${err.message}`, 'error'); }
@@ -1051,6 +1055,7 @@ export class Workbench {
     else if (kind === 'svg') download(toSVG(doc, { mode: this.view.mode }), `${s}.svg`, 'image/svg+xml');
     else if (kind === 'json') download(JSON.stringify(doc, null, 2), `${s}.ams.json`, 'application/json');
     else if (kind === 'page') download(sceneHtml(this.store.doc), `${this.slug()}.html`, 'text/html');
+    else if (kind === 'p5min') download(toP5Min(doc), `${s}-sketch.js`, 'text/javascript');
     else if (kind === 'excalidraw') download(JSON.stringify(toExcalidraw(doc), null, 2), `${s}.excalidraw`, 'application/json');
     else if (kind === 'p5') {
       const zip = createZip([{ name: 'index.html', data: p5IndexHtml(doc.title) }, { name: 'sketch.js', data: toP5(doc) }]);

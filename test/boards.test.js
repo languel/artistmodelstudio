@@ -172,3 +172,17 @@ describe('snapping marks', () => {
     expect(s.doc.elements[1].points[0].slice(0, 2)).toEqual([25, 25]);
   });
 });
+
+import { toP5Min } from '../src/process/p5min.js';
+describe('minimal p5', () => {
+  it('writes plain p5 calls: curves, straight shapes, points', () => {
+    const { doc } = runScript(`units('artboard')\nline([[10, 10], [50, 40], [90, 10]], { width: 4 })\nline([[10, 60], [50, 90], [90, 60]], { path: 'straight' })\npoint(50, 50, { size: 12 })\nplane(rect(20, 20, 30, 30))`);
+    const src = toP5Min(doc);
+    expect(src).toContain('createCanvas(1000, 1000)');
+    expect(src).toContain('curveVertex(10, 10)');
+    expect(src).toContain('vertex(50, 90)');
+    expect(src).toContain('circle(50, 50, 12)');
+    expect(src).toContain('endShape()');
+    expect(() => new Function(src)).not.toThrow();
+  });
+});
