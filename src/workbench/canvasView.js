@@ -201,6 +201,22 @@ export class CanvasView {
     }
     if (this.previewDoc) { this.drawPreviewOverlay?.(ctx, { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, this.w, this.h); return; }
     this.drawBoards(ctx, css);
+    // Direct selection: the selected (and hovered) marks' points as small squares; selected points filled.
+    if (this.getTool() === 'direct') {
+      const sel = new Set((this.selPoints || []).map(p => `${p.id}:${p.i}`));
+      const ids = new Set([...this.selected, this.hovered].filter(Boolean));
+      const text = css.getPropertyValue('--wb-text').trim() || '#ddd', panel = css.getPropertyValue('--wb-panel').trim() || '#222', accent = css.getPropertyValue('--wb-accent-2').trim() || '#c8664f';
+      ctx.save(); ctx.lineWidth = 1;
+      for (const el of this.store.doc.elements) {
+        if (!ids.has(el.id)) continue;
+        el.points.forEach((q, i) => {
+          const [x, y] = this.toScreen(q[0], q[1]), on = sel.has(`${el.id}:${i}`);
+          ctx.fillStyle = on ? accent : panel; ctx.strokeStyle = on ? accent : text;
+          ctx.fillRect(Math.round(x) - 3.5, Math.round(y) - 3.5, 7, 7); ctx.strokeRect(Math.round(x) - 3.5, Math.round(y) - 3.5, 7, 7);
+        });
+      }
+      ctx.restore();
+    }
     this.drawFrame(ctx, css.getPropertyValue('--wb-select').trim() || '#8a8a8a');
     // Points: every mark's points as faint dots (brighter on the selection).
     if (this.showPoints) {
@@ -560,6 +576,12 @@ export class CanvasView {
     window.addEventListener('keydown', capsPress, true);
     window.addEventListener('keyup', capsPress, true);
     window.addEventListener('keydown', e => {
+      if (this.getTool() === 'direct' && this.selPoints?.length && !e.target.closest?.('input, textarea, select, [contenteditable], .cm-editor')) {
+        if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); this.deletePoints(); return; }
+        if (e.key === 'Escape') { e.stopPropagation(); this.selPoints = []; this.invalidate(); return; }
+      }
+    }, true);
+    window.addEventListener('keydown', e => {
       if (!this.draft) return;
       if (!this.clickPath) return;
       if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.finishClickPath(); }
@@ -577,7 +599,7 @@ export class CanvasView {
       const tool = this.getTool();
       const hd = this.space ? null : this.handleAt(sx, sy);
       if (JSON.stringify(hd) !== JSON.stringify(this.hoverHandle)) { this.hoverHandle = hd; this.canvas.style.cursor = this.cursorFor(hd) || ''; if (!hd) this.updateCursor(); this.invalidate(); }
-      const h = tool === 'select' && !hd ? this.hitTest(wx, wy)?.id || null : null;
+      const h = (tool === 'select' || tool === 'direct') && !hd ? this.hitTest(wx, wy)?.id || null : null;
       if (h !== this.hovered) { this.hovered = h; this.invalidate(); }
       const brush = tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length);
       if (brush || this.brushAt) { this.brushAt = brush ? [sx, sy] : null; this.invalidate(); }
@@ -605,6 +627,7 @@ export class CanvasView {
       else if (e.dataTransfer.files?.length) this.onDropFiles?.([...e.dataTransfer.files], at);
     });
     c.addEventListener('dblclick', e => {
+      if (this.getTool() === 'direct') { this.insertPointAt(...this.local(e)); return; }
       const bh = this.boardHandleAt(...this.local(e));
       // Double-click a board's title frames it; Shift+double-click renames it.
       if (bh?.kind === 'title') { if (e.shiftKey) this.onBoardRename?.(bh.id); else this.animateTo(this.camFor(bh.id), 400); }
@@ -634,6 +657,7 @@ export class CanvasView {
       const [wx, wy] = this.toWorld(sx, sy);
       const tool = this.getTool();
       // Boards: their titles (and the selected board's corner) work with Select and the Board tool.
+      if (tool === 'direct') return this.startDirect(e, sx, sy, wx, wy);
       if (tool === 'select' || tool === 'board') {
         const bh = this.boardHandleAt(sx, sy);
         if (bh) return this.startBoardDrag(e, bh);
@@ -754,6 +778,121 @@ export class CanvasView {
     const to = first.path === 'straight' ? undefined : 'straight';
     this.store.change('path', d => { for (const e of d.elements) if (ids.includes(e.id)) { if (to) e.path = to; else delete e.path; } });
     this.flash(to === 'straight' ? 'Straight' : 'Smooth');
+  }
+
+  // ---- direct selection: editing points --------------------------------------------------
+  /** The point (of a shown mark: selected or hovered) under a screen point: { id, i } or null. */
+  pointAt(sx, sy) {
+    const r = 7;
+    const ids = new Set([...this.selected, this.hovered].filter(Boolean));
+    let best = r, hit = null;
+    for (const e of this.store.doc.elements) {
+      if (!ids.has(e.id) || !this.editable(e)) continue;
+      e.points.forEach((q, i) => { const [x, y] = this.toScreen(q[0], q[1]); const d = Math.hypot(x - sx, y - sy); if (d < best) { best = d; hit = { id: e.id, i }; } });
+    }
+    return hit;
+  }
+
+  /** Direct selection: points are selected and moved (Ctrl snaps); a click on a mark shows its points. */
+  startDirect(e, sx, sy, wx, wy) {
+    this.selPoints ||= [];
+    const hit = this.pointAt(sx, sy);
+    const key = p => `${p.id}:${p.i}`;
+    if (!hit) {
+      const m = this.hitTest(wx, wy);
+      if (m) { this.select([m.id], e.shiftKey); if (!e.shiftKey) this.selPoints = []; this.invalidate(); return; }
+      // Empty canvas: a marquee selects points (and their marks).
+      if (!e.shiftKey) { this.selPoints = []; this.select([]); }
+      this.marquee = { x0: wx, y0: wy, x1: wx, y1: wy };
+      this.pointer = true;
+      const mv = ev => { const [x, y] = this.toWorld(...this.local(ev)); this.marquee.x1 = x; this.marquee.y1 = y; this.invalidate(); };
+      const up = () => {
+        window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+        this.pointer = false;
+        const m2 = this.marquee; this.marquee = null;
+        const [x0, x1] = [Math.min(m2.x0, m2.x1), Math.max(m2.x0, m2.x1)], [y0, y1] = [Math.min(m2.y0, m2.y1), Math.max(m2.y0, m2.y1)];
+        const got = [];
+        for (const el of this.store.doc.elements) {
+          if (!this.editable(el) || el.hidden || ['note', 'image'].includes(el.role)) continue;
+          el.points.forEach((q, i) => { if (q[0] >= x0 && q[0] <= x1 && q[1] >= y0 && q[1] <= y1) got.push({ id: el.id, i }); });
+        }
+        const have = new Set(this.selPoints.map(key));
+        this.selPoints = [...this.selPoints, ...got.filter(p => !have.has(key(p)))];
+        this.select([...new Set(this.selPoints.map(p => p.id))], true);
+        this.invalidate();
+      };
+      window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+      return;
+    }
+    // A point: select it (Shift adds or removes), then drag the selected points.
+    const on = this.selPoints.some(p => key(p) === key(hit));
+    if (e.shiftKey) this.selPoints = on ? this.selPoints.filter(p => key(p) !== key(hit)) : [...this.selPoints, hit];
+    else if (!on) this.selPoints = [hit];
+    if (!this.selected.has(hit.id)) this.select([...this.selected, hit.id]);
+    const before = JSON.stringify(this.store.doc);
+    const orig = this.selPoints.map(p => { const el = this.store.doc.elements.find(x => x.id === p.id); return { ...p, q: el.points[p.i].slice() }; });
+    const grab = this.store.doc.elements.find(x => x.id === hit.id).points[hit.i].slice();
+    let moved = false;
+    this.pointer = true;
+    const mv = ev => {
+      let [x, y] = this.toWorld(...this.local(ev));
+      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
+      moved = true;
+      let dx = x - wx, dy = y - wy;
+      if (ev.ctrlKey || this.grid.snap) {
+        const q = this.grid.spacing / Math.max(1, this.grid.subdivisions);
+        if (this.grid.snapMode === 'increments') { dx = Math.round(dx / q) * q; dy = Math.round(dy / q) * q; }
+        else { const exclude = new Set(); const [gx, gy] = this.snapTarget(grab[0] + dx, grab[1] + dy, exclude); dx = gx - grab[0]; dy = gy - grab[1]; }
+      }
+      for (const o of orig) { const el = this.store.doc.elements.find(x => x.id === o.id); if (el?.points[o.i]) el.points[o.i] = [o.q[0] + dx, o.q[1] + dy, o.q[2], o.q[3]]; }
+      this.invalidate();
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+      this.pointer = false;
+      if (moved) this.store.commitFrom(before, 'move points');
+      this.invalidate();
+    };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  }
+
+  /** Double-click a segment of a shown mark: a new point there (time and pressure in between). */
+  insertPointAt(sx, sy) {
+    const [wx, wy] = this.toWorld(sx, sy), tol = 6 / this.cam.z;
+    for (const el of this.store.doc.elements) {
+      if (!this.selected.has(el.id) || el.points.length < 2) continue;
+      const n = el.points.length, segs = el.closed ? n : n - 1;
+      for (let i = 0; i < segs; i++) {
+        const a = el.points[i], b = el.points[(i + 1) % n];
+        const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
+        const u = L ? Math.max(0, Math.min(1, ((wx - a[0]) * dx + (wy - a[1]) * dy) / L)) : 0;
+        if (Math.hypot(a[0] + dx * u - wx, a[1] + dy * u - wy) > tol) continue;
+        const p = a.map((v, c) => v + ((b[c] ?? v) - v) * u);
+        this.store.change('add point', d => { const e2 = d.elements.find(x => x.id === el.id); e2.points.splice(i + 1, 0, p); });
+        this.selPoints = [{ id: el.id, i: i + 1 }];
+        this.invalidate();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Delete the selected points (a mark left with too few points goes too). */
+  deletePoints() {
+    if (!this.selPoints?.length) return false;
+    const by = new Map();
+    for (const p of this.selPoints) { if (!by.has(p.id)) by.set(p.id, new Set()); by.get(p.id).add(p.i); }
+    this.store.change('delete points', d => {
+      d.elements = d.elements.filter(e => {
+        const drop = by.get(e.id);
+        if (!drop) return true;
+        e.points = e.points.filter((_, i) => !drop.has(i));
+        return e.points.length >= (e.role === 'plane' ? 3 : e.role === 'point' ? 1 : 2);
+      });
+    });
+    this.selPoints = [];
+    this.invalidate();
+    return true;
   }
 
   // ---- paths made point by point ---------------------------------------------------------
@@ -1086,7 +1225,7 @@ export class CanvasView {
 
   updateCursor() {
     const t = this.getTool();
-    this.canvas.style.cursor = this.space || t === 'hand' ? 'grab' : t === 'select' ? 'default' : t === 'note' ? 'text' : t === 'sculpt' ? 'none' : 'crosshair';
+    this.canvas.style.cursor = this.space || t === 'hand' ? 'grab' : t === 'select' || t === 'direct' ? 'default' : t === 'note' ? 'text' : t === 'sculpt' ? 'none' : 'crosshair';
   }
 
   /** PNG of the artboard as currently shown (picture or process view). */

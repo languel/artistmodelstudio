@@ -12,6 +12,7 @@ export function defaultCommands(app) {
   const sel = () => [...app.canvas.selected];
   return [
     cmd('tool.select', 'Tools', 'Select', ['v'], () => app.setTool('select')),
+    cmd('tool.direct', 'Tools', 'Direct selection (edit points)', ['shift+v'], () => app.setTool('direct')),
     cmd('tool.hand', 'Tools', 'Pan', ['h'], () => app.setTool('hand')),
     cmd('tool.point', 'Tools', 'Point', ['o'], () => app.setTool('point')),
     cmd('tool.line', 'Tools', 'Line', ['p'], () => app.setTool('line')),

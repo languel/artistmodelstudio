@@ -61,6 +61,8 @@ const TOOLS = [
   ['select', 'Select and move', 'V'], ['hand', 'Pan', 'H'], ['board', 'Board: drag out a new artboard (Shift keeps it square)', '⇧O'], null,
   ['point', 'Point: a mark at a place', 'O'], ['line', 'Line: a point that moved', 'P'], ['plane', 'Plane: an enclosed area', 'A'], null,
 ];
+/** Select and direct selection (points) share a button. */
+const SELECTS = [['select', 'Select and move', 'V'], ['direct', 'Direct: edit points (click a mark, drag its points; double-click a segment adds one; Ctrl snaps)', '⇧V']];
 /** Construction: one button for gesture and guide (like the brush and sculpt stacks). */
 const CONSTRUCTION = [['gesture', 'Gesture: the movement behind a form', 'E'], ['guide', 'Guide: construction (straight; Shift snaps)', 'G']];
 const NOTE_TOOL = ['note', 'Note: a written annotation', 'T'];
@@ -121,6 +123,8 @@ export class Workbench {
     // Choosing a tool means drawing again: leave a take being reviewed.
     if (this.player?.take) this.player.close();
     if (t === 'gesture' || t === 'guide') this.constructTool = t;
+    if (t === 'select' || t === 'direct') this.selectTool = t;
+    if (t !== 'direct' && this.canvas) this.canvas.selPoints = [];
     this.canvas?.finishClickPath?.();
     this.tool = t; this.canvas?.updateCursor(); this.emit('tool'); this.renderChrome();
   }
@@ -697,9 +701,17 @@ export class Workbench {
     // The chrome is minimal: tools in the middle, view controls and the menu on the right; scenes,
     // boards, stages live in panels (right-click and Opt+right-click for properties).
     const tools = h('div', { class: 'wb-island wb-tools-island' });
+    // Select / direct: one slot showing the one in use (V, Shift+V pick directly; click again for both).
+    const selT = SELECTS.find(c => c[0] === this.tool) || SELECTS.find(c => c[0] === this.selectTool) || SELECTS[0];
+    const selMenu = (x, y) => showMenu([{ label: 'Select' }, ...SELECTS.map(([id, tip, key]) => ({ icon: icon(id), active: id === selT[0], label: tip.split(':')[0], hint: tip, keys: key, run: () => this.setTool(id) }))], x, y);
+    const selBtn = h('button', { class: `wb-tool wb-tool-stack${SELECTS.some(c => c[0] === this.tool) ? ' on' : ''}`, 'data-guide': `tool:${selT[0]}`, title: `${selT[1]} (${selT[2]}). Click again or right-click for select and direct`, html: `${icon(selT[0])}<kbd>${selT[2].replace('⇧', '')}</kbd><span class="wb-tool-caret"></span>` });
+    selBtn.addEventListener('click', () => { if (SELECTS.some(c => c[0] === this.tool)) { const r = selBtn.getBoundingClientRect(); selMenu(r.left, r.bottom + 4); } else this.setTool(selT[0]); });
+    selBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); selMenu(ev.clientX, ev.clientY); });
+    tools.append(selBtn);
     for (const t of TOOLS) {
       if (!t) { tools.append(h('div', { class: 'wb-sep' })); continue; }
       const [id, tip, key] = t;
+      if (id === 'select') continue;
       const drawing = ['point', 'line', 'plane'].includes(id);
       tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})${drawing ? ' · right-click: brush and look for new marks' : ''}`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id), oncontextmenu: drawing ? e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); openToolDefaults(this, id, r.left, r.bottom + 6); } : null }));
     }

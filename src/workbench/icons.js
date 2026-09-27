@@ -2,7 +2,8 @@
 const svg = (d, extra = '') => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
 
 export const ICONS = {
-  select: svg('<path d="M5 3l14 8-6 1.5L10 19z"/>'),
+  select: svg('<path d="M5 3l14 8-6 1.5L10 19z" fill="currentColor"/>'),
+  direct: svg('<path d="M5 3l14 8-6 1.5L10 19z"/><rect x="15.5" y="15.5" width="4" height="4" fill="currentColor" stroke="none"/>'),
   hand: svg('<path d="M8 13V5.5a1.5 1.5 0 013 0V12m0-1V4.5a1.5 1.5 0 013 0V12m0-1.5a1.5 1.5 0 013 0V15a6 6 0 01-6 6h-1a6 6 0 01-5-2.7L3.6 15a1.6 1.6 0 012.6-1.9L8 15"/>'),
   point: svg('<circle cx="12" cy="12" r="4" fill="currentColor"/>'),
   points: svg('<path d="M4 17c4-8 8-10 16-9" opacity=".45"/><circle cx="4" cy="17" r="1.6" fill="currentColor"/><circle cx="9" cy="11" r="1.6" fill="currentColor"/><circle cx="14.5" cy="8.4" r="1.6" fill="currentColor"/><circle cx="20" cy="8" r="1.6" fill="currentColor"/>'),
