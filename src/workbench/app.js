@@ -197,6 +197,24 @@ export class Workbench {
     this.perfRaf = requestAnimationFrame(tick);
   }
 
+  /**
+   * The workspace background (behind the boards): a CSS color, 'transparent' (the window shows what
+   * is behind it, for a see-through browser used as an overlay), or 'default' (the theme's). Kept.
+   */
+  setBackground(v = 'default') {
+    v = String(v || 'default').trim();
+    if (/^(none|clear|see-?through)$/i.test(v)) v = 'transparent';
+    const root = document.documentElement;
+    if (v === 'default' || v === 'reset') { root.style.removeProperty('--wb-canvas'); v = 'default'; }
+    else root.style.setProperty('--wb-canvas', v);
+    root.classList.toggle('wb-transparent', v === 'transparent');
+    this.background = v;
+    try { localStorage.setItem('ams_workspace_bg', v); } catch { /* ignore */ }
+    this.canvas?.invalidate();
+    this.emit('background', v);
+    this.log(v === 'default' ? 'Workspace background: the theme’s.' : `Workspace background: ${v}.`);
+  }
+
   togglePoints() {
     this.canvas.showPoints = !this.canvas.showPoints;
     try { localStorage.setItem('ams_show_points', this.canvas.showPoints ? '1' : '0'); } catch { /* ignore */ }
@@ -560,6 +578,7 @@ export class Workbench {
     try { const ac = localStorage.getItem('ams_accent'); if (ac) document.documentElement.style.setProperty('--wb-accent-2', ac); } catch { /* ignore */ }
     try { this.canvas.showPoints = localStorage.getItem('ams_show_points') === '1'; } catch { /* ignore */ }
     try { if (localStorage.getItem('ams_perf') === '1') requestAnimationFrame(() => this.togglePerf(true)); } catch { /* ignore */ }
+    try { const bg = localStorage.getItem('ams_workspace_bg'); if (bg && bg !== 'default') { const log = this.log; this.log = () => {}; this.setBackground(bg); this.log = log; } } catch { /* ignore */ }
     this.canvas.onContext = (e, hit, at) => (e.altKey ? openToolParams(this, e.clientX, e.clientY) : showMenu(this.contextItems(hit, at), e.clientX, e.clientY));
     this.activeBoard = MAIN;
     this.canvas.onBoardSelect = id => { this.activeBoard = id; this.emit('board'); };

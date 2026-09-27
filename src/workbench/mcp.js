@@ -110,10 +110,11 @@ export function workbenchTools(app) {
       const q = app.canvas.grid.spacing / Math.max(1, app.canvas.grid.subdivisions) * (a.step || 1);
       return { changed: app.store.snapMarks(a.ids, a.mode, q, { by: 'agent' }), step: q };
     } },
-    { name: 'ams_ui', description: 'Show or hide parts of the interface, for a clean view of just the drawing: tools, view (the right island with the menu), zoom, panels, or all; perf shows the performance readout. Omit everything to read the state (it includes the last canvas redraw in ms).', inputSchema: S({ perf: { type: 'boolean' }, all: { type: 'boolean' }, tools: { type: 'boolean' }, view: { type: 'boolean' }, zoom: { type: 'boolean' }, panels: { type: 'boolean' } }), run: (a) => {
+    { name: 'ams_ui', description: 'Show or hide parts of the interface, for a clean view of just the drawing: tools, view (the right island with the menu), zoom, panels, or all; perf shows the performance readout. Omit everything to read the state (it includes the last canvas redraw in ms).', inputSchema: S({ background: str('Workspace background: a color, transparent, or default'), perf: { type: 'boolean' }, all: { type: 'boolean' }, tools: { type: 'boolean' }, view: { type: 'boolean' }, zoom: { type: 'boolean' }, panels: { type: 'boolean' } }), run: (a) => {
       const patch = Object.fromEntries(['all', 'tools', 'view', 'zoom', 'panels'].filter(k => k in a).map(k => [k, Boolean(a[k])]));
       if (Object.keys(patch).length) app.setUI(patch);
       if ('perf' in a) app.togglePerf(Boolean(a.perf));
+      if (a.background) app.setBackground(a.background);
       return { ui: app.ui || { tools: true, view: true, zoom: true, panels: true }, perf: Boolean(app.perfOn), redrawMs: app.canvas.stats ? +app.canvas.stats.draw.toFixed(2) : null, marks: app.store.doc.elements.length };
     } },
     { name: 'ams_scene', description: 'Scenes: a project holds several drawings, each with its boards, undo, History and Timeline (assets and brushes are shared). list; new {title?, doc?} (an empty drawing, or a copy of a process document) and open it; open {id}; duplicate; delete {id} (not the last; its drawing is gone unless saved to Assets); move {id, delta}; get {id} (another scene\'s document without opening it).', inputSchema: S({ action: { type: 'string', enum: ['list', 'new', 'open', 'duplicate', 'delete', 'move', 'get'] }, id: str('Scene id or title'), title: str(''), doc: { type: 'object' }, delta: num('±1') }, ['action']), run: async (a) => {

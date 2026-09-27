@@ -153,6 +153,8 @@ export class CanvasView {
     const { ctx } = this;
     const css = getComputedStyle(document.documentElement);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    // Cleared first: the workspace color may be transparent (or partly).
+    ctx.clearRect(0, 0, this.w, this.h);
     ctx.fillStyle = css.getPropertyValue('--wb-canvas').trim() || '#1b1c1f';
     ctx.fillRect(0, 0, this.w, this.h);
     this.drawGrid(false);

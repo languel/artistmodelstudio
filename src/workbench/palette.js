@@ -50,6 +50,17 @@ export function buildCommands(app) {
   return out;
 }
 
+/** Slash commands, typed in the palette: /name arguments. */
+export function slashCommands(app) {
+  return [
+    { name: 'background', args: '<color | transparent | default>', doc: 'The workspace behind the boards: a color (#1b1c1f, a name), transparent (for a see-through window over the desktop), or the theme’s own', run: arg => app.setBackground(arg || 'default') },
+    { name: 'transparent', args: '', doc: 'See-through workspace (toggle): only the boards, marks and interface show over what is behind the window', run: () => app.setBackground(app.background === 'transparent' ? 'default' : 'transparent') },
+    { name: 'ui', args: '<on | off>', doc: 'Show or hide all of the interface', run: arg => app.setUI({ all: arg ? !/^(off|hide|no|0)$/i.test(arg) : !(app.ui?.tools !== false) }) },
+    { name: 'present', args: '', doc: 'Present the boards', run: () => app.present(true) },
+    { name: 'grid', args: '<off | paper | all>', doc: 'Show the grid', run: arg => app.canvas.setGrid({ show: arg === 'all' ? 'everywhere' : arg === 'off' ? 'off' : 'paper' }) }
+  ];
+}
+
 const score = (c, terms) => {
   const hay = `${c.name} ${c.category} ${c.hint}`.toLowerCase();
   if (!terms.every(t => hay.includes(t))) return -1;
@@ -69,6 +80,19 @@ export function openPalette(app) {
   const ask = q => ({ id: 'ask', category: 'Assistant', name: `Ask: ${q}`, hint: '', keys: '↵', run: () => { app.docks.open('assistant'); setTimeout(() => app.assistantAsk?.(q), 50); } });
   const render = () => {
     const q = input.value.trim().toLowerCase();
+    // Slash commands: /name arguments (e.g. /background transparent).
+    if (q.startsWith('/')) {
+      const [name, ...rest] = input.value.trim().slice(1).split(/\s+/);
+      const arg = rest.join(' ');
+      list = slashCommands(app).filter(s => s.name.startsWith(name.toLowerCase())).map(s => ({
+        id: `/${s.name}`, category: 'Command', name: `/${s.name}${arg ? ` ${arg}` : s.args ? ` ${s.args}` : ''}`, hint: s.doc, keys: '↵', run: () => s.run(arg)
+      }));
+      index = Math.min(index, Math.max(0, list.length - 1));
+      results.replaceChildren(...list.map((c, i) => h('div', { class: `wb-palette-item${i === index ? ' active' : ''}`, title: c.hint || '', onpointerenter: () => { index = i; mark(); }, onclick: () => runIt(c) },
+        h('span', { class: 'wb-palette-name' }, c.name), h('span', { class: 'wb-palette-cat' }, c.hint), h('kbd', {}, c.keys))));
+      if (!list.length) results.append(h('div', { class: 'wb-palette-empty' }, 'No such command (try /background, /transparent)'));
+      return;
+    }
     const terms = q.split(/\s+/).filter(Boolean);
     list = terms.length ? all.map(c => [c, score(c, terms)]).filter(([, s]) => s >= 0).sort((a, b) => b[1] - a[1]).map(([c]) => c) : all;
     if (q) list = [...list.slice(0, 40), ask(input.value.trim())];

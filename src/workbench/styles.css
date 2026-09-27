@@ -659,3 +659,7 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 .wb-tp-title { display: inline-flex; align-items: center; gap: 6px; color: var(--wb-text); }
 .wb-tab.dragging { opacity: .5; }
 .wb-tab.drop-before { box-shadow: inset 2px 0 0 var(--wb-accent-2); }
+
+/* A see-through workspace (for a transparent browser window used as an overlay) */
+html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-transparent .wb-stage-area { background: transparent !important; }
+.wb-row-inline { display: inline-flex; align-items: center; gap: 4px; }
