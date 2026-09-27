@@ -54,9 +54,10 @@ export function workbenchTools(app) {
       const res = loadScore(app, a.source, a.seed ?? 1, a.by || { kind: 'model', name: 'agent' }, a.title);
       return res.error ? { error: res.error, logs: res.logs } : { stages: res.doc.stages.map(s => s.name), elements: res.doc.elements.length, decisions: res.doc.decisions.length, logs: res.logs };
     } },
-    { name: 'ams_get', description: 'The process document as JSON (the whole drawing, every board), or one board (main unless board is given) as SVG (with records), Excalidraw, a p5 sketch (p5: re-runs the score with the studio runtime; p5min: a short sketch of plain p5 calls for teaching), or JSON of that board alone.', inputSchema: S({ format: { type: 'string', enum: ['json', 'svg', 'excalidraw', 'p5', 'p5min'] }, p5: str('p5.js version for p5min: 2 (default, from Settings) or 1'), board: str('Board id or title (for one board)') }), run: (a) => {
+    { name: 'ams_get', description: 'The process document as JSON (the whole drawing, every board), or one board (main unless board is given) as SVG (with records), Excalidraw, a p5 sketch (p5: re-runs the score with the studio runtime; p5min: a short sketch of plain p5 calls for teaching; p5code: the board\'s own code as a p5 sketch, with the studio words it uses defined in p5 and sources loaded from files), or JSON of that board alone.', inputSchema: S({ format: { type: 'string', enum: ['json', 'svg', 'excalidraw', 'p5', 'p5min', 'p5code'] }, p5: str('p5.js version for p5min: 2 (default, from Settings) or 1'), board: str('Board id or title (for one board)') }), run: (a) => {
       const f = a.format || 'json';
       const one = a.board ? boardDoc(doc(), (findBoard(doc(), a.board) || {}).id || MAIN) : boardDoc(doc(), MAIN);
+      if (f === 'p5code') return app.p5CodeFor(findBoard(doc(), a.board)?.id || MAIN).then(r => (r ? { sketch: r.code, files: r.files.map(x => x.name) } : { error: 'That board has no code of its own' }));
       if (f === 'p5min') return { sketch: toP5Min(one, { version: a.p5 || app.p5Version() }) };
       return f === 'svg' ? { svg: toSVG(one) } : f === 'excalidraw' ? toExcalidraw(one) : f === 'p5' ? { sketch: toP5(one) } : a.board ? one : doc();
     } },

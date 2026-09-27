@@ -71,3 +71,29 @@ describe('sources', () => {
     expect(store.doc.elements.filter(e => e.role === 'point')).toHaveLength(1);
   });
 });
+
+import { toP5Code } from '../src/process/p5code.js';
+describe('a board\'s code as a p5 sketch', () => {
+  it('keeps the code, renames the clashing words, defines only what it uses', () => {
+    const src = `const s = source('seurat')
+for (const i of range(10)) point(i / 10, 0.5, { size: 8, color: s.color(i / 10, 0.5) })
+line([[0.1, 0.2], [0.5, 0.3], [0.9, 0.2]], { width: 4 })`;
+    const out = toP5Code(src, { board: { title: 'Dots', width: 400, height: 300, ground: '#fff' }, sources: { seurat: { file: 'seurat.jpg', kind: 'image' } } });
+    expect(out).toContain("sources[\"seurat\"] = loadImage(\"seurat.jpg\")");
+    expect(out).toContain('drawPoint(i / 10, 0.5');
+    expect(out).toContain('drawLine([[0.1, 0.2]');
+    expect(out).toContain('function source(name)');
+    expect(out).toContain('function range(n)');
+    expect(out).not.toContain('function drawPlane');
+    expect(out).not.toContain('function walk');
+    expect(out).toContain('noLoop()');
+    expect(() => new Function(out)).not.toThrow();
+  });
+  it('says what it cannot carry', () => {
+    const out = toP5Code(`fit(source('cam'), { shapes: 50 })`, { sources: { cam: { kind: 'camera' } }, loop: true });
+    expect(out).toContain('Not in this sketch: fit()');
+    expect(out).toContain('createCapture(VIDEO)');
+    expect(out).toContain('frameRate(12)');
+    expect(() => new Function(out)).not.toThrow();
+  });
+});

@@ -210,3 +210,19 @@ line([[0.1, 0.5], [0.9, 0.5]], { brush: 'teeth' })`);
     expect(strokes).toBeGreaterThan(0);
   });
 });
+
+describe('minimal p5, many marks', () => {
+  it('writes long runs as data and a loop, not a vertex per point', () => {
+    const { doc } = runScript(`units('artboard')
+for (const i of range(30)) point(10 + i * 20, 50, { size: 4 + i % 3, color: i % 2 ? '#ff0000' : '#0000ff' })
+for (const i of range(8)) line([[10, 100 + i * 10], [50, 120 + i * 10], [90, 100 + i * 10]], { width: 2 })`);
+    const src = toP5Min(doc);
+    expect(src).toContain('const dots = [');
+    expect(src).toContain('for (const [x, y, d, c] of dots)');
+    expect(src).toContain('const lines = [');
+    expect(src).toContain('shape(pts, true, false)');
+    expect(src).toContain('function shape(pts, smooth, closed)');
+    expect(src.match(/splineVertex/g).length).toBe(1);
+    expect(() => new Function(src)).not.toThrow();
+  });
+});

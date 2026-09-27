@@ -55,6 +55,7 @@ import { eyedropToTarget, openPicker, parseColor, formatColor } from './colorPic
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 import { Sources } from './sources.js';
+import { toP5Code, p5SketchHtml } from '../process/p5code.js';
 import { readRecently } from '../process/streams.js';
 import { mountSources } from './panels/sources.js';
 import { Guide } from './guide.js';
@@ -439,7 +440,7 @@ export class Workbench {
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
       { active: this.isBoardLive(id), label: this.isBoardLive(id) ? (id === (this.activeBoard || MAIN) && !b.live ? 'Live (you are on it)' : 'Live') : 'Paused (baked)', hint: 'Live boards run (their code follows sources, their brushes read live frames); paused boards are baked into a picture', run: () => this.setBoardLive(id, !b.live) },
       { label: 'Bake to image', hint: 'Its marks become one image mark (undo brings them back)', run: () => this.bakeBoard(id) },
-      { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)']].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
+      { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)'], ...(b.code ? [['p5code', 'p5 (its code)']] : [])].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
       { active: (doc.train || MAIN) === id, label: (doc.train || MAIN) === id ? 'Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
       b.main ? null : { label: 'Earlier', run: () => this.store.moveBoard(id, -1) },
       b.main ? null : { label: 'Later', run: () => this.store.moveBoard(id, 1) },
@@ -1190,6 +1191,27 @@ export class Workbench {
   }
 
   /** Export a board (the main one unless given) as png, sheet, svg, json, excalidraw or p5. */
+  /**
+   * A board's own code as a p5 sketch, with the media of the sources it reads:
+   * { code, files: [{ name, data (Blob) }] }.
+   */
+  async p5CodeFor(id) {
+    const b = boardById(this.store.doc, id);
+    if (!b?.code) return null;
+    const sources = {}, files = [];
+    for (const d of this.sources.list) {
+      if (!new RegExp(`source\\(\\s*['"\`]${d.name}['"\`]`).test(b.code)) continue;
+      if (d.kind === 'camera') { sources[d.name] = { kind: 'camera' }; continue; }
+      const a = await this.assetStore.get(d.assetId);
+      if (!a?.blob) continue;
+      const t = a.blob.type, ext = t === 'image/gif' ? 'gif' : t.startsWith('video/') ? (t.split('/')[1] || 'mp4') : t === 'image/png' ? 'png' : 'jpg';
+      const file = `${d.name}.${ext}`;
+      sources[d.name] = { file, kind: t.startsWith('video/') ? 'video' : ext === 'gif' ? 'animated' : 'image' };
+      files.push({ name: file, data: a.blob });
+    }
+    return { code: toP5Code(b.code, { board: b, sources, loop: Boolean(b.follow) }), files };
+  }
+
   async exportAs(kind, board = this.activeBoard || MAIN) {
     const b = boardById(this.store.doc, board) || boardById(this.store.doc, MAIN);
     // json keeps the whole drawing (every board); the rest is one board as a picture.
@@ -1204,6 +1226,14 @@ export class Workbench {
     else if (kind === 'page') download(sceneHtml(this.store.doc), `${this.slug()}.html`, 'text/html');
     else if (kind === 'p5min') download(toP5Min(doc, { version: this.p5Version() }), `${s}-sketch.js`, 'text/javascript');
     else if (kind === 'excalidraw') download(JSON.stringify(toExcalidraw(doc), null, 2), `${s}.excalidraw`, 'application/json');
+    else if (kind === 'p5code') {
+      const r = await this.p5CodeFor(b.id);
+      if (!r) { this.log(`“${b.title}” has no code of its own to export (Code → Board).`); return; }
+      const files = [{ name: 'index.html', data: p5SketchHtml(b.title, this.p5Version()) }, { name: 'sketch.js', data: r.code }];
+      for (const f of r.files) files.push({ name: f.name, data: new Uint8Array(await f.data.arrayBuffer()) });
+      const zip = createZip(files);
+      download(new Blob([zip], { type: 'application/zip' }), `${s}-p5-code.zip`, 'application/zip');
+    }
     else if (kind === 'p5') {
       const zip = createZip([{ name: 'index.html', data: p5IndexHtml(doc.title, this.p5Version()) }, { name: 'sketch.js', data: toP5(doc) }]);
       download(new Blob([zip], { type: 'application/zip' }), `${s}-p5.zip`, 'application/zip');
