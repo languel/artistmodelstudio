@@ -4,7 +4,7 @@ Where Artist Model Studio stands, how the new parts fit together, and what is ne
 
 ## State
 
-Everything is on `main`. The tag `milestone-sculpt-params` marks the state before scenes and boards. There are 161 tests (`npx vitest run`). Always run `npm run build` before committing: quoting in the docs strings has broken the build before. The dev server is at `localhost:3017`.
+Everything is on `main`. The tag `milestone-sculpt-params` marks the state before scenes and boards. There are 165 tests (`npx vitest run`). Always run `npm run build` before committing: quoting in the docs strings has broken the build before. The dev server is at `localhost:3017`.
 
 In one session (26 Sep) these were added, in order:
 
@@ -45,12 +45,27 @@ Then (26–27 Sep), the drawing and editing tools:
     - The single-file build (`vite.single.config.js`, `npm run build:single`).
     - Tab reordering (`dock.reorder`), movable islands, a performance readout (`app.togglePerf`).
 
+Then (27 Sep), **sources** (streams), bringing back the classic reference work as code:
+
+20. **Sources:** project-wide, by name.
+    - `src/workbench/sources.js` (`app.sources`): the list in localStorage `ams_sources_v1`; media from Assets or the camera through the classic `LiveSource` and `SourceSampler`; a 256 px sampled frame.
+    - `src/process/streams.js`: `getSource(name, rect)` samplers for pure code, `streamState` for processes that keep state between runs, and `readRecently`.
+    - Landmarks: `detectRaw` in `src/perception/mediapipe.js` (pose, hands, mask).
+21. **In code:**
+    - `source(name)` and `fit(source, opts)` in scores; `fit` is in `src/process/fit.js`, over `ReferenceFitter`.
+    - `k.source(name)` in the brush and sculpt kits; `env.board` is the mark's board rect.
+22. **Following:**
+    - `board.follow` re-runs a board's code on new frames of the sources it reads (`app.followSources`, throttled by run time).
+    - Live runs are `transient` changes: no undo step, no log.
+    - `board.source` shows a source under a board (`app.drawReference`).
+23. **UI and agents:** the Sources panel (`panels/sources.js`) and `ams_source`.
+
 ## How the model fits
 
 ```
 project (shared: Assets, brush & sculpt libraries, settings)
 └─ scene = one process document (own undo, History, Timeline)
-   ├─ boards: main (artboard at 0,0) + doc.boards[] {id, title, x, y, width, height, ground, text?, code?}
+   ├─ boards: main (artboard at 0,0) + doc.boards[] {id, title, x, y, width, height, ground, text?, code?, follow?, source?}
    ├─ blackboard: marks with board '_'
    ├─ stages, marks (points [x, y, t, pressure]; pressure may exceed 1 after Thicken)
    └─ meta.intro (page intro), train (the board models learn from)
@@ -76,6 +91,12 @@ project (shared: Assets, brush & sculpt libraries, settings)
 - **A rendering cache per mark:** redraws only what changed. The readout shows about 20 ms per redraw for about 20 heavy marks.
 - **Direct selection handles** (Bézier-style tangents) if Catmull-Rom proves too limiting.
 - **Construction brushes selectable** for the gesture and guide tools (they draw with the built-in `guide` brush, which is already code).
+
+- **Streams, next:**
+  - More kinds: model outputs as streams (depth, edges, segments by class), audio, and data over MCP.
+  - Sources as *modifiers*: a sculpt or a stack step driven by a stream (points pulled toward pose landmarks, for example).
+  - Redraw strategies beyond shape fitting: the classic contour and hatching redraws as `fit` variants.
+  - A source in exported p5 sketches (`createCapture`).
 
 ## Open questions
 

@@ -992,6 +992,7 @@ export class CanvasView {
     let last = [wx, wy], moved = false, first = true;
     const selIds = [...this.selected].filter(id => this.store.doc.elements.some(x => x.id === id && SCULPTABLE(x)));
     const rng = mulberry32((Date.now() & 0xffff) + 1);
+    const sb = boardAt(this.store.doc, wx, wy) || boardsOf(this.store.doc)[0], sBoard = { x: sb.x, y: sb.y, width: sb.width, height: sb.height };
     this.pointer = true;
     const pass = ev => {
       const [sx, sy] = this.local(ev);
@@ -999,7 +1000,7 @@ export class CanvasView {
       this.brushAt = [sx, sy];
       const s = {
         x, y, dx: x - last[0], dy: y - last[1], radius: sc.radius / this.cam.z, strength: sc.strength,
-        pressure: ev.pointerType === 'pen' ? (ev.pressure || 0.5) * 2 : 1, invert: ev.altKey, boost: ev.metaKey || ev.ctrlKey, first, start: [wx, wy]
+        pressure: ev.pointerType === 'pen' ? (ev.pressure || 0.5) * 2 : 1, invert: ev.altKey, boost: ev.metaKey || ev.ctrlKey, first, start: [wx, wy], board: sBoard
       };
       const els = selIds.length ? this.store.doc.elements.filter(el => selIds.includes(el.id)) : this.store.doc.elements.filter(el => SCULPTABLE(el) && this.editable(el) && !el.hidden);
       for (const el of els) {

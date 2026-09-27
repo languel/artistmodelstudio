@@ -7,8 +7,9 @@
  * meaning, so the same schema drives UI controls, MCP tools and model outputs.
  *
  * draw(ctx, element, params, env): ctx is in artboard units.
- * env: { rng, scale (screen px per artboard unit), overlay (drawing construction) }
+ * env: { rng, scale (screen px per artboard unit), overlay (drawing construction), board (the mark's board rect) }
  */
+import { getSource } from './streams.js';
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -438,6 +439,8 @@ export const BRUSHES = {
  *   k.noise(x, y)                           smooth value noise, about -1..1
  *   k.scale                                 screen scale (for hairlines)
  *   k.INK                                   the default ink color
+ *   k.source(name)                          a source (camera, image…) fitted to the mark's board: .colorAt(x, y),
+ *                                           .valueAt(x, y) in world units; .color(fx, fy), .pose, .mask(fx, fy) in fractions
  */
 function valueNoise(x, y) {
   const h = (i, j) => { const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return n - Math.floor(n); };
@@ -456,11 +459,12 @@ function getImage(src) {
 export const KIT = {
   image: getImage,
   smoothPath, tracePath, spans, rotatePts, frames: walkFrames, segment: strokeSegment, beginInk, INK, noise: valueNoise,
-  draw(id, ctx, e, params = {}) { const b = BRUSHES[id]; if (b) b.draw(ctx, e, resolveParams(id, params), this); }
+  draw(id, ctx, e, params = {}) { const b = BRUSHES[id]; if (b) b.draw(ctx, e, resolveParams(id, params), this); },
+  source(name, rect) { return getSource(name, rect || this.board); }
 };
 export function kitFor(env = {}) {
   if (env && env.smoothPath) return env;
-  const k = Object.create(KIT); k.rng = env?.rng || Math.random; k.scale = env?.scale || 1;
+  const k = Object.create(KIT); k.rng = env?.rng || Math.random; k.scale = env?.scale || 1; k.board = env?.board;
   // A mark with path: 'straight' is drawn through its points as straight segments.
   if (env?.straight) k.smoothPath = points => points.map(p => p.slice());
   return k;

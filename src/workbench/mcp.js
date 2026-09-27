@@ -11,7 +11,8 @@ import { BRUSHES } from '../process/brushes.js';
 import { toSVG, toExcalidraw, toP5, processSheet } from '../process/exports.js';
 import { toP5Min } from '../process/p5min.js';
 import { sceneHtml } from '../process/page.js';
-import { boardsOf, findBoard, boardDoc, marksOf, trainBoard, MAIN, BLACKBOARD } from '../process/boards.js';
+import { boardsOf, boardById, findBoard, boardDoc, marksOf, trainBoard, MAIN, BLACKBOARD } from '../process/boards.js';
+import { getSource } from '../process/streams.js';
 import { matches } from '../assets/assetStore.js';
 import { describeRegion } from '../perception/analyze.js';
 import { download } from './ui.js';
@@ -156,6 +157,27 @@ export function workbenchTools(app) {
       if (a.action === 'assign') app.store.assignBoard(a.ids || [], b.id, { by: 'agent' });
       if (a.action === 'code') { const r = app.store.runBoardCode(b.id, a.source || '', runScript, { by: 'agent' }); if (r.error) return { error: r.error, line: r.line }; return { ok: true, marks: r.marks, logs: r.logs }; }
       return { ok: true, boards: list() };
+    } },
+    { name: 'ams_source', description: 'Sources: the project\'s streams (camera, images and videos from Assets), read from code by name: source(\'cam\') gives a sampler (.color(x, y), .value(x, y), .pose, .hands, .mask(x, y), .frame; fractions of the board), fit(\'cam\', { shapes, live }) redraws it as plane marks. list; add {kind: camera | asset, assetId?, name?, sampling?, interval?}; remove {name}; update {name, sampling: continuous | interval | hold, interval (s), rename}; sample {name, points: [[x, y]…] (fractions), landmarks?: [pose, hands, mask]} (colors and values there, and landmarks when asked; they may take a moment the first time); frame {name} (PNG of the current frame); show {name, board?, opacity?} under a board (name "" hides it); follow {board, on} (the board\'s code re-runs on each new frame of the sources it reads).', inputSchema: S({ action: { type: 'string', enum: ['list', 'add', 'remove', 'update', 'sample', 'frame', 'show', 'follow'] }, name: str('Source name'), kind: str('camera | asset'), assetId: str('Asset id'), sampling: str('continuous | interval | hold'), interval: num('Seconds between samples (interval)'), rename: str('New name'), points: { type: 'array' }, landmarks: { type: 'array', items: { type: 'string' } }, board: str('Board id or title'), opacity: num('0..1'), on: { type: 'boolean' } }, ['action']), run: async (a) => {
+      const S = app.sources;
+      if (a.action === 'list') return { sources: S.list.map(d => ({ ...d, ready: Boolean(S.entries.get(d.name)?.data), frame: S.entries.get(d.name)?.version || 0 })) };
+      if (a.action === 'add') return { name: await S.add({ kind: a.kind || 'camera', assetId: a.assetId, name: a.name, sampling: a.sampling, interval: a.interval }) };
+      const boardId = () => (a.board ? findBoard(doc(), a.board)?.id : null) || app.activeBoard || MAIN;
+      if (a.action === 'follow') { app.setBoardFollow(boardId(), a.on !== false); return { ok: true }; }
+      if (a.action === 'show') { app.setBoardSource(boardId(), a.name || null, a.opacity); return { ok: true }; }
+      if (!S.def(a.name)) throw new Error(`No source “${a.name}” (have: ${S.list.map(d => d.name).join(', ') || 'none'})`);
+      if (a.action === 'remove') { S.remove(a.name); return { ok: true }; }
+      if (a.action === 'update') { if (a.sampling || a.interval) S.update(a.name, { ...(a.sampling ? { sampling: a.sampling } : {}), ...(a.interval ? { interval: a.interval } : {}) }); if (a.rename) S.rename(a.name, a.rename); return { ok: true }; }
+      const b = boardById(doc(), boardId());
+      const s = getSource(a.name, { x: b.x, y: b.y, width: b.width, height: b.height });
+      if (a.action === 'sample') {
+        const want = a.landmarks || [];
+        if (want.length) { if (want.includes('pose')) s.pose; if (want.includes('hands')) s.hands; if (want.includes('mask')) s.mask(0.5, 0.5); for (let i = 0; i < 40 && want.some(k => !S.entries.get(a.name)?.landmarks[k]); i++) await new Promise(r => setTimeout(r, 250)); }
+        const t = getSource(a.name, { x: b.x, y: b.y, width: b.width, height: b.height });
+        return { frame: t.frame, width: t.width, height: t.height, samples: (a.points || [[0.5, 0.5]]).map(([x, y]) => ({ x, y, color: t.color(x, y), value: +t.value(x, y).toFixed(3), ...(want.includes('mask') ? { mask: +t.mask(x, y).toFixed(3) } : {}) })), ...(want.includes('pose') ? { pose: t.pose.map(p => p.map(q => [+q.x.toFixed(3), +q.y.toFixed(3), +(q.v ?? 1).toFixed(2)])) } : {}), ...(want.includes('hands') ? { hands: t.hands.map(p => p.map(q => [+q.x.toFixed(3), +q.y.toFixed(3)])) } : {}) };
+      }
+      if (a.action === 'frame') { const img = S.view(a.name); if (!img) throw new Error('No frame yet'); const c = document.createElement('canvas'); const k = Math.min(1, 640 / Math.max(img.width, img.height)); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); return { image: png(c) }; }
+      throw new Error(`Unknown action ${a.action}`);
     } },
     { name: 'ams_save', description: 'Save the drawing (image + process) to Assets.', inputSchema: S({ title: str('') }), run: async (a) => {
       if (a.title) app.store.change('title', d => { d.title = a.title; }, { by: 'agent' });

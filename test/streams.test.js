@@ -1,0 +1,73 @@
+import { describe, it, expect, afterEach } from 'vitest';
+import { getSource, setSourceProvider, clearStreamState } from '../src/process/streams.js';
+import { fitSource, shapeToFractions } from '../src/process/fit.js';
+import { runScript } from '../src/process/script.js';
+import { ProcessStore, createDocument } from '../src/process/document.js';
+
+// A source: left half red, right half blue.
+const fake = (frame = 1) => (name, rect) => ({
+  ready: true, name, frame, width: 100, height: 100, rect,
+  rgb: x => (x < 0.5 ? [255, 0, 0] : [0, 0, 255]),
+  color: x => (x < 0.5 ? '#ff0000' : '#0000ff'), value: () => 0.3,
+  pose: [], hands: [], mask: () => 0,
+  pixels: (w, h) => { const o = new Float32Array(w * h * 3); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 3; if (x < w / 2) o[i] = 255; else o[i + 2] = 255; } return o; }
+});
+
+afterEach(() => { setSourceProvider(null); clearStreamState(); });
+
+describe('sources', () => {
+  it('without the studio a source is grey and empty', () => {
+    const s = getSource('cam');
+    expect(s.ready).toBe(false);
+    expect(s.color(0.5, 0.5)).toBe('#808080');
+    expect(s.pose).toEqual([]);
+  });
+
+  it('scores read sources by name', () => {
+    setSourceProvider(fake());
+    const res = runScript(`const s = source('cam'); print(s.color(0.2, 0.5), s.color(0.8, 0.5))`);
+    expect(res.logs[0]).toBe('#ff0000 #0000ff');
+  });
+
+  it('shapes become closed point lists in fractions', () => {
+    const r = shapeToFractions({ type: 'rect', x: 0, y: 0, width: 1, height: 1 }, 100, 100);
+    expect(r.straight).toBe(true);
+    expect(r.points[0][0]).toBeCloseTo(0.25);
+    expect(shapeToFractions({ type: 'circle', x: 0, y: 0, diameter: 0.5 }, 100, 100).points).toHaveLength(8);
+  });
+
+  // The fitter rasterizes shapes on a canvas: these run where there is one (the browser checks cover them).
+  const canvas = typeof document !== 'undefined';
+  it.skipIf(!canvas)('fit() redraws a source as plane marks, colored from it, kept on the board', () => {
+    setSourceProvider(fake());
+    const res = runScript(`fit(source('cam'), { shapes: 12 })`);
+    expect(res.error).toBeNull();
+    const planes = res.doc.elements.filter(e => e.role === 'plane');
+    expect(planes).toHaveLength(13);   // the ground, then the shapes
+    expect(planes.every(e => e.points.every(([x, y]) => x >= 0 && y >= 0 && x <= 1000 && y <= 1000))).toBe(true);
+    expect(planes.slice(1).some(e => /^#(f|e|d)[0-9a-f]0{2,}/.test(e.color) || e.color.startsWith('#ff'))).toBe(true);
+  });
+
+  it.skipIf(!canvas)('a live fit keeps its shapes and replaces a few per new frame', () => {
+    let frame = 1;
+    setSourceProvider((n, r) => fake(frame)(n, r));
+    const a = fitSource(getSource('cam'), 1, { shapes: 20, live: true, key: 't' });
+    const first = a.shapes.map(s => JSON.stringify(s.points));
+    expect(fitSource(getSource('cam'), 1, { shapes: 20, live: true, key: 't' })).toBe(a);   // same frame: same result
+    frame = 2;
+    const b = fitSource(getSource('cam'), 1, { shapes: 20, live: true, key: 't' });
+    const kept = b.shapes.map(s => JSON.stringify(s.points)).filter(p => first.includes(p)).length;
+    expect(b.shapes.length).toBeLessThanOrEqual(20);
+    expect(kept).toBeGreaterThanOrEqual(15);
+    expect(kept).toBeLessThan(20);
+  });
+
+  it('a live board-code run leaves no undo step', () => {
+    const store = new ProcessStore(createDocument());
+    store.runBoardCode('main', `point(0.5, 0.5)`, runScript);
+    const past = store.past.length;
+    store.runBoardCode('main', `point(0.4, 0.5)`, runScript, { transient: true });
+    expect(store.past.length).toBe(past);
+    expect(store.doc.elements.filter(e => e.role === 'point')).toHaveLength(1);
+  });
+});

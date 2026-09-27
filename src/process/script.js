@@ -22,6 +22,8 @@
 import { createDocument, normalizeDocument, newId, STAGE_KINDS } from './document.js';
 import { BRUSHES, mulberry32, installLines, defSource, registerBrush, isBuiltin } from './brushes.js';
 import { findBoard, newBoardId, nextBoardPlace } from './boards.js';
+import { getSource } from './streams.js';
+import { fitSource } from './fit.js';
 
 const ELEMENT_KEYS = new Set(['path', 'fill', 'why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id']);
 
@@ -40,7 +42,7 @@ function makeNoise(rng) {
 /**
  * Run a script and return { doc, error, logs }.
  * @param source  JS source using the vocabulary above
- * @param opts    { seed, by: { kind, name }, base: document to start from (else a blank one) }
+ * @param opts    { seed, by: { kind, name }, base: document to start from (else a blank one), origin: { x, y } where it lands (for sources) }
  */
 export function runScript(source, opts = {}) {
   // Fractions of the artboard by default; units('artboard' | 'fraction') decides explicitly. A score
@@ -52,7 +54,7 @@ export function runScript(source, opts = {}) {
   return first;
 }
 
-function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, base = null, units = 'fraction', target = null } = {}) {
+function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, base = null, units = 'fraction', target = null, origin = null } = {}) {
   const doc = base ? normalizeDocument(base) : createDocument();
   if (!base) doc.stages = [];
   let rng = mulberry32(seed);
@@ -69,7 +71,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
   let tgt = home ? { id: home.id, x: home.x, y: home.y, w: W, h: H } : { id: null, x: 0, y: 0, w: W, h: H };
   if (home && abm) { const b = doc.boards.find(x => x.id === home.id); b.width = W; b.height = H; }
   const aspect = () => tgt.w / tgt.h;
-  let maxRaw = 0;
+  let maxRaw = 0, fitCount = 0;
   // Score coordinates → world units: fractions of the current board (or its own units), at its place.
   const toAb = pts => pts.map(q => { maxRaw = Math.max(maxRaw, Math.abs(q[0]), Math.abs(q[1])); return frac ? [tgt.x + q[0] * tgt.w, tgt.y + q[1] * tgt.h, ...q.slice(2)] : [tgt.x + q[0], tgt.y + q[1], ...q.slice(2)]; });
   const logs = [];
@@ -148,6 +150,27 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
       }
       tgt = b.main ? { id: null, x: 0, y: 0, w: W, h: H } : { id: b.id, x: b.x, y: b.y, w: b.width, h: b.height };
       return { id: b.id, title: b.title, width: b.width, height: b.height };
+    },
+    /**
+     * source(name): a named source (camera, image, video…) as a sampler, fitted to the current board:
+     * color(x, y), value(x, y), rgb(x, y) in fractions; pose, hands, mask(x, y); frame changes with
+     * each new sample. Without the source (or outside the studio) it is grey and empty.
+     */
+    source(name) { return getSource(name, { x: tgt.x + (origin?.x || 0), y: tgt.y + (origin?.y || 0), width: tgt.w, height: tgt.h }); },
+    /**
+     * fit(source, { shapes, kinds, brush, stage, seed, ground, live }): redraw a source as plane marks by
+     * greedy shape fitting. live: true keeps the shapes between runs and replaces a few per new frame
+     * (continuous redraw, when the board follows its sources). Returns the number of shapes.
+     */
+    fit(src, opts = {}) {
+      const s = typeof src === 'string' ? api.source(src) : src;
+      const key = `fit:${by?.name || ''}:${tgt.id || 'main'}:${fitCount++}:${opts.key || ''}`;
+      const res = fitSource(s, tgt.w / tgt.h, { ...opts, key });
+      const u = (fx, fy) => (frac ? [fx, fy] : [fx * tgt.w, fy * tgt.h]);
+      const stageName = opts.stage || 'Fit', why = opts.why || `fitted to ${s.name}`, brush = opts.brush || 'flat';
+      if (opts.ground !== false) api.plane([u(0, 0), u(1, 0), u(1, 1), u(0, 1)], { color: res.background, brush, path: 'straight', stage: stageName, why: `${why}: the ground` });
+      for (const sh of res.shapes) api.plane(sh.points.map(([x, y]) => u(x, y)), { color: sh.color, brush, ...(sh.straight ? { path: 'straight' } : {}), stage: stageName, why });
+      return res.shapes.length;
     },
     stage(name, kind = 'marks', opts = {}) {
       const k = STAGE_KINDS.includes(kind) ? kind : 'marks';
@@ -255,6 +278,8 @@ export const SCRIPT_REFERENCE = `// Coordinates are fractions of the artboard (0
 artboard(w, h, ground)
 stage(name, kind)            kind: ${STAGE_KINDS.join(' | ')}
 board(title, {width, height})   later marks land on this board (made if new); fractions are of this board. board() = main
+source(name)   a camera / image / video: .color(x, y) .value(x, y) .rgb(x, y) .pose .hands .mask(x, y) .frame
+fit(source, {shapes, kinds, brush, stage, live})   redraw a source as plane marks (live: continuous)
 point(x, y, {size, color, why})
 line(points, {brush, width, pressure, taper, wobble, color, why, pressures: t => 0..1})
 plane(points, {brush: flat | hatch | stipple, angle, spacing, density, color, why})
@@ -276,6 +301,8 @@ export const SCRIPT_VOCAB = [
   ['units', "units('fraction' | 'artboard')", "Coordinates as fractions of the artboard (the default) or in artboard units."],
   ['brush', "brush({ id, label, roles, doc, params: { key: [min, max, default, doc] }, draw(ctx, e, p, k) { … } })", 'Define a brush in code (the drawing keeps it). k is the brush kit: k.frames, k.smoothPath, k.spans, k.segment, k.beginInk, k.rng, k.noise, k.draw.'],
   ['board', "board(title, { width, height, x, y, ground })", 'Later marks land on this board (made if new, right of the others); coordinates are fractions of it. board() goes back to the main board. Returns { id, title, width, height }.'],
+  ['source', "source(name)", 'A named source (Sources panel: camera, image, video): .color(x, y), .value(x, y) 0..1, .rgb(x, y), .pose [[{x, y, v}]], .hands [[{x, y}]], .mask(x, y), .frame. Fractions of the board.'],
+  ['fit', "fit(source, { shapes: 80, kinds: ['rect', 'triangle', 'circle'], brush, stage, seed, ground, live })", 'Redraw a source as plane marks by greedy shape fitting. live: true keeps the shapes and replaces a few per new frame (continuous, with a board that follows its sources).'],
   ['stage', "stage(name, kind)", `Start a stage; later marks land in it. kind: ${STAGE_KINDS.join(', ')}.`],
   ['point', 'point(x, y, { size, color, why })', 'A mark at a place.'],
   ['points', 'points([[x, y], …], opts)', 'Several points with the same options.'],

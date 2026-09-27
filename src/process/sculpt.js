@@ -14,13 +14,15 @@
  *        start: [x, y], orig (this mark's points when the stroke began), state (kept for the stroke) }
  *   p    the tool's params
  *   k    the kit: w(pt) (falloff × strength at the cursor), falloff(d, r), mean(pts, i, closed),
- *        rdp(pts, eps), refine(pts, maxSeg, near(a, b)), nearMark(pts, x, y, r), rng()
+ *        rdp(pts, eps), refine(pts, maxSeg, near(a, b)), nearMark(pts, x, y, r), rng(),
+ *        source(name): a source fitted to the mark's board (.colorAt(x, y), .valueAt(x, y) in world units)
  * Alt inverts (pinch → inflate, thicken → thin). A tool with refine: true gets extra points near
  * the cursor first, so few-point marks can bend.
  *
  * Sculpting changes points (it is destructive, one undo step per stroke); a modifier stack for
  * non-destructive operations comes next.
  */
+import { getSource } from './streams.js';
 
 const param = (key, label, min, max, step, def, doc) => ({ key, label, min, max, step, default: def, doc });
 
@@ -316,7 +318,7 @@ export function sculptMark(id, e, s, values, rng = Math.random, mark = { orig: e
   if (id !== 'grab' && !nearMark(pts, s.x, s.y, s.radius, e.closed)) return null;
   if (t.refine && id !== 'grab') pts = refine(pts, s.radius / 6, near, e.closed);
   else if (id === 'grab' && s.first) mark.orig = refine(mark.orig, s.radius / 6, (a, b) => nearMark([a, b], s.start[0], s.start[1], s.radius * 2), e.closed);
-  const k = { ...KIT, rng, w: q => falloff(Math.hypot(q[0] - s.x, q[1] - s.y), s.radius) * s.strength * (s.pressure ?? 1) };
+  const k = { ...KIT, rng, source: (name, rect) => getSource(name, rect || s.board), w: q => falloff(Math.hypot(q[0] - s.x, q[1] - s.y), s.radius) * s.strength * (s.pressure ?? 1) };
   try {
     const out = t.step(pts.map(q => q.slice()), { ...s, closed: Boolean(e.closed), orig: mark.orig, state: mark.state }, sculptParams(id, values), k);
     return Array.isArray(out) && out.length >= 2 && out.every(q => Number.isFinite(q[0]) && Number.isFinite(q[1])) ? out : null;

@@ -32,6 +32,7 @@ export function renderDocument(ctx, doc, {
 
   installLines(doc);
   const env = { scale: transform.scale, rng: null };
+  const boardRects = new Map(boardsOf(doc).map(b => [b.id, { x: b.x, y: b.y, width: b.width, height: b.height }]));
   const overlay = [];
   for (const e of ordered) {
     const s = stageOf.get(e.stage);
@@ -42,6 +43,7 @@ export function renderDocument(ctx, doc, {
     if (construction) { overlay.push(e); continue; }
     env.rng = mulberry32(e.seed || 1);
     env.straight = e.path === 'straight';
+    env.board = boardRects.get(e.board || MAIN) || boardRects.get(MAIN);
     if (e.color === 'none') {
       // No stroke: only the fill (a plane's brush paints it).
       if (e.fill && e.role === 'plane') withLook(ctx, e, () => brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env));

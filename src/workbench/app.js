@@ -54,6 +54,9 @@ import { Shortcuts } from './shortcuts.js';
 import { eyedropToTarget, openPicker, parseColor, formatColor } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
+import { Sources } from './sources.js';
+import { readRecently } from '../process/streams.js';
+import { mountSources } from './panels/sources.js';
 import { Guide } from './guide.js';
 
 const DOC_KEY = 'ams_process_doc_v1';
@@ -102,6 +105,7 @@ export class Workbench {
     try { this.paint = { stroke: null, fill: null, ...JSON.parse(localStorage.getItem('ams_paint') || '{}') }; } catch { this.paint = { stroke: null, fill: null }; }
     this.reference = null; // { img, opacity, visible, title }
     this.assetStore = new AssetStore();
+    this.sources = new Sources(this);
     this.artists = new ArtistRegistry();
     this.store.subscribe((doc, reason) => {
       clearTimeout(this.saveTimer);
@@ -635,6 +639,8 @@ export class Workbench {
     this.bindKeys();
     this.renderChrome();
     this.assetStore.seed(bundledReferences()).catch(() => {});
+    this.followSources();
+    this.sources.startAll();
     initWorkbenchMCP(this);
     this.log('Workbench ready.');
   }
@@ -646,6 +652,7 @@ export class Workbench {
     reg('stages', 'Stages', 'stages', 'left', mountStages);
     reg('outliner', 'Outliner', 'layers', 'left', mountOutliner);
     reg('assets', 'Assets', 'assets', 'left', el => this.mountAssets(el));
+    reg('sources', 'Sources', 'source', 'left', mountSources);
     reg('properties', 'Properties', 'properties', 'right', mountProperties);
     reg('script', 'Code', 'script', 'right', mountCode);
     reg('process', 'Process', 'process', 'right', mountProcess);
@@ -704,7 +711,64 @@ export class Workbench {
     this.renderChrome();
   }
 
+  /**
+   * Boards that follow their sources: when a source a board's code reads (source('cam'), fit('cam'))
+   * takes a new frame, the code runs again, as a live redraw (no undo step). Throttled by how long a
+   * run takes. Boards showing a source underneath are redrawn too.
+   */
+  followSources() {
+    const last = new Map(), pending = new Map();
+    const reads = (code, name) => new RegExp(`\\b(source|fit)\\(\\s*['"\`]${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`).test(code || '');
+    this.sources.on(name => {
+      if (!name) { this.renderChrome(); return; }
+      const doc = this.store.doc;
+      if (boardsOf(doc).some(b => b.source === name) || readRecently(name)) this.canvas?.invalidate();
+      for (const b of boardsOf(doc)) {
+        if (!b.follow || !reads(b.code, name) || pending.has(b.id)) continue;
+        const since = performance.now() - (last.get(b.id)?.at || 0), wait = Math.max(0, Math.max(80, 2 * (last.get(b.id)?.took || 0)) - since);
+        pending.set(b.id, setTimeout(() => {
+          pending.delete(b.id);
+          const cur = boardById(this.store.doc, b.id);
+          if (!cur?.follow || !cur.code) return;
+          const t0 = performance.now();
+          const res = this.store.runBoardCode(b.id, cur.code, runScript, { by: 'code', transient: true });
+          last.set(b.id, { at: performance.now(), took: performance.now() - t0 });
+          if (res.error && !last.get(`${b.id}:err`)) { last.set(`${b.id}:err`, true); this.log(`Board “${cur.title}” (following): ${res.error}`, 'error'); }
+          if (!res.error) last.delete(`${b.id}:err`);
+        }, wait));
+      }
+    });
+  }
+
+  /** A board follows its sources (its code re-runs on each new frame) or not. */
+  setBoardFollow(id, on) {
+    this.store.change(on ? 'follow sources' : 'stop following', d => {
+      const t = !id || id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
+      if (!t) return;
+      if (on) t.follow = true; else delete t.follow;
+    });
+  }
+
+  /** Show a source under a board (a reference: not part of the picture), or none. */
+  setBoardSource(id, name, opacity) {
+    this.store.change(name ? 'board source' : 'no board source', d => {
+      const t = !id || id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
+      if (!t) return;
+      if (name) { t.source = name; t.sourceOpacity = opacity ?? t.sourceOpacity ?? 0.5; } else { delete t.source; delete t.sourceOpacity; }
+    });
+  }
+
   drawReference(ctx) {
+    for (const b of boardsOf(this.store.doc)) {
+      const img = b.source && this.sources?.view(b.source);
+      if (!img?.width) continue;
+      const k = Math.max(b.width / img.width, b.height / img.height), w = img.width * k, hh = img.height * k;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(b.x, b.y, b.width, b.height); ctx.clip();
+      ctx.globalAlpha = b.sourceOpacity ?? 0.5;
+      ctx.drawImage(img, b.x + (b.width - w) / 2, b.y + (b.height - hh) / 2, w, hh);
+      ctx.restore();
+    }
     const r = this.reference;
     if (!r?.visible) return;
     const { width, height } = this.store.doc.artboard;

@@ -4,6 +4,7 @@
  * live: edit the code, drag a slider (params, a range comment, Cmd-drag a number) and it redraws.
  */
 import { h } from '../ui.js';
+import { icon } from '../icons.js';
 import { createCodeEditor } from '../codeEditor.js';
 import { controlStrip } from '../codeParams.js';
 import { runScript } from '../../process/script.js';
@@ -43,6 +44,7 @@ export function mountBoardCode(root, app) {
     head.replaceChildren(
       h('span', { class: 'wb-muted wb-small', style: { flex: 1 } }, b ? `${b.title}: its own code` : 'Select a board (its title) or go to one'),
       h('button', { class: `wb-icon-btn${live ? ' on' : ''}`, title: live ? 'Live: runs as you edit (click for Cmd+Enter only)' : 'Runs with Cmd+Enter (click to run as you edit)', html: '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M13 3L5 14h6l-1 7 8-11h-6z" fill="currentColor"/></svg>', onclick: () => { live = !live; try { localStorage.setItem('ams_board_live', live ? '1' : '0'); } catch { /* ignore */ } drawHead(); } }),
+      h('button', { class: `wb-icon-btn${b?.follow ? ' on' : ''}`, title: b?.follow ? 'Following its sources: the code re-runs on each new frame (click to stop)' : 'Follow sources: re-run the code on each new frame of the sources it reads (source(\'…\'), fit(\'…\'))', html: icon('follow'), onclick: () => { if (b) app.setBoardFollow(b.id, !b.follow); } }),
       h('button', { class: 'wb-btn primary', title: 'Run (Cmd+Enter): the board is redrawn from its code', onclick: run }, 'Run'),
       h('button', { class: 'wb-btn', title: 'Remove the marks the code made, and the code', onclick: () => { if (!id) return; app.store.change('clear board code', d => { d.elements = d.elements.filter(e => !(e.by?.kind === 'code' && e.by?.name === id)); if (id === MAIN) delete d.artboard.code; else delete d.boards.find(x => x.id === id).code; }); load(id, true); } }, 'Clear'));
   };
@@ -60,6 +62,7 @@ export function mountBoardCode(root, app) {
   };
 
   app.on('board', () => load(app.canvas.selectedBoard || app.activeBoard || MAIN));
+  app.on('document', reason => { if (/follow/.test(reason || '')) drawHead(); else if (reason === 'board code' && id) { const b = boardById(app.store.doc, id); if (b?.code && b.code !== editor.value) load(id, true); } });
   app.boardCode = { open: bid => load(bid, true), run };
   load(app.activeBoard || MAIN);
 }

@@ -248,6 +248,19 @@ The **Process** panel scrubs and replays the stages, shows a filmstrip, the deci
       h('pre', {}, h('code', {}, SCRIPT_REFERENCE)),
       prose('Options that are not element fields (`stage, brush, color, why, closed, pressures, seed`) are brush parameters. Scripted paths get synthetic time (16 ms per point) unless the point carries its own `[x, y, t]`.'))),
 
+    T('score-sources', 'Scores', 'Sources and redraw', 'The camera, images and videos as streams code reads by name; redraw from them.', () => prose(`
+The **Sources** panel lists the project's streams: the camera, and images or videos from Assets. Code reads them by name, fitted to the board (fractions of the board):
+
+| | |
+|---|---|
+| \`source('cam').color(x, y)\` | the color there (\`rgb\`, \`value\` 0..1 too) |
+| \`source('cam').pose\`, \`.hands\` | landmarks (MediaPipe), \`[{ x, y }]\` per person or hand |
+| \`source('cam').mask(x, y)\` | 0..1: a person there |
+| \`fit(source('cam'), { shapes, live })\` | redraw as plane marks (shape fitting) |
+| \`k.source('cam').colorAt(x, y)\` | in brushes and sculpts, world units |
+
+A board that **follows** its sources (the loop glyph in Code → Board) runs its code again on each new frame: with \`live: true\`, \`fit\` replaces a few shapes per frame, the continuous redraw. The redraw glyph in Sources sets it all up on the active board; the eye shows a source under a board.`)),
+
     T('score-exercises', 'Scores', 'Exercises', 'The syllabus: point, line, plane, rhythm, algorists.', () => h('div', {},
       prose('The same exercises for students and models, comparable stage by stage. Load one, read it, change a decision, run it again.'),
       ...EXERCISES.map(e => h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, e.title), h('p', { class: 'wb-muted' }, e.brief)),

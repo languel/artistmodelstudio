@@ -293,6 +293,55 @@ The Score panel is a code editor (CodeMirror): line numbers, wrapping, folding, 
 
 The full vocabulary is in the Score panel (**Vocabulary**), in the Docs, and in `ams_vocabulary` for agents.
 
+## Sources
+
+Sources are the project's streams: the camera, and images and videos from Assets. Later they will include other data. The **Sources** panel (left dock) lists them by name, and every scene and board shares them.
+
+- **Add:** the camera glyph adds the camera; **+ asset…** adds an image or a video.
+- **Sampling:**
+  - *continuous* samples every frame.
+  - *every…* samples every N seconds.
+  - *hold* keeps one frame.
+- **Rename:** Shift+double-click the name.
+
+Code reads a source by its name:
+
+```js
+const cam = source('cam')         // fitted to the board (cover), fractions of the board
+cam.color(0.5, 0.5)               // '#rrggbb'; also rgb(x, y), value(x, y) 0..1
+cam.pose                          // [[{ x, y, v }] × 33 per person], MediaPipe, on demand
+cam.hands                         // [[{ x, y }] × 21 per hand]
+cam.mask(0.5, 0.5)                // 0..1: a person there (segmentation)
+cam.frame                         // changes with each new sample
+```
+
+Landmarks are computed only after code asks for them, and are kept for the next frames. Without the studio (in tests or an exported sketch), a source is grey and empty.
+
+Brushes and sculpts reach sources through the kit. `k.source('cam')` is fitted to the mark's board, and `.colorAt(x, y)` and `.valueAt(x, y)` take world units. A brush that reads a source redraws when it takes a new frame.
+
+### Redraw from a source
+
+`fit(source, { shapes, kinds, brush, stage, seed, ground, live })` redraws a source as plane marks by greedy shape fitting (the classic Reference Fitter):
+
+- Rectangles and triangles are straight; circles are smooth.
+- A ground plane in the mean color comes first.
+- Every shape is a real mark: select it, restyle it, export it.
+
+A board can **follow** its sources. Its code runs again on each new frame of a source it reads (`source('…')`, `fit('…')`), as a live redraw with no undo steps. Toggle it with the loop glyph in Code → Board.
+
+With `live: true`, `fit` keeps its shapes between frames and replaces the oldest few each time. That is the continuous redraw:
+
+```js
+fit(source('cam'), { shapes: 120 /* 10..400 */, live: true })
+```
+
+In the Sources panel:
+
+- The **redraw** glyph writes that code into the active board, shows the source under the board, and turns following on.
+- The **eye** shows a source under a board as a reference, not part of the picture.
+
+Agents use `ams_source`: list, add, remove, update, sample (colors, values and landmarks at points), frame (a PNG), show, follow.
+
 ## Exports
 
 From the menu:

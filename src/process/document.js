@@ -153,13 +153,16 @@ export class ProcessStore {
   emit(reason) { for (const fn of this.listeners) fn(this.doc, reason); }
 
   /** Apply a mutation as one undoable step. */
-  change(label, fn, { by = 'user', record = true } = {}) {
-    this.past.push(JSON.stringify(this.doc));
-    if (this.past.length > 200) this.past.shift();
-    this.future = [];
+  change(label, fn, { by = 'user', record = true, transient = false } = {}) {
+    // transient: a live redraw (a board following its sources): no undo step, not in the log.
+    if (!transient) {
+      this.past.push(JSON.stringify(this.doc));
+      if (this.past.length > 200) this.past.shift();
+      this.future = [];
+    }
     const result = fn(this.doc);
     embedBrushes(this.doc);
-    if (record) this.log.push({ t: Date.now(), label, by });
+    if (record && !transient) this.log.push({ t: Date.now(), label, by });
     this.emit(label);
     return result;
   }
@@ -465,9 +468,9 @@ export class ProcessStore {
   runBoardCode(id, source, run, opts) {
     const b = boardsOf(this.doc).find(x => x.id === id);
     if (!b) return { error: 'No such board' };
-    const res = run(source, { base: { ...createDocument({ width: b.width, height: b.height, ground: b.ground }), stages: [] }, by: { kind: 'code', name: b.id } });
+    const res = run(source, { base: { ...createDocument({ width: b.width, height: b.height, ground: b.ground }), stages: [] }, by: { kind: 'code', name: b.id }, origin: { x: b.x, y: b.y } });
     if (res.error) return { error: res.error, line: res.errorLine, logs: res.logs };
-    this.change('board code', d => {
+    this.change(opts?.transient ? 'live board code' : 'board code', d => {
       const mine = e => e.by?.kind === 'code' && e.by?.name === id;
       d.elements = d.elements.filter(e => !mine(e));
       d.decisions = d.decisions.filter(x => !(x.by?.kind === 'code' && x.by?.name === id));

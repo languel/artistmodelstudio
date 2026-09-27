@@ -663,3 +663,13 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 /* A see-through workspace (for a transparent browser window used as an overlay) */
 html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-transparent .wb-stage-area { background: transparent !important; }
 .wb-row-inline { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Sources */
+.wb-source { display: flex; align-items: center; gap: 4px; padding: 4px 2px; }
+.wb-source .wb-icon-btn { flex: none; }
+.wb-source-ctl select { min-width: 0; max-width: 100%; }
+.wb-source-thumb { width: 44px; height: 32px; border-radius: 3px; background: var(--wb-canvas, #222); flex: none; }
+.wb-source-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wb-source-name { font-family: var(--wb-mono, ui-monospace, monospace); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-source-ctl { display: flex; gap: 4px; align-items: center; }
+.wb-source-ctl .wb-num { width: 48px; }
