@@ -56,7 +56,7 @@ export class CanvasView {
     new ResizeObserver(() => this.resize()).observe(host);
     // Baked boards (paused: drawn once into a picture). A live redraw drops only its own board's picture.
     this.baked = new Map();
-    store.subscribe((doc, reason) => { if (reason === 'live board code') this.baked.delete(store.lastLiveBoard); else this.baked.clear(); this.pruneSelection(); this.invalidate(); });
+    store.subscribe((doc, reason) => { if (reason === 'live board code') this.baked.delete(store.lastLiveBoard); else this.baked.clear(); this.pruneSelection(); this.invalidate(); }, { live: true });
     this.bind();
   }
 

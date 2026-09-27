@@ -150,8 +150,13 @@ export class ProcessStore {
     this.log = []; // [{ t, label, by }] — the recorded editing session
   }
 
-  subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
-  emit(reason) { for (const fn of this.listeners) fn(this.doc, reason); }
+  /**
+   * Listen to changes. Live redraws (transient changes: a board following its sources, many a second)
+   * reach only listeners that ask for them with { live: true } (the canvas, autosave), so panels are
+   * not rebuilt under the pointer.
+   */
+  subscribe(fn, { live = false } = {}) { fn.live = live; this.listeners.add(fn); return () => this.listeners.delete(fn); }
+  emit(reason, transient = false) { for (const fn of this.listeners) if (!transient || fn.live) fn(this.doc, reason); }
 
   /** Apply a mutation as one undoable step. */
   change(label, fn, { by = 'user', record = true, transient = false } = {}) {
@@ -164,7 +169,7 @@ export class ProcessStore {
     const result = fn(this.doc);
     embedBrushes(this.doc);
     if (record && !transient) this.log.push({ t: Date.now(), label, by });
-    this.emit(label);
+    this.emit(label, transient);
     return result;
   }
 

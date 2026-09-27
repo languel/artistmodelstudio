@@ -113,10 +113,11 @@ export class Workbench {
       // At most one save per interval, not a debounce: a board following its sources changes the
       // drawing many times a second, and a debounce would never save while it runs.
       if (!this.saveTimer) this.saveTimer = setTimeout(() => { this.saveTimer = 0; try { localStorage.setItem(DOC_KEY, JSON.stringify(this.store.doc)); } catch { /* quota */ } }, reason === 'live board code' ? 1000 : 300);
+      if (reason === 'live board code') return;   // a live redraw: saved, drawn; the panels stay as they are
       if (!this.store.doc.stages.some(s => s.id === this.activeStageId)) this.activeStageId = this.store.doc.stages[0]?.id;
       this.emit('document', reason);
       this.renderChrome();
-    });
+    }, { live: true });
   }
 
   // ---- events ------------------------------------------------------------------
