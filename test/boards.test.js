@@ -179,7 +179,8 @@ describe('minimal p5', () => {
     const { doc } = runScript(`units('artboard')\nline([[10, 10], [50, 40], [90, 10]], { width: 4 })\nline([[10, 60], [50, 90], [90, 60]], { path: 'straight' })\npoint(50, 50, { size: 12 })\nplane(rect(20, 20, 30, 30))`);
     const src = toP5Min(doc);
     expect(src).toContain('createCanvas(1000, 1000)');
-    expect(src).toContain('curveVertex(10, 10)');
+    expect(src).toContain('splineVertex(10, 10)');
+    expect(src).not.toContain('curveVertex');
     expect(src).toContain('vertex(50, 90)');
     expect(src).toContain('circle(50, 50, 12)');
     expect(src).toContain('endShape()');

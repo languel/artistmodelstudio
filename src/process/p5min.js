@@ -1,6 +1,6 @@
 /**
- * A drawing (a board, or a selection) as a minimal p5.js sketch: plain p5 calls, no studio runtime,
- * for teaching. Lines are beginShape() with curveVertex (smooth paths) or vertex (straight), planes are
+ * A drawing (a board, or a selection) as a minimal p5.js 2.x sketch: plain p5 calls, no studio runtime,
+ * for teaching. Lines are beginShape() with splineVertex (smooth paths) or vertex (straight), planes are
  * filled shapes, points are circles, notes are text. Brush textures (hatching, stipple, restated
  * passes…) are not reproduced: each mark says which brush it had, in a comment.
  */
@@ -49,17 +49,13 @@ export function toP5Min(doc, { title = doc.title || 'drawing' } = {}) {
     const pts = kept.map(([x, y]) => `${r1(x)}, ${r1(y)}`);
     const straight = e.path === 'straight' || kept.length < 3;
     say('beginShape()');
-    if (straight) for (const v of pts) say(`vertex(${v})`);
-    else {
-      // curveVertex needs a control point before the first and after the last (closed: wrap around).
-      const seq = closed ? [pts.at(-1), ...pts, pts[0], pts[1]] : [pts[0], ...pts, pts.at(-1)];
-      for (const v of seq) say(`curveVertex(${v})`);
-    }
-    say(closed && straight ? 'endShape(CLOSE)' : 'endShape()');
+    // p5 2.x: splineVertex passes through every point (ends included); endShape(CLOSE) closes smoothly.
+    for (const v of pts) say(`${straight ? 'vertex' : 'splineVertex'}(${v})`);
+    say(closed ? 'endShape(CLOSE)' : 'endShape()');
   }
 
   return `// ${title}: drawn in Artist Model Studio
-// ${marks.length} mark${marks.length === 1 ? '' : 's'}, as plain p5 calls.
+// ${marks.length} mark${marks.length === 1 ? '' : 's'}, as plain p5.js 2.x calls.
 
 function setup() {
   createCanvas(${Math.round(width)}, ${Math.round(height)});
