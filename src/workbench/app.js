@@ -1051,7 +1051,9 @@ export class Workbench {
   async exportAs(kind, board = this.activeBoard || MAIN) {
     const b = boardById(this.store.doc, board) || boardById(this.store.doc, MAIN);
     // json keeps the whole drawing (every board); the rest is one board as a picture.
-    const doc = kind === 'json' || kind === 'page' ? this.store.doc : boardDoc(this.store.doc, b.id);
+    let doc = kind === 'json' || kind === 'page' ? this.store.doc : boardDoc(this.store.doc, b.id);
+    // A board's sketch carries the board's own score (its code), or, for the main board, the drawing's.
+    if (kind === 'p5') doc = { ...doc, meta: { ...(doc.meta || {}), script: b.code || (b.main ? doc.meta?.script : undefined) || undefined } };
     const s = b.main ? this.slug() : `${this.slug()}-${String(b.title).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     if (kind === 'png') renderToCanvas(doc, { scale: 2, mode: this.view.mode }).toBlob(b => download(b, `${s}.png`, 'image/png'));
     else if (kind === 'sheet') processSheet(doc).toBlob(b => download(b, `${s}-process.png`, 'image/png'));

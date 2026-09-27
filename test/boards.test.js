@@ -190,3 +190,23 @@ describe('minimal p5', () => {
     expect(v1).not.toContain('splineVertex');
   });
 });
+
+describe('a board as a p5 sketch', () => {
+  it('draws the recorded board with its own brushes', () => {
+    const { doc } = runScript(`brush({ id: 'teeth', roles: ['line'], params: { bite: [0, 20, 6] }, draw(ctx, e, p, k) { ctx.save(); ctx.beginPath(); for (const f of k.frames(e)) { ctx.moveTo(f.x, f.y); ctx.lineTo(f.x + f.nx * p.bite, f.y + f.ny * p.bite) } ctx.stroke(); ctx.restore() } })
+point(0.5, 0.5)
+board('Two', { width: 300, height: 200 })
+line([[0.1, 0.5], [0.9, 0.5]], { brush: 'teeth' })`);
+    const two = boardsOf(doc)[1];
+    const src = toP5(boardDoc(doc, two.id));
+    // Stand-ins for p5: a canvas context that counts strokes.
+    let strokes = 0;
+    const ctx = new Proxy({}, { get: (t, k) => (k === 'stroke' ? () => { strokes++; } : k in t ? t[k] : () => {}), set: (t, k, v) => { t[k] = v; return true; } });
+    const run = new Function('createCanvas', 'noLoop', 'clear', 'drawingContext', `${src}\nsetup(); draw(); return { brushes: Object.keys(BRUSHES), w: doc.artboard.width, n: doc.elements.length };`);
+    const out = run(() => {}, () => {}, () => {}, ctx);
+    expect(out.brushes).toContain('teeth');
+    expect(out.w).toBe(300);
+    expect(out.n).toBe(1);
+    expect(strokes).toBeGreaterThan(0);
+  });
+});

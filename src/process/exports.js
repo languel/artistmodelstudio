@@ -220,13 +220,15 @@ ${scoreBlock}const PROCESS = ${JSON.stringify(doc)};
 let doc = PROCESS, mode = 'picture', upTo = Infinity, seedN = PROCESS.meta?.seed || 1;
 
 function setup() {
+  // The recorded drawing, with its own brushes and lines registered (normalizing installs them).
+  doc = normalizeDocument(PROCESS);
   createCanvas(doc.artboard.width, doc.artboard.height);
-  if (SCORE) rerun(seedN);
   noLoop();
 }
 
+// R: the score runs again with a new seed, on this artboard (the recorded drawing is shown until then).
 function rerun(s) {
-  const out = runScript(SCORE, { seed: s });
+  const out = runScript(SCORE, { seed: s, base: { ...PROCESS, elements: [], decisions: [], stages: [] } });
   if (out.doc) doc = out.doc; else console.warn(out.error);
 }
 
