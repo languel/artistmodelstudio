@@ -21,6 +21,138 @@ export const LESSON = {
   },
   sections: [
     {
+      id: 'seeing',
+      title: 'How we see',
+      text: 'Before sampling pictures, how the eye samples the world. Seurat painted with the optics of his time: Chevreul on contrast, Rood on mixing light, the Young–Helmholtz idea of three receptors. Rods and cones had been seen under the microscope, and their roles guessed; the three cone pigments were only measured eighty years later. The diagrams below are drawn by code, like everything else here.',
+      diagram: true,
+      boards: [
+        { id: 'eye', title: '0.1 · Light into the eye', w: 800, h: 440, ground: '#141414',
+          idea: 'The cornea and the lens focus the light, and the picture lands upside down on the retina, a thin layer at the back of the eye with about 120 million rods and 6 million cones. Only the fovea, a small pit in the middle, sees sharply and in color.',
+          code: `// Light into the eye: cornea and lens focus it; the image lands on the retina, upside down.
+const INK = '#dadada', MUTED = '#8c8c8c', WARM = '#c8664f', GOLD = '#f2c14e', k = width / height
+const label = (x, y, t, o = {}) => note(x, y, t, { color: o.color || MUTED, note: { style: 'plain', font: 'sans', size: 14, width: o.width || 200 } })
+const cx = 0.56, cy = 0.5, r = 0.19                                        // the eye (round on the board)
+const at = (a, s = 1) => [cx + Math.cos(a) * r * s, cy + Math.sin(a) * r * s * k]
+line(circle(cx, cy, r, 64), { brush: 'pen', width: 2, color: INK, closed: true })
+line([at(PI - 0.55), [cx - r * 1.14, cy], at(PI + 0.55)], { brush: 'pen', width: 2, color: INK })   // cornea
+const lx = cx - r * 0.7
+plane([[lx, cy - 0.13], [lx + 0.022, cy], [lx, cy + 0.13], [lx - 0.022, cy]], { color: '#3c3c3c' })   // lens
+line([-1.1, -0.55, 0, 0.55, 1.1].map(a => at(a, 0.97)), { brush: 'pen', width: 6, color: WARM })  // retina
+point(...at(0, 0.97), { size: 12, color: INK })                                                   // fovea
+line([[0.07, 0.34], [0.07, 0.7]], { brush: 'pen', width: 5, color: INK, path: 'straight' })       // a candle
+point(0.07, 0.29, { size: 16, color: GOLD })
+// Rays: the top of the candle lands low on the retina, the bottom lands high.
+line([[0.07, 0.29], [lx, cy - 0.05], at(0.6, 0.97)], { brush: 'pen', width: 1.5, color: GOLD, path: 'straight' })
+line([[0.07, 0.7], [lx, cy + 0.05], at(-0.6, 0.97)], { brush: 'pen', width: 1.5, color: GOLD, path: 'straight' })
+label(0.02, 0.76, 'what we look at', { width: 120 })
+label(0.3, 0.07, 'cornea and lens focus the light')
+label(0.77, 0.16, 'retina: about 120 million rods and 6 million cones', { color: WARM, width: 170 })
+label(0.77, 0.47, 'fovea: sharp, colored vision', { color: INK, width: 160 })
+label(0.46, 0.9, 'the picture lands upside down', { width: 240 })
+` },
+        { id: 'mosaic', title: '0.2 · The retina is pointillist', w: 800, h: 440, ground: '#141414',
+          idea: 'The retina is a mosaic of separate receptors, each answering for one small spot: the eye samples the image, as our code samples a painting. In the fovea there are only cones, packed tight (and no S cones at the very center); away from it, rods take over. Rods work in dim light and see no color. Roughly six in ten cones are L, three M, and fewer than one S, and the L to M ratio varies a lot between people with normal color vision.',
+          code: `// The retina is pointillist: separate receptors, each answering for one spot of the image.
+const L = '#d9674e', M = '#7fb069', S = '#5b7fd1', ROD = '#555555', MUTED = '#8c8c8c', BG = '#141414'
+const label = (x, y, t, o = {}) => note(x, y, t, { color: o.color || MUTED, note: { style: 'plain', font: 'sans', size: 14, width: o.width || 200, bg: BG } })
+const step = 11, fovea = 110                                     // spacing and fovea radius, in pixels
+const cx = width * 0.42, cy = height * 0.5
+for (let row = 0; row * step * 0.87 < height; row++) for (let col = 0; col * step < width * 0.78; col++) {
+  const px = col * step + (row % 2) * step / 2, py = row * step * 0.87       // a honeycomb
+  const d = Math.hypot(px - cx, py - cy)
+  const cone = d < fovea || random() < 0.3 * fovea / d                      // cones thin out away from the fovea
+  if (!cone) { point(px / width, py / height, { size: 4, color: ROD }); continue }
+  const kinds = d < fovea * 0.3 ? [L, L, M] : [L, L, L, L, L, L, M, M, M, S]  // no S cones at the very center
+  point(px / width, py / height, { size: 8, color: kinds[Math.floor(random(kinds.length))] })
+}
+const key = [[L, 'L cones: long waves (reddish)'], [M, 'M cones: middle (green)'], [S, 'S cones: short (blue)'], [ROD, 'rods: dim light, no color']]
+key.forEach(([c, t], i) => { point(0.815, 0.2 + i * 0.1, { size: 10, color: c }); label(0.835, 0.18 + i * 0.1, t, { width: 130 }) })
+label(0.815, 0.66, 'fovea: cones only, packed tight', { width: 140 })
+` },
+        { id: 'curves', title: '0.3 · Three kinds of cones', w: 800, h: 440, ground: '#141414',
+          idea: 'Each kind of cone answers to a band of the spectrum, most strongly near its peak: S near 420 nm, M near 534, L near 564 (rods near 498). One kind alone cannot tell a dim green from a bright red; color is the comparison between them. That is why three numbers can describe a color for us: trichromacy, guessed by Young in 1802 and measured in single cones in 1964. The curves here are stylized; the real ones are broader and lopsided.',
+          code: `// Three kinds of cones, each most sensitive to one part of the spectrum (stylized curves).
+const MUTED = '#8c8c8c', INK = '#dadada'
+const label = (x, y, t, o = {}) => note(x, y, t, { color: o.color || MUTED, note: { style: 'plain', font: 'sans', size: 14, width: o.width || 120 } })
+const toHex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')
+const clamp = t => Math.max(0, Math.min(1, t))
+const spectrum = nm => {                                        // a wavelength as a screen color (approximate)
+  const t = (a, b) => clamp((nm - a) / (b - a))
+  const r = nm < 440 ? 0.6 * t(440, 380) : nm < 510 ? 0 : nm < 580 ? t(510, 580) : 1
+  const g = nm < 440 ? 0 : nm < 490 ? t(440, 490) : nm < 580 ? 1 : t(645, 580)
+  const b = nm < 490 ? 1 : nm < 510 ? t(510, 490) : 0
+  const fade = nm < 420 ? 0.3 + 0.7 * t(380, 420) : nm > 680 ? 0.3 + 0.7 * t(740, 680) : 1
+  return toHex([r, g, b].map(v => 255 * v * fade))
+}
+const x = nm => 0.08 + 0.84 * (nm - 380) / 340                 // 380–720 nm across the board
+const y = s => 0.7 - 0.56 * s                                    // sensitivity 0..1, up
+for (let nm = 380; nm < 720; nm += 10) plane(rect(x(nm), 0.76, x(nm + 10) - x(nm) + 0.002, 0.05), { color: spectrum(nm + 5), path: 'straight' })
+const curve = (peak, spread) => range(25).map(i => peak - 3 * spread + i * spread / 4)
+  .filter(nm => nm >= 380 && nm <= 720).map(nm => [x(nm), y(Math.exp(-(((nm - peak) / spread) ** 2) / 2))])
+line(curve(498, 40), { brush: 'pen', width: 2, color: '#666666' })
+line(curve(420, 26), { brush: 'pen', width: 3, color: '#5b7fd1' })
+line(curve(534, 40), { brush: 'pen', width: 3, color: '#7fb069' })
+line(curve(564, 44), { brush: 'pen', width: 3, color: '#d9674e' })
+label(x(420) - 0.03, 0.06, 'S · 420 nm', { color: '#5b7fd1' })
+label(x(498) - 0.06, 0.06, 'rods · 498', { color: '#8c8c8c' })
+label(x(534) - 0.04, 0.06, 'M · 534', { color: '#7fb069' })
+label(x(564) + 0.01, 0.06, 'L · 564', { color: '#d9674e' })
+for (const nm of [400, 500, 600, 700]) label(x(nm) - 0.02, 0.84, nm + ' nm', { width: 80 })
+` },
+        { id: 'pixel', title: '0.4 · Three numbers, one pixel', w: 800, h: 440, ground: '#141414',
+          idea: 'Because we have three kinds of cones, three lights can match almost any color (Maxwell showed it with spinning discs and, in 1861, a first color photograph). A screen does the same: each pixel is three small lights, red, green and blue, set by three numbers from 0 to 255. Up close they stay apart; from a distance the eye mixes them, as it mixes Seurat’s dots. A camera sensor samples the other way, through a mosaic of color filters with two greens for each red and blue (Bayer, 1976).',
+          code: `// Three numbers make a color: a pixel is three lights, mixed by the eye from a distance.
+const MUTED = '#8c8c8c', INK = '#dadada'
+const label = (x, y, t, o = {}) => note(x, y, t, { color: o.color || MUTED, note: { style: 'plain', font: o.font || 'sans', size: 14, width: o.width || 150 } })
+const toHex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('')
+const c = [96, 128, 60]                                            // a green from La Grande Jatte
+const arrow = (x1, x2, y) => { line([[x1, y], [x2, y]], { brush: 'pen', width: 2, color: MUTED, path: 'straight' }); line([[x2 - 0.012, y - 0.03], [x2, y], [x2 - 0.012, y + 0.03]], { brush: 'pen', width: 2, color: MUTED, path: 'straight' }) }
+plane(rect(0.05, 0.16, 0.17, 0.34), { color: toHex(c), path: 'straight' })
+label(0.05, 0.54, 'a color is three numbers', { width: 200 })
+label(0.05, 0.61, 'R 96 · G 128 · B 60', { font: 'mono', color: INK, width: 220 })
+arrow(0.25, 0.33, 0.33)
+c.forEach((v, i) => plane(rect(0.36 + i * 0.06, 0.16, 0.05, 0.34), { color: toHex(c.map((w, j) => (j === i ? w : 0))), path: 'straight' }))
+label(0.36, 0.54, 'a pixel up close: three lights', { width: 190 })
+arrow(0.56, 0.64, 0.33)
+plane(rect(0.67, 0.29, 0.025, 0.08), { color: toHex(c), path: 'straight' })
+label(0.67, 0.54, 'from a distance: one color, mixed by the eye', { width: 170 })
+// A camera sensor: a mosaic of filters, two greens for each red and blue (Bayer, 1976).
+const R = '#8a2f24', G = '#3f6e2f', B = '#2c3f78'
+for (let i = 0; i < 12; i++) for (let j = 0; j < 2; j++) {
+  const f = j % 2 ? (i % 2 ? B : G) : (i % 2 ? G : R)
+  plane(rect(0.05 + i * 0.03, 0.74 + j * 0.055, 0.026, 0.047), { color: f, path: 'straight' })
+}
+label(0.44, 0.75, 'a camera sensor samples through a mosaic of filters: two greens for each red and blue', { width: 300 })
+` },
+        { id: 'timeline', title: '0.5 · Then and now', w: 1200, h: 560, ground: '#141414',
+          idea: 'What Seurat could know, and what came later. By 1886 the ideas were in place: three receptors (a theory), rods and cones (seen, their roles guessed), the pigment of the rods, contrast and the mixing of light. The cone pigments, their genes, the living mosaic and the color spaces of our screens all came in the twentieth century.',
+          code: `// What Seurat could know, and what came later: a strip to scale, then the events in two columns.
+const MUTED = '#8c8c8c', INK = '#dadada', WARM = '#c8664f'
+const label = (x, y, t, o = {}) => note(x, y, t, { color: o.color || MUTED, note: { style: 'plain', font: o.font || 'sans', size: o.size || 15, width: o.width || 480 } })
+const then = [[1802, 'Young: three kinds of receptors (a guess)'], [1839, 'Chevreul: colors change their neighbors'],
+  [1855, 'Maxwell: three lights can match a color'], [1856, 'Helmholtz: Physiological Optics (to 1867)'],
+  [1866, 'Schultze: rods for dim light, cones for color'], [1876, 'Boll: visual purple, the pigment of rods'],
+  [1878, 'Hering: colors come in opposing pairs'], [1879, 'Rood: Modern Chromatics, which Seurat read']]
+const now = [[1931, 'CIE: a standard map of the colors we see'], [1964, 'the three cone pigments measured, cone by cone'],
+  [1976, 'Bayer: the color filter mosaic of camera sensors'], [1986, 'Nathans: the genes of the cone pigments'],
+  [1996, 'sRGB: the colors of screens and the web'], [1999, 'Roorda and Williams: the cone mosaic of a living eye']]
+// The strip: 1800 to 2000, to scale.
+const x = year => 0.04 + 0.92 * (year - 1800) / 200, axis = 0.14
+line([[x(1800), axis], [x(2000), axis]], { brush: 'pen', width: 2, color: '#444444', path: 'straight' })
+plane(rect(x(1884), axis - 0.05, x(1886) - x(1884), 0.1), { color: WARM, path: 'straight' })
+for (const [year] of then) point(x(year), axis, { size: 8, color: INK })
+for (const [year] of now) point(x(year), axis, { size: 8, color: MUTED })
+for (const year of [1800, 1850, 1900, 1950, 2000]) label(x(year) - 0.012, axis + 0.03, String(year), { size: 13, width: 60 })
+// The columns.
+label(0.04, 0.27, 'In Seurat’s time', { color: INK, size: 17 })
+label(0.52, 0.27, 'Since', { color: INK, size: 17 })
+label(x(1884) - 0.03, axis - 0.1, 'Seurat, 1884–86', { color: WARM, size: 13, width: 140 })
+then.forEach(([year, text], i) => { label(0.04, 0.35 + i * 0.075, String(year), { font: 'mono', color: INK, width: 60 }); label(0.1, 0.35 + i * 0.075, text, { width: 420 }) })
+now.forEach(([year, text], i) => { label(0.52, 0.35 + i * 0.075, String(year), { font: 'mono', color: INK, width: 60 }); label(0.58, 0.35 + i * 0.075, text, { width: 420 }) })
+` }
+      ]
+    },
+    {
       title: 'Seurat: the dot',
       text: 'Seurat built pictures from small touches of paint set side by side, and let the eye mix them at a distance. We start by asking the painting one question at a time: what color is it here?',
       boards: [

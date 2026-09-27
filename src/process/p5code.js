@@ -106,10 +106,15 @@ function walk({ from = [0, 0], heading = 0, steps = 50, step = ${absolute ? 10 :
 }`);
   if (uses('stage')) defs.push(`// Stages order the work in the studio; here the code runs top to bottom.
 function stage() {}`);
-  if (uses('note')) defs.push(`function note(x, y, words) {
+  if (uses('note')) defs.push(`// A note: text from its top-left corner, wrapped to its width (in pixels).
+function note(x, y, words, o = {}) {
+  const n = o.note || {};
   noStroke();
-  fill(${INK});
-  text(words, x${S}, y${SY});
+  fill(o.color || ${INK});
+  textSize(n.size ?? 16);
+  textFont(n.font === 'mono' ? 'monospace' : n.font === 'serif' ? 'serif' : 'sans-serif');
+  textAlign(LEFT, TOP);
+  text(words, x${S}, y${SY}, n.width ?? 280);
 }`);
   if (need.has('source')) defs.push(`// A source, sampled where you ask: the picture covers the canvas (cropped to its shape).
 // x, y are ${absolute ? 'pixels' : 'fractions of the canvas'}.
