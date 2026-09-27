@@ -38,6 +38,9 @@ export class Sources {
 
   uniqueName(base) { let n = base, i = 2; while (this.def(n)) n = `${base}${i++}`; return n; }
 
+  /** Whether a source is paused (nothing live needs it). */
+  paused(name) { return Boolean(this.entries.get(name)?.paused); }
+
   /** Add a source: { kind: 'camera' } or { kind: 'asset', assetId }. Returns its name. */
   async add({ kind, assetId, name, sampling = 'continuous', interval = 2 }) {
     const asset = kind === 'asset' ? await this.app.assetStore.get(assetId) : null;
@@ -106,11 +109,17 @@ export class Sources {
   tick() {
     const now = performance.now(), dt = Math.min(0.25, (now - this.last) / 1000);
     this.last = now;
+    let changed = false;
     for (const e of this.entries.values()) {
       if (!e.ready || !e.live) continue;
+      // Paused while nothing live needs it (this.wanted, set by the app): it keeps its last frame.
+      const want = this.wanted ? this.wanted(e.def.name) : true;
+      if (Boolean(e.paused) === want) { e.paused = !want; changed = true; }
+      if (!want) continue;
       e.live.tick(dt);
       if (e.sampler.due(e.live, dt)) this.sample(e);
     }
+    if (changed) this.emit(null);
   }
 
   /** Take a sampled frame: a small copy code reads; landmarks for it when asked for. */

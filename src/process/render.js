@@ -13,7 +13,7 @@ import { drawNote, noteCorners } from './notes.js';
 
 export function renderDocument(ctx, doc, {
   mode = 'process', upTo = Infinity, transform = { x: 0, y: 0, scale: 1 },
-  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a'
+  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a', frozen = false
 } = {}) {
   const { width, height } = doc.artboard;
   ctx.save();
@@ -31,7 +31,7 @@ export function renderDocument(ctx, doc, {
     .map(([e]) => e);
 
   installLines(doc);
-  const env = { scale: transform.scale, rng: null };
+  const env = { scale: transform.scale, rng: null, frozen };
   const boardRects = new Map(boardsOf(doc).map(b => [b.id, { x: b.x, y: b.y, width: b.width, height: b.height }]));
   const overlay = [];
   for (const e of ordered) {

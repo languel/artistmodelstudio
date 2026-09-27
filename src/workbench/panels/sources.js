@@ -26,7 +26,7 @@ export function mountSources(el, app) {
     thumbs.clear();
     const list = h('div', { class: 'wb-list' });
     for (const d of S.list) {
-      const thumb = h('canvas', { class: 'wb-source-thumb', width: 88, height: 64, title: `${d.kind === 'camera' ? 'Camera' : 'From Assets'}: source('${d.name}')` });
+      const thumb = h('canvas', { class: `wb-source-thumb${S.paused(d.name) ? ' paused' : ''}`, width: 88, height: 64, title: `${d.kind === 'camera' ? 'Camera' : 'From Assets'}: source('${d.name}')${S.paused(d.name) ? ' · paused: no live board on screen uses it' : ''}` });
       thumbs.set(d.name, thumb);
       const name = editable(h('span', { class: 'wb-source-name', title: `source('${d.name}') · Shift+double-click to rename` }, d.name), `source:${d.name}`, () => d.name, v => S.rename(d.name, v.trim().replace(/\s+/g, '-')));
       const shown = board?.source === d.name;

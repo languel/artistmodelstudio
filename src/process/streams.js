@@ -34,8 +34,9 @@ function emptySampler(name, rect) {
 }
 
 /** A sampler for `name`, fitted to `rect` ({ x, y, width, height }, world units). */
-export function getSource(name, rect = { x: 0, y: 0, width: 1000, height: 1000 }) {
-  lastRead.set(String(name), Date.now());
+export function getSource(name, rect = { x: 0, y: 0, width: 1000, height: 1000 }, { peek = false } = {}) {
+  // peek: read without asking for more (a frozen board drawn from the frames it has).
+  if (!peek) lastRead.set(String(name), Date.now());
   return (provider && provider(String(name), rect)) || emptySampler(String(name), rect);
 }
 

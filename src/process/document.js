@@ -115,6 +115,7 @@ export function normalizeElement(e, stage) {
     ...(e.note && typeof e.note === 'object' ? { note: { ...e.note } } : {}),
     ...(e.src ? { src: String(e.src) } : {}),
     ...(e.asset ? { asset: String(e.asset) } : {}),
+    ...(e.bake && typeof e.bake === 'object' ? { bake: { ...e.bake } } : {}),
     ...(Number.isFinite(Number(e.opacity)) && Number(e.opacity) < 1 ? { opacity: Math.max(0, Number(e.opacity)) } : {}),
     ...(e.blend && e.blend !== 'normal' ? { blend: String(e.blend) } : {}),
     ...(e.path === 'straight' ? { path: 'straight' } : {})
@@ -470,6 +471,7 @@ export class ProcessStore {
     if (!b) return { error: 'No such board' };
     const res = run(source, { base: { ...createDocument({ width: b.width, height: b.height, ground: b.ground }), stages: [] }, by: { kind: 'code', name: b.id }, origin: { x: b.x, y: b.y } });
     if (res.error) return { error: res.error, line: res.errorLine, logs: res.logs };
+    if (opts?.transient) this.lastLiveBoard = id;
     this.change(opts?.transient ? 'live board code' : 'board code', d => {
       const mine = e => e.by?.kind === 'code' && e.by?.name === id;
       d.elements = d.elements.filter(e => !mine(e));

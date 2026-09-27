@@ -22,6 +22,7 @@ export function mountBoards(el, app) {
       const row = h('div', { class: `wb-stage${active ? ' active' : ''}`, 'data-guide': `board:${b.title}`, draggable: b.main ? 'false' : 'true', onclick: e => { if (e.target.closest('button')) return; app.goToBoard(b.id); }, oncontextmenu: e => { e.preventDefault(); app.boardMenu(b.id, e.clientX, e.clientY); } },
         h('button', { class: `wb-icon-btn wb-train${train === b.id ? ' on' : ''}`, title: train === b.id ? 'Models learn from this board' : 'Train on this board', html: '<svg viewBox="0 0 24 24" width="12" height="12"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>', onclick: () => app.store.setTrainBoard(b.id) }),
         name,
+        h('button', { class: `wb-icon-btn${b.live ? ' on' : ''}${app.isBoardLive(b.id) ? '' : ' wb-dim'}`, title: b.live ? 'Live: runs even when you are elsewhere (click to pause; paused boards are baked into a picture)' : active ? 'Live while you are on it (click to keep it live elsewhere)' : 'Paused, baked into a picture (click to keep it live)', html: icon(app.isBoardLive(b.id) ? 'play' : 'pause'), onclick: () => app.setBoardLive(b.id, !b.live) }),
         h('span', { class: 'wb-muted', title: `${b.width}×${b.height}` }, String(marksOf(doc, b.id).length)),
         b.main ? h('span', { class: 'wb-kind' }, 'main') : h('span', {}),
         !b.main ? h('button', { class: 'wb-icon-btn', title: 'Earlier', html: icon('up'), onclick: () => app.store.moveBoard(b.id, -1) }) : null,

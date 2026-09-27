@@ -673,3 +673,5 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-source-name { font-family: var(--wb-mono, ui-monospace, monospace); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-source-ctl { display: flex; gap: 4px; align-items: center; }
 .wb-source-ctl .wb-num { width: 48px; }
+.wb-source-thumb.paused { opacity: 0.4; filter: grayscale(0.6); }
+.wb-icon-btn.wb-dim { opacity: 0.45; }

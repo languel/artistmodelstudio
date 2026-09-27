@@ -340,6 +340,23 @@ In the Sources panel:
 - The **redraw** glyph writes that code into the active board, shows the source under the board, and turns following on.
 - The **eye** shows a source under a board as a reference, not part of the picture.
 
+### Live and paused boards
+
+Only live boards run. A live board:
+- re-runs its code on new frames of the sources it follows;
+- has brushes that read live frames;
+- is redrawn every frame.
+
+The board you are on is always live. Switch others on with ▶ in the Boards panel, or **Live** in a board's menu.
+
+Every other board is paused and **baked**: drawn once into a picture and shown as that picture until it changes or runs again. Boards off screen are not drawn at all. A source samples only while a live board on screen needs it, and paused sources look dimmed in Sources. On the canvas, board titles show ▶ (live) or ‖ (paused) when the board uses sources.
+
+**Bake to image** makes a bake permanent, after underscores' bake:
+- On a board's menu, the board's marks become one image mark the size of the board, and the board stops following its sources.
+- On the selection's context menu, the selected marks become one image mark.
+- The image records what went into it (`e.bake`), and Undo brings the marks back.
+- Baked images are ordinary marks: add them to Assets, or use them as thumbnails.
+
 Agents use `ams_source`: list, add, remove, update, sample (colors, values and landmarks at points), frame (a PNG), show, follow.
 
 ## Exports

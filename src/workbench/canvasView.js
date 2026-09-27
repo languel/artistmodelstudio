@@ -54,7 +54,9 @@ export class CanvasView {
     this.resize();
     if (!this.cam) { this.cam = { x: 0, y: 0, z: 1 }; this.fit(); try { localStorage.removeItem(CAMERA_KEY); } catch { /* ignore */ } }
     new ResizeObserver(() => this.resize()).observe(host);
-    store.subscribe(() => { this.pruneSelection(); this.invalidate(); });
+    // Baked boards (paused: drawn once into a picture). A live redraw drops only its own board's picture.
+    this.baked = new Map();
+    store.subscribe((doc, reason) => { if (reason === 'live board code') this.baked.delete(store.lastLiveBoard); else this.baked.clear(); this.pruneSelection(); this.invalidate(); });
     this.bind();
   }
 
@@ -178,7 +180,8 @@ export class CanvasView {
       this.drawReference(ctx);
       ctx.restore();
     }
-    renderDocument(ctx, doc, {
+    const skip = this.drawBaked(ctx, doc);
+    renderDocument(ctx, skip.size ? { ...doc, elements: doc.elements.filter(e => !skip.has(e.board || MAIN)) } : doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
       selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true,
       selectColor: css.getPropertyValue('--wb-select').trim() || '#8a8a8a'
@@ -657,6 +660,8 @@ export class CanvasView {
       c.setPointerCapture(e.pointerId);
       const [sx, sy] = this.local(e);
       const [wx, wy] = this.toWorld(sx, sy);
+      // The board being worked on is drawn live (not baked) while the pointer is down.
+      this.workBoard = boardAt(this.store.doc, wx, wy)?.id || BLACKBOARD;
       const tool = this.getTool();
       // Boards: their titles (and the selected board's corner) work with Select and the Board tool.
       if (tool === 'direct') return this.startDirect(e, sx, sy, wx, wy);
@@ -683,6 +688,55 @@ export class CanvasView {
     });
   }
 
+  // ---- baked boards ------------------------------------------------------------------
+  /** Is a board (with a margin for marks that spill over it) on screen? */
+  boardOnScreen(b, margin = 0.25) {
+    const m = margin * Math.max(b.width, b.height);
+    const [x0, y0] = this.toScreen(b.x - m, b.y - m), [x1, y1] = this.toScreen(b.x + b.width + m, b.y + b.height + m);
+    return x1 > 0 && y1 > 0 && x0 < this.w && y0 < this.h;
+  }
+
+  /**
+   * Paused boards (not live: see app.isBoardLive) are baked: their marks drawn once into a picture at
+   * about this zoom, then shown as that picture until they change or run again. Boards off screen are
+   * not drawn at all. Boards being worked on (a selection, the board under the pointer, the selected
+   * board) are always drawn live. Returns the boards drawn here (their marks are skipped after).
+   */
+  drawBaked(ctx, doc) {
+    const done = new Set();
+    if (this.previewDoc || !this.isBoardLive || this.bakeOff) return done;
+    const boards = boardsOf(doc);
+    if (boards.length < 2) return done;
+    const byId = new Map(doc.elements.map(e => [e.id, e]));
+    const busy = new Set([this.selectedBoard, this.pointer ? this.workBoard : null, ...[...this.selected, this.hovered].map(id => byId.get(id)).filter(Boolean).map(e => e.board || MAIN)]);
+    const mode = this.viewMode(), dpr = this.dpr, z = this.cam.z;
+    // Baked at a zoom in half-octave steps, so zooming reuses a picture for a while.
+    const zb = Math.pow(2, Math.round(Math.log2(z) * 2) / 2);
+    let marks = null;
+    for (const b of boards) {
+      if (this.isBoardLive(b.id)) { this.baked.delete(b.id); continue; }
+      if (busy.has(b.id)) continue;   // its picture is kept: edits end in a store change, which drops it
+      done.add(b.id);
+      if (!this.boardOnScreen(b)) continue;
+      const m = 0.25 * Math.max(b.width, b.height), W = b.width + 2 * m, H = b.height + 2 * m;
+      let s = zb * dpr;
+      if (Math.max(W, H) * s > 4096) s = 4096 / Math.max(W, H);
+      const key = `${s.toFixed(4)}|${mode}|${this.upTo}`;
+      let c = this.baked.get(b.id);
+      if (!c || c.key !== key) {
+        if (!marks) { marks = new Map(); for (const e of doc.elements) { const k = e.board || MAIN; (marks.get(k) || marks.set(k, []).get(k)).push(e); } }
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(W * s)); canvas.height = Math.max(1, Math.round(H * s));
+        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, frozen: true });
+        c = { key, canvas };
+        this.baked.set(b.id, c);
+      }
+      const [sx, sy] = this.toScreen(b.x - m, b.y - m);
+      ctx.drawImage(c.canvas, sx, sy, W * z, H * z);
+    }
+    return done;
+  }
+
   // ---- boards --------------------------------------------------------------------
   /** Titles above the boards (click to select, drag to move with their marks), the selected board's frame and corner. */
   drawBoards(ctx, css) {
@@ -697,7 +751,9 @@ export class CanvasView {
     boards.forEach((b, i) => {
       const [bx, by] = this.toScreen(b.x, b.y), w = b.width * this.cam.z, h = b.height * this.cam.z;
       const on = this.selectedBoard === b.id;
-      const label = `${i + 1}  ${b.title}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
+      // Boards with processes (following sources, a source under them) show whether they run: ▶ live, ‖ paused.
+      const runs = b.follow || b.source ? (this.isBoardLive?.(b.id) ? '  ▶' : '  ‖') : '';
+      const label = `${i + 1}  ${b.title}${runs}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
       const tw = Math.min(ctx.measureText(label).width, Math.max(40, w));
       ctx.fillStyle = on ? text : muted;
       ctx.fillText(label, bx, by - 5, Math.max(40, w));

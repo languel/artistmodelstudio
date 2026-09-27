@@ -460,11 +460,11 @@ export const KIT = {
   image: getImage,
   smoothPath, tracePath, spans, rotatePts, frames: walkFrames, segment: strokeSegment, beginInk, INK, noise: valueNoise,
   draw(id, ctx, e, params = {}) { const b = BRUSHES[id]; if (b) b.draw(ctx, e, resolveParams(id, params), this); },
-  source(name, rect) { return getSource(name, rect || this.board); }
+  source(name, rect) { return getSource(name, rect || this.board, { peek: Boolean(this.frozen) }); }
 };
 export function kitFor(env = {}) {
   if (env && env.smoothPath) return env;
-  const k = Object.create(KIT); k.rng = env?.rng || Math.random; k.scale = env?.scale || 1; k.board = env?.board;
+  const k = Object.create(KIT); k.rng = env?.rng || Math.random; k.scale = env?.scale || 1; k.board = env?.board; k.frozen = env?.frozen;
   // A mark with path: 'straight' is drawn through its points as straight segments.
   if (env?.straight) k.smoothPath = points => points.map(p => p.slice());
   return k;

@@ -10,11 +10,11 @@ import { Scenes } from './scenes.js';
 import { runScoreInto } from '../process/script.js';
 import { toP5Min } from '../process/p5min.js';
 import { SCULPTS, loadSculptLibrary } from '../process/sculpt.js';
-import { ProcessStore, createDocument, normalizeDocument, DEFAULT_REALIZE, ROLES } from '../process/document.js';
+import { ProcessStore, createDocument, normalizeDocument, normalizeElement, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
 import { dslToProcess } from '../process/fromDsl.js';
 import { canvasBlob } from './ui.js';
-import { renderToCanvas } from '../process/render.js';
+import { renderToCanvas, renderDocument } from '../process/render.js';
 import { EXERCISES } from '../process/exercises.js';
 import { runScript } from '../process/script.js';
 import { createZip } from '../export/zip.js';
@@ -436,6 +436,8 @@ export class Workbench {
       { label: 'Go to', run: () => this.goToBoard(id) },
       { label: 'Rename…', run: () => this.renameBoard(id) },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
+      { active: this.isBoardLive(id), label: this.isBoardLive(id) ? (id === (this.activeBoard || MAIN) && !b.live ? 'Live (you are on it)' : 'Live') : 'Paused (baked)', hint: 'Live boards run (their code follows sources, their brushes read live frames); paused boards are baked into a picture', run: () => this.setBoardLive(id, !b.live) },
+      { label: 'Bake to image', hint: 'Its marks become one image mark (undo brings them back)', run: () => this.bakeBoard(id) },
       { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)']].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
       { active: (doc.train || MAIN) === id, label: (doc.train || MAIN) === id ? 'Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
       b.main ? null : { label: 'Earlier', run: () => this.store.moveBoard(id, -1) },
@@ -597,7 +599,8 @@ export class Workbench {
     this.canvas.onBoardContext = (id, e) => this.boardMenu(id, e.clientX, e.clientY);
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));
-    KIT.onImageLoad = () => this.canvas.invalidate();
+    KIT.onImageLoad = () => { this.canvas.baked?.clear(); this.canvas.invalidate(); };
+    this.canvas.isBoardLive = id => this.isBoardLive(id);
     this.canvas.onCamera = () => { const z = this.zoomIsland?.querySelector('span'); if (z) z.textContent = `${Math.round(this.canvas.cam.z * 100)}%`; };
     this.topbar = h('div', { class: 'wb-topbar' });
     this.zoomIsland = h('div', { class: 'wb-island wb-zoom' });
@@ -723,13 +726,16 @@ export class Workbench {
    */
   followSources() {
     const last = new Map(), pending = new Map();
+    // A source samples only while something live needs it: a live board on screen that follows it or
+    // shows it, or a live mark's brush that read it a moment ago. Paused, it keeps its last frame.
+    this.sources.wanted = name => readRecently(name, 1500) || boardsOf(this.store.doc).some(b => (b.source === name || (b.follow && reads(b.code, name))) && this.isBoardActive(b.id, b));
     const reads = (code, name) => new RegExp(`\\b(source|fit)\\(\\s*['"\`]${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`).test(code || '');
     this.sources.on(name => {
       if (!name) { this.renderChrome(); return; }
       const doc = this.store.doc;
       if (boardsOf(doc).some(b => b.source === name) || readRecently(name)) this.canvas?.invalidate();
       for (const b of boardsOf(doc)) {
-        if (!b.follow || !reads(b.code, name) || pending.has(b.id)) continue;
+        if (!b.follow || !reads(b.code, name) || pending.has(b.id) || !this.isBoardActive(b.id, b)) continue;
         const since = performance.now() - (last.get(b.id)?.at || 0), wait = Math.max(0, Math.max(80, 2 * (last.get(b.id)?.took || 0)) - since);
         pending.set(b.id, setTimeout(() => {
           pending.delete(b.id);
@@ -743,6 +749,71 @@ export class Workbench {
         }, wait));
       }
     });
+  }
+
+  /**
+   * Live boards run: their code follows its sources, their brushes read live frames, and they are
+   * drawn every frame. The board you are on is always live; others when switched on (board.live).
+   * The rest are paused: baked into a picture (see canvasView.drawBaked) and left as they were.
+   */
+  isBoardLive(id) {
+    if ((id || MAIN) === (this.activeBoard || MAIN)) return true;
+    return Boolean(boardById(this.store.doc, id)?.live);
+  }
+
+  /** Live and on screen: a board whose processes run now. */
+  isBoardActive(id, b = boardById(this.store.doc, id)) { return Boolean(b) && this.isBoardLive(id) && this.canvas.boardOnScreen(b, 0); }
+
+  setBoardLive(id, on) {
+    this.store.change(on ? 'board live' : 'board paused', d => {
+      const t = !id || id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
+      if (!t) return;
+      if (on) t.live = true; else delete t.live;
+    });
+  }
+
+  /**
+   * Bake marks into one image mark (after underscores' bake): they are drawn into a PNG, which replaces
+   * them in place, with a record of what went in (e.bake). One undo step brings them back.
+   * rect: the picture's bounds in world units (default: the marks' bounds, with room for their brushes).
+   */
+  bakeMarks(ids, { rect = null, title = 'baked', board = undefined, also = null } = {}) {
+    const doc = this.store.doc, set = new Set(ids);
+    const marks = doc.elements.filter(e => set.has(e.id) && e.role !== 'note' && e.points?.length);
+    if (!marks.length) return null;
+    if (!rect) {
+      const xs = marks.flatMap(e => e.points.map(p => p[0])), ys = marks.flatMap(e => e.points.map(p => p[1]));
+      const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+      const pad = 0.04 * Math.max(x1 - x0, y1 - y0) + 24;
+      rect = { x: x0 - pad, y: y0 - pad, width: x1 - x0 + 2 * pad, height: y1 - y0 + 2 * pad };
+    }
+    const s = Math.min(2, 4096 / Math.max(rect.width, rect.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(rect.width * s)); c.height = Math.max(1, Math.round(rect.height * s));
+    renderDocument(c.getContext('2d'), { ...doc, elements: marks }, { mode: 'picture', transform: { x: -rect.x * s, y: -rect.y * s, scale: s }, ground: false, frozen: true });
+    const src = c.toDataURL('image/png');
+    const gone = new Set(marks.map(e => e.id));
+    const onBoard = board !== undefined ? board : marks[0].board;
+    const el = this.store.change(`bake ${title}`, d => {
+      d.elements = d.elements.filter(e => !gone.has(e.id));
+      also?.(d);
+      const { x, y, width: w, height: h } = rect;
+      const e = normalizeElement({ role: 'image', src, label: `${title} (baked)`, why: `baked from ${marks.length} marks`, bake: { count: marks.length, ids: [...gone].slice(0, 500), at: Date.now() },
+        points: [[x, y, 0, 0.5], [x + w, y, 0, 0.5], [x + w, y + h, 0, 0.5], [x, y + h, 0, 0.5]], ...(onBoard && onBoard !== MAIN ? { board: onBoard } : {}) }, marks[0].stage || this.activeStage.id);
+      d.elements.push(e);
+      return e;
+    });
+    this.log(`Baked ${marks.length} marks into one image (undo brings them back).`);
+    return el;
+  }
+
+  /** Bake a whole board: its marks become one image the size of the board; it stops following its sources. */
+  bakeBoard(id) {
+    const b = boardById(this.store.doc, id);
+    if (!b) return null;
+    const ids = this.store.doc.elements.filter(e => (e.board || MAIN) === b.id).map(e => e.id);
+    if (!ids.length) { this.log(`“${b.title}” has no marks to bake.`); return null; }
+    return this.bakeMarks(ids, { rect: { x: b.x, y: b.y, width: b.width, height: b.height }, title: b.title, board: b.id, also: d => { delete (b.main ? d.artboard : d.boards.find(x => x.id === b.id)).follow; } });
   }
 
   /** A board follows its sources (its code re-runs on each new frame) or not. */
@@ -1015,6 +1086,7 @@ export class Workbench {
         { label: 'PNG', hint: 'The selection as a picture (transparent), on the clipboard', run: () => this.copySelection('png', ids) },
         { label: 'p5 code', hint: 'The selection as a minimal p5 sketch (plain calls), on the clipboard', run: () => this.copySelection('p5', ids) }
       ] },
+      { label: 'Bake to image', hint: 'The selected marks become one image mark (undo brings them back)', run: () => { const el = this.bakeMarks(ids, { title: ids.length === 1 ? (this.store.doc.elements.find(e => e.id === ids[0])?.label || 'mark') : `${ids.length} marks` }); if (el) this.canvas.select([el.id]); } },
       { label: 'Add to Assets', items: [
         { label: 'As PNG', hint: 'A picture of the selection; opens again as a drawing', run: () => this.selectionToAssets('png', ids) },
         { label: 'As SVG', hint: 'The selection as an SVG file (with its process record)', run: () => this.selectionToAssets('svg', ids) }

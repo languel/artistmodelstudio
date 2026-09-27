@@ -19,7 +19,7 @@ export const BLACKBOARD = '_';
 export function boardsOf(doc) {
   const a = doc.artboard || { width: 1000, height: 1000, ground: '#f3efe6' };
   return [
-    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity } : {}), main: true },
+    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity } : {}), main: true },
     ...(doc.boards || []).map(b => ({ ...b, main: false }))
   ];
 }
@@ -101,7 +101,7 @@ export function migrateBoards(d) {
       id: String(b.id), title: String(b.title || b.id), x: Number(b.x) || 0, y: Number(b.y) || 0,
       width: Math.max(10, Number(b.width) || 1000), height: Math.max(10, Number(b.height) || 1000), ground: b.ground || d.artboard.ground,
       ...(b.text ? { text: String(b.text) } : {}), ...(b.code ? { code: String(b.code) } : {}),
-      ...(b.follow ? { follow: true } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5) } : {})
+      ...(b.follow ? { follow: true } : {}), ...(b.live ? { live: true } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5) } : {})
     }));
     const ids = new Set([MAIN, BLACKBOARD, ...d.boards.map(b => b.id)]);
     for (const e of d.elements) if (e.board && !ids.has(e.board)) e.board = BLACKBOARD;

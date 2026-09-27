@@ -59,6 +59,13 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
     - Live runs are `transient` changes: no undo step, no log.
     - `board.source` shows a source under a board (`app.drawReference`).
 23. **UI and agents:** the Sources panel (`panels/sources.js`) and `ams_source`.
+24. **Live and paused boards:**
+    - `app.isBoardLive`: the board you are on, or `board.live`. `app.isBoardActive` adds "on screen".
+    - Paused boards are baked by `canvasView.drawBaked`, a per-board picture at a half-octave zoom. A live redraw drops only its own board's picture (`store.lastLiveBoard`); any other change drops them all.
+    - `sources.wanted` pauses sampling.
+    - `getSource(…, { peek })`: frozen renders don't keep sources awake.
+25. **Bake to image:** `app.bakeMarks(ids, { rect })` and `app.bakeBoard(id)` make one image mark with `e.bake` provenance, in one undo step.
+26. **Fixes:** autosave is throttled (a live board starved the debounce) and flushed on `pagehide`; video assets; large GIFs; MediaPipe video mode for streams.
 
 ## How the model fits
 
