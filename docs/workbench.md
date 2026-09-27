@@ -110,6 +110,36 @@ It is kept minimal.
 - **Running a score** (Score panel, a generated candidate, an agent) draws into the active board and replaces that board's marks. The other boards and the blackboard stay.
 - **Naming:** project > scene > board > stage and marks. New project starts over (after offering to keep the current one in Assets); New scene adds a drawing.
 
+## Drawing and editing points
+
+- **Point by point:** with a drawing tool, click without dragging; each click adds a point. Double-click or Enter finishes, clicking the first point closes, Backspace removes the last point, Esc finishes.
+- **Closing:** a line drawn back to its start closes itself.
+- **Smooth or straight:** double-tap CapsLock (it ends as it was) flips the path of the stroke being drawn, or of the selected marks. Properties → Look → Path sets it too.
+- **Tool settings:** right-click Point, Line or Plane (or the gesture/guide button) for the brush, its settings, opacity, blend and path of new marks. They stay until changed.
+- **Direct selection** (Shift+V, sharing the Select slot):
+  - Click a mark to see its points, and drag points to move them.
+  - Shift-click or a marquee selects several.
+  - Double-click a segment to add a point; Delete removes points.
+- **Snapping:**
+  - Hold Ctrl while drawing, moving or scaling to snap.
+  - **Snap to** (right-click the grid button) sets how: *Grid* puts the grabbed point on a grid point (the default), *Steps* moves in whole grid steps, *Objects* snaps to the nearest point of another mark.
+  - Right-click → Snap works on a selection: points to grid, tidy, position (top-left or center), or quantize 2× or 4×.
+- **Simplify** (with Lazy and Smoothing) keeps only the points a line needs, live while drawing.
+- **Brushes:**
+  - **Pen:** one constant width.
+  - **Ink:** width follows pressure, smoothed along the line.
+- **Copy and add:** right-click selected marks → Copy as SVG, PNG or p5 code, or Add to Assets as PNG (it opens again as a drawing) or SVG.
+
+## Workspace
+
+- **Background:** Settings → Workspace, or the command palette: `/background <color | transparent | default>` and `/transparent`.
+  - Transparent shows what is behind the window, for a see-through browser overlay.
+  - Other slash commands: `/ui`, `/present`, `/grid`.
+- **One HTML file:** `npm run build:single` → `dist-single/ams.html` (about 3 MB), the whole workbench to open from disk (for example in CloudyWindow). In-browser WebGPU models are left out.
+- **Panels:** drag a panel tab along its row to reorder it.
+- **Toolbars:** drag an island by its grip; a moved island keeps its size.
+- **Performance readout:** right-click the zoom control. It shows frames per second while redrawing, the last redraw time and the number of marks; a redraw over 16 ms shows in the accent color.
+
 ## Scenes, boards and pages
 
 A **project** holds **scenes**, and a scene holds **boards**. It is enough to write a lecture, a blog post or a report, or to prepare a performance.
@@ -268,7 +298,12 @@ The full vocabulary is in the Score panel (**Vocabulary**), in the Docs, and in 
 From the menu:
 - **PNG:** the picture view or the process view.
 - **SVG:** one group per stage, and each element's full record in `data-ams-*` (it re-imports losslessly).
-- **p5.js zip:** re-runs the score. P toggles the process view, 1–9 show the stages, R reseeds.
+- **p5.js zip:** a standalone sketch of the active board (or a board, from its menu): the recorded board with its own brushes, drawn by the studio's renderer inside the sketch. R re-runs the board's code (or, for the main board, the drawing's score) with a new seed; P toggles the process view, 1–9 show the stages.
+- **p5 (minimal code):** a short `sketch.js` of plain p5 calls for teaching (also Copy as → p5 code on a selection).
+  - Lines are `beginShape()` with `splineVertex` (smooth) or `vertex` (straight); planes are filled shapes, points circles, notes text.
+  - Only the points that shape each line are kept. Brush textures are left out; a comment names each mark's brush.
+- **p5.js version:** Settings → Export: 2.x (latest, the default) or 1.x (`curveVertex`). The full export loads `p5@2` or `p5@1`.
+- **Page (HTML):** see *Scenes, boards and pages*.
 - **Process sheet:** a PNG of the stages and the decisions.
 - **Process JSON.**
 - **Excalidraw:** round-trips to underscores through `customData.ams`.
@@ -324,8 +359,8 @@ policy with `training/decisions/` (see its README).
 ## Next
 
 - **A modifier stack:** non-destructive, Blender-like operations on a mark, with Apply to make them destructive.
-- **A direct point editor** building on the points view.
 - **Richer range comments,** with colors, choices and switches.
 - **Curve and SVG optimization filters:** like Simplify, but aimed at SVG output (fewer and simpler paths for hatching and stipple).
 - **Group frames** (plain, Excalidraw-style) beside boards; per-board grids and snapping.
 - **Sequencing scenes,** and cameras separate from boards (a view that travels across several boards).
+- **Rendering cache:** keep each mark's rendering until it changes. Panning a drawing of about 20 heavy marks runs near 30 fps, with redraws around 20 ms.
