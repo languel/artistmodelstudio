@@ -85,6 +85,8 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 
 35. **Parts** (`src/process/parts.js`): `scenePart`, `boardPart` and `selectionPart` write `.ams.json` with `meta.part`. `importPart` brings any of them into the open scene (new boards, or a group at a point; stages matched by name, new ids). The app wires it through the board and selection menus, *Import into this scene…*, *Import here…*, drag and drop, and paste.
 
+36. **GitHub Pages:** `.github/workflows/pages.yml` runs on every push to `main`: test, build with `BASE_PATH=/<repo>/` (`vite.config.js` `base`), deploy. Live at https://languel.github.io/artistmodelstudio/ (public, though the repo is private). The dev-server features (the `/__ams` relay, probe saving, the Decide proxy) and cross-origin isolation are not available there.
+
 ## How the model fits
 
 ```
