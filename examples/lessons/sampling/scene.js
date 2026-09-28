@@ -88,7 +88,7 @@ export async function buildLessonScene(app, { language = 'studio', title = `Less
     let id;
     if (b.id === 'seurat') { id = 'main'; st.updateBoard('main', { title: b.title, width: BW, height: BH }); }
     else id = st.addBoard({ title: b.title, width: BW, height: BH, x, y, ...(b.ground ? { ground: b.ground } : {}) }).id;
-    st.updateBoard(id, { text: b.idea });
+    st.updateBoard(id, { text: b.idea, ...(b.pseudo ? { pseudo: b.pseudo } : {}) });
     if (b.reference) app.setBoardSource(id, b.source, 1, b.fit || 'cover');
     if (b.live) app.setBoardLive(id, true);
     if (b.code) {

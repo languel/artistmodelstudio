@@ -428,7 +428,7 @@ export class ProcessStore {
     return this.change('board', d => {
       if (id === MAIN) {
         if ('title' in patch) d.artboard.title = patch.title;
-        for (const k of ['width', 'height', 'ground', 'text', 'code', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete d.artboard[k]; else d.artboard[k] = patch[k]; }
+        for (const k of ['width', 'height', 'ground', 'text', 'code', 'pseudo', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete d.artboard[k]; else d.artboard[k] = patch[k]; }
         return;
       }
       const b = d.boards.find(x => x.id === id);

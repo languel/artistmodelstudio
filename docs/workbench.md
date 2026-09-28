@@ -164,10 +164,10 @@ A **project** holds **scenes**, and a scene holds **boards**. It is enough to wr
 - **Page** (Export → Page): the drawing as one HTML file.
   - The page uses the studio's dark theme, and follows reading order (as the boards are laid out: rows top to bottom, each left to right).
   - Each board is a section, depending on its kind:
-    - **Drawing:** its picture, then Picture / Process / Replay, its sliders up front, and **Run** for a board that follows a moving source. Its code is folded away.
+    - **Drawing:** its picture, then ▶ (for a board that follows a moving source), Picture / Process / Replay, and its sliders, all below the picture. Under them, its code in one box with tabs: **Pseudocode** (a board's `pseudo`, when it has one), **Studio** and **p5.js**, with Copy. On the page, a notes board's folded pseudocode and code callouts give way to that box.
     - **Markdown:** the document itself. `[[links]]` jump to boards on the page, and `![[embeds]]` show their pictures. A Markdown board titled "*Board* · notes" joins that board's section.
     - **HTML:** its page, in a sandboxed frame.
-    - **p5:** Run starts the sketch in a sandboxed frame.
+    - **p5:** ▶ below the sketch starts it in a sandboxed frame; its code box has p5.js (and Studio, when the sketch came from studio code).
   - The pictures of the sources the boards read travel inside the page and are sampled there, so sliders and Run work without the studio. Pose and hands still need the studio.
   - A page that opens with a document uses it as its header.
   - The studio's renderer is inside the page, and so is the drawing, so File → Open the page to keep working on it.

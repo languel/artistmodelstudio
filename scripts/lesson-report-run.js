@@ -2,6 +2,8 @@
 // Range comments in the code (const n = 4000 /* 500..12000 */) become sliders that re-run it.
 const SKETCHES = JSON.parse(document.getElementById('sketches').textContent);
 const P5 = 'https://cdn.jsdelivr.net/npm/p5@2.3.2/lib/p5.min.js';
+const GLYPH = { play: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>', pause: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg>' };
+const setRun = (btn, running) => { btn.innerHTML = running ? GLYPH.pause : GLYPH.play; btn.setAttribute('aria-label', running ? 'Stop' : 'Run'); };
 const RANGE = /([A-Za-z_$][\w$]*)\s*=\s*(-?[\d.]+)(\s*\/\*\s*(-?[\d.]+)\s*\.\.\s*(-?[\d.]+)\s*\*\/)/g;
 const frameDoc = code => '<!doctype html><html><head><meta charset="utf-8">'
   + '<base href="' + location.href.replace(/[^/]*$/, '') + '">'
@@ -20,9 +22,10 @@ for (const fig of document.querySelectorAll('figure[data-run]')) {
       stage.prepend(frame);
     }
     frame.srcdoc = frameDoc(code());
-    btn.textContent = 'Stop';
+    setRun(btn, true);
   };
-  const stop = () => { if (frame) frame.remove(); frame = null; stage.querySelector('img').hidden = false; btn.textContent = 'Run'; };
+  const stop = () => { if (frame) frame.remove(); frame = null; stage.querySelector('img').hidden = false; setRun(btn, false); };
+  setRun(btn, false);
   btn.addEventListener('click', () => (frame ? stop() : start()));
   for (const p of params) {
     const whole = [p.value, p.min, p.max].every(Number.isInteger);

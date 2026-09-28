@@ -42,8 +42,8 @@ const sections = LESSON.sections.map(sec => {
       return `
     <article class="example${b.w / b.h > 2 ? ' wide' : ''}" id="${b.id}">
       <figure class="out"${runs ? ` data-run="${b.id}"` : ''}>
-        <div class="stage" style="aspect-ratio: ${b.w} / ${b.h}"><img src="${img(`${b.id}.jpg`)}" alt="${esc(b.title)}" loading="lazy">${runs ? '<button class="run" type="button">Run</button>' : ''}</div>
-        ${runs ? '<div class="controls"></div>' : ''}
+        <div class="stage" style="aspect-ratio: ${b.w} / ${b.h}"><img src="${img(`${b.id}.jpg`)}" alt="${esc(b.title)}" loading="lazy"></div>
+        ${runs ? '<div class="under"><button class="run" type="button" aria-label="Run"></button><div class="controls"></div></div>' : ''}
         ${!runs ? '<figcaption>Needs ml5.js: run the exported sketch (with ml5) or the board in the studio.</figcaption>' : b.follow ? '<figcaption>Run it to see it follow the walk, frame after frame.</figcaption>' : ''}
       </figure>
       <div class="text">
@@ -103,8 +103,9 @@ figure.out { gap: 10px; }
 .stage { position: relative; width: 100%; max-width: 100%; }
 .stage img, .stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 1px solid var(--line); border-radius: 4px; display: block; background: var(--code); }
 .stage img { object-fit: cover; }
-.run { position: absolute; left: 10px; bottom: 10px; font: 500 0.75rem var(--mono); letter-spacing: 0.04em; color: var(--text); background: rgba(20, 20, 20, 0.82); border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; cursor: pointer; }
-.run:hover { border-color: var(--accent); }
+.under { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.run { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 50%; cursor: pointer; }
+.run:hover { color: var(--text); border-color: var(--muted); }
 .run:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
 .controls { display: grid; gap: 6px; }
 .controls:empty { display: none; }

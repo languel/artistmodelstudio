@@ -43,7 +43,7 @@ export function slidesOf(doc) {
 export function boardsOf(doc) {
   const a = doc.artboard || { width: 1000, height: 1000, ground: '#f3efe6' };
   return [
-    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.paused ? { paused: true } : {}), ...(a.kind ? { kind: a.kind } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity, ...(a.sourceFit ? { sourceFit: a.sourceFit } : {}) } : {}), main: true },
+    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.pseudo ? { pseudo: a.pseudo } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.paused ? { paused: true } : {}), ...(a.kind ? { kind: a.kind } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity, ...(a.sourceFit ? { sourceFit: a.sourceFit } : {}) } : {}), main: true },
     ...(doc.boards || []).map(b => ({ ...b, main: false }))
   ];
 }
@@ -125,7 +125,7 @@ export function migrateBoards(d) {
     d.boards = d.boards.filter(b => b && b.id && b.id !== MAIN && b.id !== BLACKBOARD).map(b => ({
       id: String(b.id), title: String(b.title || b.id), x: Number(b.x) || 0, y: Number(b.y) || 0,
       width: Math.max(10, Number(b.width) || 1000), height: Math.max(10, Number(b.height) || 1000), ground: b.ground || d.artboard.ground,
-      ...(b.text ? { text: String(b.text) } : {}), ...(b.code ? { code: String(b.code) } : {}),
+      ...(b.text ? { text: String(b.text) } : {}), ...(b.code ? { code: String(b.code) } : {}), ...(b.pseudo ? { pseudo: String(b.pseudo) } : {}),
       ...(b.follow ? { follow: true } : {}), ...(b.live ? { live: true } : {}), ...(b.paused ? { paused: true } : {}), ...(b.kind ? { kind: String(b.kind) } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5), ...(b.sourceFit ? { sourceFit: String(b.sourceFit) } : {}) } : {})
     }));
     const ids = new Set([MAIN, BLACKBOARD, ...d.boards.map(b => b.id)]);

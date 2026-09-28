@@ -38,6 +38,11 @@ export const pageRuntime = () => [
   ...[scriptSrc, controlsSrc].map(strip)
 ].join('\n;\n');
 
+// Play and pause as glyphs (the page's run control: small, in the corner, shown on hover).
+const PLAY_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>';
+const COPY_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 15V6a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+const PAUSE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg>';
+
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
 /**
@@ -55,10 +60,11 @@ export const sourcesOf = b => [...new Set([...(b.code || '').matchAll(/source\(\
 /**
  * The page. opts: { title, intro (Markdown), boards (ids, in order), byline,
  *   media: { name: { url (data: URL), type: 'image' | 'animated' | 'video' } }   the sources
+ *   codes: { boardId: { pseudo, studio, p5 } }   a board's code, shown as tabs of one box
  *   pictures: { boardId: data URL }   board pictures for ![[embeds]]
  *   p5Source: p5.js itself (when there are p5 boards) }
  */
-export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.meta?.intro || '', boards = null, byline = '', media = {}, pictures = {}, p5Source = '' } = {}) {
+export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.meta?.intro || '', boards = null, byline = '', media = {}, pictures = {}, p5Source = '', codes = {} } = {}) {
   let list = boards ? boards.map(id => boardsOf(doc).find(b => b.id === id)).filter(Boolean) : pageBoards(doc);
   // Boards inside a frame are shown in it, not on their own.
   const framed = new Set(list.filter(isFrame).flatMap(f => boardsInFrame(doc, f).map(x => x.id)));
@@ -88,30 +94,44 @@ export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.me
 
   let n = 0;
   const fit = b => `aspect-ratio: ${b.width} / ${b.height}; max-width: min(100%, calc(78vh * ${(b.width / b.height).toFixed(4)}))`;   // never taller than the screen
+  // A board's code: one box, a tab per way of writing it (pseudocode, studio, p5.js), and Copy.
+  const codeBox = b => {
+    const c = codes[b.id] || (boardKind(b) === 'p5' ? { p5: b.code } : { studio: b.code });
+    const tabs = [['pseudo', 'Pseudocode'], ['studio', 'Studio'], ['p5', 'p5.js']].filter(([k]) => c[k]);
+    if (!tabs.length) return '';
+    const first = boardKind(b) === 'p5' && !c.pseudo ? 'p5' : tabs[0][0];
+    return `<div class="codebox">
+    <div class="tabs" role="tablist">${tabs.map(([k, t]) => `<button role="tab" data-tab="${k}" aria-selected="${k === first}">${t}</button>`).join('')}<button class="copy" type="button" aria-label="Copy" title="Copy">${COPY_ICON}</button></div>
+    ${tabs.map(([k]) => `<pre data-pane="${k}"${k === first ? '' : ' hidden'}><code${k === 'studio' && boardKind(b) === 'drawing' ? ` data-code-for="${esc(b.id)}"` : ''}>${esc(c[k])}</code></pre>`).join('\n    ')}
+  </div>`;
+  };
+  // Notes' folded code callouts (pseudocode, the other language) are the code box's tabs on the page.
+  const withoutCode = src => src.replace(/(^|\n)> \[!(abstract|example)\]-[^\n]*(\n>[^\n]*)*/g, '');
   // One board's content (its heading given), by kind.
   const boardHtml = (b, head, own = true) => {
     const kind = boardKind(b), note = own ? notes.get(b.id) : null;
-    if (kind === 'markdown') return `<div class="md" id="${esc(b.id)}">${mdHtml(b.code || '')}</div>`;
+    if (kind === 'markdown') return `<div class="md" id="${esc(b.id)}">${mdHtml(/ · notes$/.test(b.title) ? withoutCode(b.code || '') : b.code || '')}</div>`;
     // Notes say it all when there are some (their heading repeats the board's title: left out).
-    const noteSrc = note ? (note.code || '').replace(new RegExp(`^#{1,3}\\s+${b.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n`), '') : '';
+    const noteSrc = note ? withoutCode(note.code || '').replace(new RegExp(`^#{1,3}\\s+${b.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n`), '') : '';
     const after = note ? `<div class="notes md" id="${esc(note.id)}">${mdHtml(noteSrc)}</div>` : own && b.text ? `<div class="idea md">${md(b.text)}</div>` : '';
     if (kind === 'html') return `${head}<div class="stage" style="${fit(b)}"><iframe sandbox="allow-scripts" title="${esc(b.title)}" data-html="${esc(b.id)}"></iframe></div>${after}
   <details class="code"><summary>HTML</summary><pre><code>${esc(b.code || '')}</code></pre></details>`;
-    if (kind === 'p5') return `${head}<div class="stage p5" data-p5="${esc(b.id)}" style="${fit(b)}"><button class="run" type="button">Run</button></div>${after}
-  <details class="code"><summary>p5.js</summary><pre><code>${esc(b.code || '')}</code></pre></details>`;
+    if (kind === 'p5') return `${head}<div class="stage p5" data-p5="${esc(b.id)}" style="${fit(b)}"></div>
+  <div class="bar"><button class="run" type="button" aria-label="Run" data-p5-run="${esc(b.id)}">${PLAY_ICON}</button><span class="meta">p5.js sketch · ${b.width}×${b.height}</span></div>${after}
+  ${codeBox(b)}`;
     const one = boardDoc(doc, b.id), marks = one.elements.length;
     const stages = new Set(one.elements.map(e => e.stage)).size;
     const landmarks = /\.(pose|hands)\b|\.mask\s*\(/.test(b.code || '');
     const runs = b.follow && !landmarks && sourcesOf(b).some(s => media[s] && media[s].type !== 'image');
     return `${head}
-  <figure class="fig" data-board="${esc(b.id)}" style="${fit(b)}"><canvas role="img" aria-label="${esc(b.title)}"></canvas>${runs ? '<button class="run" type="button">Run</button>' : ''}</figure>
+  <figure class="fig" data-board="${esc(b.id)}" style="${fit(b)}"><canvas role="img" aria-label="${esc(b.title)}"></canvas></figure>
   <div class="bar" data-for="${esc(b.id)}">
-    <button data-act="picture" class="on">Picture</button>${marks ? '<button data-act="process">Process</button><button data-act="replay">Replay</button>' : ''}
+    ${runs ? `<button class="run" type="button" aria-label="Run" title="Run: follow the source">${PLAY_ICON}</button>` : ''}<button data-act="picture" class="on">Picture</button>${marks ? '<button data-act="process">Process</button><button data-act="replay">Replay</button>' : ''}
     <span class="meta">${marks ? `${marks} marks · ${stages} stage${stages === 1 ? '' : 's'} · ` : ''}${b.width}×${b.height}${landmarks ? ' · follows a pose: run it in the studio' : ''}</span>
   </div>
   ${b.code ? `<div class="live" data-for="${esc(b.id)}"></div>` : ''}
   ${after}
-  ${b.code ? `<details class="code"><summary>Code</summary><pre><code data-code-for="${esc(b.id)}">${esc(b.code)}</code></pre></details>` : ''}`;
+  ${b.code ? codeBox(b) : ''}`;
   };
   const numbered = b => { n++; return `<h2>${/^[\d§]/.test(b.title) ? '' : `<span class="n">${n}</span>`}${esc(b.title)}</h2>`; };   // titles that carry their own number keep it alone
   const sections = list.map(b => {
@@ -131,7 +151,7 @@ export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.me
       const same = t => t.replace(/ · notes$/, '').trim() === b.title.trim();
       const cell = x => {
         if (boardKind(x) !== 'markdown') return boardHtml(x, same(x.title) ? '' : `<h3>${esc(x.title)}</h3>`, lone);
-        const src = (x.code || '').replace(/^\s*#{1,3}\s+(.+)\n/, (all, t) => (same(t) ? '' : all));
+        const src = (/ · notes$/.test(x.title) ? withoutCode(x.code || '') : x.code || '').replace(/^\s*#{1,3}\s+(.+)\n/, (all, t) => (same(t) ? '' : all));
         return `<div class="md" id="${esc(x.id)}">${mdHtml(src)}</div>`;
       };
       return `<section class="frame" id="${esc(b.id)}">${/^\s*$/.test(b.title) || inside.some(x => boardKind(x) === 'markdown' && /^#\s/m.test(x.code || '')) ? '' : numbered(b)}
@@ -191,9 +211,9 @@ h2 { font-size: 1.15rem; font-weight: 500; margin: 0; }
 h2 .n { color: var(--muted); font: 0.8rem var(--mono); margin-right: 10px; }
 figure.fig, .stage { position: relative; margin: 0; width: 100%; justify-self: start; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--code); }
 figure.fig canvas, .stage iframe { display: block; width: 100%; height: 100%; border: 0; }
-.run { position: absolute; left: 10px; bottom: 10px; font: 500 0.75rem var(--mono); letter-spacing: 0.04em; color: var(--text); background: rgba(20, 20, 20, 0.84); border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; cursor: pointer; }
-.stage.p5 .run { left: 50%; top: 50%; bottom: auto; transform: translate(-50%, -50%); }
-.run:hover { border-color: var(--accent); }
+.bar .run { display: inline-grid; place-items: center; width: 28px; padding: 5px 0; color: var(--text); }
+.bar .run:hover { color: var(--accent); }
+.stage.p5:empty { background: var(--code) repeating-linear-gradient(45deg, transparent 0 10px, rgba(255, 255, 255, 0.015) 10px 20px); }
 .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font: 0.78rem var(--sans); border-bottom: 1px solid var(--line); }
 .bar button { font: inherit; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); padding: 5px 10px; margin-bottom: -1px; cursor: pointer; }
 .bar button.on { color: var(--text); border-bottom-color: var(--accent); }
@@ -229,6 +249,13 @@ figure.fig canvas, .stage iframe { display: block; width: 100%; height: 100%; bo
 .md .md-callout-quote { border-left-color: var(--accent); }
 .md pre.mermaid { background: none; border: 0; text-align: center; }
 .notes { padding-top: 4px; }
+.codebox { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.codebox .tabs { display: flex; gap: 2px; padding: 4px 6px 0; border-bottom: 1px solid var(--line); }
+.codebox .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); font: 0.78rem var(--mono); padding: 6px 10px; cursor: pointer; }
+.codebox .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.codebox .tabs .copy { margin-left: auto; display: grid; place-items: center; }
+.codebox .tabs .copy:hover, .codebox .tabs .copy.done { color: var(--text); }
+.codebox pre { margin: 0; border: 0; border-radius: 0; max-height: 420px; overflow: auto; }
 details.code summary { cursor: pointer; color: var(--muted); font: 0.78rem var(--mono); }
 details.code pre { margin-top: 10px; }
 footer { color: var(--muted); font-size: 0.82rem; margin-top: 48px; }
@@ -320,6 +347,10 @@ const PAGE_UI = String.raw`
       pixels: (w, h) => { const o = new Float32Array(w * h * 3); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const c = rgb((x + 0.5) / w, (y + 0.5) / h), i = (y * w + x) * 3; o[i] = c[0]; o[i + 1] = c[1]; o[i + 2] = c[2]; } return o; } };
   });
 
+  // The run control: ▶ to run, ‖ to pause (a glyph, with its name for screen readers).
+  const GLYPH = { play: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>', pause: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg>' };
+  const setRun = (btn, running) => { btn.innerHTML = running ? GLYPH.pause : GLYPH.play; btn.setAttribute('aria-label', running ? 'Pause' : 'Run'); };
+
   const views = [];
   for (const fig of document.querySelectorAll('figure.fig')) {
     const id = fig.dataset.board, one = boardDoc(doc, id), b = boardById(doc, id);
@@ -395,14 +426,14 @@ const PAGE_UI = String.raw`
       }
     }
     // Run: a board that follows a moving source redraws from each new frame, while it is on screen.
-    const run = fig.querySelector('.run');
+    const run = bar && bar.querySelector('.run');
     if (run) {
       let timer = 0, seen = true;
       new IntersectionObserver(es => { seen = es[0].isIntersecting; }).observe(fig);
       const tick = async () => { if (!seen) return; await advance(); rerun(); };
       run.addEventListener('click', () => {
-        if (timer) { clearInterval(timer); timer = 0; run.textContent = 'Run'; return; }
-        timer = setInterval(tick, 110); run.textContent = 'Stop';
+        if (timer) { clearInterval(timer); timer = 0; setRun(run, false); return; }
+        timer = setInterval(tick, 110); setRun(run, true);
       });
     }
     views.push(v);
@@ -414,17 +445,31 @@ const PAGE_UI = String.raw`
   for (const f of document.querySelectorAll('iframe[data-html]')) { const b = board(f.dataset.html); if (b) f.srcdoc = '<!doctype html><meta charset="utf-8">' + bridge(b) + (b.code || ''); }
   const p5 = document.getElementById('ams-p5');
   for (const st of document.querySelectorAll('.stage[data-p5]')) {
-    const b = board(st.dataset.p5), btn = st.querySelector('.run');
+    const b = board(st.dataset.p5), btn = document.querySelector('.run[data-p5-run="' + CSS.escape(st.dataset.p5) + '"]');
     btn.addEventListener('click', () => {
       const old = st.querySelector('iframe');
-      if (old) { old.remove(); btn.textContent = 'Run'; return; }
+      if (old) { old.remove(); setRun(btn, false); return; }
       const f = document.createElement('iframe'); f.setAttribute('sandbox', 'allow-scripts'); f.title = b.title;
       // Files the sketch loads by name (loadImage("seurat.jpg")) come from the pictures in this page.
       const files = {};
       for (const m of (b.code || '').matchAll(/(?:loadImage|createVideo|loadJSON|loadStrings)\(\s*["'\x60]([^"'\x60]+)["'\x60]/g)) { const k = m[1].split('/').pop().replace(/\.[^.]+$/, ''); if (MEDIA[k]) files[m[1]] = MEDIA[k].url; }
       const loader = '(() => { const F = ' + JSON.stringify(files).replace(/</g, '\\u003c') + '; for (const k of ["loadImage", "createVideo", "loadJSON", "loadStrings"]) { const f = p5.prototype[k]; if (typeof f === "function") p5.prototype[k] = function (p, ...r) { return f.call(this, F[p] || p, ...r); }; } })();';
       f.srcdoc = '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;overflow:hidden;background:transparent}canvas{display:block;width:100%!important;height:auto!important}</style>' + bridge(b) + '<script>' + (p5 ? p5.textContent : '') + '<\/script><script>' + loader + '<\/script><script>' + (b.code || '').replace(/<\/script/gi, '<\\/script') + '<\/script>';
-      st.prepend(f); btn.textContent = 'Stop';
+      st.prepend(f); setRun(btn, true);
+    });
+  }
+
+  // Code boxes: a tab per way of writing the code; Copy copies the tab showing.
+  for (const box of document.querySelectorAll('.codebox')) {
+    const tabs = box.querySelectorAll('[data-tab]');
+    for (const t of tabs) t.addEventListener('click', () => {
+      for (const x of tabs) x.setAttribute('aria-selected', String(x === t));
+      for (const p of box.querySelectorAll('[data-pane]')) p.hidden = p.dataset.pane !== t.dataset.tab;
+    });
+    const copy = box.querySelector('.copy');
+    copy.addEventListener('click', () => {
+      const pane = box.querySelector('[data-pane]:not([hidden])');
+      navigator.clipboard?.writeText(pane.textContent).then(() => { copy.classList.add('done'); setTimeout(() => copy.classList.remove('done'), 900); });
     });
   }
 

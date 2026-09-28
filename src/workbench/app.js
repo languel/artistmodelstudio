@@ -1399,8 +1399,17 @@ export class Workbench {
         if (t && !pictures[t.id] && boardKind(t) === 'drawing') pictures[t.id] = renderToCanvas(doc, { board: t.id, scale: Math.min(1, 900 / Math.max(t.width, t.height)), mode: 'picture' }).toDataURL('image/jpeg', 0.85);
       }
     }
-    const p5Source = list.some(b => boardKind(b) === 'p5') ? await this.frames.p5Text() : '';
-    return sceneHtml(doc, { ...opts, media, pictures, p5Source });
+    const p5Source = boardsOf(doc).some(b => boardKind(b) === 'p5') ? await this.frames.p5Text() : '';
+    // Each board's code in the three ways the lesson reads it: pseudocode, the studio's, p5.js.
+    const codes = {};
+    for (const b of boardsOf(doc)) {
+      const kind = boardKind(b);
+      if (!b.code || (kind !== 'drawing' && kind !== 'p5')) continue;
+      const studio = kind === 'drawing' ? b.code : isStudioSketch(b.code) ? p5ToStudio(b.code)?.code : null;
+      const p5 = kind === 'p5' ? b.code : (await this.p5CodeFor(b.id))?.code;
+      codes[b.id] = { pseudo: b.pseudo || '', studio: studio || '', p5: p5 || '' };
+    }
+    return sceneHtml(doc, { ...opts, media, pictures, p5Source, codes });
   }
 
   async exportAs(kind, board = this.activeBoard || MAIN) {
