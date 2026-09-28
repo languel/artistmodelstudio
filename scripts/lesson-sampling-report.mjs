@@ -22,7 +22,8 @@ const sections = LESSON.sections.map(sec => {
   const ref = sec.boards.find(b => b.reference) || { source: sec.boards[0].source };
   const examples = sec.boards.filter(b => !b.reference);
   const src = LESSON.sources[ref.source];
-  const refPic = src && (src.animated ? img('walk-anim.gif', 'image/gif') : img(`${ref.id}.jpg`));
+  // The source itself, uncropped (its board shows it fitted to 4:3).
+  const refPic = src && (src.animated ? img('walk-anim.gif', 'image/gif') : `data:image/jpeg;base64,${fs.readFileSync(path.resolve('examples/lessons/sampling/media', src.file)).toString('base64')}`);
   return `
   <section class="part${src ? '' : ' plain'}">
     <header class="part-head">
@@ -39,6 +40,8 @@ const sections = LESSON.sections.map(sec => {
       const runs = !/\bml5\./.test(p5);
       if (runs) runnable[b.id] = { w: b.w, h: b.h, code: p5.replace(/loadImage\("([^"]+)"\)/g, 'loadImage("media/$1")') };
       const id = `ex${n}`;
+      // The diagrams (how we see) are not the lesson's code: folded away, the studio's first.
+      const fold = Boolean(sec.diagram), studioFirst = fold;
       return `
     <article class="example${b.w / b.h > 2 ? ' wide' : ''}" id="${b.id}">
       <figure class="out"${runs ? ` data-run="${b.id}"` : ''}>
@@ -49,15 +52,17 @@ const sections = LESSON.sections.map(sec => {
       <div class="text">
         <h3>${esc(b.title)}</h3>
         <p>${esc(b.idea)}</p>
+        ${fold ? '<details class="fold"><summary>Code</summary>' : ''}
         <div class="tabs" role="tablist" aria-label="${esc(b.title)}: code">
-          ${b.pseudo ? `<button role="tab" id="${id}-t0" aria-controls="${id}-p0" aria-selected="true">Pseudocode</button>` : ''}
-          <button role="tab" id="${id}-t1" aria-controls="${id}-p1" aria-selected="${b.pseudo ? 'false' : 'true'}">Studio</button>
+          ${b.pseudo ? `<button role="tab" id="${id}-t0" aria-controls="${id}-p0" aria-selected="${!studioFirst}">Pseudocode</button>` : ''}
+          <button role="tab" id="${id}-t1" aria-controls="${id}-p1" aria-selected="${!b.pseudo || studioFirst}">Studio</button>
           <button role="tab" id="${id}-t2" aria-controls="${id}-p2" aria-selected="false">p5.js</button>
           <button class="copy" type="button" data-for="${id}">Copy</button>
         </div>
-        ${b.pseudo ? `<pre class="code pseudo" role="tabpanel" id="${id}-p0" aria-labelledby="${id}-t0">${esc(b.pseudo)}</pre>` : ''}
-        <pre class="code" role="tabpanel" id="${id}-p1" aria-labelledby="${id}-t1"${b.pseudo ? ' hidden' : ''}>${code(b.code)}</pre>
+        ${b.pseudo ? `<pre class="code pseudo" role="tabpanel" id="${id}-p0" aria-labelledby="${id}-t0"${studioFirst ? ' hidden' : ''}>${esc(b.pseudo)}</pre>` : ''}
+        <pre class="code" role="tabpanel" id="${id}-p1" aria-labelledby="${id}-t1"${b.pseudo && !studioFirst ? ' hidden' : ''}>${code(b.code)}</pre>
         <pre class="code" role="tabpanel" id="${id}-p2" aria-labelledby="${id}-t2" hidden>${code(p5)}</pre>
+        ${fold ? '</details>' : ''}
       </div>
     </article>`;
     }).join('')}
@@ -96,6 +101,9 @@ code { font-family: var(--mono); font-size: 0.85em; color: var(--accent); }
 .part-head { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 32px; align-items: start; }
 .part.plain .part-head { grid-template-columns: minmax(0, 1fr); }
 .part-head > div { display: grid; gap: 12px; }
+.fold > summary { cursor: pointer; color: var(--muted); font: 0.78rem var(--mono); list-style: none; }
+.fold > summary::before { content: '▸ '; } .fold[open] > summary::before { content: '▾ '; }
+.fold[open] > summary { margin-bottom: 10px; }
 .source-note { color: var(--muted); font-size: 0.9rem; }
 figure { margin: 0; display: grid; gap: 8px; }
 figure img { width: 100%; height: auto; display: block; border-radius: 4px; border: 1px solid var(--line); }

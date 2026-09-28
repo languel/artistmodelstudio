@@ -432,7 +432,7 @@ Documents show as you type. Marks drawn on a document board stay on top of it, a
 - links into the drawing: `[[Board]]`, `[[Board|label]]` and `[[scene:Title]]`;
 - embeds: `![[Board]]` shows a board's picture, `![[asset:Title]]` an asset.
 
-A document longer than its board grows past it on the board's paper.
+A document longer than its board scrolls inside it: the wheel over it scrolls it (and a wide code block sideways) until it ends, then pans the canvas. Opening a fold scrolls it into view.
 
 **HTML and p5.js** run in sandboxed frames over their boards, with a bridge to the studio, `window.ams`:
 - `ams.width`, `ams.height`, `ams.board`: the board;

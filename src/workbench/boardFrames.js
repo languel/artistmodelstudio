@@ -97,6 +97,27 @@ export class BoardFrames {
     this.files = {};             // file name a sketch loads → data URL (from a source), or null
     this.tokens = new Map();      // a frame's token → its board id (kept a moment after it goes, for its last picture)
     window.addEventListener('message', e => this.onMessage(e));
+    // A document longer than its board scrolls: the wheel over it scrolls it (its code blocks sideways)
+    // until it can go no further, then pans the canvas as usual. Ctrl/Cmd+wheel still zooms.
+    this.canvas.host.addEventListener('wheel', e => this.scroll(e), { capture: true, passive: false });
+  }
+
+  scroll(e) {
+    if (e.ctrlKey || e.metaKey) return;
+    const z = this.canvas.cam.z, inside = (el, r = el.getBoundingClientRect()) => e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    for (const f of this.frames.values()) {
+      const md = f.kind === 'markdown' && f.el.firstElementChild;
+      if (!md || !inside(f.el)) continue;
+      const sideways = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      const box = sideways ? [...md.querySelectorAll('pre')].find(p => p.scrollWidth > p.clientWidth + 1 && inside(p)) : md;
+      if (!box) return;
+      const d = (sideways ? e.deltaX : e.deltaY) / z;
+      const [pos, size, view] = sideways ? ['scrollLeft', box.scrollWidth, box.clientWidth] : ['scrollTop', box.scrollHeight, box.clientHeight];
+      if (d > 0 ? box[pos] + view >= size - 1 : box[pos] <= 0) return;
+      box[pos] += d;
+      e.preventDefault(); e.stopPropagation();
+      return;
+    }
   }
 
   /** Called after each canvas redraw (the camera may have moved) and when the drawing changes. */
@@ -257,6 +278,14 @@ export class BoardFrames {
     for (const a of root.querySelectorAll('a[href]:not(.md-link)')) { a.target = '_blank'; a.rel = 'noopener'; }
     for (const span of root.querySelectorAll('.md-embed')) this.embed(span, board);
     renderMermaid([...root.querySelectorAll('pre.mermaid')], dark);
+    // Opening a fold (a callout, a details) brings it into view inside the board: as much of it as fits.
+    const md = root.querySelector('.wb-md');
+    for (const d of root.querySelectorAll('details')) d.addEventListener('toggle', () => {
+      if (!d.open || !md) return;
+      const top = d.getBoundingClientRect().top - md.getBoundingClientRect().top, z = this.canvas.cam.z;
+      const t = top / z + md.scrollTop, h = d.offsetHeight;
+      if (t + h > md.scrollTop + md.clientHeight) md.scrollTo({ top: Math.min(t, t + h - md.clientHeight), behavior: 'smooth' });
+    });
   }
 
   async embed(span, board) {

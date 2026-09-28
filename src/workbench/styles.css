@@ -684,7 +684,7 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-bframe-still { position: absolute; inset: 0; display: grid; place-items: center; color: #8c8c8c; font: 14px var(--font-mono); }
 .wb-bframe-still img { width: 100%; height: 100%; object-fit: contain; }
 /* Markdown: sized in board units (it scales with the board), the studio's quiet type. */
-.wb-md { box-sizing: border-box; width: 100%; height: 100%; padding: 40px 48px; overflow: hidden; color: #262626; font: 17px/1.6 'Inter', system-ui, sans-serif; }
+.wb-md { box-sizing: border-box; width: 100%; height: 100%; padding: 40px 48px; overflow: hidden auto; scrollbar-width: thin; scrollbar-color: rgba(127, 127, 127, 0.45) transparent; color: #262626; font: 17px/1.6 'Inter', system-ui, sans-serif; }
 .wb-bframe.dark .wb-md { color: #dadada; }
 .wb-md > :first-child { margin-top: 0; }
 .wb-md h1, .wb-md h2, .wb-md h3, .wb-md h4 { line-height: 1.2; font-weight: 600; margin: 1.1em 0 0.45em; text-wrap: balance; }
@@ -697,7 +697,7 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-md .md-link.missing { opacity: 0.55; }
 .wb-md details, .wb-md summary, .wb-md input { pointer-events: auto; }
 .wb-md code { font: 0.86em 'JetBrains Mono', ui-monospace, Menlo, monospace; background: rgba(127, 127, 127, 0.14); padding: 0.1em 0.35em; border-radius: 3px; }
-.wb-md pre.md-code { background: rgba(127, 127, 127, 0.12); padding: 14px 16px; border-radius: 4px; overflow: hidden; }
+.wb-md pre.md-code { background: rgba(127, 127, 127, 0.12); padding: 14px 16px; border-radius: 4px; overflow: auto hidden; scrollbar-width: thin; max-width: 100%; }
 .wb-md pre.md-code code { background: none; padding: 0; font-size: 0.8em; line-height: 1.55; }
 .wb-md table { border-collapse: collapse; font-size: 0.92em; }
 .wb-md th, .wb-md td { border-bottom: 1px solid rgba(127, 127, 127, 0.3); padding: 6px 12px 6px 0; text-align: left; }
@@ -723,9 +723,8 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 /* The console (! lines in the Assistant): commands and their results in mono. */
 .wb-msg.you.cmd { font-family: var(--font-mono); background: transparent; border: 1px solid var(--wb-line); }
 .wb-msg.sys.out { align-self: stretch; font: var(--ui-small)/1.45 var(--font-mono); color: var(--wb-text); background: var(--wb-panel-2); border: 1px solid var(--wb-line); max-height: 320px; overflow: auto; user-select: text; }
-/* A document longer than its board (a callout opened) grows past it, on the board's own paper. */
-.wb-bframe-markdown { overflow: visible; }
-.wb-bframe-markdown .wb-md { height: auto; min-height: 100%; background: var(--ground); }
+/* A document longer than its board (a callout opened) scrolls inside it, on the board's own paper. */
+.wb-bframe-markdown .wb-md { background: var(--ground); }
 /* Boards panel: frames (slides) with their boards indented under them. */
 .wb-stage.frame .wb-stage-name { font-weight: 600; }
 .wb-stage.nested { padding-left: 18px; }
