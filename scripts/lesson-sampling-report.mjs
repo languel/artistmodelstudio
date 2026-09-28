@@ -11,6 +11,11 @@ const img = (file, type = 'image/jpeg') => `data:${type};base64,${fs.readFileSyn
 // Comments in code, muted (the only highlighting: the code should read on its own).
 const code = src => esc(src.trim()).replace(/(\/\/[^\n]*|\/\*.*?\*\/)/g, '<span class="c">$1</span>');
 
+// Sketches that can run on the page: every example except those that need ml5.js (its models load
+// from elsewhere, which the page may not fetch). Their pictures are published next to the page, in media/.
+const runnable = {};
+// The page's own script for running sketches (kept in its own file: it is copied in as it is).
+const RUNTIME = fs.readFileSync(path.resolve('scripts/lesson-report-run.js'), 'utf8');
 let n = 0;
 const sections = LESSON.sections.map(sec => {
   // A section opens with its source (a board shown as a reference), or, without one, the source its examples read.
@@ -31,10 +36,16 @@ const sections = LESSON.sections.map(sec => {
     ${examples.map(b => {
       n++;
       const p5 = fs.readFileSync(path.join(dir, 'p5', b.id, 'sketch.js'), 'utf8');
+      const runs = !/\bml5\./.test(p5);
+      if (runs) runnable[b.id] = { w: b.w, h: b.h, code: p5.replace(/loadImage\("([^"]+)"\)/g, 'loadImage("media/$1")') };
       const id = `ex${n}`;
       return `
     <article class="example${b.w / b.h > 2 ? ' wide' : ''}" id="${b.id}">
-      <figure class="out"><img src="${img(`${b.id}.jpg`)}" alt="${esc(b.title)}" loading="lazy">${b.follow ? '<figcaption>One frame: in the studio the board follows the walk and redraws on every frame.</figcaption>' : ''}</figure>
+      <figure class="out"${runs ? ` data-run="${b.id}"` : ''}>
+        <div class="stage" style="aspect-ratio: ${b.w} / ${b.h}"><img src="${img(`${b.id}.jpg`)}" alt="${esc(b.title)}" loading="lazy">${runs ? '<button class="run" type="button">Run</button>' : ''}</div>
+        ${runs ? '<div class="controls"></div>' : ''}
+        ${!runs ? '<figcaption>Needs ml5.js: run the exported sketch (with ml5) or the board in the studio.</figcaption>' : b.follow ? '<figcaption>Run it to see it follow the walk, frame after frame.</figcaption>' : ''}
+      </figure>
       <div class="text">
         <h3>${esc(b.title)}</h3>
         <p>${esc(b.idea)}</p>
@@ -88,6 +99,18 @@ code { font-family: var(--mono); font-size: 0.85em; color: var(--accent); }
 .source-note { color: var(--muted); font-size: 0.9rem; }
 figure { margin: 0; display: grid; gap: 8px; }
 figure img { width: 100%; height: auto; display: block; border-radius: 4px; border: 1px solid var(--line); }
+figure.out { gap: 10px; }
+.stage { position: relative; width: 100%; max-width: 100%; }
+.stage img, .stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 1px solid var(--line); border-radius: 4px; display: block; background: var(--code); }
+.stage img { object-fit: cover; }
+.run { position: absolute; left: 10px; bottom: 10px; font: 500 0.75rem var(--mono); letter-spacing: 0.04em; color: var(--text); background: rgba(20, 20, 20, 0.82); border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; cursor: pointer; }
+.run:hover { border-color: var(--accent); }
+.run:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.controls { display: grid; gap: 6px; }
+.controls:empty { display: none; }
+.ctl { display: grid; grid-template-columns: minmax(70px, auto) 1fr 64px; gap: 10px; align-items: center; font: 0.78rem var(--mono); color: var(--muted); }
+.ctl output { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.ctl input[type=range] { width: 100%; accent-color: var(--accent); }
 figcaption { font-size: 0.8rem; color: var(--muted); line-height: 1.45; }
 .ref img { max-height: 360px; object-fit: contain; object-position: left top; width: auto; max-width: 100%; }
 .example { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 32px; align-items: start; }
@@ -124,12 +147,14 @@ figcaption { font-size: 0.8rem; color: var(--muted); line-height: 1.45; }
   ${sections}
   <footer class="foot">
     <p>Made in Artist Model Studio as the scene “Lesson: ${esc(LESSON.title)}”: one board per example, each running its own code. The boards of the walk follow their source and redraw as it plays.</p>
-    <p>The p5.js sketches are for p5 2.x: images load with <code>await loadImage()</code> in an async <code>setup()</code>, and the studio words they use (<code>drawPoint</code>, <code>drawLine</code>, <code>source</code>) are defined at the end of each sketch. Put the picture next to the sketch and open it through a local server.</p>
+    <p>Run starts an example's p5.js sketch on the page; its sliders come from the ranges written in the code, and move it live. The sketches are for p5 2.x: images load with <code>await loadImage()</code> in an async <code>setup()</code>, and the studio words they use (<code>drawPoint</code>, <code>drawLine</code>, <code>source</code>) are defined at the end of each sketch. Put the picture next to the sketch and open it through a local server.</p>
     <p>The body examples load ml5.js (<code>await ml5.bodyPose('BlazePose')</code>, the same 33 points as the studio) and ask it about each frame of the walk. The custom brush in example 10 runs unchanged in p5: <code>brush()</code> keeps it, and a small kit (<code>frames</code>, <code>smoothPath</code>, <code>source</code>…) lets it draw on p5's <code>drawingContext</code>. On this old photograph ml5's BlazePose finds the walker more reliably than the studio's MediaPipe model, which misses some frames.</p>
     <p>Pictures: Georges Seurat, Edvard Munch and Eadweard Muybridge, all public domain, from Wikimedia Commons. The diagrams of the eye are stylized: the cone curves are simplified, and the mosaic shows proportions, not real counts.</p>
   </footer>
 </div>
+<script type="application/json" id="sketches">${JSON.stringify(runnable).replace(/</g, '\\u003c')}</script>
 <script>
+${RUNTIME}
 for (const list of document.querySelectorAll('.tabs')) {
   const tabs = [...list.querySelectorAll('[role="tab"]')];
   const show = t => { for (const x of tabs) { const on = x === t; x.setAttribute('aria-selected', String(on)); document.getElementById(x.getAttribute('aria-controls')).hidden = !on; } };

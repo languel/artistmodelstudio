@@ -769,7 +769,7 @@ export class CanvasView {
       if (runs) {
         const live = Boolean(this.isBoardLive?.(b.id)), gx = bx + tw + 10, gy = by - 16;
         ctx.save();
-        ctx.fillStyle = live ? accent : muted;
+        ctx.fillStyle = muted;
         if (live) { ctx.fillRect(gx + 1, gy + 1, 3, 10); ctx.fillRect(gx + 7, gy + 1, 3, 10); }   // pause
         else { ctx.beginPath(); ctx.moveTo(gx + 1, gy); ctx.lineTo(gx + 11, gy + 6); ctx.lineTo(gx + 1, gy + 12); ctx.closePath(); ctx.fill(); }   // play
         ctx.restore();
