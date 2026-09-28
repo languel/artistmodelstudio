@@ -79,6 +79,8 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 31. **How we see:** the lesson opens with five diagrams drawn by board code, with notes as labels (dark ground). p5 notes keep size, color, font and width. The lesson report uses the studio's dark theme.
 32. **Play and pause:** `board.paused` (explicit, wins over being the active board) and `board.live` (runs elsewhere). `app.toggleBoardRun` backs the canvas title button (`canvasView.runButtons`, any tool), the Boards panel and the board menu.
 
+33. **Idle in the background:** `sources.tick` does nothing while `document.hidden`. Landmark requests expire 2 s after code last read them (`e.want` holds times). A detection that never returns is given up after 5 s. Before this, a pinned source kept MediaPipe running 3 times a second in a hidden pane for hours.
+
 ## How the model fits
 
 ```

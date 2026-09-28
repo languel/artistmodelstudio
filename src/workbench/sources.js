@@ -79,7 +79,7 @@ export class Sources {
 
   async start(d) {
     if (this.entries.get(d.name)?.ready) return;
-    const e = { def: d, frame: document.createElement('canvas'), data: null, version: 0, landmarks: {}, want: new Set(), busy: false, sampler: new SourceSampler({ mode: d.sampling, interval: d.interval }) };
+    const e = { def: d, frame: document.createElement('canvas'), data: null, version: 0, landmarks: {}, want: new Map(), busy: false, sampler: new SourceSampler({ mode: d.sampling, interval: d.interval }) };
     this.entries.set(d.name, e);
     if (d.kind === 'camera') e.live = await LiveSource.webcam();
     else {
@@ -109,6 +109,9 @@ export class Sources {
   tick() {
     const now = performance.now(), dt = Math.min(0.25, (now - this.last) / 1000);
     this.last = now;
+    // Nothing is sampled while the page is hidden (another tab, the pane closed): no one sees it,
+    // and hours of sampling and detection in the background wear out the GPU.
+    if (document.hidden) return;
     let changed = false;
     for (const e of this.entries.values()) {
       if (!e.ready || !e.live) continue;
@@ -139,8 +142,13 @@ export class Sources {
 
   /** Pose, hands, mask for the latest sample (one detection at a time; results stay until replaced). */
   async detect(e) {
-    if (e.busy || !e.want.size) return;
-    e.busy = true;
+    // Landmarks only while code asked for them a moment ago (a board that stopped reading pose
+    // no longer costs a model run per frame).
+    const now = performance.now();
+    for (const [kind, at] of e.want) if (now - at > 2000) e.want.delete(kind);
+    // One detection at a time; one that never answers (a lost GPU context) is given up after 5 s.
+    if ((e.busy && now - e.busyAt < 5000) || !e.want.size) return;
+    e.busy = true; e.busyAt = now;
     try {
       const { detectRaw } = await import('../perception/mediapipe.js');
       const img = e.live?.canvas || e.still;
@@ -149,7 +157,7 @@ export class Sources {
       // (the full model); a still is one image.
       const tracked = e.live && e.live.kind !== 'animated';
       const opts = tracked ? { stream: e.id || (e.id = `s${Math.random().toString(36).slice(2, 8)}`), t: (e.t = Math.max((e.t || 0) + 1, Math.round(performance.now()))) } : { full: true };
-      for (const kind of e.want) {
+      for (const kind of [...e.want.keys()]) {
         const r = await detectRaw(kind, img, opts), now = performance.now();
         // A frame where the model finds nobody, just after one where it did, is usually a miss:
         // the last answer is kept for a moment (people who really leave go after half a second).
@@ -182,7 +190,7 @@ export class Sources {
     const hex = c => `#${c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
     const lum = c => (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
     const world = (x, y) => [(x - rect.x) / rect.width, (y - rect.y) / rect.height];
-    const land = kind => { e.want.add(kind); if (!e.landmarks[kind] && !e.busy) this.detect(e); return e.landmarks[kind]; };
+    const land = kind => { e.want.set(kind, performance.now()); if (!e.landmarks[kind] && !e.busy) this.detect(e); return e.landmarks[kind]; };
     return {
       ready: true, name, frame: e.version, width: e.live?.canvas?.width || e.still?.width || sw, height: e.live?.canvas?.height || e.still?.height || sh, rect,
       rgb, color: (x, y) => hex(rgb(x, y)), value: (x, y) => lum(rgb(x, y)),
