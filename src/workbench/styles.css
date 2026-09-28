@@ -675,3 +675,48 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-source-ctl .wb-num { width: 48px; }
 .wb-source-thumb.paused { opacity: 0.4; filter: grayscale(0.6); }
 .wb-icon-btn.wb-dim { opacity: 0.45; }
+
+/* Document and program boards (markdown, html, p5), laid over the canvas at their boards. */
+.wb-frames { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.wb-frame { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; pointer-events: none; }
+.wb-frame iframe { width: 100%; height: 100%; border: 0; display: block; background: transparent; pointer-events: none; }
+.wb-frame.interactive iframe { pointer-events: auto; }
+.wb-frame-still { position: absolute; inset: 0; display: grid; place-items: center; color: #8c8c8c; font: 14px var(--font-mono); }
+.wb-frame-still img { width: 100%; height: 100%; object-fit: contain; }
+/* Markdown: sized in board units (it scales with the board), the studio's quiet type. */
+.wb-md { box-sizing: border-box; width: 100%; height: 100%; padding: 40px 48px; overflow: hidden; color: #262626; font: 17px/1.6 'Inter', system-ui, sans-serif; }
+.wb-frame.dark .wb-md { color: #dadada; }
+.wb-md > :first-child { margin-top: 0; }
+.wb-md h1, .wb-md h2, .wb-md h3, .wb-md h4 { line-height: 1.2; font-weight: 600; margin: 1.1em 0 0.45em; text-wrap: balance; }
+.wb-md h1 { font-size: 2.1em; letter-spacing: -0.015em; }
+.wb-md h2 { font-size: 1.5em; }
+.wb-md h3 { font-size: 1.2em; }
+.wb-md p, .wb-md ul, .wb-md ol, .wb-md table, .wb-md pre, .wb-md blockquote, .wb-md .md-callout { margin: 0 0 0.9em; }
+.wb-md a, .wb-md .md-link { color: inherit; text-decoration: underline; text-decoration-color: currentColor; text-decoration-thickness: 1px; text-underline-offset: 3px; pointer-events: auto; cursor: pointer; }
+.wb-md .md-link { text-decoration-style: dotted; }
+.wb-md .md-link.missing { opacity: 0.55; }
+.wb-md details, .wb-md summary, .wb-md input { pointer-events: auto; }
+.wb-md code { font: 0.86em 'JetBrains Mono', ui-monospace, Menlo, monospace; background: rgba(127, 127, 127, 0.14); padding: 0.1em 0.35em; border-radius: 3px; }
+.wb-md pre.md-code { background: rgba(127, 127, 127, 0.12); padding: 14px 16px; border-radius: 4px; overflow: hidden; }
+.wb-md pre.md-code code { background: none; padding: 0; font-size: 0.8em; line-height: 1.55; }
+.wb-md table { border-collapse: collapse; font-size: 0.92em; }
+.wb-md th, .wb-md td { border-bottom: 1px solid rgba(127, 127, 127, 0.3); padding: 6px 12px 6px 0; text-align: left; }
+.wb-md th { font-weight: 600; }
+.wb-md blockquote { border-left: 2px solid rgba(127, 127, 127, 0.5); padding-left: 16px; opacity: 0.85; }
+.wb-md mark { background: rgba(200, 102, 79, 0.28); color: inherit; padding: 0 0.15em; border-radius: 2px; }
+.wb-md .md-tag { font-size: 0.85em; opacity: 0.7; }
+.wb-md img { max-width: 100%; border-radius: 3px; }
+.wb-md hr { border: 0; border-top: 1px solid rgba(127, 127, 127, 0.35); margin: 1.4em 0; }
+.wb-md .katex-display { margin: 0.8em 0; }
+.wb-md pre.mermaid { background: none; text-align: center; }
+.wb-md .md-callout { border-left: 3px solid rgba(127, 127, 127, 0.55); background: rgba(127, 127, 127, 0.09); border-radius: 3px; padding: 10px 14px; }
+.wb-md .md-callout-head, .wb-md .md-callout summary { font-weight: 600; display: flex; gap: 8px; align-items: baseline; cursor: default; }
+.wb-md .md-callout-body > :last-child { margin-bottom: 0; }
+.wb-md .md-callout-body { margin-top: 6px; }
+.wb-md .md-callout-tip, .wb-md .md-callout-success, .wb-md .md-callout-hint { border-left-color: #7fb069; }
+.wb-md .md-callout-warning, .wb-md .md-callout-caution, .wb-md .md-callout-danger, .wb-md .md-callout-error { border-left-color: #c8664f; }
+.wb-md .md-callout-info, .wb-md .md-callout-note, .wb-md .md-callout-abstract { border-left-color: #5b7fd1; }
+.wb-md .md-embed { display: block; margin: 0 0 0.9em; }
+.wb-md .md-embed img { display: block; }
+.wb-md .md-missing { opacity: 0.55; font-style: italic; }
+.wb-md .md-transclusion { border-left: 2px solid rgba(127, 127, 127, 0.4); padding-left: 14px; }

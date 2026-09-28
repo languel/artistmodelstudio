@@ -5,15 +5,15 @@ import { EXERCISES } from '../src/process/exercises.js';
 import { runScript } from '../src/process/script.js';
 
 describe('docs markdown', () => {
-  it('renders headings, lists, tables and code, escaping HTML', () => {
+  it('renders headings, lists, tables and code, escaping code', () => {
     const html = md('## Title\n\nSome *em* and `code` <b>.\n\n1. one\n2. two\n\n| A | B |\n|---|---|\n| x | y |\n\n```\nline(<pts>)\n```');
     expect(html).toContain('<h3>Title</h3>');
     expect(html).toContain('<em>em</em>');
-    expect(html).toContain('&lt;b&gt;');
-    expect(html).toContain('<ol><li>one</li><li>two</li></ol>');
+    expect(html).toContain('<b>');                       // safe HTML is kept (Obsidian-flavored)
+    expect(html).toMatch(/<ol>\s*<li>one<\/li>\s*<li>two<\/li>\s*<\/ol>/);
     expect(html).toContain('<th>A</th>');
     expect(html).toContain('<td>y</td>');
-    expect(html).toContain('<pre><code>line(&lt;pts&gt;)</code></pre>');
+    expect(html).toContain('<code>line(&lt;pts&gt;)</code></pre>');   // code is escaped
   });
 });
 

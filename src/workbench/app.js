@@ -4,7 +4,7 @@
  * command (see mcp.js), so agents drive the same surface.
  */
 import { openToolParams, openGridParams, openToolDefaults } from './toolParams.js';
-import { boardDoc, boardById, boardsOf, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
+import { boardDoc, boardById, boardsOf, findBoard, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
 import { sceneHtml, docFromPage } from '../process/page.js';
 import { Scenes } from './scenes.js';
 import { runScoreInto } from '../process/script.js';
@@ -56,6 +56,7 @@ import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 import { Sources } from './sources.js';
 import { startDiagnostics } from './diagnostics.js';
+import { BoardFrames } from './boardFrames.js';
 import { boardPart, scenePart, selectionPart, importPart, isPart } from '../process/parts.js';
 import { toP5Code, p5SketchHtml, usesMl5 } from '../process/p5code.js';
 import { readRecently } from '../process/streams.js';
@@ -628,6 +629,9 @@ export class Workbench {
     KIT.onImageLoad = () => { this.canvas.baked?.clear(); this.canvas.invalidate(); };
     this.canvas.isBoardLive = id => this.isBoardLive(id);
     this.canvas.onToggleRun = id => this.toggleBoardRun(id);
+    // Document and program boards (markdown, html, p5) over the canvas.
+    this.frames = new BoardFrames(this);
+    this.canvas.onDrawn = () => this.frames.update();
     this.canvas.onCamera = () => { const z = this.zoomIsland?.querySelector('span'); if (z) z.textContent = `${Math.round(this.canvas.cam.z * 100)}%`; };
     this.topbar = h('div', { class: 'wb-topbar' });
     this.zoomIsland = h('div', { class: 'wb-island wb-zoom' });
@@ -873,6 +877,19 @@ export class Workbench {
     const ids = this.store.doc.elements.filter(e => (e.board || MAIN) === b.id).map(e => e.id);
     if (!ids.length) { this.log(`“${b.title}” has no marks to bake.`); return null; }
     return this.bakeMarks(ids, { rect: { x: b.x, y: b.y, width: b.width, height: b.height }, title: b.title, board: b.id, also: d => { delete (b.main ? d.artboard : d.boards.find(x => x.id === b.id)).follow; } });
+  }
+
+  /**
+   * Follow a link from a document: [[Board]] (go to it), [[scene:Title]] (open that scene),
+   * [[asset:Title]] (open the asset).
+   */
+  async openLink(target, heading = '') {
+    const t = String(target || '').trim();
+    if (/^scene:/i.test(t)) { const s = this.scenes.all.find(x => x.title.toLowerCase() === t.slice(6).trim().toLowerCase()); if (s) await this.scenes.switchTo(s.id); else this.log(`No scene “${t.slice(6)}”.`, 'error'); return; }
+    if (/^asset:/i.test(t)) { const a = (await this.assetStore.all()).find(x => String(x.title).toLowerCase() === t.slice(6).trim().toLowerCase()); if (a) this.openAsset(a); else this.log(`No asset “${t.slice(6)}”.`, 'error'); return; }
+    const b = findBoard(this.store.doc, t);
+    if (!b) { this.log(`No board “${t}” in this scene.`, 'error'); return; }
+    this.goToBoard(b.id, { animate: true });
   }
 
   /** A board follows its sources (its code re-runs on each new frame) or not. */

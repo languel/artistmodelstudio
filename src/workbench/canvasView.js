@@ -149,6 +149,7 @@ export class CanvasView {
     this.drawFrame_();
     const ms = performance.now() - t0;
     this.stats = { draw: ms, avg: this.stats ? this.stats.avg * 0.9 + ms * 0.1 : ms, frames: (this.stats?.frames || 0) + 1 };
+    this.onDrawn?.();   // layers over the canvas (document boards) follow the camera
   }
 
   drawFrame_() {

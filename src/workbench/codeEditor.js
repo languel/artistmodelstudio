@@ -7,6 +7,8 @@ import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, hoverTooltip, placeholder as placeholderExt } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { javascript } from '@codemirror/lang-javascript';
+import { markdown } from '@codemirror/lang-markdown';
+import { html } from '@codemirror/lang-html';
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
@@ -104,8 +106,17 @@ const hoverDocs = hoverTooltip((view, pos) => {
   return { pos: from + s, end: from + e, above: true, create: () => { const dom = document.createElement('div'); dom.className = 'cm-hover-doc'; dom.innerHTML = `<code>${v.signature.replace(/</g, '&lt;')}</code>${v.doc ? `<div style="margin-top:4px;opacity:.8">${v.doc.replace(/</g, '&lt;')}</div>` : ''}`; return { dom }; } };
 });
 
-export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLines = () => [], placeholder = '' } = {}) {
-  const wrap = new Compartment();
+/**
+ * Languages the editor speaks: the studio's score ('ams', with its completions and docs), p5.js,
+ * Markdown and HTML.
+ */
+const languageFor = (lang, getDocLines) => (lang === 'markdown' ? [markdown()]
+  : lang === 'html' ? [html()]
+  : lang === 'p5' ? [javascript()]
+  : [javascript(), hoverDocs, autocompletion({ override: [scoreCompletions(getDocLines)], icons: false })]);
+
+export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLines = () => [], placeholder = '', language = 'ams' } = {}) {
+  const wrap = new Compartment(), lang = new Compartment();
   let live = null;
   const nums = new Compartment(), params = new Compartment();
   const docFns = [], liveFns = [];
@@ -117,8 +128,7 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
       extensions: [
         nums.of(codeView().lineNumbers ? lineNumbers() : []), foldGutter(), params.of(paramsExt()), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(),
         indentOnInput(), bracketMatching(), closeBrackets(), highlightSelectionMatches(), lintGutter(), linter(() => [], { delay: 1e9 }),
-        javascript(), syntaxHighlighting(highlight), theme, hoverDocs,  
-        autocompletion({ override: [scoreCompletions(getDocLines)], icons: false }),
+        lang.of(languageFor(language, getDocLines)), syntaxHighlighting(highlight), theme,
         wrap.of(EditorView.lineWrapping),
         placeholder ? placeholderExt(placeholder) : [],
         keymap.of([
@@ -138,6 +148,9 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
     get value() { return view.state.doc.toString(); },
     set value(v) { if (v !== view.state.doc.toString()) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v } }); },
     focus: () => view.focus(),
+    /** Switch the language ('ams', 'p5', 'markdown', 'html'). */
+    setLanguage(l) { if (l !== language) { language = l; view.dispatch({ effects: lang.reconfigure(languageFor(l, getDocLines)) }); } },
+    get language() { return language; },
     /** Param sliders drive live values ({ get(key), set(key, v) }) instead of rewriting defaults; null: rewrite. */
     setLive(l) { live = l; view.dispatch({}); for (const f of liveFns) f(); },
     getLive: () => live,
