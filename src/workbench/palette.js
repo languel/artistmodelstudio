@@ -57,7 +57,8 @@ export function slashCommands(app) {
     { name: 'transparent', args: '', doc: 'See-through workspace (toggle): only the boards, marks and interface show over what is behind the window', run: () => app.setBackground(app.background === 'transparent' ? 'default' : 'transparent') },
     { name: 'ui', args: '<on | off>', doc: 'Show or hide all of the interface', run: arg => app.setUI({ all: arg ? !/^(off|hide|no|0)$/i.test(arg) : !(app.ui?.tools !== false) }) },
     { name: 'present', args: '', doc: 'Present the boards', run: () => app.present(true) },
-    { name: 'grid', args: '<off | paper | all>', doc: 'Show the grid', run: arg => app.canvas.setGrid({ show: arg === 'all' ? 'everywhere' : arg === 'off' ? 'off' : 'paper' }) }
+    { name: 'grid', args: '<off | paper | all>', doc: 'Show the grid', run: arg => app.canvas.setGrid({ show: arg === 'all' ? 'everywhere' : arg === 'off' ? 'off' : 'paper' }) },
+    { name: 'lesson', args: 'sampling', doc: 'Build a lesson as a new scene: its boards from code, with Markdown notes and links (sampling: pointillism and expressionism)', run: () => import('../../examples/lessons/sampling/scene.js').then(m => m.buildLessonScene(app)).then(n => app.log(`The lesson is a scene: ${n} boards.`)).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }
   ];
 }
 

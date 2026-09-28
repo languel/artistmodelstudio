@@ -87,6 +87,13 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 
 36. **GitHub Pages:** `.github/workflows/pages.yml` runs on every push to `main`: test, build with `BASE_PATH=/<repo>/` (`vite.config.js` `base`), deploy. Live at https://languel.github.io/artistmodelstudio/ (public, though the repo is private). The dev-server features (the `/__ams` relay, probe saving, the Decide proxy) and cross-origin isolation are not available there.
 
+37. **Document and program boards:** `board.kind` is `drawing`, `markdown`, `html` or `p5`, and `board.code` is its source.
+    - `src/process/markdown.js`: the Obsidian-flavored renderer (marked, KaTeX, Mermaid on demand, callouts, wikilinks, embeds, sanitized HTML). `md()` for Docs and pages wraps it.
+    - `src/workbench/boardFrames.js`: the DOM layer over the canvas, drawn through `canvas.onDrawn`. HTML and p5 run in sandboxed srcdoc frames with a token-checked postMessage bridge, `window.ams`. p5 is inlined: a sandboxed frame cannot fetch it.
+    - The code editor switches language (`setLanguage`); Code → Board has a kind selector.
+38. **Console:** `src/workbench/console.js`, the `!` lines in the Assistant.
+39. **The lesson as a scene:** `examples/lessons/sampling/scene.js`, `/lesson sampling`. It uses `app.runScript`: after a dev-server reload, a separately imported module has no sources.
+
 ## How the model fits
 
 ```

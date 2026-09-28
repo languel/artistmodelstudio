@@ -401,6 +401,44 @@ From the menu:
   - Stages are matched by name, and brushes come along. *Open file* still opens a file as a new scene.
 - **Excalidraw:** round-trips to underscores through `customData.ams`.
 
+## Documents and programs on boards
+
+A board holds one kind of thing. Choose it in Code → Board, where its source is edited:
+- **Drawing:** marks, and optional studio code (the default).
+- **Markdown:** a document.
+- **HTML:** a page.
+- **p5.js:** a sketch.
+
+Documents show as you type. Marks drawn on a document board stay on top of it, as annotations.
+
+**Markdown** renders on the canvas and stays sharp at any zoom. It is Obsidian-flavored:
+- tables, task lists, `==highlights==`, `#tags`, front matter (not shown);
+- math with KaTeX: `$…$`, `$$…$$`, `\(…\)`, `\[…\]`;
+- Mermaid diagrams in ```` ```mermaid ```` fences;
+- callouts: `> [!note] Title`, or `> [!tip]- Folded`;
+- links into the drawing: `[[Board]]`, `[[Board|label]]` and `[[scene:Title]]`;
+- embeds: `![[Board]]` shows a board's picture, `![[asset:Title]]` an asset.
+
+A document longer than its board grows past it on the board's paper.
+
+**HTML and p5.js** run in sandboxed frames over their boards, with a bridge to the studio, `window.ams`:
+- `ams.width`, `ams.height`, `ams.board`: the board;
+- `await ams.call(tool, args)`: any studio tool;
+- `await ams.mark(role, points, opts)`: add a mark to the board;
+- `await ams.frame('source')`: a source's picture.
+
+A p5 board runs while it is live and on screen, like a drawing. Paused, it shows its last picture. Errors appear under the code and in the Log. A frame takes the pointer only on the board you are on.
+
+## The console
+
+In the Assistant, a line starting with `!` runs a studio tool by hand, with no model involved:
+- `!board list`
+- `!add role=point points=[[10,20]] color=#c8664f`
+- `!get format=p5code board="3 · Scattered dots"`
+- `!snap {"ids": […], "mode": "points"}`
+
+The first word is the tool (`ams_` optional), and a bare word after it is the action. `key=value` pairs are read as JSON where they can be. `!help` lists the tools, `!help board` shows one tool's parameters, and ↑ and ↓ recall earlier commands.
+
 ## Lessons
 
 `examples/lessons/sampling/lesson.js` is a lesson as data: *Pointillism and Expressionism, by sampling*.
@@ -411,6 +449,14 @@ From the menu:
   - `scripts/lesson-sampling-report.mjs` writes the lesson as one HTML page. It uses the board pictures saved from the studio.
 
 Examples for teaching favor few, simple, smooth curves over dense point lists.
+
+`/lesson sampling` (or `buildLessonScene(app)` from `examples/lessons/sampling/scene.js`) builds the lesson as a scene you can teach from:
+- its drawing boards, made from their code;
+- a title board with the contents;
+- an intro at the head of each row: the section's text, its source and rights, and its examples;
+- notes under each example: the idea, and folded callouts with the pseudocode and the p5.js code.
+
+The boards are linked by `[[title]]`.
 
 ## Agents
 

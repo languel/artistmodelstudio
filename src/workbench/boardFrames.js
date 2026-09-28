@@ -115,6 +115,7 @@ export class BoardFrames {
   refresh(f, b) {
     const dark = luminance(b.ground) < 0.45;
     f.el.classList.toggle('dark', dark);
+    f.el.style.setProperty('--ground', b.ground || '#f3efe6');
     const code = b.code || '';
     if (f.kind === 'markdown') {
       if (f.code !== code || f.version !== this.linkVersion) {

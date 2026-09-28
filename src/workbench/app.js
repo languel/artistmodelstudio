@@ -631,6 +631,8 @@ export class Workbench {
     this.canvas.onToggleRun = id => this.toggleBoardRun(id);
     // Document and program boards (markdown, html, p5) over the canvas.
     this.frames = new BoardFrames(this);
+    // The score runner, for code outside the app (lesson builders): the app's own, with its sources.
+    this.runScript = runScript;
     this.canvas.onDrawn = () => this.frames.update();
     this.canvas.onCamera = () => { const z = this.zoomIsland?.querySelector('span'); if (z) z.textContent = `${Math.round(this.canvas.cam.z * 100)}%`; };
     this.topbar = h('div', { class: 'wb-topbar' });

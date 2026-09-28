@@ -762,7 +762,7 @@ export class CanvasView {
       const label = `${i + 1}  ${b.title}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
       // Boards with processes (code, following sources, a source under them) get a play / pause button
       // after the title. Like a player's, it shows what a click does: pause while running, play when paused.
-      const runs = Boolean(b.follow || b.source || b.code);
+      const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));   // documents (markdown, html) have nothing to play
       const tw = Math.min(ctx.measureText(label).width, Math.max(40, w - (runs ? 22 : 0)));
       ctx.fillStyle = on ? text : muted;
       ctx.fillText(label, bx, by - 5, Math.max(40, w - (runs ? 22 : 0)));
