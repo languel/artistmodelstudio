@@ -61,7 +61,7 @@ function titleFor() {
 /** How tall a Markdown board must be for its text (rendered off screen at the board's width). */
 function heightFor(md, width) {
   const probe = document.createElement('div');
-  probe.className = 'wb-frame dark';
+  probe.className = 'wb-bframe dark';
   probe.style.cssText = `position:absolute; left:-99999px; top:0; width:${width}px; visibility:hidden;`;
   probe.innerHTML = `<div class="wb-md" style="height:auto">${renderMarkdown(md)}</div>`;
   document.body.append(probe);

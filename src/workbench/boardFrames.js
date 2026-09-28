@@ -99,7 +99,7 @@ export class BoardFrames {
 
   create(b, kind) {
     const el = document.createElement('div');
-    el.className = `wb-frame wb-frame-${kind}`;
+    el.className = `wb-bframe wb-bframe-${kind}`;
     this.layer.append(el);
     const token = `f${Math.random().toString(36).slice(2)}`;
     this.tokens.set(token, b.id);
@@ -134,7 +134,7 @@ export class BoardFrames {
       if (f.running) { this.snap(f); const old = f.iframe; setTimeout(() => old?.remove(), 400); f.iframe = null; f.running = false; }
       if (!f.still) {
         f.still = document.createElement('div');
-        f.still.className = 'wb-frame-still';
+        f.still.className = 'wb-bframe-still';
         f.el.append(f.still);
       }
       const shot = this.snapshots.get(b.id);

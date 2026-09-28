@@ -5,6 +5,7 @@
 import { h, section, download } from '../ui.js';
 import { icon } from '../icons.js';
 import { renderToCanvas } from '../../process/render.js';
+import { boardById, MAIN } from '../../process/boards.js';
 import { processSheet } from '../../process/exports.js';
 
 export function mountProcess(el, app) {
@@ -34,12 +35,15 @@ export function mountProcess(el, app) {
       } })
     ), h('div', { class: 'wb-row' }, scrub, label));
 
-    // Filmstrip: cumulative render per stage.
+    // Filmstrip: the board you are on, built up stage by stage (stages with nothing on it are left out).
     const strip = h('div', { class: 'wb-filmstrip' });
-    const k = 120 / Math.max(doc.artboard.width, doc.artboard.height);
+    const bid = app.activeBoard || MAIN, b = boardById(doc, bid) || boardById(doc, MAIN);
+    const onBoard = doc.elements.filter(e => (e.board || MAIN) === b.id);
+    const k = 120 / Math.max(b.width, b.height);
     doc.stages.forEach((s, i) => {
-      const c = renderToCanvas(doc, { scale: k, mode: 'process', upTo: i });
-      const n = doc.elements.filter(e => e.stage === s.id).length;
+      const n = onBoard.filter(e => e.stage === s.id).length;
+      if (!n) return;
+      const c = renderToCanvas(doc, { scale: k, mode: 'process', upTo: i, board: b.id });
       const cell = h('button', { class: `wb-frame${app.view.upTo === i ? ' on' : ''}`, title: `${s.name} (${s.kind}) · ${n} elements${s.why ? ` · ${s.why}` : ''}`, onclick: () => { app.setUpTo(app.view.upTo === i ? Infinity : i); render(); } },
         c, h('span', {}, `${i + 1}. ${s.name}`));
       strip.append(cell);
@@ -65,6 +69,7 @@ export function mountProcess(el, app) {
   let pending = 0;
   const later = () => { clearTimeout(pending); pending = setTimeout(render, 120); };
   app.store.subscribe(later);
+  app.on("board", later);   // another board: its own filmstrip
   app.on('view', render);
   render();
 }
