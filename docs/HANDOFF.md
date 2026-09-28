@@ -94,6 +94,14 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 38. **Console:** `src/workbench/console.js`, the `!` lines in the Assistant.
 39. **The lesson as a scene:** `examples/lessons/sampling/scene.js`, `/lesson sampling`. It uses `app.runScript`: after a dev-server reload, a separately imported module has no sources.
 
+40. **Pages as lessons:** `src/process/page.js` in the studio's dark theme. It:
+    - follows reading order;
+    - renders boards by kind, with Markdown documents and notes attached ("… · notes");
+    - samples sources in the page, and runs following boards;
+    - runs p5 and HTML boards in sandboxed frames.
+
+    `app.pageHtml()` gathers the media, embed pictures and p5.js. The runtime adds `streams.js`, and `fit.js` with the fitter in its own scope. GIFs need `await dec.tracks.ready` before `frameCount`.
+
 ## How the model fits
 
 ```

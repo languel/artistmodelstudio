@@ -156,7 +156,14 @@ A **project** holds **scenes**, and a scene holds **boards**. It is enough to wr
   - Drawing still works.
   - While recording, the moves go onto the camera track, so replays and videos follow them.
 - **Page** (Export → Page): the drawing as one HTML file.
-  - Each board is a section: title, picture, process view, replay, its text (Markdown, written in Properties) and its code with live sliders.
+  - The page uses the studio's dark theme, and follows reading order (as the boards are laid out: rows top to bottom, each left to right).
+  - Each board is a section, depending on its kind:
+    - **Drawing:** its picture, then Picture / Process / Replay, its sliders up front, and **Run** for a board that follows a moving source. Its code is folded away.
+    - **Markdown:** the document itself. `[[links]]` jump to boards on the page, and `![[embeds]]` show their pictures. A Markdown board titled "*Board* · notes" joins that board's section.
+    - **HTML:** its page, in a sandboxed frame.
+    - **p5:** Run starts the sketch in a sandboxed frame.
+  - The pictures of the sources the boards read travel inside the page and are sampled there, so sliders and Run work without the studio. Pose and hands still need the studio.
+  - A page that opens with a document uses it as its header.
   - The studio's renderer is inside the page, and so is the drawing, so File → Open the page to keep working on it.
   - Two examples: `scripts/point-line-plane-demo.mjs` (a lecture after Kandinsky) and `scripts/senecio-report-scene.mjs` (the Senecio run report).
 - **Performing:** 1–9 go to a board; Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush in a slot.

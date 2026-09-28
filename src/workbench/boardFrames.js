@@ -160,6 +160,12 @@ export class BoardFrames {
     }
   }
 
+  /** p5.js as text (for frames and exported pages), loaded once. */
+  async p5Text() {
+    if (!this.p5Source) this.p5Source = await (this.p5Loading ||= fetch(p5Url).then(r => r.text()));
+    return this.p5Source;
+  }
+
   /** Run a sketch again from the start (its code unchanged). */
   restart(id) { const f = this.frames.get(id); if (f) { f.running = false; this.canvas.invalidate(); } }
 

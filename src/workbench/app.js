@@ -4,8 +4,9 @@
  * command (see mcp.js), so agents drive the same surface.
  */
 import { openToolParams, openGridParams, openToolDefaults } from './toolParams.js';
-import { boardDoc, boardById, boardsOf, findBoard, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
-import { sceneHtml, docFromPage } from '../process/page.js';
+import { boardDoc, boardById, boardsOf, boardKind, findBoard, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
+import { linksOf } from '../process/markdown.js';
+import { sceneHtml, docFromPage, pageBoards, sourcesOf } from '../process/page.js';
 import { Scenes } from './scenes.js';
 import { runScoreInto } from '../process/script.js';
 import { toP5Min } from '../process/p5min.js';
@@ -1296,6 +1297,33 @@ export class Workbench {
     return { code: toP5Code(b.code, { board: b, sources, loop: Boolean(b.follow), version: this.p5Version() }), files };
   }
 
+  /**
+   * The drawing as a page, with what it needs to run on its own: the pictures of the sources its
+   * boards read, pictures of boards that documents embed, and p5.js when it has p5 boards.
+   */
+  async pageHtml(opts = {}) {
+    const doc = this.store.doc;
+    const list = opts.boards ? opts.boards.map(id => boardById(doc, id)).filter(Boolean) : pageBoards(doc);
+    const media = {};
+    for (const name of new Set(list.flatMap(sourcesOf))) {
+      const d = this.sources.def(name);
+      if (!d || d.kind !== 'asset') continue;
+      const a = await this.assetStore.get(d.assetId);
+      if (!a?.blob) continue;
+      const t = a.blob.type;
+      media[name] = { url: await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(a.blob); }), type: t.startsWith('video/') ? 'video' : t === 'image/gif' ? 'animated' : 'image' };
+    }
+    const pictures = {};
+    for (const b of list.filter(x => boardKind(x) === 'markdown')) {
+      for (const { target, embed } of linksOf(b.code || '')) {
+        const t = embed && findBoard(doc, target);
+        if (t && !pictures[t.id] && boardKind(t) === 'drawing') pictures[t.id] = renderToCanvas(doc, { board: t.id, scale: Math.min(1, 900 / Math.max(t.width, t.height)), mode: 'picture' }).toDataURL('image/jpeg', 0.85);
+      }
+    }
+    const p5Source = list.some(b => boardKind(b) === 'p5') ? await this.frames.p5Text() : '';
+    return sceneHtml(doc, { ...opts, media, pictures, p5Source });
+  }
+
   async exportAs(kind, board = this.activeBoard || MAIN) {
     const b = boardById(this.store.doc, board) || boardById(this.store.doc, MAIN);
     // json keeps the whole drawing (every board); the rest is one board as a picture.
@@ -1308,7 +1336,7 @@ export class Workbench {
     else if (kind === 'svg') download(toSVG(doc, { mode: this.view.mode }), `${s}.svg`, 'image/svg+xml');
     else if (kind === 'json') download(JSON.stringify(boardPart(this.store.doc, b.id), null, 2), `${s}.ams.json`, 'application/json');
     else if (kind === 'scene-json') download(JSON.stringify(scenePart(this.store.doc), null, 2), `${this.slug()}.ams.json`, 'application/json');
-    else if (kind === 'page') download(sceneHtml(this.store.doc), `${this.slug()}.html`, 'text/html');
+    else if (kind === 'page') download(await this.pageHtml(), `${this.slug()}.html`, 'text/html');
     else if (kind === 'p5min') download(toP5Min(doc, { version: this.p5Version() }), `${s}-sketch.js`, 'text/javascript');
     else if (kind === 'excalidraw') download(JSON.stringify(toExcalidraw(doc), null, 2), `${s}.excalidraw`, 'application/json');
     else if (kind === 'p5code') {

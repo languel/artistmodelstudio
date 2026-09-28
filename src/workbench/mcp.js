@@ -136,10 +136,10 @@ export function workbenchTools(app) {
       if (a.action === 'get') return await Sc.docOf(s.id);
       return list();
     } },
-    { name: 'ams_page', description: 'The drawing as a page (self-contained HTML): every board with marks or text as a section (title, picture, process view, replay, its text in Markdown), after an intro. Set a board\'s text with ams_board update {patch: {text}}; the intro with intro here (kept in the drawing). download: true also saves the file.', inputSchema: S({ intro: str('Markdown before the boards (kept)'), title: str('Page title (default: the drawing\'s)'), boards: { type: 'array', items: { type: 'string' }, description: 'Board ids or titles, in order (default: all with marks or text)' }, download: { type: 'boolean' } }), run: (a) => {
+    { name: 'ams_page', description: 'The drawing as a page (self-contained HTML): every board with marks or text as a section (title, picture, process view, replay, its text in Markdown), after an intro. Set a board\'s text with ams_board update {patch: {text}}; the intro with intro here (kept in the drawing). download: true also saves the file.', inputSchema: S({ intro: str('Markdown before the boards (kept)'), title: str('Page title (default: the drawing\'s)'), boards: { type: 'array', items: { type: 'string' }, description: 'Board ids or titles, in order (default: all with marks or text)' }, download: { type: 'boolean' } }), run: async (a) => {
       if (a.intro !== undefined) app.store.change('page intro', d => { d.meta = { ...(d.meta || {}), intro: a.intro }; }, { by: 'agent' });
       const ids = a.boards ? a.boards.map(k => findBoard(doc(), k)?.id).filter(Boolean) : null;
-      const html = sceneHtml(doc(), { title: a.title || doc().title, boards: ids });
+      const html = await app.pageHtml({ title: a.title || doc().title, boards: ids });
       if (a.download) download(html, `${String(a.title || doc().title || 'page').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.html`, 'text/html');
       return { html, bytes: html.length };
     } },
