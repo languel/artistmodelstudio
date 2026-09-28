@@ -81,6 +81,8 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 
 33. **Idle in the background:** `sources.tick` does nothing while `document.hidden`. Landmark requests expire 2 s after code last read them (`e.want` holds times). A detection that never returns is given up after 5 s. Before this, a pinned source kept MediaPipe running 3 times a second in a hidden pane for hours.
 
+34. **Flight recorder** (`src/workbench/diagnostics.js`): every 2 s one line (visibility, frames given to the page, redraws, heap, samples, detections, live runs, lag, long tasks), plus page events. Kept in localStorage `ams_flight_v1` for 30 min. Read it with `window.ams.diagnostics()` or `ams_diagnostics`. Found on 27 Sep: a pane freeze showed the studio tab as visible but given 0 frames. Re-selecting the tab brought it back, and a fresh tab in the pane ran at 120 fps.
+
 ## How the model fits
 
 ```

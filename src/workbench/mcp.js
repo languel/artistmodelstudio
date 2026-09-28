@@ -180,6 +180,7 @@ export function workbenchTools(app) {
       if (a.action === 'frame') { const img = S.view(a.name); if (!img) throw new Error('No frame yet'); const c = document.createElement('canvas'); const k = Math.min(1, 640 / Math.max(img.width, img.height)); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); return { image: png(c) }; }
       throw new Error(`Unknown action ${a.action}`);
     } },
+    { name: 'ams_diagnostics', description: 'The flight recorder: one line per 2 s for the last minutes (visibility, frames the browser gave the page, canvas redraws, heap MB, source samples, detections, live runs, event-loop lag, long tasks) and page events (hidden, shown, frozen, resumed, errors). A page frozen while visible shows vis v with raf 0.', inputSchema: S({ minutes: num('How far back (default 30)') }), run: (a) => ({ log: app.diagnostics?.(a.minutes || 30) || '' }) },
     { name: 'ams_save', description: 'Save the drawing (image + process) to Assets.', inputSchema: S({ title: str('') }), run: async (a) => {
       if (a.title) app.store.change('title', d => { d.title = a.title; }, { by: 'agent' });
       const x = await app.saveToAssets();
@@ -392,7 +393,7 @@ export function initWorkbenchMCP(app) {
     } }
   );
   for (const t of tools.slice(-2)) byName[t.name] = t;
-  window.ams = { listTools, callTool, app };
+  window.ams = { listTools, callTool, app, diagnostics: minutes => console.log(app.diagnostics?.(minutes)) };
 
   try {
     navigator.modelContext?.provideContext?.({ tools: tools.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, execute: async a => ({ content: [{ type: 'text', text: JSON.stringify(await callTool(t.name, a)) }] }) })) });

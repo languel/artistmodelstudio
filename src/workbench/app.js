@@ -55,6 +55,7 @@ import { eyedropToTarget, openPicker, parseColor, formatColor } from './colorPic
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 import { Sources } from './sources.js';
+import { startDiagnostics } from './diagnostics.js';
 import { toP5Code, p5SketchHtml, usesMl5 } from '../process/p5code.js';
 import { readRecently } from '../process/streams.js';
 import { mountSources } from './panels/sources.js';
@@ -679,6 +680,7 @@ export class Workbench {
     this.followSources();
     this.sources.startAll();
     initWorkbenchMCP(this);
+    this.diagnostics = startDiagnostics(this);
     this.log('Workbench ready.');
   }
 
