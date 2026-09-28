@@ -720,3 +720,6 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-md .md-embed img { display: block; }
 .wb-md .md-missing { opacity: 0.55; font-style: italic; }
 .wb-md .md-transclusion { border-left: 2px solid rgba(127, 127, 127, 0.4); padding-left: 14px; }
+/* The console (! lines in the Assistant): commands and their results in mono. */
+.wb-msg.you.cmd { font-family: var(--font-mono); background: transparent; border: 1px solid var(--wb-line); }
+.wb-msg.sys.out { align-self: stretch; font: var(--ui-small)/1.45 var(--font-mono); color: var(--wb-text); background: var(--wb-panel-2); border: 1px solid var(--wb-line); max-height: 320px; overflow: auto; user-select: text; }

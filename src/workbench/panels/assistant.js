@@ -3,12 +3,15 @@
  * OpenAI-compatible) drive the workbench through the same tools agents use over MCP.
  * Every action goes through the guide (visible) and the session recorder (replayable).
  *
+ * A line starting with ! runs a tool by hand (the console: !board list, !help); see console.js.
+ *
  * Protocol (plain JSON, so it works with any model, no native tool calling needed):
  *   { "say": "…", "actions": [{ "tool": "ams_…", "args": { … } }], "done": true | false }
  */
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
 import { modelPicker } from '../modelPicker.js';
+import { parseCommand, brief, help } from '../console.js';
 
 const MAX_ROUNDS = 6;
 
@@ -45,13 +48,27 @@ function parseReply(text) {
 export function mountAssistant(root, app) {
   const picker = modelPicker({ app, storageKey: 'ams_assistant_engine', onChange: () => {} });
   const log = h('div', { class: 'wb-chat' });
-  const input = h('textarea', { class: 'wb-why', rows: 2, placeholder: 'Ask, or tell it what to draw… (Enter sends, Shift+Enter new line)' });
+  const input = h('textarea', { class: 'wb-why', rows: 2, placeholder: 'Ask, or tell it what to draw… !board list runs a tool (!help)' });
   let savedChat = [];
   try { savedChat = JSON.parse(sessionStorage.getItem('ams_assistant_chat') || '[]'); } catch { /* ignore */ }
   const history = app.assistantHistory = app.assistantHistory || savedChat;
   const persist = () => { try { sessionStorage.setItem('ams_assistant_chat', JSON.stringify(history.slice(-40))); } catch { /* quota */ } };
   let busy = null;
   const add = (who, text, kind = '') => { log.append(h('div', { class: `wb-msg ${who} ${kind}` }, text)); log.scrollTop = log.scrollHeight; };
+  // The console: ! lines run tools directly (no model); ↑ and ↓ go through what was run.
+  const ran = []; let back = 0;
+  const runCommand = async line => {
+    add('you', line, 'cmd'); history.push({ who: 'you', text: line });
+    ran.push(line); back = 0;
+    try {
+      const c = parseCommand(line);
+      if (c.help) { add('sys', help(window.ams.listTools(), c.help), 'out'); return; }
+      const out = await window.ams.callTool(c.tool, c.args);
+      add('sys', brief(out), 'out');
+      history.push({ who: 'results', text: `${c.tool} → ${brief(out, 600)}` });
+    } catch (err) { add('sys', err.message, 'error'); }
+    persist();
+  };
   for (const m of history) add(m.who, m.text);
 
   app.assistantAsk = text => { input.value = text; send(); };
@@ -59,6 +76,7 @@ export function mountAssistant(root, app) {
     const text = input.value.trim();
     if (!text || busy) return;
     input.value = '';
+    if (text.startsWith('!')) { await runCommand(text); return; }
     add('you', text); history.push({ who: 'you', text }); persist();
     const engine = picker.engine();
     const artist = app.artists.get(engine);
@@ -104,7 +122,16 @@ export function mountAssistant(root, app) {
     }
   };
 
-  input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+  input.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); return; }
+    // ↑ / ↓ recall console commands (when the line is empty or already a recalled command).
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && ran.length && (!input.value || input.value.startsWith('!'))) {
+      e.preventDefault();
+      back = Math.max(0, Math.min(ran.length, back + (e.key === 'ArrowUp' ? 1 : -1)));
+      input.value = back ? ran[ran.length - back] : '';
+    }
+  });
   const sendBtn = h('button', { class: 'wb-btn primary', onclick: () => (busy ? busy.abort() : send()) }, 'Send');
   root.append(picker, log, input, h('div', { class: 'wb-row wb-row-actions' },
     sendBtn,

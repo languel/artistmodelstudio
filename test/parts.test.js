@@ -57,3 +57,18 @@ describe('parts: pieces of a drawing as files', () => {
     expect(e.board).toBeUndefined();   // on the main board
   });
 });
+
+import { parseCommand, help } from '../src/workbench/console.js';
+describe('the console', () => {
+  it('reads tools, actions and key=value arguments', () => {
+    expect(parseCommand('!board list')).toEqual({ tool: 'ams_board', args: { action: 'list' } });
+    expect(parseCommand('!add role=point points=[[10, 20]] color=#c8664f why="a place, with tension"')).toEqual({ tool: 'ams_add', args: { role: 'point', points: [[10, 20]], color: '#c8664f', why: 'a place, with tension' } });
+    expect(parseCommand('!ams_get format=p5code board="0.1 · Light"')).toEqual({ tool: 'ams_get', args: { format: 'p5code', board: '0.1 · Light' } });
+    expect(parseCommand('!snap {"ids": ["a"], "mode": "points"}')).toEqual({ tool: 'ams_snap', args: { ids: ['a'], mode: 'points' } });
+    expect(parseCommand('!source sample name=walk points=[[0.5,0.5]] landmarks=["pose"]').args).toEqual({ action: 'sample', name: 'walk', points: [[0.5, 0.5]], landmarks: ['pose'] });
+    expect(parseCommand('!help').help).toBe(true);
+    expect(parseCommand('!help board').help).toBe('board');
+    expect(() => parseCommand('!board list extra')).toThrow(/key=value/);
+    expect(help([{ name: 'ams_board', description: 'Boards.', inputSchema: { properties: { action: { type: 'string', enum: ['list'] } }, required: ['action'] } }], 'board')).toContain('action (required)');
+  });
+});
