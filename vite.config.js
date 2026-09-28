@@ -113,6 +113,8 @@ function amsRelayPlugin() {
 }
 
 export default defineConfig({
+  // GitHub Pages serves the site under /<repo>/ (the deploy workflow sets BASE_PATH); locally it is /.
+  base: process.env.BASE_PATH || '/',
   plugins: [probeSavePlugin(), amsRelayPlugin()],
   server: {
     port: 3000,
