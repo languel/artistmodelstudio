@@ -76,6 +76,9 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
     - The performance readout shows the browser's fps and canvas redraws.
     - Animated sources detect each frame with the full pose model; video mode kept only for video and cameras. MediaPipe still misses some Muybridge frames, where ml5's BlazePose does better.
 
+31. **How we see:** the lesson opens with five diagrams drawn by board code, with notes as labels (dark ground). p5 notes keep size, color, font and width. The lesson report uses the studio's dark theme.
+32. **Play and pause:** `board.paused` (explicit, wins over being the active board) and `board.live` (runs elsewhere). `app.toggleBoardRun` backs the canvas title button (`canvasView.runButtons`, any tool), the Boards panel and the board menu.
+
 ## How the model fits
 
 ```

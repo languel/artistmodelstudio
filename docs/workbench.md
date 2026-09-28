@@ -347,9 +347,14 @@ Only live boards run. A live board:
 - has brushes that read live frames;
 - is redrawn every frame.
 
-The board you are on is always live. Switch others on with ▶ in the Boards panel, or **Live** in a board's menu.
+The board you are on is live unless you pause it. Play and pause a board with:
+- the button after its title on the canvas;
+- the button in its Boards panel row;
+- **Play** / **Pause** in its menu.
 
-Every other board is paused and **baked**: drawn once into a picture and shown as that picture until it changes or runs again. Boards off screen are not drawn at all. A source samples only while a live board on screen needs it, and paused sources look dimmed in Sources. On the canvas, board titles show ▶ (live) or ‖ (paused) when the board uses sources.
+The button shows what a click does: ‖ while it runs, ▶ while it is paused. A paused board stays paused, even while you are on it. Playing a board you are not on keeps it running while it is on screen. Following a source plays a board again.
+
+Every other board is paused and **baked**: drawn once into a picture and shown as that picture until it changes or runs again. Boards off screen are not drawn at all. A source samples only while a live board on screen needs it, and paused sources look dimmed in Sources. 
 
 **Bake to image** makes a bake permanent, after underscores' bake:
 - On a board's menu, the board's marks become one image mark the size of the board, and the board stops following its sources.
@@ -390,7 +395,7 @@ From the menu:
 ## Lessons
 
 `examples/lessons/sampling/lesson.js` is a lesson as data: *Pointillism and Expressionism, by sampling*.
-- **Sections:** Seurat, Munch and Muybridge, each a public-domain source (`media/`, with `RIGHTS.md`), and *The body as a source* (pose, and a custom brush; ml5.js in the p5 versions).
+- **Sections:** *How we see* (five diagrams drawn by code: the eye, the retina as a mosaic, the cone curves, a pixel, then and now), then Seurat, Munch and Muybridge, each a public-domain source (`media/`, with `RIGHTS.md`), and *The body as a source* (pose, and a custom brush; ml5.js in the p5 versions).
 - **Examples:** each is a board with an idea, pseudocode and code.
 - **Scripts:**
   - `scripts/lesson-sampling-p5.mjs` writes each example as a p5 sketch (`exports/lesson-sampling/p5/`).

@@ -663,6 +663,9 @@ export class CanvasView {
       // The board being worked on is drawn live (not baked) while the pointer is down.
       this.workBoard = boardAt(this.store.doc, wx, wy)?.id || BLACKBOARD;
       const tool = this.getTool();
+      // A board's play / pause button works with any tool.
+      const run = this.runButtonAt(sx, sy);
+      if (run) { this.pointer = false; this.onToggleRun?.(run); return; }
       // Boards: their titles (and the selected board's corner) work with Select and the Board tool.
       if (tool === 'direct') return this.startDirect(e, sx, sy, wx, wy);
       if (tool === 'select' || tool === 'board') {
@@ -745,6 +748,7 @@ export class CanvasView {
   drawBoards(ctx, css) {
     const doc = this.store.doc, boards = boardsOf(doc);
     this.boardLabels = [];
+    this.runButtons = [];
     if (this.presenting || (boards.length < 2 && !this.selectedBoard)) return;
     const text = css.getPropertyValue('--wb-text').trim() || '#ddd', muted = css.getPropertyValue('--wb-muted').trim() || '#888';
     const accent = css.getPropertyValue('--wb-accent-2').trim() || '#c8664f', sel = css.getPropertyValue('--wb-select').trim() || '#8a8a8a';
@@ -754,19 +758,35 @@ export class CanvasView {
     boards.forEach((b, i) => {
       const [bx, by] = this.toScreen(b.x, b.y), w = b.width * this.cam.z, h = b.height * this.cam.z;
       const on = this.selectedBoard === b.id;
-      // Boards with processes (following sources, a source under them) show whether they run: ▶ live, ‖ paused.
-      const runs = b.follow || b.source ? (this.isBoardLive?.(b.id) ? '  ▶' : '  ‖') : '';
-      const label = `${i + 1}  ${b.title}${runs}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
-      const tw = Math.min(ctx.measureText(label).width, Math.max(40, w));
+      const label = `${i + 1}  ${b.title}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
+      // Boards with processes (code, following sources, a source under them) get a play / pause button
+      // after the title. Like a player's, it shows what a click does: pause while running, play when paused.
+      const runs = Boolean(b.follow || b.source || b.code);
+      const tw = Math.min(ctx.measureText(label).width, Math.max(40, w - (runs ? 22 : 0)));
       ctx.fillStyle = on ? text : muted;
-      ctx.fillText(label, bx, by - 5, Math.max(40, w));
+      ctx.fillText(label, bx, by - 5, Math.max(40, w - (runs ? 22 : 0)));
       this.boardLabels.push({ id: b.id, x: bx - 2, y: by - 20, w: tw + 4, h: 18 });
+      if (runs) {
+        const live = Boolean(this.isBoardLive?.(b.id)), gx = bx + tw + 10, gy = by - 16;
+        ctx.save();
+        ctx.fillStyle = live ? accent : muted;
+        if (live) { ctx.fillRect(gx + 1, gy + 1, 3, 10); ctx.fillRect(gx + 7, gy + 1, 3, 10); }   // pause
+        else { ctx.beginPath(); ctx.moveTo(gx + 1, gy); ctx.lineTo(gx + 11, gy + 6); ctx.lineTo(gx + 1, gy + 12); ctx.closePath(); ctx.fill(); }   // play
+        ctx.restore();
+        this.runButtons.push({ id: b.id, x: gx - 4, y: gy - 4, w: 20, h: 20 });
+      }
       if (on) {
         ctx.strokeStyle = sel; ctx.lineWidth = 1.5; ctx.strokeRect(bx - 0.5, by - 0.5, w + 1, h + 1);
         ctx.fillStyle = accent; ctx.fillRect(bx + w - 5, by + h - 5, 10, 10);
       }
     });
     ctx.restore();
+  }
+
+  /** The play / pause button after a board's title under a screen point (its board id), or null. */
+  runButtonAt(sx, sy) {
+    const r = (this.runButtons || []).find(q => sx >= q.x && sx <= q.x + q.w && sy >= q.y && sy <= q.y + q.h);
+    return r ? r.id : null;
   }
 
   /** The board title (or the selected board's resize corner) under a screen point. */

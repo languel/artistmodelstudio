@@ -459,7 +459,7 @@ export class Workbench {
       { label: 'Go to', run: () => this.goToBoard(id) },
       { label: 'Rename…', run: () => this.renameBoard(id) },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
-      { active: this.isBoardLive(id), label: this.isBoardLive(id) ? (id === (this.activeBoard || MAIN) && !b.live ? 'Live (you are on it)' : 'Live') : 'Paused (baked)', hint: 'Live boards run (their code follows sources, their brushes read live frames); paused boards are baked into a picture', run: () => this.setBoardLive(id, !b.live) },
+      { label: this.isBoardLive(id) ? 'Pause' : 'Play', hint: 'Live boards run (their code follows sources, their brushes read live frames); paused boards are baked into a picture and stay paused until played', run: () => this.toggleBoardRun(id) },
       { label: 'Bake to image', hint: 'Its marks become one image mark (undo brings them back)', run: () => this.bakeBoard(id) },
       { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)'], ...(b.code ? [['p5code', 'p5 (its code)']] : [])].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
       { active: (doc.train || MAIN) === id, label: (doc.train || MAIN) === id ? 'Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
@@ -624,6 +624,7 @@ export class Workbench {
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));
     KIT.onImageLoad = () => { this.canvas.baked?.clear(); this.canvas.invalidate(); };
     this.canvas.isBoardLive = id => this.isBoardLive(id);
+    this.canvas.onToggleRun = id => this.toggleBoardRun(id);
     this.canvas.onCamera = () => { const z = this.zoomIsland?.querySelector('span'); if (z) z.textContent = `${Math.round(this.canvas.cam.z * 100)}%`; };
     this.topbar = h('div', { class: 'wb-topbar' });
     this.zoomIsland = h('div', { class: 'wb-island wb-zoom' });
@@ -787,8 +788,23 @@ export class Workbench {
    * The rest are paused: baked into a picture (see canvasView.drawBaked) and left as they were.
    */
   isBoardLive(id) {
-    if ((id || MAIN) === (this.activeBoard || MAIN)) return true;
-    return Boolean(boardById(this.store.doc, id)?.live);
+    const b = boardById(this.store.doc, id);
+    if (!b || b.paused) return false;   // paused by hand: stays paused, even while you are on it
+    return b.id === (this.activeBoard || MAIN) || Boolean(b.live);
+  }
+
+  /**
+   * Play or pause a board (its title's button, the Boards panel, its menu). Pausing holds even while
+   * you are on the board; playing a board you are not on keeps it running (while on screen).
+   */
+  toggleBoardRun(id) {
+    const live = this.isBoardLive(id);
+    this.store.change(live ? 'board paused' : 'board live', d => {
+      const t = !id || id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
+      if (!t) return;
+      if (live) { t.paused = true; delete t.live; }
+      else { delete t.paused; if ((id || MAIN) !== (this.activeBoard || MAIN)) t.live = true; }
+    });
   }
 
   /** Live and on screen: a board whose processes run now. */
@@ -798,7 +814,7 @@ export class Workbench {
     this.store.change(on ? 'board live' : 'board paused', d => {
       const t = !id || id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
       if (!t) return;
-      if (on) t.live = true; else delete t.live;
+      if (on) { t.live = true; delete t.paused; } else delete t.live;
     });
   }
 
@@ -851,7 +867,7 @@ export class Workbench {
     this.store.change(on ? 'follow sources' : 'stop following', d => {
       const t = !id || id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
       if (!t) return;
-      if (on) t.follow = true; else delete t.follow;
+      if (on) { t.follow = true; delete t.paused; } else delete t.follow;
     });
   }
 
