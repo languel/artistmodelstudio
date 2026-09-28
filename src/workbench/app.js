@@ -56,6 +56,7 @@ import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 import { Sources } from './sources.js';
 import { startDiagnostics } from './diagnostics.js';
+import { boardPart, scenePart, selectionPart, importPart, isPart } from '../process/parts.js';
 import { toP5Code, p5SketchHtml, usesMl5 } from '../process/p5code.js';
 import { readRecently } from '../process/streams.js';
 import { mountSources } from './panels/sources.js';
@@ -461,8 +462,9 @@ export class Workbench {
       { label: 'Rename…', run: () => this.renameBoard(id) },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
       { label: this.isBoardLive(id) ? 'Pause' : 'Play', hint: 'Live boards run (their code follows sources, their brushes read live frames); paused boards are baked into a picture and stay paused until played', run: () => this.toggleBoardRun(id) },
+      { label: 'Export as JSON', hint: 'The marks as a file (.ams.json), to import again into any scene', run: () => { const d = selectionPart(this.selectionDoc(ids)); if (d) download(JSON.stringify(d, null, 2), `${this.slug()}-selection.ams.json`, 'application/json'); } },
       { label: 'Bake to image', hint: 'Its marks become one image mark (undo brings them back)', run: () => this.bakeBoard(id) },
-      { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)'], ...(b.code ? [['p5code', 'p5 (its code)']] : [])].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
+      { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['json', 'JSON (to import again)'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)'], ...(b.code ? [['p5code', 'p5 (its code)']] : [])].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
       { active: (doc.train || MAIN) === id, label: (doc.train || MAIN) === id ? 'Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
       b.main ? null : { label: 'Earlier', run: () => this.store.moveBoard(id, -1) },
       b.main ? null : { label: 'Later', run: () => this.store.moveBoard(id, 1) },
@@ -681,6 +683,15 @@ export class Workbench {
     this.sources.startAll();
     initWorkbenchMCP(this);
     this.diagnostics = startDiagnostics(this);
+    // Paste studio JSON (Copy as → JSON, or an exported file's text) into the scene.
+    document.addEventListener('paste', e => {
+      if (e.target.closest?.('input, textarea, select, [contenteditable], .cm-editor')) return;
+      const text = e.clipboardData?.getData('text/plain') || '';
+      if (!/^\s*\{/.test(text)) return;
+      try { if (!isPart(JSON.parse(text))) return; } catch { return; }
+      e.preventDefault();
+      this.importText(text, null, 'pasted');
+    });
     this.log('Workbench ready.');
   }
 
@@ -1067,6 +1078,10 @@ export class Workbench {
   }
 
   async placeFiles(files, at) {
+    // Studio JSON (a selection, a board, a scene) comes into this scene; pictures become image layers.
+    const json = f => /\.json$/i.test(f.name) || f.type === 'application/json';
+    for (const f of files.filter(json)) await this.importText(await f.text(), at, f.name);
+    files = files.filter(f => !json(f));
     let [x, y] = at;
     for (const f of files.filter(f => f.type.startsWith('image/'))) { await this.placeImage(f, [x, y], { title: f.name.replace(/\.[^.]+$/, '') }); x += 30; y += 30; }
   }
@@ -1085,7 +1100,8 @@ export class Workbench {
         { label: this.canvas.grid.show === 'off' ? 'Show grid' : 'Hide grid', run: () => this.canvas.setGrid({ show: this.canvas.grid.show === 'off' ? 'paper' : 'off' }) },
         { label: this.canvas.grid.snap ? 'Snap off' : 'Snap to grid', run: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }) },
         '-',
-        { label: 'Note here', run: () => { this.setTool('note'); const [sx, sy] = this.canvas.toScreen(wx, wy); this.canvas.startNote(sx, sy, wx, wy); } }
+        { label: 'Note here', run: () => { this.setTool('note'); const [sx, sy] = this.canvas.toScreen(wx, wy); this.canvas.startNote(sx, sy, wx, wy); } },
+        { label: 'Import here…', hint: 'A selection, a board or a scene (.ams.json): marks land here, boards come in as new boards', run: () => this.importFile([wx, wy]) }
       ];
     }
     const els = this.store.doc.elements.filter(el => ids.includes(el.id));
@@ -1132,7 +1148,8 @@ export class Workbench {
       { label: 'Copy as', items: [
         { label: 'SVG', hint: 'The selection as SVG (with its process record), on the clipboard', run: () => this.copySelection('svg', ids) },
         { label: 'PNG', hint: 'The selection as a picture (transparent), on the clipboard', run: () => this.copySelection('png', ids) },
-        { label: 'p5 code', hint: 'The selection as a minimal p5 sketch (plain calls), on the clipboard', run: () => this.copySelection('p5', ids) }
+        { label: 'p5 code', hint: 'The selection as a minimal p5 sketch (plain calls), on the clipboard', run: () => this.copySelection('p5', ids) },
+        { label: 'JSON', hint: 'The marks as studio JSON, on the clipboard: paste (Cmd+V) into any scene', run: () => this.copySelection('json', ids) }
       ] },
       { label: 'Bake to image', hint: 'The selected marks become one image mark (undo brings them back)', run: () => { const el = this.bakeMarks(ids, { title: ids.length === 1 ? (this.store.doc.elements.find(e => e.id === ids[0])?.label || 'mark') : `${ids.length} marks` }); if (el) this.canvas.select([el.id]); } },
       { label: 'Add to Assets', items: [
@@ -1160,7 +1177,8 @@ export class Workbench {
         { label: 'Start without keeping it', run: () => this.newProject({ keep: false }) },
         { label: 'Cancel', run: () => {} }
       ] },
-      { label: 'Open file', hint: 'Process JSON, SVG with a process record, Excalidraw, or an image as reference', run: () => this.openFile() },
+      { label: 'Open file', hint: 'Process JSON, SVG with a process record, Excalidraw, or an image as reference (opens as a new scene)', run: () => this.openFile() },
+      { label: 'Import into this scene…', hint: 'A board, a selection or a scene (.ams.json) comes into this scene: boards as new boards, a selection where you are looking', run: () => this.importFile() },
       { label: 'Save to Assets', keys: this.shortcuts.label('file.save'), run: () => this.saveToAssets() },
       { label: 'Export', items: [
         { label: 'PNG', hint: 'The picture (or the process view, if shown)', run: () => this.exportAs('png') },
@@ -1169,7 +1187,7 @@ export class Workbench {
         { label: 'Process sheet', hint: 'Stages, decisions and reasons on one page (PNG)', run: () => this.exportAs('sheet') },
         { label: 'p5 (minimal code)', hint: 'The active board as a short sketch.js of plain p5 calls, for teaching (brush textures left out)', run: () => this.exportAs('p5min') },
         { label: 'Page (HTML)', hint: 'Every board as a section: picture, process, replay and its text. The drawing travels inside', run: () => this.exportAs('page') },
-        { label: 'JSON', hint: 'The process document', run: () => this.exportAs('json') },
+        { label: 'Scene (JSON)', hint: 'The whole scene, every board, as a file to open or import again (a board or a selection: their own menus)', run: () => this.exportAs('scene-json') },
         { label: 'Excalidraw', run: () => this.exportAs('excalidraw') }
       ] },
       '-',
@@ -1217,6 +1235,7 @@ export class Workbench {
 
   async copySelection(kind, ids) {
     try {
+      if (kind === 'json') { const d = selectionPart(this.selectionDoc(ids)); if (!d) return; await navigator.clipboard.writeText(JSON.stringify(d)); this.log('Copied the selection as JSON: paste it (Cmd+V) into any scene.'); return; }
       const blob = await this.selectionBlob(kind, ids);
       if (!blob) return;
       if (kind === 'svg' || kind === 'p5') await navigator.clipboard.writeText(await blob.text());
@@ -1261,14 +1280,15 @@ export class Workbench {
   async exportAs(kind, board = this.activeBoard || MAIN) {
     const b = boardById(this.store.doc, board) || boardById(this.store.doc, MAIN);
     // json keeps the whole drawing (every board); the rest is one board as a picture.
-    let doc = kind === 'json' || kind === 'page' ? this.store.doc : boardDoc(this.store.doc, b.id);
+    let doc = kind === 'scene-json' || kind === 'page' ? this.store.doc : boardDoc(this.store.doc, b.id);
     // A board's sketch carries the board's own score (its code), or, for the main board, the drawing's.
     if (kind === 'p5') doc = { ...doc, meta: { ...(doc.meta || {}), script: b.code || (b.main ? doc.meta?.script : undefined) || undefined } };
     const s = b.main ? this.slug() : `${this.slug()}-${String(b.title).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     if (kind === 'png') renderToCanvas(doc, { scale: 2, mode: this.view.mode }).toBlob(b => download(b, `${s}.png`, 'image/png'));
     else if (kind === 'sheet') processSheet(doc).toBlob(b => download(b, `${s}-process.png`, 'image/png'));
     else if (kind === 'svg') download(toSVG(doc, { mode: this.view.mode }), `${s}.svg`, 'image/svg+xml');
-    else if (kind === 'json') download(JSON.stringify(doc, null, 2), `${s}.ams.json`, 'application/json');
+    else if (kind === 'json') download(JSON.stringify(boardPart(this.store.doc, b.id), null, 2), `${s}.ams.json`, 'application/json');
+    else if (kind === 'scene-json') download(JSON.stringify(scenePart(this.store.doc), null, 2), `${this.slug()}.ams.json`, 'application/json');
     else if (kind === 'page') download(sceneHtml(this.store.doc), `${this.slug()}.html`, 'text/html');
     else if (kind === 'p5min') download(toP5Min(doc, { version: this.p5Version() }), `${s}-sketch.js`, 'text/javascript');
     else if (kind === 'excalidraw') download(JSON.stringify(toExcalidraw(doc), null, 2), `${s}.excalidraw`, 'application/json');
@@ -1284,7 +1304,31 @@ export class Workbench {
       const zip = createZip([{ name: 'index.html', data: p5IndexHtml(doc.title, this.p5Version()) }, { name: 'sketch.js', data: toP5(doc) }]);
       download(new Blob([zip], { type: 'application/zip' }), `${s}-p5.zip`, 'application/zip');
     }
-    this.log(`Exported ${kind}${b.main || kind === 'page' || kind === 'json' ? '' : ` (${b.title})`}.`);
+    this.log(`Exported ${kind === 'scene-json' ? 'the scene as JSON' : kind}${kind === 'page' || kind === 'scene-json' ? '' : ` (${b.title})`}.`);
+  }
+
+  /** Bring a part (a selection, a board, a scene) into this scene. One undo step. */
+  importPartHere(part, at = null, name = 'import') {
+    const r = this.store.change(`import ${name}`, d => importPart(d, part, { at }));
+    if (r.kind === 'selection') { this.canvas.select(r.elements); this.log(`Imported ${r.elements.length} marks.`); }
+    else { this.goToBoard(r.boards[0], { animate: true }); this.log(`Imported ${r.boards.length === 1 ? 'a board' : `${r.boards.length} boards`} (${r.elements.length} marks).`); }
+    return r;
+  }
+
+  /** Studio JSON text → into this scene (at: where a selection lands; else where you are looking). */
+  async importText(text, at = null, name = 'import') {
+    let j;
+    try { j = JSON.parse(text); } catch { this.log(`${name}: not JSON.`, 'error'); return null; }
+    if (!isPart(j)) { this.log(`${name}: not a studio drawing (open other files with Open file).`, 'error'); return null; }
+    if (!at && j.meta?.part === 'selection') at = this.canvas.toWorld(this.canvas.w / 2 - (j.artboard?.width || 0) * this.canvas.cam.z / 2, this.canvas.h / 2 - (j.artboard?.height || 0) * this.canvas.cam.z / 2);
+    return this.importPartHere(j, at, name);
+  }
+
+  /** Choose a .ams.json file and bring it into this scene. */
+  importFile(at = null) {
+    const input = h('input', { type: 'file', accept: '.json,application/json' });
+    input.addEventListener('change', async () => { const f = input.files[0]; if (f) await this.importText(await f.text(), at, f.name); });
+    input.click();
   }
 
   openFile() {

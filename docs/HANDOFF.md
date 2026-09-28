@@ -83,6 +83,8 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 
 34. **Flight recorder** (`src/workbench/diagnostics.js`): every 2 s one line (visibility, frames given to the page, redraws, heap, samples, detections, live runs, lag, long tasks), plus page events. Kept in localStorage `ams_flight_v1` for 30 min. Read it with `window.ams.diagnostics()` or `ams_diagnostics`. Found on 27 Sep: a pane freeze showed the studio tab as visible but given 0 frames. Re-selecting the tab brought it back, and a fresh tab in the pane ran at 120 fps.
 
+35. **Parts** (`src/process/parts.js`): `scenePart`, `boardPart` and `selectionPart` write `.ams.json` with `meta.part`. `importPart` brings any of them into the open scene (new boards, or a group at a point; stages matched by name, new ids). The app wires it through the board and selection menus, *Import into this scene…*, *Import here…*, drag and drop, and paste.
+
 ## How the model fits
 
 ```

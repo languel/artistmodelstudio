@@ -389,7 +389,16 @@ From the menu:
 - **p5.js version:** Settings → Export: 2.x (latest, the default) or 1.x (`curveVertex`). The full export loads `p5@2` or `p5@1`.
 - **Page (HTML):** see *Scenes, boards and pages*.
 - **Process sheet:** a PNG of the stages and the decisions.
-- **Process JSON.**
+- **JSON (`.ams.json`), to import again.** A file holds a scene, a board or a selection (`meta.part`):
+  - **Scene:** Menu → Export → *Scene (JSON)*.
+  - **Board:** its menu → Export → *JSON*. Its marks come from its top-left; its size, paper, title, code, text and source come along.
+  - **Selection:** *Export as JSON*, or *Copy as → JSON* for the clipboard.
+
+  **Import into the scene you are in:**
+  - *Import into this scene…* (Menu), *Import here…* (right-click the canvas), or the import button in the Boards panel.
+  - Drop a `.ams.json` file on the canvas, or paste (Cmd+V) copied JSON.
+  - Boards come in as new boards, right of the others. A selection lands where you drop, right-click or look, as a group.
+  - Stages are matched by name, and brushes come along. *Open file* still opens a file as a new scene.
 - **Excalidraw:** round-trips to underscores through `customData.ams`.
 
 ## Lessons

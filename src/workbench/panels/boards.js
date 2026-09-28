@@ -59,6 +59,7 @@ export function mountBoards(el, app) {
     intro.addEventListener('change', () => app.store.change('page intro', d => { d.meta = { ...(d.meta || {}), intro: intro.value }; if (!intro.value) delete d.meta.intro; }));
     el.append(list, h('div', { class: 'wb-row wb-row-actions' },
       h('button', { class: 'wb-btn', html: `${icon('plus')}<span>Board</span>`, title: 'A new board, right of the others (or drag one out with the Board tool, Shift+O)', onclick: () => { const b = app.store.addBoard({}); app.goToBoard(b.id); } }),
+      h('button', { class: 'wb-icon-btn', title: 'Import a board (or a scene\'s boards, or marks) from a .ams.json file', html: icon('down'), onclick: () => app.importFile() }),
       h('span', { style: { flex: 1 } }),
       h('button', { class: 'wb-icon-btn', title: 'Export the page (HTML): every board with its picture, process, replay and text', html: icon('page'), onclick: () => app.exportAs('page') })),
       intro);
