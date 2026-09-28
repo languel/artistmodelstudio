@@ -37,8 +37,21 @@ async function renderMermaid(nodes, dark) {
   try { await mermaid.run({ nodes }); } catch (err) { console.warn('mermaid:', err.message); }
 }
 
-/** The page a frame runs: the bridge, then (for p5) p5.js, then the board's code. */
-function frameDoc(kind, code, token, board, p5Source = '') {
+/**
+ * Files a sketch loads by name (loadImage("seurat.jpg"), createVideo("birds.mp4")…) come from the
+ * studio's sources: the name before the extension is the source. So the code a student copies
+ * into the p5 editor (and uploads the picture beside) runs here unchanged.
+ */
+const LOADERS = ['loadImage', 'createVideo', 'createAudio', 'loadJSON', 'loadStrings', 'loadTable', 'loadBytes', 'loadFont', 'loadModel', 'loadXML'];
+export const filesOf = code => [...new Set([...String(code || '').matchAll(new RegExp(`(?:${LOADERS.join('|')})\\(\\s*["'\`]([^"'\`]+)["'\`]`, 'g'))].map(m => m[1]))];
+const fileLoader = files => `(() => {
+  const F = ${JSON.stringify(files).replace(/</g, '\\u003c')};
+  const at = p => (typeof p === 'string' && (F[p] || F[p.split('/').pop()])) || p;
+  for (const k of ${JSON.stringify(LOADERS)}) { const f = p5.prototype[k]; if (typeof f === 'function') p5.prototype[k] = function (path, ...rest) { return f.call(this, at(path), ...rest); }; }
+})();`;
+
+/** The page a frame runs: the bridge, then (for p5) p5.js and its files, then the board's code. */
+function frameDoc(kind, code, token, board, p5Source = '', files = {}) {
   const bridge = `(() => {
   const token = ${JSON.stringify(token)}, pending = new Map(); let seq = 0;
   const ask = (type, data, transfer) => new Promise((ok, fail) => { const id = ++seq; pending.set(id, { ok, fail }); parent.postMessage({ amsFrame: token, type, id, ...data }, '*'); });
@@ -58,7 +71,7 @@ function frameDoc(kind, code, token, board, p5Source = '') {
 })();`;
   const style = `html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}canvas{display:block}`;
   const body = kind === 'p5'
-    ? `<script>${bridge}</script><script>${p5Source.replace(/<\/script/gi, '<\\/script')}</script><script>${code.replace(/<\/script/gi, '<\\/script')}</script>`
+    ? `<script>${bridge}</script><script>${p5Source.replace(/<\/script/gi, '<\\/script')}</script><script>${fileLoader(files)}</script><script>${code.replace(/<\/script/gi, '<\\/script')}</script>`
     : `<script>${bridge}</script>${code}`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>${style}</style></head><body>${body}</body></html>`;
 }
@@ -72,6 +85,7 @@ export class BoardFrames {
     this.canvas.host.append(this.layer);
     this.frames = new Map();   // board id → { kind, el, code, token, ... }
     this.snapshots = new Map();   // p5 board id → last picture (data URL)
+    this.files = {};             // file name a sketch loads → data URL (from a source), or null
     this.tokens = new Map();      // a frame's token → its board id (kept a moment after it goes, for its last picture)
     window.addEventListener('message', e => this.onMessage(e));
   }
@@ -147,6 +161,11 @@ export class BoardFrames {
       if (!this.p5Loading) this.p5Loading = fetch(p5Url).then(r => r.text()).then(t => { this.p5Source = t; this.canvas.invalidate(); }).catch(err => this.app.log(`p5.js did not load: ${err.message}`, 'error'));
       return;
     }
+    // The files it loads by name, from the sources (read once, kept as data URLs).
+    const wanted = f.kind === 'p5' ? filesOf(code) : [];
+    this.loadFiles(wanted.filter(n => !(n in this.files)));
+    if (wanted.some(n => this.files[n] === undefined)) return;   // still reading: the sketch starts when they are here
+    const files = Object.fromEntries(wanted.filter(n => this.files[n]).map(n => [n, this.files[n]]));
     if (!f.running || f.code !== code || f.size !== `${b.width}x${b.height}`) {
       f.code = code; f.size = `${b.width}x${b.height}`; f.running = true; f.errors = [];
       f.iframe?.remove();
@@ -154,10 +173,29 @@ export class BoardFrames {
       iframe.setAttribute('sandbox', 'allow-scripts');
       iframe.setAttribute('credentialless', '');
       iframe.title = b.title;
-      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source);
+      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files);
       f.iframe = iframe;
       f.el.append(iframe);
     }
+  }
+
+  /** Read files a sketch loads by name (seurat.jpg → the source “seurat”) as data URLs; null when none. */
+  loadFiles(names) {
+    for (const n of names) {
+      if (n in this.files) continue;
+      this.files[n] = undefined;
+      this.fileFor(n).then(url => { this.files[n] = url; this.canvas.invalidate(); });
+    }
+  }
+
+  async fileFor(name) {
+    const base = name.split('/').pop().replace(/\.[^.]+$/, '');
+    const d = this.app.sources.def(base) || this.app.sources.list.find(x => x.name.toLowerCase() === base.toLowerCase());
+    let blob = null;
+    if (d?.kind === 'asset') blob = (await this.app.assetStore.get(d.assetId))?.blob;
+    if (!blob) { const a = (await this.app.assetStore.all()).find(x => x.blob && String(x.title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') === base.toLowerCase()); blob = a?.blob; }
+    if (!blob) { this.app.log(`p5: no source or asset for “${name}” (a source named “${base}”).`, 'error'); return null; }
+    return new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); });
   }
 
   /** p5.js as text (for frames and exported pages), loaded once. */

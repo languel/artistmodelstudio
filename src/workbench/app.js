@@ -59,6 +59,7 @@ import { Sources } from './sources.js';
 import { startDiagnostics } from './diagnostics.js';
 import { BoardFrames } from './boardFrames.js';
 import { boardPart, scenePart, selectionPart, importPart, isPart } from '../process/parts.js';
+import { p5ToStudio, isStudioSketch, textKind, p5Size } from '../process/convert.js';
 import { toP5Code, p5SketchHtml, usesMl5 } from '../process/p5code.js';
 import { readRecently } from '../process/streams.js';
 import { mountSources } from './panels/sources.js';
@@ -465,7 +466,19 @@ export class Workbench {
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
       { label: this.isBoardLive(id) ? 'Pause' : 'Play', hint: 'Live boards run (their code follows sources, their brushes read live frames); paused boards are baked into a picture and stay paused until played', run: () => this.toggleBoardRun(id) },
       { label: 'Export as JSON', hint: 'The marks as a file (.ams.json), to import again into any scene', run: () => { const d = selectionPart(this.selectionDoc(ids)); if (d) download(JSON.stringify(d, null, 2), `${this.slug()}-selection.ams.json`, 'application/json'); } },
-      { label: 'Bake to image', hint: 'Its marks become one image mark (undo brings them back)', run: () => this.bakeBoard(id) },
+      { label: 'Copy as', items: [
+        { label: 'PNG', hint: 'The board as a picture, on the clipboard', run: () => this.copyBoard(id, 'png') },
+        { label: 'SVG', hint: 'The board as SVG (with its process record), on the clipboard', run: () => this.copyBoard(id, 'svg') },
+        { label: 'JSON', hint: 'The board as studio JSON: paste (Cmd+V) into any scene', run: () => this.copyBoard(id, 'json') },
+        b.code ? { label: boardKind(b) === 'drawing' ? 'Studio code' : 'Its code', run: () => this.copyBoard(id, 'code') } : null,
+        { label: 'p5.js code', hint: 'For the p5 editor: its code as a sketch (or the marks as plain p5 calls)', run: () => this.copyBoard(id, 'p5') }
+      ].filter(Boolean) },
+      boardKind(b) === 'drawing' && b.code ? { label: 'Convert to p5.js', hint: 'A new board running its code as the p5 sketch the export writes (it pastes into the p5 editor as it is)', run: () => this.convertBoard(id, 'p5') } : null,
+      boardKind(b) === 'p5' && isStudioSketch(b.code) ? { label: 'Convert to studio code', hint: 'A new drawing board with the studio code inside this sketch', run: () => this.convertBoard(id, 'studio') } : null,
+      { label: 'Bake', items: [
+        { label: 'To a PNG image', hint: 'Its marks become one picture (undo brings them back)', run: () => this.bakeBoard(id, 'png') },
+        { label: 'To an SVG image', hint: 'Its marks become one vector image, crisp at any zoom (undo brings them back)', run: () => this.bakeBoard(id, 'svg') }
+      ] },
       { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['json', 'JSON (to import again)'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)'], ...(b.code ? [['p5code', 'p5 (its code)']] : [])].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
       { active: (doc.train || MAIN) === id, label: (doc.train || MAIN) === id ? 'Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
       b.main ? null : { label: 'Earlier', run: () => this.store.moveBoard(id, -1) },
@@ -690,14 +703,25 @@ export class Workbench {
     this.sources.startAll();
     initWorkbenchMCP(this);
     this.diagnostics = startDiagnostics(this);
-    // Paste studio JSON (Copy as → JSON, or an exported file's text) into the scene.
+    // Copy: the selected marks as studio JSON (paste them into any scene, or another tab).
+    document.addEventListener('copy', e => {
+      if (e.target.closest?.('input, textarea, select, [contenteditable], .cm-editor') || !this.canvas.selected.size) return;
+      const d = selectionPart(this.selectionDoc([...this.canvas.selected]));
+      if (!d) return;
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', JSON.stringify(d));
+      this.log(`Copied ${this.canvas.selected.size} marks: paste them into any scene.`);
+    });
+    // Paste: whatever it is. Pictures become image marks; studio JSON comes in; SVG comes back as
+    // marks (with a studio record) or as a vector image; p5 code becomes a p5 board, studio code a
+    // drawing board; other text a note. All where you are looking.
     document.addEventListener('paste', e => {
       if (e.target.closest?.('input, textarea, select, [contenteditable], .cm-editor')) return;
+      const files = [...(e.clipboardData?.files || [])];
       const text = e.clipboardData?.getData('text/plain') || '';
-      if (!/^\s*\{/.test(text)) return;
-      try { if (!isPart(JSON.parse(text))) return; } catch { return; }
+      if (!files.length && !text.trim()) return;
       e.preventDefault();
-      this.importText(text, null, 'pasted');
+      this.pasteContent({ files, text }).catch(err => this.log(`Paste: ${err.message}`, 'error'));
     });
     this.log('Workbench ready.');
   }
@@ -843,7 +867,7 @@ export class Workbench {
    * them in place, with a record of what went in (e.bake). One undo step brings them back.
    * rect: the picture's bounds in world units (default: the marks' bounds, with room for their brushes).
    */
-  bakeMarks(ids, { rect = null, title = 'baked', board = undefined, also = null } = {}) {
+  bakeMarks(ids, { rect = null, title = 'baked', board = undefined, also = null, format = 'png' } = {}) {
     const doc = this.store.doc, set = new Set(ids);
     const marks = doc.elements.filter(e => set.has(e.id) && e.role !== 'note' && e.points?.length);
     if (!marks.length) return null;
@@ -853,34 +877,86 @@ export class Workbench {
       const pad = 0.04 * Math.max(x1 - x0, y1 - y0) + 24;
       rect = { x: x0 - pad, y: y0 - pad, width: x1 - x0 + 2 * pad, height: y1 - y0 + 2 * pad };
     }
-    const s = Math.min(2, 4096 / Math.max(rect.width, rect.height));
-    const c = document.createElement('canvas');
-    c.width = Math.max(1, Math.round(rect.width * s)); c.height = Math.max(1, Math.round(rect.height * s));
-    renderDocument(c.getContext('2d'), { ...doc, elements: marks }, { mode: 'picture', transform: { x: -rect.x * s, y: -rect.y * s, scale: s }, ground: false, frozen: true });
-    const src = c.toDataURL('image/png');
+    let src;
+    if (format === 'svg') {
+      // Vector: the marks as SVG (their brushes' paths), crisp at any zoom.
+      const part = { ...doc, boards: [], artboard: { width: Math.ceil(rect.width), height: Math.ceil(rect.height), ground: 'transparent' }, elements: marks.map(e => ({ ...e, board: undefined, points: e.points.map(([x, y, t, p]) => [x - rect.x, y - rect.y, t, p]) })) };
+      src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(toSVG(part, { mode: 'picture' }))}`;
+    } else {
+      const s = Math.min(2, 4096 / Math.max(rect.width, rect.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(rect.width * s)); c.height = Math.max(1, Math.round(rect.height * s));
+      renderDocument(c.getContext('2d'), { ...doc, elements: marks }, { mode: 'picture', transform: { x: -rect.x * s, y: -rect.y * s, scale: s }, ground: false, frozen: true });
+      src = c.toDataURL('image/png');
+    }
     const gone = new Set(marks.map(e => e.id));
     const onBoard = board !== undefined ? board : marks[0].board;
     const el = this.store.change(`bake ${title}`, d => {
       d.elements = d.elements.filter(e => !gone.has(e.id));
       also?.(d);
       const { x, y, width: w, height: h } = rect;
-      const e = normalizeElement({ role: 'image', src, label: `${title} (baked)`, why: `baked from ${marks.length} marks`, bake: { count: marks.length, ids: [...gone].slice(0, 500), at: Date.now() },
+      const e = normalizeElement({ role: 'image', src, label: `${title} (baked${format === 'svg' ? ', SVG' : ''})`, why: `baked from ${marks.length} marks`, bake: { count: marks.length, ids: [...gone].slice(0, 500), at: Date.now(), format },
         points: [[x, y, 0, 0.5], [x + w, y, 0, 0.5], [x + w, y + h, 0, 0.5], [x, y + h, 0, 0.5]], ...(onBoard && onBoard !== MAIN ? { board: onBoard } : {}) }, marks[0].stage || this.activeStage.id);
       d.elements.push(e);
       return e;
     });
-    this.log(`Baked ${marks.length} marks into one image (undo brings them back).`);
+    this.log(`Baked ${marks.length} marks into one ${format === 'svg' ? 'SVG' : 'PNG'} image (undo brings them back).`);
     return el;
   }
 
   /** Bake a whole board: its marks become one image the size of the board; it stops following its sources. */
-  bakeBoard(id) {
+  bakeBoard(id, format = 'png') {
     const b = boardById(this.store.doc, id);
     if (!b) return null;
     const ids = this.store.doc.elements.filter(e => (e.board || MAIN) === b.id).map(e => e.id);
     if (!ids.length) { this.log(`“${b.title}” has no marks to bake.`); return null; }
-    return this.bakeMarks(ids, { rect: { x: b.x, y: b.y, width: b.width, height: b.height }, title: b.title, board: b.id, also: d => { delete (b.main ? d.artboard : d.boards.find(x => x.id === b.id)).follow; } });
+    return this.bakeMarks(ids, { format, rect: { x: b.x, y: b.y, width: b.width, height: b.height }, title: b.title, board: b.id, also: d => { delete (b.main ? d.artboard : d.boards.find(x => x.id === b.id)).follow; } });
   }
+
+  /**
+   * Convert a board between the studio's code and p5.js, as a new board beside the others (the
+   * original stays): a drawing's code becomes the p5 sketch the export writes (it runs here, and
+   * pastes into the p5 editor as it is); a sketch the studio wrote becomes studio code again.
+   */
+  async convertBoard(id, to) {
+    const b = boardById(this.store.doc, id);
+    if (!b) return null;
+    let kind, code, size = { width: b.width, height: b.height }, ground = b.ground;
+    if (to === 'p5') {
+      if (boardKind(b) !== 'drawing' || !b.code) { this.log(`“${b.title}” has no studio code to convert.`, 'error'); return null; }
+      kind = 'p5'; code = (await this.p5CodeFor(b.id)).code;
+    } else {
+      const r = boardKind(b) === 'p5' && p5ToStudio(b.code);
+      if (!r) { this.log(`“${b.title}” is not a sketch the studio wrote: only those convert back (bake it to an image instead).`, 'error'); return null; }
+      kind = 'drawing'; code = r.code; size = { width: r.width || b.width, height: r.height || b.height }; ground = r.ground || b.ground;
+    }
+    const title = `${b.title.replace(/ · (p5|studio)$/, '')} · ${to}`;
+    const nb = this.store.addBoard({ title, ...size, ground });
+    this.store.updateBoard(nb.id, { kind, code });
+    if (kind === 'drawing') this.store.runBoardCode(nb.id, code, runScript);
+    if (b.follow || b.live) this.setBoardLive(nb.id, true);
+    this.goToBoard(nb.id, { animate: true });
+    this.log(`“${title}”: ${to === 'p5' ? 'the board as a p5.js sketch (the same code runs in the p5 editor, with its pictures uploaded)' : 'the sketch as studio code'}.`);
+    return nb;
+  }
+
+  /** Copy a board: as a picture (PNG), SVG, JSON (to paste into any scene) or code (studio or p5). */
+  async copyBoard(id, kind) {
+    const b = boardById(this.store.doc, id);
+    if (!b) return;
+    try {
+      if (kind === 'png') { const blob = await canvasBlob(renderToCanvas(this.store.doc, { board: b.id, scale: 2, mode: 'picture' })); await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); }
+      else {
+        const text = kind === 'svg' ? toSVG(boardDoc(this.store.doc, b.id), { mode: 'picture' })
+          : kind === 'json' ? JSON.stringify(boardPart(this.store.doc, b.id))
+          : kind === 'p5' ? (boardKind(b) === 'p5' ? b.code : (await this.p5CodeFor(b.id))?.code || toP5Min(boardDoc(this.store.doc, b.id), { version: this.p5Version() }))
+          : b.code || '';
+        await navigator.clipboard.writeText(text);
+      }
+      this.log(`Copied “${b.title}” as ${kind === 'code' ? 'its code' : kind.toUpperCase()}.`);
+    } catch (err) { this.log(`Copy: ${err.message}`, 'error'); }
+  }
+
 
   /**
    * Follow a link from a document: [[Board]] (go to it), [[scene:Title]] (open that scene),
@@ -1171,7 +1247,7 @@ export class Workbench {
         { label: 'p5 code', hint: 'The selection as a minimal p5 sketch (plain calls), on the clipboard', run: () => this.copySelection('p5', ids) },
         { label: 'JSON', hint: 'The marks as studio JSON, on the clipboard: paste (Cmd+V) into any scene', run: () => this.copySelection('json', ids) }
       ] },
-      { label: 'Bake to image', hint: 'The selected marks become one image mark (undo brings them back)', run: () => { const el = this.bakeMarks(ids, { title: ids.length === 1 ? (this.store.doc.elements.find(e => e.id === ids[0])?.label || 'mark') : `${ids.length} marks` }); if (el) this.canvas.select([el.id]); } },
+      { label: 'Bake', items: ['png', 'svg'].map(format => ({ label: format === 'png' ? 'To a PNG image' : 'To an SVG image', hint: format === 'png' ? 'The selected marks become one picture (undo brings them back)' : 'The selected marks become one vector image, crisp at any zoom (undo brings them back)', run: () => { const el = this.bakeMarks(ids, { format, title: ids.length === 1 ? (this.store.doc.elements.find(e => e.id === ids[0])?.label || 'mark') : `${ids.length} marks` }); if (el) this.canvas.select([el.id]); } })) },
       { label: 'Add to Assets', items: [
         { label: 'As PNG', hint: 'A picture of the selection; opens again as a drawing', run: () => this.selectionToAssets('png', ids) },
         { label: 'As SVG', hint: 'The selection as an SVG file (with its process record)', run: () => this.selectionToAssets('svg', ids) }
@@ -1369,6 +1445,52 @@ export class Workbench {
     if (!isPart(j)) { this.log(`${name}: not a studio drawing (open other files with Open file).`, 'error'); return null; }
     if (!at && j.meta?.part === 'selection') at = this.canvas.toWorld(this.canvas.w / 2 - (j.artboard?.width || 0) * this.canvas.cam.z / 2, this.canvas.h / 2 - (j.artboard?.height || 0) * this.canvas.cam.z / 2);
     return this.importPartHere(j, at, name);
+  }
+
+  /** Where you are looking (the middle of the view), in world units. */
+  viewCenter() { return this.canvas.toWorld(this.canvas.w / 2, this.canvas.h / 2); }
+
+  /** Paste files and/or text into the scene (see the paste listener). */
+  async pasteContent({ files = [], text = '' }) {
+    const at = this.viewCenter();
+    const pics = files.filter(f => f.type.startsWith('image/'));
+    for (const f of pics) {
+      if (f.type === 'image/svg+xml') await this.placeSvg(await f.text(), at);
+      else await this.placeImage(f, at, { title: f.name?.replace(/\.[^.]+$/, '') || 'pasted' });
+    }
+    if (pics.length) return;
+    const t = text.trim();
+    const kind = textKind(t);
+    if (kind === 'json') return this.importText(t, null, 'pasted');
+    if (kind === 'svg') {
+      // With the studio's record inside: the marks themselves. Otherwise a vector image.
+      if (/data-ams/.test(t)) { try { const d = fromSVG(t); return this.importPartHere({ ...d, meta: { ...(d.meta || {}), part: 'selection' } }, [at[0] - d.artboard.width / 2, at[1] - d.artboard.height / 2], 'pasted SVG'); } catch { /* as an image */ } }
+      return this.placeSvg(t, at);
+    }
+    if (kind === 'p5' || kind === 'studio') {
+      const size = (kind === 'p5' && p5Size(t)) || { width: 800, height: 600 };
+      const b = this.store.addBoard({ title: kind === 'p5' ? 'Pasted sketch' : 'Pasted code', ...size, ground: kind === 'p5' ? '#141414' : undefined });
+      this.store.updateBoard(b.id, { kind: kind === 'p5' ? 'p5' : 'drawing', code: t });
+      if (kind === 'studio') { const r = this.store.runBoardCode(b.id, t, runScript); if (r.error) this.log(`Pasted code: ${r.error}`, 'error'); }
+      this.goToBoard(b.id, { animate: true });
+      this.log(kind === 'p5' ? 'Pasted a p5.js sketch as a p5 board (files it loads come from the sources by name).' : 'Pasted studio code as a board of its own.');
+      return;
+    }
+    // Plain text: a note.
+    const el = this.store.addElement({ role: 'note', stage: this.activeStage.id, points: [[at[0], at[1], 0, 0.5]], text: t.slice(0, 4000), note: structuredClone(this.defaults('note').note || {}), why: 'pasted' });
+    this.canvas.select([el.id]);
+  }
+
+  /** An SVG as a vector image mark (sized from its width/height or viewBox), centred at `at`. */
+  async placeSvg(svg, [wx, wy]) {
+    const vb = /viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/.exec(svg);
+    const wm = /<svg[^>]*\swidth\s*=\s*["']([\d.]+)/.exec(svg), hm = /<svg[^>]*\sheight\s*=\s*["']([\d.]+)/.exec(svg);
+    let w = Number(wm?.[1] || vb?.[1] || 400), h = Number(hm?.[1] || vb?.[2] || 300);
+    const k = Math.min(1, 800 / Math.max(w, h)); w *= k; h *= k;
+    const x = wx - w / 2, y = wy - h / 2;
+    const el = this.store.addElement({ role: 'image', stage: this.activeStage.id, src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, label: 'pasted SVG', points: [[x, y, 0, 0.5], [x + w, y, 0, 0.5], [x + w, y + h, 0, 0.5], [x, y + h, 0, 0.5]], why: 'pasted' });
+    this.canvas.select([el.id]);
+    return el;
   }
 
   /** Choose a .ams.json file and bring it into this scene. */

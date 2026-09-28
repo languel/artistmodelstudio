@@ -436,6 +436,20 @@ A document longer than its board grows past it on the board's paper.
 
 A p5 board runs while it is live and on screen, like a drawing. Paused, it shows its last picture. Errors appear under the code and in the Log. A frame takes the pointer only on the board you are on.
 
+### Converting, baking, copying, pasting
+
+- **Convert** (a board's menu, or `/convert p5|studio`): a drawing's studio code becomes a new p5 board running the sketch the export writes, and the same code pastes into the p5 editor as it is.
+  - A p5 board loads files by name (`loadImage("seurat.jpg")`) from the studio's sources: the name before the extension is the source. In the p5 editor, students upload the picture beside the sketch.
+  - A sketch the studio wrote converts back to studio code exactly. A p5 sketch written by hand has no studio code inside it: bake it instead.
+- **Bake** (the board and selection menus, `/bake png|svg`): marks become one image mark. PNG gives a picture; SVG gives a vector image, crisp at any zoom. Undo brings the marks back.
+- **Copy as** (nested, on boards and selections, or `/copy …`): PNG, SVG, JSON, studio code, p5.js code. Cmd+C copies the selected marks (as JSON).
+- **Paste** (Cmd+V) takes what it is given, where you are looking:
+  - pictures become image marks;
+  - studio JSON comes in;
+  - SVG comes back as marks when it carries the studio's record, and otherwise as a vector image;
+  - p5 code becomes a p5 board, sized by its `createCanvas`, and studio code a drawing board;
+  - other text becomes a note.
+
 ## The console
 
 In the Assistant, a line starting with `!` runs a studio tool by hand, with no model involved:

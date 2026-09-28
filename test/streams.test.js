@@ -138,3 +138,37 @@ line([[0.1, 0.5], [0.5, 0.4], [0.9, 0.5]], { brush: 'teeth' })`, { board: { widt
     expect(() => new Function(out)).not.toThrow();
   });
 });
+
+import { p5ToStudio, isStudioSketch, textKind, p5Size } from '../src/process/convert.js';
+describe('studio code ↔ p5', () => {
+  const studio = `// An image is a function: give it a place, it gives a color.
+const s = source('seurat')
+const cols = 6 /* 2..16 */, rows = 4 /* 2..12 */
+for (const i of range(cols)) for (const j of range(rows)) {
+  const x = (i + 0.5) / cols, y = (j + 0.5) / rows
+  point(x, y, { size: 90, color: s.color(x, y) })
+}
+`;
+  it('goes to p5 and back unchanged', () => {
+    const p5 = toP5Code(studio, { board: { title: 'Sample', width: 750, height: 500, ground: '#f3efe6' }, sources: { seurat: { file: 'seurat.jpg', kind: 'image' } } });
+    expect(isStudioSketch(p5)).toBe(true);
+    expect(p5).toContain('loadImage("seurat.jpg")');
+    const back = p5ToStudio(p5);
+    expect(back.code).toBe(studio);
+    expect(back).toMatchObject({ width: 750, height: 500, ground: '#f3efe6' });
+  });
+  it('keeps animated sources and brushes', () => {
+    const src = `brush({ id: 'b', roles: ['line'], params: {}, draw(ctx, e, p, k) { k.segment(ctx, 0, 0, 1, 1) } })\nconst s = source('walk')\nline([[0, 0], [1, 1]], { brush: 'b' })\n`;
+    const p5 = toP5Code(src, { board: { width: 300, height: 300 }, sources: { walk: { file: 'walk.gif', kind: 'animated' } }, loop: true });
+    expect(p5ToStudio(p5).code).toBe(src);
+  });
+  it('knows what was pasted', () => {
+    expect(p5ToStudio('function setup() { createCanvas(400, 400) }')).toBeNull();
+    expect(textKind('function setup() { createCanvas(400, 400) }\nfunction draw() {}')).toBe('p5');
+    expect(textKind("point(0.5, 0.5, { size: 20 })")).toBe('studio');
+    expect(textKind('<svg viewBox="0 0 10 10"></svg>')).toBe('svg');
+    expect(textKind('{"type":"ams-process","stages":[],"elements":[]}')).toBe('json');
+    expect(textKind('a plain thought about Seurat')).toBe('text');
+    expect(p5Size('createCanvas(640, 360)')).toEqual({ width: 640, height: 360 });
+  });
+});
