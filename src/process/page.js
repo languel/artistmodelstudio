@@ -14,7 +14,7 @@
  * Sources the code reads travel as pictures (images, GIFs, videos) and are sampled on the page.
  * The page can be opened in the studio again.
  */
-import { boardsOf, boardKind, boardDoc, marksOf, findBoard, MAIN } from './boards.js';
+import { boardsOf, boardKind, boardDoc, marksOf, findBoard, isFrame, boardsInFrame, MAIN } from './boards.js';
 import { renderMarkdown, md } from './markdown.js';
 import boardsSrc from './boards.js?raw';
 import documentSrc from './document.js?raw';
@@ -60,6 +60,9 @@ export const sourcesOf = b => [...new Set([...(b.code || '').matchAll(/source\(\
  */
 export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.meta?.intro || '', boards = null, byline = '', media = {}, pictures = {}, p5Source = '' } = {}) {
   let list = boards ? boards.map(id => boardsOf(doc).find(b => b.id === id)).filter(Boolean) : pageBoards(doc);
+  // Boards inside a frame are shown in it, not on their own.
+  const framed = new Set(list.filter(isFrame).flatMap(f => boardsInFrame(doc, f).map(x => x.id)));
+  list = list.filter(b => !framed.has(b.id));
   // Notes boards ("<Board> · notes") join their board.
   const notes = new Map();
   for (const b of list) {
@@ -76,50 +79,74 @@ export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.me
       const b = findBoard(doc, t.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'));
       return b && pictures[b.id] ? `<a class="md-embed" href="#${esc(b.id)}"><img src="${pictures[b.id]}" alt="${esc(b.title)}"></a>` : `<span class="md-missing">${t}</span>`;
     });
-  const needsP5 = list.some(b => boardKind(b) === 'p5');
+  const needsP5 = boardsOf(doc).some(b => boardKind(b) === 'p5' && (list.includes(b) || framed.has(b.id)));
   // A page that opens with a document uses it as its header (its own title, its contents); the
   // drawing's intro is left out when a document already says the same.
-  const lead = list[0] && boardKind(list[0]) === 'markdown' && /^#\s/m.test(list[0].code || '') ? list[0] : null;
+  const opensWithDoc = b => b && ((boardKind(b) === 'markdown' && /^#\s/m.test(b.code || '')) || (isFrame(b) && boardsInFrame(doc, b).some(x => boardKind(x) === 'markdown' && /^#\s/m.test(x.code || ''))));
+  const lead = opensWithDoc(list[0]) ? list[0] : null;
   if (intro && list.some(b => boardKind(b) === 'markdown' && (b.code || '').trim() === intro.trim())) intro = '';
 
   let n = 0;
-  const sections = list.map(b => {
-    const kind = boardKind(b), note = notes.get(b.id);
-    if (kind === 'markdown') return `<section class="doc" id="${esc(b.id)}"><div class="md">${mdHtml(b.code || '')}</div></section>`;
-    n++;
-    const head = `<h2>${/^[\d§]/.test(b.title) ? '' : `<span class="n">${n}</span>`}${esc(b.title)}</h2>`;   // titles that carry their own number keep it alone
+  const fit = b => `aspect-ratio: ${b.width} / ${b.height}; max-width: min(100%, calc(78vh * ${(b.width / b.height).toFixed(4)}))`;   // never taller than the screen
+  // One board's content (its heading given), by kind.
+  const boardHtml = (b, head, own = true) => {
+    const kind = boardKind(b), note = own ? notes.get(b.id) : null;
+    if (kind === 'markdown') return `<div class="md" id="${esc(b.id)}">${mdHtml(b.code || '')}</div>`;
     // Notes say it all when there are some (their heading repeats the board's title: left out).
     const noteSrc = note ? (note.code || '').replace(new RegExp(`^#{1,3}\\s+${b.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n`), '') : '';
-    const after = note ? `<div class="notes md" id="${esc(note.id)}">${mdHtml(noteSrc)}</div>` : b.text ? `<div class="idea md">${md(b.text)}</div>` : '';
-    if (kind === 'html') {
-      return `<section class="board" id="${esc(b.id)}">${head}<div class="stage" style="aspect-ratio: ${b.width} / ${b.height}"><iframe sandbox="allow-scripts" title="${esc(b.title)}" data-html="${esc(b.id)}"></iframe></div>${after}
-  <details class="code"><summary>HTML</summary><pre><code>${esc(b.code || '')}</code></pre></details></section>`;
-    }
-    if (kind === 'p5') {
-      return `<section class="board" id="${esc(b.id)}">${head}<div class="stage p5" data-p5="${esc(b.id)}" style="aspect-ratio: ${b.width} / ${b.height}"><button class="run" type="button">Run</button></div>${after}
-  <details class="code"><summary>p5.js</summary><pre><code>${esc(b.code || '')}</code></pre></details></section>`;
-    }
+    const after = note ? `<div class="notes md" id="${esc(note.id)}">${mdHtml(noteSrc)}</div>` : own && b.text ? `<div class="idea md">${md(b.text)}</div>` : '';
+    if (kind === 'html') return `${head}<div class="stage" style="${fit(b)}"><iframe sandbox="allow-scripts" title="${esc(b.title)}" data-html="${esc(b.id)}"></iframe></div>${after}
+  <details class="code"><summary>HTML</summary><pre><code>${esc(b.code || '')}</code></pre></details>`;
+    if (kind === 'p5') return `${head}<div class="stage p5" data-p5="${esc(b.id)}" style="${fit(b)}"><button class="run" type="button">Run</button></div>${after}
+  <details class="code"><summary>p5.js</summary><pre><code>${esc(b.code || '')}</code></pre></details>`;
     const one = boardDoc(doc, b.id), marks = one.elements.length;
     const stages = new Set(one.elements.map(e => e.stage)).size;
     const landmarks = /\.(pose|hands)\b|\.mask\s*\(/.test(b.code || '');
     const runs = b.follow && !landmarks && sourcesOf(b).some(s => media[s] && media[s].type !== 'image');
-    return `<section class="board" id="${esc(b.id)}">${head}
-  <figure class="fig" data-board="${esc(b.id)}" style="aspect-ratio: ${b.width} / ${b.height}"><canvas role="img" aria-label="${esc(b.title)}"></canvas>${runs ? '<button class="run" type="button">Run</button>' : ''}</figure>
+    return `${head}
+  <figure class="fig" data-board="${esc(b.id)}" style="${fit(b)}"><canvas role="img" aria-label="${esc(b.title)}"></canvas>${runs ? '<button class="run" type="button">Run</button>' : ''}</figure>
   <div class="bar" data-for="${esc(b.id)}">
     <button data-act="picture" class="on">Picture</button>${marks ? '<button data-act="process">Process</button><button data-act="replay">Replay</button>' : ''}
     <span class="meta">${marks ? `${marks} marks · ${stages} stage${stages === 1 ? '' : 's'} · ` : ''}${b.width}×${b.height}${landmarks ? ' · follows a pose: run it in the studio' : ''}</span>
   </div>
   ${b.code ? `<div class="live" data-for="${esc(b.id)}"></div>` : ''}
   ${after}
-  ${b.code ? `<details class="code"><summary>Code</summary><pre><code data-code-for="${esc(b.id)}">${esc(b.code)}</code></pre></details>` : ''}
+  ${b.code ? `<details class="code"><summary>Code</summary><pre><code data-code-for="${esc(b.id)}">${esc(b.code)}</code></pre></details>` : ''}`;
+  };
+  const numbered = b => { n++; return `<h2>${/^[\d§]/.test(b.title) ? '' : `<span class="n">${n}</span>`}${esc(b.title)}</h2>`; };   // titles that carry their own number keep it alone
+  const sections = list.map(b => {
+    const kind = boardKind(b);
+    if (kind === 'frame') {
+      // A frame (a slide): its boards side by side, in rows as on the canvas, sized as they are there.
+      const inside = boardsInFrame(doc, b);
+      // Rows: boards that overlap vertically sit side by side (left to right), as on the canvas.
+      const rows = [];
+      for (const x of [...inside].sort((a, c) => a.y - c.y)) {
+        const r = rows.find(r => r.some(o => x.y < o.y + o.height && o.y < x.y + x.height));
+        if (r) r.push(x); else rows.push([x]);
+      }
+      for (const r of rows) r.sort((a, c) => a.x - c.x);
+      const lone = inside.length === 1;
+      // Inside a frame, what repeats the frame's title (a board's heading, a document's first heading) is left out.
+      const same = t => t.replace(/ · notes$/, '').trim() === b.title.trim();
+      const cell = x => {
+        if (boardKind(x) !== 'markdown') return boardHtml(x, same(x.title) ? '' : `<h3>${esc(x.title)}</h3>`, lone);
+        const src = (x.code || '').replace(/^\s*#{1,3}\s+(.+)\n/, (all, t) => (same(t) ? '' : all));
+        return `<div class="md" id="${esc(x.id)}">${mdHtml(src)}</div>`;
+      };
+      return `<section class="frame" id="${esc(b.id)}">${/^\s*$/.test(b.title) || inside.some(x => boardKind(x) === 'markdown' && /^#\s/m.test(x.code || '')) ? '' : numbered(b)}
+  ${rows.map(r => `<div class="row" style="grid-template-columns: ${r.map(x => `${x.width}fr`).join(' ')}">${r.map(x => `<div class="cell" id="${esc(x.id)}">${cell(x)}</div>`).join('')}</div>`).join('\n  ')}
 </section>`;
+    }
+    if (kind === 'markdown') return `<section class="doc" id="${esc(b.id)}"><div class="md">${mdHtml(b.code || '')}</div></section>`;
+    return `<section class="board" id="${esc(b.id)}">${boardHtml(b, numbered(b))}</section>`;
   });
 
   const html = sections.join('\n');
   const usesMath = /class="katex/.test(html) || /class="katex/.test(intro ? md(intro) : '');
   const usesMermaid = /<pre class="mermaid">/.test(html);
   // A table of contents only when no document links the boards already.
-  const linked = list.some(b => boardKind(b) === 'markdown' && /\[\[/.test(b.code || ''));
+  const linked = boardsOf(doc).some(b => boardKind(b) === 'markdown' && /\[\[/.test(b.code || ''));
   const toc = linked ? [] : list.filter(b => boardKind(b) !== 'markdown' || /^#\s/m.test(b.code || ''));
   const headerParts = [
     lead ? '' : `<h1>${esc(title)}</h1>`,
@@ -155,9 +182,14 @@ nav.toc a { color: inherit; text-decoration: none; }
 nav.toc a:hover { color: var(--text); }
 section { padding-block: 40px; border-bottom: 1px solid var(--line); display: grid; gap: 14px; }
 section.doc { padding-block: 36px; }
+section.frame .row { display: grid; gap: 28px; align-items: start; }
+section.frame .row + .row { margin-top: 20px; }
+section.frame .cell { display: grid; gap: 12px; min-width: 0; align-content: start; }
+section.frame h3 { font-size: 1rem; font-weight: 500; margin: 0; }
+@media (max-width: 760px) { section.frame .row { grid-template-columns: 1fr !important; } }
 h2 { font-size: 1.15rem; font-weight: 500; margin: 0; }
 h2 .n { color: var(--muted); font: 0.8rem var(--mono); margin-right: 10px; }
-figure.fig, .stage { position: relative; margin: 0; width: 100%; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--code); }
+figure.fig, .stage { position: relative; margin: 0; width: 100%; justify-self: start; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--code); }
 figure.fig canvas, .stage iframe { display: block; width: 100%; height: 100%; border: 0; }
 .run { position: absolute; left: 10px; bottom: 10px; font: 500 0.75rem var(--mono); letter-spacing: 0.04em; color: var(--text); background: rgba(20, 20, 20, 0.84); border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; cursor: pointer; }
 .stage.p5 .run { left: 50%; top: 50%; bottom: auto; transform: translate(-50%, -50%); }
@@ -273,12 +305,13 @@ const PAGE_UI = String.raw`
       }
     } finally { busy = false; }
   };
-  setSourceProvider((name, rect) => {
+  setSourceProvider((name, rect, fit) => {
     const s = SRC[name];
     if (!s || !s.data) return null;
     const sw = s.frame.width, sh = s.frame.height, data = s.data, ra = rect.width / rect.height, sa = sw / sh;
-    const toSrc = (fx, fy) => (sa > ra ? [0.5 + (fx - 0.5) * (ra / sa), fy] : [fx, 0.5 + (fy - 0.5) * (sa / ra)]);
-    const rgb = (fx, fy) => { const [u, v] = toSrc(fx, fy); const x = Math.max(0, Math.min(sw - 1, Math.floor(u * sw))), y = Math.max(0, Math.min(sh - 1, Math.floor(v * sh))); const i = (y * sw + x) * 4; return [data[i], data[i + 1], data[i + 2]]; };
+    const wide = fit === 'contain' ? sa < ra : sa > ra;
+    const toSrc = (fx, fy) => (wide ? [0.5 + (fx - 0.5) * (ra / sa), fy] : [fx, 0.5 + (fy - 0.5) * (sa / ra)]);
+    const rgb = (fx, fy) => { const [u, v] = toSrc(fx, fy); if (u < 0 || u > 1 || v < 0 || v > 1) return [0, 0, 0]; const x = Math.max(0, Math.min(sw - 1, Math.floor(u * sw))), y = Math.max(0, Math.min(sh - 1, Math.floor(v * sh))); const i = (y * sw + x) * 4; return [data[i], data[i + 1], data[i + 2]]; };
     const hex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
     const lum = c => (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
     const world = (x, y) => [(x - rect.x) / rect.width, (y - rect.y) / rect.height];
@@ -307,7 +340,7 @@ const PAGE_UI = String.raw`
       const img = under && (under.canvas || under.el);
       if (img && (img.width || img.videoWidth)) {
         const iw = img.videoWidth || img.naturalWidth || img.width, ih = img.videoHeight || img.naturalHeight || img.height;
-        const k = Math.max(cv.width / iw, cv.height / ih);
+        const k = (b.sourceFit === 'contain' ? Math.min : Math.max)(cv.width / iw, cv.height / ih);
         ctx.save(); ctx.globalAlpha = b.sourceOpacity ?? 0.5; ctx.drawImage(img, (cv.width - iw * k) / 2, (cv.height - ih * k) / 2, iw * k, ih * k); ctx.restore();
       }
       const d = v.shown < order.length ? { ...one, elements: order.slice(0, v.shown) } : one;
@@ -386,7 +419,11 @@ const PAGE_UI = String.raw`
       const old = st.querySelector('iframe');
       if (old) { old.remove(); btn.textContent = 'Run'; return; }
       const f = document.createElement('iframe'); f.setAttribute('sandbox', 'allow-scripts'); f.title = b.title;
-      f.srcdoc = '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;overflow:hidden;background:transparent}canvas{display:block;width:100%!important;height:auto!important}</style>' + bridge(b) + '<script>' + (p5 ? p5.textContent : '') + '<\/script><script>' + (b.code || '').replace(/<\/script/gi, '<\\/script') + '<\/script>';
+      // Files the sketch loads by name (loadImage("seurat.jpg")) come from the pictures in this page.
+      const files = {};
+      for (const m of (b.code || '').matchAll(/(?:loadImage|createVideo|loadJSON|loadStrings)\(\s*["'\x60]([^"'\x60]+)["'\x60]/g)) { const k = m[1].split('/').pop().replace(/\.[^.]+$/, ''); if (MEDIA[k]) files[m[1]] = MEDIA[k].url; }
+      const loader = '(() => { const F = ' + JSON.stringify(files).replace(/</g, '\\u003c') + '; for (const k of ["loadImage", "createVideo", "loadJSON", "loadStrings"]) { const f = p5.prototype[k]; if (typeof f === "function") p5.prototype[k] = function (p, ...r) { return f.call(this, F[p] || p, ...r); }; } })();';
+      f.srcdoc = '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;overflow:hidden;background:transparent}canvas{display:block;width:100%!important;height:auto!important}</style>' + bridge(b) + '<script>' + (p5 ? p5.textContent : '') + '<\/script><script>' + loader + '<\/script><script>' + (b.code || '').replace(/<\/script/gi, '<\\/script') + '<\/script>';
       st.prepend(f); btn.textContent = 'Stop';
     });
   }

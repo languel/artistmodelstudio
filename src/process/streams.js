@@ -11,7 +11,8 @@
  *   mask(x, y) 0..1: how much a person is there (segmentation)
  *   pixels(w, h) Float32Array RGB (w×h×3), cover-fitted to the rect's shape
  *
- * Fitting is "cover": the source fills the rect, cropped to its aspect.
+ * Fitting is "cover" (the source fills the rect, cropped to its aspect) or "contain" (all of the
+ * source, letterboxed: outside it is black).
  */
 let provider = null;
 const lastRead = new Map();   // name → when code last asked for it (brushes drawing from a source redraw with it)
@@ -34,10 +35,10 @@ function emptySampler(name, rect) {
 }
 
 /** A sampler for `name`, fitted to `rect` ({ x, y, width, height }, world units). */
-export function getSource(name, rect = { x: 0, y: 0, width: 1000, height: 1000 }, { peek = false } = {}) {
+export function getSource(name, rect = { x: 0, y: 0, width: 1000, height: 1000 }, { peek = false, fit = 'cover' } = {}) {
   // peek: read without asking for more (a frozen board drawn from the frames it has).
   if (!peek) lastRead.set(String(name), Date.now());
-  return (provider && provider(String(name), rect)) || emptySampler(String(name), rect);
+  return (provider && provider(String(name), rect, fit)) || emptySampler(String(name), rect);
 }
 
 /** Persistent state for processes that run again and again (continuous fits), keyed by the caller. */

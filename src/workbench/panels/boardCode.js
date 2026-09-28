@@ -12,7 +12,7 @@ import { icon } from '../icons.js';
 import { createCodeEditor } from '../codeEditor.js';
 import { controlStrip } from '../codeParams.js';
 import { runScript } from '../../process/script.js';
-import { boardById, boardKind, MAIN } from '../../process/boards.js';
+import { boardById, boardKind, boardsInFrame, MAIN } from '../../process/boards.js';
 
 const TEMPLATE = `// This board's code: it redraws the board's marks each time it runs.
 // Coordinates are fractions of the board. Drag the slider, or Cmd-drag any number.
@@ -60,8 +60,8 @@ function draw() {
 }
 `
 };
-const LANGUAGE = { drawing: 'ams', markdown: 'markdown', html: 'html', p5: 'p5' };
-const KIND_LABELS = [['drawing', 'Drawing (studio code)'], ['markdown', 'Markdown'], ['html', 'HTML'], ['p5', 'p5.js']];
+const LANGUAGE = { drawing: 'ams', markdown: 'markdown', html: 'html', p5: 'p5', frame: 'markdown' };
+const KIND_LABELS = [['drawing', 'Drawing (studio code)'], ['markdown', 'Markdown'], ['html', 'HTML'], ['p5', 'p5.js'], ['frame', 'Frame (a slide)']];
 
 export function mountBoardCode(root, app) {
   let id = null, timer = 0, loading = false;
@@ -99,15 +99,15 @@ export function mountBoardCode(root, app) {
       b ? h('select', { class: 'wb-select', title: 'What the board holds: a drawing (studio code), a Markdown document, an HTML page or a p5.js sketch', onchange: e => setKind(e.target.value) }, ...KIND_LABELS.map(([k, l]) => h('option', { value: k, selected: boardKind(b) === k }, l))) : null,
       h('button', { class: `wb-icon-btn${live ? ' on' : ''}`, title: live ? 'Live: runs as you edit (click for Cmd+Enter only)' : 'Runs with Cmd+Enter (click to run as you edit)', html: '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M13 3L5 14h6l-1 7 8-11h-6z" fill="currentColor"/></svg>', onclick: () => { live = !live; try { localStorage.setItem('ams_board_live', live ? '1' : '0'); } catch { /* ignore */ } drawHead(); } }),
       boardKind(b) !== 'drawing' ? null : h('button', { class: `wb-icon-btn${b?.follow ? ' on' : ''}`, title: b?.follow ? 'Following its sources: the code re-runs on each new frame (click to stop)' : 'Follow sources: re-run the code on each new frame of the sources it reads (source(\'…\'), fit(\'…\'))', html: icon('follow'), onclick: () => { if (b) app.setBoardFollow(b.id, !b.follow); } }),
-      boardKind(b) === 'markdown' || boardKind(b) === 'html' ? null : h('button', { class: 'wb-btn primary', title: boardKind(b) === 'p5' ? 'Run (Cmd+Enter): restart the sketch' : 'Run (Cmd+Enter): the board is redrawn from its code', onclick: run }, 'Run'),
-      h('button', { class: 'wb-btn', title: 'Remove the marks the code made, and the code', onclick: () => { if (!id) return; app.store.change('clear board code', d => { d.elements = d.elements.filter(e => !(e.by?.kind === 'code' && e.by?.name === id)); if (id === MAIN) delete d.artboard.code; else delete d.boards.find(x => x.id === id).code; }); load(id, true); } }, 'Clear'));
+      ['markdown', 'html', 'frame'].includes(boardKind(b)) ? null : h('button', { class: 'wb-btn primary', title: boardKind(b) === 'p5' ? 'Run (Cmd+Enter): restart the sketch' : 'Run (Cmd+Enter): the board is redrawn from its code', onclick: run }, 'Run'),
+      boardKind(b) === 'frame' ? null : h('button', { class: 'wb-btn', title: 'Remove the marks the code made, and the code', onclick: () => { if (!id) return; app.store.change('clear board code', d => { d.elements = d.elements.filter(e => !(e.by?.kind === 'code' && e.by?.name === id)); if (id === MAIN) delete d.artboard.code; else delete d.boards.find(x => x.id === id).code; }); load(id, true); } }, 'Clear'));
   };
 
   // Change what the board holds; an empty board (or one still showing a template) gets the new template.
   const setKind = kind => {
     const b = id && boardById(app.store.doc, id);
     if (!b) return;
-    const code = !b.code || Object.values(TEMPLATES).includes(b.code) ? (kind === 'drawing' ? undefined : TEMPLATES[kind]) : b.code;
+    const code = kind === 'frame' ? b.code : !b.code || Object.values(TEMPLATES).includes(b.code) ? (kind === 'drawing' ? undefined : TEMPLATES[kind]) : b.code;
     app.store.updateBoard(id, { kind, ...(code !== b.code ? { code: code ?? '' } : {}) });
     load(id, true);
   };
@@ -117,6 +117,15 @@ export function mountBoardCode(root, app) {
     id = next;
     const b = id && boardById(app.store.doc, id);
     const kind = boardKind(b);
+    // A frame has no code: it holds boards (listed here, each a link to it).
+    host.style.display = strip.style.display = kind === 'frame' ? 'none' : '';
+    if (kind === 'frame') {
+      const inside = boardsInFrame(app.store.doc, b);
+      out.classList.remove('error');
+      out.replaceChildren(h('span', {}, `A frame (a slide): ${inside.length ? 'it holds ' : 'empty: boards whose centres lie inside it belong to it.'}`), ...inside.map((x, i) => h('a', { href: '#', class: 'wb-link', onclick: e => { e.preventDefault(); app.goToBoard(x.id, { animate: true }); } }, `${i ? ', ' : ''}${x.title}`)));
+      drawHead();
+      return;
+    }
     editor.setLanguage(LANGUAGE[kind]);
     loading = true;
     editor.value = b ? (b.code || TEMPLATES[kind]) : '';

@@ -116,16 +116,16 @@ function note(x, y, words, o = {}) {
   textAlign(LEFT, TOP);
   text(words, x${S}, y${SY}, n.width ?? 280);
 }`);
-  if (need.has('source')) defs.push(`// A source, sampled where you ask: the picture covers the canvas (cropped to its shape).
+  if (need.has('source')) defs.push(`// A source, sampled where you ask: the picture covers the canvas (cropped), or with { fit: 'contain' } all of it shows.
 // x, y are ${absolute ? 'pixels' : 'fractions of the canvas'}.
-function source(name) {
+function source(name, o = {}) {
   const img = sources[name];
   img.loadPixels();
   const iw = img.width, ih = img.height;
-  const k = max(width / iw, height / ih), ox = (width - iw * k) / 2, oy = (height - ih * k) / 2;
+  const k = (o.fit === 'contain' ? min : max)(width / iw, height / ih), ox = (width - iw * k) / 2, oy = (height - ih * k) / 2;
   const rgb = (x, y) => {
-    const u = constrain(floor((x${S} - ox) / k), 0, iw - 1);
-    const v = constrain(floor((y${SY} - oy) / k), 0, ih - 1);
+    const u = floor((x${S} - ox) / k), v = floor((y${SY} - oy) / k);
+    if (u < 0 || v < 0 || u >= iw || v >= ih) return [0, 0, 0];   // outside the picture (fit: 'contain')
     const i = 4 * (v * iw + u);
     return [img.pixels[i], img.pixels[i + 1], img.pixels[i + 2]];
   };

@@ -19,8 +19,9 @@
 import { boardsOf, boardKind, findBoard, MAIN } from '../process/boards.js';
 import { renderMarkdown, esc } from '../process/markdown.js';
 import { renderToCanvas } from '../process/render.js';
-// p5.js for sketches, bundled with the studio (no network needed; the package does not export the file by name).
-import p5Url from '../../node_modules/p5/lib/p5.min.js?url';
+// p5.js for sketches, bundled with the studio as plain text (no network needed; the package does not
+// export the file by name), loaded when a sketch first runs.
+const loadP5 = () => import('../../node_modules/p5/lib/p5.min.js?raw').then(m => m.default);
 import 'katex/dist/katex.min.css';
 
 const luminance = hex => {
@@ -53,6 +54,14 @@ const fileLoader = files => `(() => {
 /** The page a frame runs: the bridge, then (for p5) p5.js and its files, then the board's code. */
 function frameDoc(kind, code, token, board, p5Source = '', files = {}) {
   const bridge = `(() => {
+  // A sandboxed frame has no storage: reading it throws. Libraries that touch it (ml5, tfjs) get a
+  // stand-in that forgets on reload.
+  for (const k of ['localStorage', 'sessionStorage']) {
+    try { window[k].length; } catch {
+      const m = new Map();
+      try { Object.defineProperty(window, k, { configurable: true, value: { getItem: x => (m.has(x) ? m.get(x) : null), setItem: (x, v) => m.set(x, String(v)), removeItem: x => m.delete(x), clear: () => m.clear(), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } } }); } catch { /* keep going */ }
+    }
+  }
   const token = ${JSON.stringify(token)}, pending = new Map(); let seq = 0;
   const ask = (type, data, transfer) => new Promise((ok, fail) => { const id = ++seq; pending.set(id, { ok, fail }); parent.postMessage({ amsFrame: token, type, id, ...data }, '*'); });
   addEventListener('message', e => {
@@ -71,7 +80,7 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}) {
 })();`;
   const style = `html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}canvas{display:block}`;
   const body = kind === 'p5'
-    ? `<script>${bridge}</script><script>${p5Source.replace(/<\/script/gi, '<\\/script')}</script><script>${fileLoader(files)}</script><script>${code.replace(/<\/script/gi, '<\\/script')}</script>`
+    ? `<script>${bridge}</script><script>${p5Source.replace(/<\/script/gi, '<\\/script')}</script><script>${fileLoader(files)}</script>${/\bml5\./.test(code) ? '<script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/ml5@1/dist/ml5.min.js"></script>' : ''}<script>${code.replace(/<\/script/gi, '<\\/script')}</script>`
     : `<script>${bridge}</script>${code}`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>${style}</style></head><body>${body}</body></html>`;
 }
@@ -98,7 +107,7 @@ export class BoardFrames {
     if (sig !== this.titles) { this.titles = sig; this.relink(); }
     for (const b of boardsOf(doc)) {
       const kind = boardKind(b);
-      if (kind === 'drawing' || !this.canvas.boardOnScreen(b, 0.05)) continue;
+      if (kind === 'drawing' || kind === 'frame' || !this.canvas.boardOnScreen(b, 0.05)) continue;
       seen.add(b.id);
       let f = this.frames.get(b.id);
       if (f && f.kind !== kind) { f.el.remove(); f = null; }
@@ -158,7 +167,7 @@ export class BoardFrames {
     f.still?.remove(); f.still = null;
     // p5.js goes into the frame itself: a sandboxed frame has no origin to fetch it from.
     if (f.kind === 'p5' && !this.p5Source) {
-      if (!this.p5Loading) this.p5Loading = fetch(p5Url).then(r => r.text()).then(t => { this.p5Source = t; this.canvas.invalidate(); }).catch(err => this.app.log(`p5.js did not load: ${err.message}`, 'error'));
+      if (!this.p5Loading) this.p5Loading = loadP5().then(t => { this.p5Source = t; this.canvas.invalidate(); return t; }).catch(err => this.app.log(`p5.js did not load: ${err.message}`, 'error'));
       return;
     }
     // The files it loads by name, from the sources (read once, kept as data URLs).
@@ -200,7 +209,7 @@ export class BoardFrames {
 
   /** p5.js as text (for frames and exported pages), loaded once. */
   async p5Text() {
-    if (!this.p5Source) this.p5Source = await (this.p5Loading ||= fetch(p5Url).then(r => r.text()));
+    if (!this.p5Source) this.p5Source = await (this.p5Loading ||= loadP5());
     return this.p5Source;
   }
 

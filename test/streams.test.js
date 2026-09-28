@@ -83,7 +83,7 @@ line([[0.1, 0.2], [0.5, 0.3], [0.9, 0.2]], { width: 4 })`;
     expect(out).toContain("async function setup()");
     expect(out).toContain('drawPoint(i / 10, 0.5');
     expect(out).toContain('drawLine([[0.1, 0.2]');
-    expect(out).toContain('function source(name)');
+    expect(out).toContain('function source(name, o = {})');
     expect(out).toContain('function range(n)');
     expect(out).not.toContain('function drawPlane');
     expect(out).not.toContain('function walk');

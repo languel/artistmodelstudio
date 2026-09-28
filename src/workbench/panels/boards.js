@@ -5,7 +5,7 @@
  */
 import { h, editInPlace, editable } from '../ui.js';
 import { icon } from '../icons.js';
-import { boardsOf, marksOf, BLACKBOARD, MAIN } from '../../process/boards.js';
+import { boardsOf, marksOf, isFrame, boardsInFrame, BLACKBOARD, MAIN } from '../../process/boards.js';
 
 export function mountBoards(el, app) {
   const render = () => {
@@ -14,12 +14,24 @@ export function mountBoards(el, app) {
     const train = doc.train || MAIN;
     el.replaceChildren();
     const list = h('div', { class: 'wb-list' });
-    boards.forEach((b, i) => {
+    // Frames (slides) hold boards: each frame's boards follow it, indented, in reading order.
+    const parent = new Map();
+    for (const f of boards.filter(isFrame)) for (const x of boardsInFrame(doc, f)) parent.set(x.id, f.id);
+    const ordered = [];
+    for (const b of boards) {
+      if (parent.has(b.id)) continue;
+      ordered.push(b);
+      if (isFrame(b)) for (const x of boardsInFrame(doc, b)) ordered.push(x);
+    }
+    let slide = 0;
+    ordered.forEach((b, i) => {
       const active = app.activeBoard === b.id;
+      const nested = parent.has(b.id);
       const title = editable(h('span', { 'data-board-title': b.id }, b.title), `board:${b.id}`, () => boardsOf(app.store.doc).find(x => x.id === b.id)?.title || '', v => app.store.updateBoard(b.id, { title: v }));
-      const name = h('span', { class: 'wb-stage-name', title: 'Click to go · Shift+double-click to rename' }, `${i + 1}. `, title);
+      // Numbers are the slides (frames, or boards outside frames): what presenting steps through.
+      const name = h('span', { class: 'wb-stage-name', title: 'Click to go · Shift+double-click to rename' }, nested ? '' : `${++slide}. `, title);
       name.addEventListener('dblclick', e => { if (!e.shiftKey) app.goToBoard(b.id); });
-      const row = h('div', { class: `wb-stage${active ? ' active' : ''}`, 'data-guide': `board:${b.title}`, draggable: b.main ? 'false' : 'true', onclick: e => { if (e.target.closest('button')) return; app.goToBoard(b.id); }, oncontextmenu: e => { e.preventDefault(); app.boardMenu(b.id, e.clientX, e.clientY); } },
+      const row = h('div', { class: `wb-stage${active ? ' active' : ''}${nested ? ' nested' : ''}${isFrame(b) ? ' frame' : ''}`, 'data-guide': `board:${b.title}`, draggable: b.main || nested ? 'false' : 'true', onclick: e => { if (e.target.closest('button')) return; app.goToBoard(b.id); }, oncontextmenu: e => { e.preventDefault(); app.boardMenu(b.id, e.clientX, e.clientY); } },
         h('button', { class: `wb-icon-btn wb-train${train === b.id ? ' on' : ''}`, title: train === b.id ? 'Models learn from this board' : 'Train on this board', html: '<svg viewBox="0 0 24 24" width="12" height="12"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>', onclick: () => app.store.setTrainBoard(b.id) }),
         name,
         h('button', { class: `wb-icon-btn${app.isBoardLive(b.id) ? ' on' : ' wb-dim'}`, title: app.isBoardLive(b.id) ? `Running${b.live && !active ? ' (even when you are elsewhere)' : ''}: click to pause (a paused board is baked into a picture)` : 'Paused: click to play', html: icon(app.isBoardLive(b.id) ? 'pause' : 'play'), onclick: () => app.toggleBoardRun(b.id) }),

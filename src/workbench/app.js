@@ -4,7 +4,7 @@
  * command (see mcp.js), so agents drive the same surface.
  */
 import { openToolParams, openGridParams, openToolDefaults } from './toolParams.js';
-import { boardDoc, boardById, boardsOf, boardKind, findBoard, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
+import { boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
 import { linksOf } from '../process/markdown.js';
 import { sceneHtml, docFromPage, pageBoards, sourcesOf } from '../process/page.js';
 import { Scenes } from './scenes.js';
@@ -403,7 +403,7 @@ export class Workbench {
     if (on) {
       this.presentKeys ||= e => {
         if (!this.presenting || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
-        const bs = boardsOf(this.store.doc);
+        const bs = slidesOf(this.store.doc);
         const go = i => { e.preventDefault(); e.stopPropagation(); this.goToBoard(bs[Math.max(0, Math.min(bs.length - 1, i))].id); };
         const cur = Math.max(0, bs.findIndex(b => b.id === this.activeBoard));
         if (['ArrowRight', 'PageDown', ' '].includes(e.key) && !e.metaKey) go(cur + 1);
@@ -425,14 +425,14 @@ export class Workbench {
   }
 
   presentHud() {
-    const bs = boardsOf(this.store.doc), i = bs.findIndex(b => b.id === this.activeBoard);
+    const bs = slidesOf(this.store.doc), i = bs.findIndex(b => b.id === this.activeBoard);
     if (!this.hud) { this.hud = h('div', { class: 'wb-present-hud' }); this.stageArea.append(this.hud); }
     this.hud.textContent = `${i + 1} / ${bs.length}  ·  ${bs[i]?.title || ''}`;
     this.hud.classList.remove('fade'); void this.hud.offsetWidth; this.hud.classList.add('fade');
   }
 
   stepBoard(delta) {
-    const bs = boardsOf(this.store.doc);
+    const bs = slidesOf(this.store.doc);
     const i = Math.max(0, bs.findIndex(b => b.id === this.activeBoard));
     this.goToBoard(bs[(i + delta + bs.length) % bs.length].id);
   }
@@ -832,9 +832,12 @@ export class Workbench {
    * The rest are paused: baked into a picture (see canvasView.drawBaked) and left as they were.
    */
   isBoardLive(id) {
-    const b = boardById(this.store.doc, id);
+    const doc = this.store.doc, b = boardById(doc, id);
     if (!b || b.paused) return false;   // paused by hand: stays paused, even while you are on it
-    return b.id === (this.activeBoard || MAIN) || Boolean(b.live);
+    if (b.id === (this.activeBoard || MAIN) || b.live) return true;
+    // On a frame (a slide): the boards it holds are live together.
+    const active = boardById(doc, this.activeBoard || MAIN);
+    return isFrame(active) && boardsInFrame(doc, active).some(x => x.id === b.id);
   }
 
   /**
@@ -981,11 +984,11 @@ export class Workbench {
   }
 
   /** Show a source under a board (a reference: not part of the picture), or none. */
-  setBoardSource(id, name, opacity) {
+  setBoardSource(id, name, opacity, fit = 'cover') {
     this.store.change(name ? 'board source' : 'no board source', d => {
       const t = !id || id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
       if (!t) return;
-      if (name) { t.source = name; t.sourceOpacity = opacity ?? t.sourceOpacity ?? 0.5; } else { delete t.source; delete t.sourceOpacity; }
+      if (name) { t.source = name; t.sourceOpacity = opacity ?? t.sourceOpacity ?? 0.5; if (fit === 'contain') t.sourceFit = 'contain'; else delete t.sourceFit; } else { delete t.source; delete t.sourceOpacity; delete t.sourceFit; }
     });
   }
 
@@ -993,7 +996,7 @@ export class Workbench {
     for (const b of boardsOf(this.store.doc)) {
       const img = b.source && this.sources?.view(b.source);
       if (!img?.width) continue;
-      const k = Math.max(b.width / img.width, b.height / img.height), w = img.width * k, hh = img.height * k;
+      const k = (b.sourceFit === 'contain' ? Math.min : Math.max)(b.width / img.width, b.height / img.height), w = img.width * k, hh = img.height * k;
       ctx.save();
       ctx.beginPath(); ctx.rect(b.x, b.y, b.width, b.height); ctx.clip();
       ctx.globalAlpha = b.sourceOpacity ?? 0.5;

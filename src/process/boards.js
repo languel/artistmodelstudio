@@ -17,16 +17,33 @@ export const BLACKBOARD = '_';
 
 /**
  * What a board holds: 'drawing' (marks, and optional studio code: the default), 'markdown' (a
- * document), 'html' (a page) or 'p5' (a sketch). Its source is its code.
+ * document), 'html' (a page), 'p5' (a sketch), or 'frame': a slide, an area that holds the boards
+ * whose centres lie inside it (they move with it, present together and export side by side).
  */
-export const BOARD_KINDS = ['drawing', 'markdown', 'html', 'p5'];
+export const BOARD_KINDS = ['drawing', 'markdown', 'html', 'p5', 'frame'];
 export const boardKind = b => (BOARD_KINDS.includes(b?.kind) ? b.kind : 'drawing');
+export const isFrame = b => b?.kind === 'frame';
+
+/** The boards a frame holds (their centres inside it), in reading order. */
+export function boardsInFrame(doc, frame) {
+  return boardsOf(doc).filter(b => b.id !== frame.id && !isFrame(b) && b.x + b.width / 2 >= frame.x && b.x + b.width / 2 <= frame.x + frame.width && b.y + b.height / 2 >= frame.y && b.y + b.height / 2 <= frame.y + frame.height)
+    .sort((a, b) => (Math.abs(a.y - b.y) < 40 ? a.x - b.x : a.y - b.y));
+}
+
+/** The frame holding a board, or null. */
+export const frameOf = (doc, b) => boardsOf(doc).find(f => isFrame(f) && boardsInFrame(doc, f).some(x => x.id === b.id)) || null;
+
+/** What is presented, in order: the frames (reading order) when there are any, else the boards. */
+export function slidesOf(doc) {
+  const frames = boardsOf(doc).filter(isFrame);
+  return frames.length ? frames.sort((a, b) => (Math.abs(a.y - b.y) < 40 ? a.x - b.x : a.y - b.y)) : boardsOf(doc);
+}
 
 /** All boards, the main one first, each with its place: { id, title, x, y, width, height, ground, main }. */
 export function boardsOf(doc) {
   const a = doc.artboard || { width: 1000, height: 1000, ground: '#f3efe6' };
   return [
-    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.paused ? { paused: true } : {}), ...(a.kind ? { kind: a.kind } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity } : {}), main: true },
+    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.paused ? { paused: true } : {}), ...(a.kind ? { kind: a.kind } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity, ...(a.sourceFit ? { sourceFit: a.sourceFit } : {}) } : {}), main: true },
     ...(doc.boards || []).map(b => ({ ...b, main: false }))
   ];
 }
@@ -48,7 +65,8 @@ export const markBoard = id => (!id || id === MAIN ? undefined : id);
 
 /** The topmost board containing a world point (later boards sit above earlier ones), or null. */
 export function boardAt(doc, x, y) {
-  const bs = boardsOf(doc);
+  // Boards before frames: a mark drawn on a board inside a frame belongs to the board.
+  const bs = [...boardsOf(doc).filter(isFrame), ...boardsOf(doc).filter(b => !isFrame(b))];
   for (let i = bs.length - 1; i >= 0; i--) {
     const b = bs[i];
     if (x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height) return b;
@@ -108,7 +126,7 @@ export function migrateBoards(d) {
       id: String(b.id), title: String(b.title || b.id), x: Number(b.x) || 0, y: Number(b.y) || 0,
       width: Math.max(10, Number(b.width) || 1000), height: Math.max(10, Number(b.height) || 1000), ground: b.ground || d.artboard.ground,
       ...(b.text ? { text: String(b.text) } : {}), ...(b.code ? { code: String(b.code) } : {}),
-      ...(b.follow ? { follow: true } : {}), ...(b.live ? { live: true } : {}), ...(b.paused ? { paused: true } : {}), ...(b.kind ? { kind: String(b.kind) } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5) } : {})
+      ...(b.follow ? { follow: true } : {}), ...(b.live ? { live: true } : {}), ...(b.paused ? { paused: true } : {}), ...(b.kind ? { kind: String(b.kind) } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5), ...(b.sourceFit ? { sourceFit: String(b.sourceFit) } : {}) } : {})
     }));
     const ids = new Set([MAIN, BLACKBOARD, ...d.boards.map(b => b.id)]);
     for (const e of d.elements) if (e.board && !ids.has(e.board)) e.board = BLACKBOARD;

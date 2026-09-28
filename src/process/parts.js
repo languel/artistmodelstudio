@@ -11,7 +11,7 @@
 import { boardsOf, boardById, boardDoc, boardAt, markBoard, newBoardId, nextBoardPlace, MAIN, BLACKBOARD } from './boards.js';
 import { normalizeDocument, newId } from './document.js';
 
-const BOARD_KEYS = ['code', 'text', 'follow', 'source', 'sourceOpacity', 'kind'];
+const BOARD_KEYS = ['code', 'text', 'follow', 'source', 'sourceOpacity', 'sourceFit', 'kind'];
 
 export function scenePart(doc) {
   return { ...structuredClone(doc), meta: { ...(doc.meta || {}), part: 'scene' } };

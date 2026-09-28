@@ -9,7 +9,7 @@
  * (mouse pressure is estimated from speed). Wheel pans; Ctrl/Cmd+wheel or pinch zooms.
  */
 import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
-import { boardsOf, boardDoc, boardAt, boardForPoints, MAIN, BLACKBOARD } from '../process/boards.js';
+import { boardsOf, boardDoc, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD } from '../process/boards.js';
 import { closeLasso, lazyStep } from '../process/strokes.js';
 import { rdp } from '../process/sculpt.js';
 import { renderDocument } from '../process/render.js';
@@ -167,9 +167,22 @@ export class CanvasView {
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 18;
     for (const b of boards) {
+      if (b.kind === 'frame') continue;
       const [bx, by] = this.toScreen(b.x, b.y);
       ctx.fillStyle = b.ground;
       ctx.fillRect(bx, by, b.width * this.cam.z, b.height * this.cam.z);
+    }
+    ctx.restore();
+    // Frames (slides): a quiet outline around the boards they hold, drawn under them.
+    ctx.save();
+    for (const b of boards) {
+      if (b.kind !== 'frame') continue;
+      const [bx, by] = this.toScreen(b.x, b.y);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
+      ctx.fillRect(bx, by, b.width * this.cam.z, b.height * this.cam.z);
+      ctx.strokeStyle = css.getPropertyValue('--wb-line').trim() || '#353535';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(Math.round(bx) + 0.5, Math.round(by) + 0.5, Math.round(b.width * this.cam.z), Math.round(b.height * this.cam.z));
     }
     ctx.restore();
     this.drawGrid(true);
@@ -762,7 +775,7 @@ export class CanvasView {
       const label = `${i + 1}  ${b.title}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
       // Boards with processes (code, following sources, a source under them) get a play / pause button
       // after the title. Like a player's, it shows what a click does: pause while running, play when paused.
-      const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));   // documents (markdown, html) have nothing to play
+      const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));   // documents (markdown, html) and frames have nothing to play
       const tw = Math.min(ctx.measureText(label).width, Math.max(40, w - (runs ? 22 : 0)));
       ctx.fillStyle = on ? text : muted;
       ctx.fillText(label, bx, by - 5, Math.max(40, w - (runs ? 22 : 0)));
@@ -817,7 +830,11 @@ export class CanvasView {
     if (hd.kind === 'title' && b0.main) return;   // the main board stays at the origin
     const before = JSON.stringify(doc);
     const [wx, wy] = this.toWorld(...this.local(e));
-    const marks = doc.elements.filter(el => el.board === hd.id).map(el => [el, el.points.map(p => p.slice())]);
+    // A frame carries the boards it holds (and their marks) along.
+    const carried = b0.kind === 'frame' && hd.kind === 'title' ? boardsInFrame(doc, b0).filter(b => !b.main) : [];
+    const carriedIds = new Set(carried.map(b => b.id));
+    const marks = doc.elements.filter(el => el.board === hd.id || carriedIds.has(el.board)).map(el => [el, el.points.map(p => p.slice())]);
+    const starts = carried.map(b => [doc.boards.find(x => x.id === b.id), b.x, b.y]);
     let moved = false;
     this.pointer = true;
     const mv = ev => {
@@ -833,6 +850,7 @@ export class CanvasView {
       } else {
         if (this.grid.snap) { const [sx0, sy0] = this.snapPt(b0.x + dx, b0.y + dy); dx = sx0 - b0.x; dy = sy0 - b0.y; }
         Object.assign(doc.boards.find(b => b.id === hd.id), { x: Math.round(b0.x + dx), y: Math.round(b0.y + dy) });
+        for (const [b, x0, y0] of starts) Object.assign(b, { x: x0 + Math.round(b0.x + dx) - b0.x, y: y0 + Math.round(b0.y + dy) - b0.y });
         for (const [el, pts] of marks) el.points = pts.map(([px, py, t, p]) => [px + Math.round(b0.x + dx) - b0.x, py + Math.round(b0.y + dy) - b0.y, t, p]);
       }
       this.invalidate();

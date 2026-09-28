@@ -156,7 +156,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
      * color(x, y), value(x, y), rgb(x, y) in fractions; pose, hands, mask(x, y); frame changes with
      * each new sample. Without the source (or outside the studio) it is grey and empty.
      */
-    source(name) { return getSource(name, { x: tgt.x + (origin?.x || 0), y: tgt.y + (origin?.y || 0), width: tgt.w, height: tgt.h }); },
+    source(name, opts = {}) { return getSource(name, { x: tgt.x + (origin?.x || 0), y: tgt.y + (origin?.y || 0), width: tgt.w, height: tgt.h }, { fit: opts.fit === 'contain' ? 'contain' : 'cover' }); },
     /**
      * fit(source, { shapes, kinds, brush, stage, seed, ground, live }): redraw a source as plane marks by
      * greedy shape fitting. live: true keeps the shapes between runs and replaces a few per new frame
@@ -278,7 +278,7 @@ export const SCRIPT_REFERENCE = `// Coordinates are fractions of the artboard (0
 artboard(w, h, ground)
 stage(name, kind)            kind: ${STAGE_KINDS.join(' | ')}
 board(title, {width, height})   later marks land on this board (made if new); fractions are of this board. board() = main
-source(name)   a camera / image / video: .color(x, y) .value(x, y) .rgb(x, y) .pose .hands .mask(x, y) .frame
+source(name, { fit })   a camera / image / video: .color(x, y) .value(x, y) .rgb(x, y) .pose .hands .mask(x, y) .frame (fit: 'cover' crops, 'contain' letterboxes)
 fit(source, {shapes, kinds, brush, stage, live})   redraw a source as plane marks (live: continuous)
 point(x, y, {size, color, why})
 line(points, {brush, width, pressure, taper, wobble, color, why, pressures: t => 0..1})

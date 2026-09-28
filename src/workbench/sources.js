@@ -21,7 +21,7 @@ export class Sources {
     this.entries = new Map();   // name → runtime { def, live, still, frame (canvas), data, version, samples, landmarks }
     this.listeners = new Set();
     try { this.defs = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { this.defs = []; }
-    setSourceProvider((name, rect) => this.sampler(name, rect));
+    setSourceProvider((name, rect, fit) => this.sampler(name, rect, fit));
     this.last = performance.now();
     // A timer, not rAF: sources keep sampling in a background tab (a live board keeps redrawing).
     this.timer = setInterval(() => this.tick(), 33);
@@ -37,6 +37,16 @@ export class Sources {
   async startAll() { for (const d of this.defs) await this.start(d).catch(err => this.app.log(`Source “${d.name}”: ${err.message}`, 'error')); }
 
   uniqueName(base) { let n = base, i = 2; while (this.def(n)) n = `${base}${i++}`; return n; }
+
+  /** Resolves when the named sources have a sampled frame (or after `timeout` ms). */
+  async whenReady(names = this.defs.map(d => d.name), timeout = 20000) {
+    const t0 = performance.now();
+    while (performance.now() - t0 < timeout) {
+      if (names.every(n => !this.def(n) || this.entries.get(n)?.data)) return true;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return false;
+  }
 
   /** Whether a source is paused (nothing live needs it). */
   paused(name) { return Boolean(this.entries.get(name)?.paused); }
@@ -173,16 +183,18 @@ export class Sources {
   }
 
   /** A sampler for code (see src/process/streams.js), fitted (cover) to a rectangle in world units. */
-  sampler(name, rect) {
+  sampler(name, rect, fit = 'cover') {
     const e = this.entries.get(name);
     if (!e?.data) return null;
     const sw = e.frame.width, sh = e.frame.height, data = e.data;
     const ra = rect.width / rect.height, sa = sw / sh;
-    // Rect fraction → source fraction (cover: the source fills the rect, cropped).
-    const toSrc = (fx, fy) => (sa > ra ? [0.5 + (fx - 0.5) * (ra / sa), fy] : [fx, 0.5 + (fy - 0.5) * (sa / ra)]);
-    const toRect = (u, v) => (sa > ra ? [0.5 + (u - 0.5) / (ra / sa), v] : [u, 0.5 + (v - 0.5) / (sa / ra)]);
+    // Rect fraction → source fraction. cover: the source fills the rect, cropped; contain: all of it, letterboxed.
+    const wide = fit === 'contain' ? sa < ra : sa > ra;
+    const toSrc = (fx, fy) => (wide ? [0.5 + (fx - 0.5) * (ra / sa), fy] : [fx, 0.5 + (fy - 0.5) * (sa / ra)]);
+    const toRect = (u, v) => (wide ? [0.5 + (u - 0.5) / (ra / sa), v] : [u, 0.5 + (v - 0.5) / (sa / ra)]);
     const rgb = (fx, fy) => {
       const [u, v] = toSrc(fx, fy);
+      if (u < 0 || u > 1 || v < 0 || v > 1) return [0, 0, 0];   // outside the picture (contain): black
       const x = Math.max(0, Math.min(sw - 1, Math.floor(u * sw))), y = Math.max(0, Math.min(sh - 1, Math.floor(v * sh)));
       const i = (y * sw + x) * 4;
       return [data[i], data[i + 1], data[i + 2]];

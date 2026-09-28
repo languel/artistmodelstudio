@@ -118,6 +118,8 @@ export default defineConfig({
   plugins: [probeSavePlugin(), amsRelayPlugin()],
   server: {
     port: 3000,
+    // Files written to exports/ (pages, reports, sketches) are outputs: writing them must not reload the studio.
+    watch: { ignored: ['**/exports/**', '**/dist/**', '**/dist-single/**'] },
     // Local decision model (lev / kev: TypeSafe /v1/systemone) without CORS trouble.
     proxy: { '/__decide': { target: process.env.AMS_DECIDE_URL || 'http://127.0.0.1:8009', changeOrigin: true, rewrite: p => p.replace(/^\/__decide/, '') } },
     open: false,

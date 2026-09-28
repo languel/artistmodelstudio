@@ -102,6 +102,14 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 
     `app.pageHtml()` gathers the media, embed pictures and p5.js. The runtime adds `streams.js`, and `fit.js` with the fitter in its own scope. GIFs need `await dec.tracks.ready` before `frameCount`.
 
+41. **Frames and fits:**
+    - `kind: 'frame'` boards are slides (`boardsInFrame`, `slidesOf`, `frameOf` in `boards.js`). They carry their boards when dragged, present in order, make their boards live together, nest in the Boards panel, and export as side-by-side rows.
+    - `source(name, { fit: 'contain' })` letterboxes (studio, page and p5), and `board.sourceFit` does the same for underlays.
+    - p5 frames get an in-memory `localStorage` (ml5 and tfjs need one in a sandbox) and load ml5 from the CDN when the code uses it.
+    - p5.js loads as raw text (`?raw`): the dev server's transformed copy was 5 MB.
+    - The dev server ignores `exports/`, because writing there reloaded the studio.
+    - Lesson builders wait for `sources.whenReady()`.
+
 ## How the model fits
 
 ```

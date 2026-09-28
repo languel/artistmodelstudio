@@ -726,3 +726,8 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 /* A document longer than its board (a callout opened) grows past it, on the board's own paper. */
 .wb-bframe-markdown { overflow: visible; }
 .wb-bframe-markdown .wb-md { height: auto; min-height: 100%; background: var(--ground); }
+/* Boards panel: frames (slides) with their boards indented under them. */
+.wb-stage.frame .wb-stage-name { font-weight: 600; }
+.wb-stage.nested { padding-left: 18px; }
+.wb-stage.nested .wb-train { visibility: hidden; }
+.wb-script-out .wb-link { color: var(--wb-text); text-decoration: underline dotted; text-underline-offset: 3px; }

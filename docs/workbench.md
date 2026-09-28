@@ -155,6 +155,12 @@ A **project** holds **scenes**, and a scene holds **boards**. It is enough to wr
   - Keys: →, Space, ←, 1–9, Esc.
   - Drawing still works.
   - While recording, the moves go onto the camera track, so replays and videos follow them.
+- **Frames** are slides: a board whose kind is *Frame* (Code → Board) holds the boards whose centres lie inside it.
+  - Dragging a frame by its title moves its boards, and their marks, with it.
+  - Going to a frame fits the view to the slide, and its boards run together.
+  - Presenting steps through the frames, in reading order, when a scene has any.
+  - The Boards panel lists each frame's boards under it, numbered by slide.
+  - An exported page shows a frame as one section, with its boards side by side as on the canvas.
 - **Page** (Export → Page): the drawing as one HTML file.
   - The page uses the studio's dark theme, and follows reading order (as the boards are laid out: rows top to bottom, each left to right).
   - Each board is a section, depending on its kind:
@@ -471,11 +477,11 @@ The first word is the tool (`ams_` optional), and a bare word after it is the ac
 
 Examples for teaching favor few, simple, smooth curves over dense point lists.
 
-`/lesson sampling` (or `buildLessonScene(app)` from `examples/lessons/sampling/scene.js`) builds the lesson as a scene you can teach from:
-- its drawing boards, made from their code;
-- a title board with the contents;
-- an intro at the head of each row: the section's text, its source and rights, and its examples;
-- notes under each example: the idea, and folded callouts with the pseudocode and the p5.js code.
+`/lesson sampling` (or `buildLessonScene(app)` from `examples/lessons/sampling/scene.js`) builds the lesson as a scene of 16:9 frames. `/lesson sampling p5` builds the same lesson with every board as a p5.js sketch (the pose boards load ml5.js). The scene has:
+- a cover frame with the contents;
+- an intro frame per section: its text beside its source picture;
+- a frame per example: the 800×600 drawing beside its notes (the idea, and folded callouts with the pseudocode and the other language's code);
+- the bibliography: the pictures' Commons pages, and the papers and books behind the history, with checked DOIs.
 
 The boards are linked by `[[title]]`.
 
