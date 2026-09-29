@@ -6,8 +6,8 @@
  * chosen by random search plus hill climbing to minimise squared RGB error
  * against the reference. No model is involved.
  *
- * Geometry mirrors FlatCanvasMedium (toX/toY/toSize) so the emitted program
- * renders identically there; callers should still verify with the medium.
+ * Geometry mirrors FlatCanvasMedium (toX/toY/toSize); coverage is computed (anti-aliased) rather
+ * than drawn, so it runs anywhere (a worker) and fast. Callers can verify with the medium.
  */
 
 export const SHAPE_TYPES = ['rect', 'triangle', 'circle'];
@@ -85,10 +85,6 @@ export class ReferenceFitter {
     this.shapeTypes = shapes.filter(t => SHAPE_TYPES.includes(t));
     if (this.shapeTypes.length === 0) throw new Error(`No valid shape types in ${JSON.stringify(shapes)}`);
 
-    this.maskCanvas = document.createElement('canvas');
-    this.maskCanvas.width = width;
-    this.maskCanvas.height = height;
-    this.mctx = this.maskCanvas.getContext('2d', { willReadFrequently: true });
 
     const mean = [0, 0, 0];
     for (let i = 0; i < target.length; i += 3) {
@@ -149,37 +145,48 @@ export class ReferenceFitter {
     return m;
   }
 
-  /** Rasterise a shape to coverage values over its clipped bounding box. */
+  /**
+   * A shape's coverage (0..1 per cell) over its clipped bounding box, computed (no canvas, so it runs
+   * in a worker, and no read-back per try): rectangles exactly (the overlap of each cell), circles and
+   * triangles anti-aliased by the distance to their edge.
+   */
   coverage(shape) {
-    const ctx = this.mctx;
-    let x0, y0, x1, y1;
-    ctx.beginPath();
+    let x0, y0, x1, y1, at;
     if (shape.type === 'rect') {
       const rw = this.toSize(shape.width), rh = this.toSize(shape.height);
       const rx = this.toX(shape.x) - rw / 2, ry = this.toY(shape.y) - rh / 2;
-      ctx.rect(rx, ry, rw, rh);
       [x0, y0, x1, y1] = [rx, ry, rx + rw, ry + rh];
+      const span = (a, b, p) => Math.max(0, Math.min(b, p + 1) - Math.max(a, p));
+      at = (px, py) => span(x0, x1, px) * span(y0, y1, py);
     } else if (shape.type === 'circle') {
       const cx = this.toX(shape.x), cy = this.toY(shape.y);
       const r = Math.max(0.5, this.toSize(shape.diameter) * 0.5);
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
       [x0, y0, x1, y1] = [cx - r, cy - r, cx + r, cy + r];
+      at = (px, py) => { const dx = px + 0.5 - cx, dy = py + 0.5 - cy, v = r + 0.5 - Math.sqrt(dx * dx + dy * dy); return v <= 0 ? 0 : v >= 1 ? 1 : v; };
     } else {
       const pts = shape.points.map(([x, y]) => [this.toX(x), this.toY(y)]);
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      pts.slice(1).forEach(p => ctx.lineTo(p[0], p[1]));
-      ctx.closePath();
       x0 = Math.min(...pts.map(p => p[0])); x1 = Math.max(...pts.map(p => p[0]));
       y0 = Math.min(...pts.map(p => p[1])); y1 = Math.max(...pts.map(p => p[1]));
+      // Each edge as a line (nx, ny, c) with the inside positive, by the winding.
+      const area = pts.reduce((s, p, i) => { const q = pts[(i + 1) % pts.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0);
+      if (Math.abs(area) < 1e-6) return null;
+      const sign = area > 0 ? 1 : -1;
+      const edges = pts.map((p, i) => {
+        const q = pts[(i + 1) % pts.length], dx = q[0] - p[0], dy = q[1] - p[1], len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len * sign, ny = dx / len * sign;
+        return [nx, ny, -(nx * p[0] + ny * p[1])];
+      });
+      at = (px, py) => {
+        let d = Infinity;
+        for (const [nx, ny, c] of edges) d = Math.min(d, nx * (px + 0.5) + ny * (py + 0.5) + c);
+        return clamp(d + 0.5, 0, 1);
+      };
     }
     const bx = clamp(Math.floor(x0) - 1, 0, this.w), by = clamp(Math.floor(y0) - 1, 0, this.h);
     const bw = clamp(Math.ceil(x1) + 2, 0, this.w) - bx, bh = clamp(Math.ceil(y1) + 2, 0, this.h) - by;
     if (bw <= 0 || bh <= 0) return null;
-    ctx.clearRect(bx, by, bw, bh);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
-    const a = ctx.getImageData(bx, by, bw, bh).data;
-    ctx.clearRect(bx, by, bw, bh);
+    const a = new Float32Array(bw * bh);
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) a[y * bw + x] = at(bx + x, by + y);
     return { bx, by, bw, bh, a };
   }
 
@@ -193,43 +200,41 @@ export class ReferenceFitter {
     const M = this.mask;
     let sw = 0, sr = 0, sg = 0, sb = 0;
     for (let y = 0; y < bh; y++) {
+      const row = (by + y) * w + bx;
       for (let x = 0; x < bw; x++) {
-        const al = a[(y * bw + x) * 4 + 3] / 255;
-        if (al === 0) continue;
-        if (M && !M[(by + y) * w + bx + x]) continue;
-        const i = ((by + y) * w + bx + x) * 3;
-        const wt = al * al;
-        sw += wt;
-        sr += al * (T[i] - (1 - al) * C[i]);
-        sg += al * (T[i + 1] - (1 - al) * C[i + 1]);
-        sb += al * (T[i + 2] - (1 - al) * C[i + 2]);
+        const al = a[y * bw + x];
+        if (al === 0 || (M && !M[row + x])) continue;
+        const i = (row + x) * 3, k = 1 - al;
+        sw += al * al;
+        sr += al * (T[i] - k * C[i]);
+        sg += al * (T[i + 1] - k * C[i + 1]);
+        sb += al * (T[i + 2] - k * C[i + 2]);
       }
     }
     if (sw < 1) return { delta: Infinity };
     // Emitted color is 8-bit hex, so score with the rounded color.
-    const col = [sr / sw, sg / sw, sb / sw].map(v => clamp(Math.round(v), 0, 255));
+    const r0 = clamp(Math.round(sr / sw), 0, 255), g0 = clamp(Math.round(sg / sw), 0, 255), b0 = clamp(Math.round(sb / sw), 0, 255);
     let delta = 0;
     for (let y = 0; y < bh; y++) {
+      const row = (by + y) * w + bx;
       for (let x = 0; x < bw; x++) {
-        const al = a[(y * bw + x) * 4 + 3] / 255;
-        if (al === 0) continue;
-        if (M && !M[(by + y) * w + bx + x]) continue;
-        const i = ((by + y) * w + bx + x) * 3;
-        for (let ch = 0; ch < 3; ch++) {
-          const before = T[i + ch] - C[i + ch];
-          const after = T[i + ch] - (C[i + ch] + (col[ch] - C[i + ch]) * al);
-          delta += after * after - before * before;
-        }
+        const al = a[y * bw + x];
+        if (al === 0 || (M && !M[row + x])) continue;
+        const i = (row + x) * 3;
+        // before: T - C; after: T - (C + (c - C) al) = (T - C) - (c - C) al
+        let d = T[i] - C[i], e = d - (r0 - C[i]) * al; delta += e * e - d * d;
+        d = T[i + 1] - C[i + 1]; e = d - (g0 - C[i + 1]) * al; delta += e * e - d * d;
+        d = T[i + 2] - C[i + 2]; e = d - (b0 - C[i + 2]) * al; delta += e * e - d * d;
       }
     }
-    return { delta, color: col, cov };
+    return { delta, color: [r0, g0, b0], cov };
   }
 
   apply(shape, color, cov) {
     const { bx, by, bw, bh, a } = cov;
     for (let y = 0; y < bh; y++) {
       for (let x = 0; x < bw; x++) {
-        const al = a[(y * bw + x) * 4 + 3] / 255;
+        const al = a[y * bw + x];
         if (al === 0) continue;
         const i = ((by + y) * this.w + bx + x) * 3;
         for (let ch = 0; ch < 3; ch++) this.current[i + ch] += (color[ch] - this.current[i + ch]) * al;

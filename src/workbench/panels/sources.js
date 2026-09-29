@@ -61,7 +61,8 @@ export function mountSources(el, app) {
       ctx.drawImage(img, (c.width - img.width * k) / 2, (c.height - img.height * k) / 2, img.width * k, img.height * k);
     }
   };
-  const timer = setInterval(() => { if (el.isConnected) paint(); }, 250);
+  // Only while the panel shows (a docked panel behind another tab keeps its element, unseen).
+  const timer = setInterval(() => { if (el.isConnected && el.offsetParent !== null && !document.hidden) paint(); }, 250);
   S.on(name => { if (!name) render(); });
   app.assetStore.onChange(() => render());
   render();

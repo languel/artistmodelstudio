@@ -355,7 +355,9 @@ With `live: true`, `fit` keeps its shapes between frames and replaces the oldest
 fit(source('cam'), { shapes: 120 /* 10..400 */, live: true })
 ```
 
-`fit` is built in (`src/process/fit.js`, over the Reference Fitter in `src/fitting/fitReference.js`). To change how it works, a board's menu → *Draw from a source* → **Fit shapes, in code** writes the same idea out as board code: random tries, each shape the best of them (the one that brings the picture closest to the source), the oldest giving way on each new frame. Change how shapes are tried, kept or drawn. It keeps its shapes between runs with `state(name)`: an object that lasts across runs of the board's code, for any process that carries on from frame to frame.
+`fit` runs in the background (a worker): the board shows its last fit while the next frame is fitted, so the studio stays smooth however many shapes it asks for. `quality: 'fast'` is about ten times cheaper (a 64-cell grid, rectangles and circles, each shape the best of random tries); the default, `'fine'`, also tries triangles and refines each shape with small changes. `'fast'` is the fitter the p5 export uses, so a board and its sketch match.
+
+`fit` is built in (`src/process/fit.js` and `src/fitting/fitCore.js`, over the Reference Fitter in `src/fitting/fitReference.js`). To change how it works, a board's menu → *Draw from a source* → **Fit shapes, in code** writes the same idea out as board code: random tries, each shape the best of them (the one that brings the picture closest to the source), the oldest giving way on each new frame. Change how shapes are tried, kept or drawn. It keeps its shapes between runs with `state(name)`: an object that lasts across runs of the board's code, for any process that carries on from frame to frame.
 
 In the Sources panel:
 

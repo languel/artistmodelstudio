@@ -3,55 +3,90 @@
  * Fogleman's primitive). Each shape becomes a plane mark: rectangles and triangles straight, circles
  * smooth. Run once it is a study of the source; with live: true and a board that follows its sources
  * it is the continuous redraw: the shapes are kept, and each new frame replaces the oldest few.
+ *
+ * In the studio the fitting runs in a worker, off the main thread: fit() returns the last result at
+ * once and asks for the new frame; when it is ready the board runs again (see onFitReady) and draws
+ * it. Without workers (tests) it fits on the spot. quality: 'fine' (default) or 'fast' (see
+ * fitting/fitCore.js; 'fast' is the p5 export's fitter).
  */
-import { ReferenceFitter } from '../fitting/fitReference.js';
+import { fitFrame, fitGrid } from '../fitting/fitCore.js';
 import { streamState } from './streams.js';
 
-const SIDE = 128;   // fitting resolution (long side)
+export { shapeToFractions } from '../fitting/fitCore.js';
 
-/** Shapes (the fitter's -1..1 space on a w×h grid) → closed point lists in fractions of the board. */
-export function shapeToFractions(s, w, h) {
-  const fx = x => (x + 1) / 2, fy = y => (y + 1) / 2, px = d => d * 0.5 * Math.min(w, h);
-  if (s.type === 'rect') {
-    const hw = px(s.width) / 2 / w, hh = px(s.height) / 2 / h, cx = fx(s.x), cy = fy(s.y);
-    return { points: [[cx - hw, cy - hh], [cx + hw, cy - hh], [cx + hw, cy + hh], [cx - hw, cy + hh]], straight: true };
-  }
-  if (s.type === 'circle') {
-    const r = Math.max(0.5, px(s.diameter) / 2), cx = fx(s.x), cy = fy(s.y);
-    return { points: Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * Math.PI * 2; return [cx + Math.cos(a) * r / w, cy + Math.sin(a) * r / h]; }), straight: false };
-  }
-  return { points: s.points.map(([x, y]) => [fx(x), fy(y)]), straight: true };
+let worker = null;          // null: not tried yet; false: none (tests, old browsers)
+let ready = () => {};
+const waiting = new Map();   // key → board, for fits sent to the worker
+/** Called with a board's id when a fit it asked for is ready (the studio runs the board again). */
+export const onFitReady = fn => { ready = fn; };
+
+function getWorker() {
+  if (worker !== null) return worker;
+  try {
+    worker = typeof Worker !== 'undefined' && typeof window !== 'undefined'
+      ? new Worker(new URL('../fitting/fit.worker.js', import.meta.url), { type: 'module' })
+      : false;
+  } catch { worker = false; }
+  // A worker that cannot start (a page opened from disk, file://) or fails: fit on the spot instead.
+  const fallBack = () => {
+    if (!worker) return;
+    worker.terminate?.();
+    worker = false;
+    for (const [key, board] of waiting) { const st = streamState(key); Object.assign(st, { busy: false, frameAsked: null, pending: null }); ready(board); }
+    waiting.clear();
+  };
+  if (worker) worker.onerror = fallBack;
+  if (worker) worker.onmessage = e => {
+    const { key, frame, result, error, took } = e.data, st = streamState(key);
+    st.busy = false; waiting.delete(key);
+    if (error) { console.warn(`fit (worker): ${error}; fitting here instead`); waiting.set(key, st.board); fallBack(); return; }
+    if (st.frameAsked === frame || !st.result) Object.assign(st, { result, frame, took });
+    else st.result = result;   // an older frame: still better than nothing
+    if (st.pending) { const p = st.pending; st.pending = null; post(key, st, p); }
+    ready(st.board);
+  };
+  return worker;
+}
+
+function post(key, st, msg) {
+  st.busy = true; waiting.set(key, st.board);
+  worker.postMessage({ key, ...msg }, [msg.job.target.buffer]);
 }
 
 /**
  * Fit `sampler` (from source()) with `shapes` shapes on a board of aspect `aspect` (width / height).
- * Returns { background, shapes: [{ points, straight, color }] } in fractions of the board.
- * opts: { shapes = 80, kinds = ['rect', 'triangle', 'circle'], seed = 1, live = false, turnover = 0.08, key }
+ * Returns { background, shapes: [{ points, straight, color }] } in fractions of the board (in the
+ * studio: the latest finished fit, or only the ground before the first).
+ * opts: { shapes = 80, kinds, seed = 1, live = false, turnover = 0.08, quality = 'fine', key, board }
  */
-export function fitSource(sampler, aspect, { shapes = 80, kinds = ['rect', 'triangle', 'circle'], seed = 1, live = false, turnover = 0.08, key = 'fit' } = {}) {
-  const w = aspect >= 1 ? SIDE : Math.max(8, Math.round(SIDE * aspect)), h = aspect >= 1 ? Math.max(8, Math.round(SIDE / aspect)) : SIDE;
+export function fitSource(sampler, aspect, { shapes = 80, kinds = ['rect', 'triangle', 'circle'], seed = 1, live = false, turnover = 0.08, quality = 'fine', key = 'fit', board = null } = {}) {
+  const { w, h } = fitGrid(aspect, quality);
   const st = streamState(key);
-  const same = st.fitter && st.w === w && st.h === h && st.shapesWanted === shapes && st.kinds === kinds.join() && st.source === sampler.name;
-  if (same && st.frame === sampler.frame) return st.result;   // nothing new: the same marks
-  const target = sampler.pixels(w, h);
-  if (same && live) {
-    // Continuous: the new frame is the target; the oldest shapes give way to a few new ones.
-    st.fitter.target = target;
-    const k = Math.max(1, Math.round(shapes * turnover));
-    st.fitter.shapes.splice(0, Math.max(0, st.fitter.shapes.length + k - shapes));
-    for (let i = 0; i < k; i++) if (!st.fitter.step()) break;
-  } else {
-    st.fitter = new ReferenceFitter(target, w, h, { seed, shapes: kinds, trials: 48, climbs: 64 });
-    for (let i = 0; i < shapes; i++) if (!st.fitter.step()) break;
-    Object.assign(st, { w, h, shapesWanted: shapes, kinds: kinds.join(), source: sampler.name });
+  const sig = [w, h, shapes, kinds.join(), sampler.name, quality, seed].join('|');
+  if (st.sig !== sig) { Object.assign(st, { sig, result: null, frame: null, frameAsked: null, pending: null }); }
+  st.board = board;
+  if (st.result && st.frame === sampler.frame) return st.result;   // nothing new: the same marks
+  const job = { target: sampler.pixels(w, h), w, h, shapes, kinds, seed, live, turnover, quality, sig };
+  const wk = getWorker();
+  if (!wk) {
+    st.core ||= {};
+    st.result = fitFrame(st.core, job);
+    st.frame = sampler.frame;
+    return st.result;
   }
-  st.frame = sampler.frame;
-  const mean = [0, 0, 0];
-  for (let i = 0; i < target.length; i += 3) { mean[0] += target[i]; mean[1] += target[i + 1]; mean[2] += target[i + 2]; }
-  const n = target.length / 3;
-  const background = `#${mean.map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('')}`;
-  // Kept on the board: points clamped to it (exact for rectangles, close for the rest).
-  const clamp = v => Math.max(0, Math.min(1, v));
-  st.result = { background, shapes: st.fitter.shapes.map(s => { const f = shapeToFractions(s, w, h); return { ...f, points: f.points.map(([x, y]) => [clamp(x), clamp(y)]), color: s.color }; }) };
-  return st.result;
+  const ground = st.result ? null : meanHex(job.target);   // before the frame goes to the worker
+  if (st.frameAsked !== sampler.frame) {
+    st.frameAsked = sampler.frame;
+    const msg = { frame: sampler.frame, job };
+    // One fit at a time per key: while one runs, only the newest frame waits.
+    if (st.busy) st.pending = msg; else post(key, st, msg);
+  }
+  return st.result || { background: ground, shapes: [] };
+}
+
+function meanHex(t) {
+  const m = [0, 0, 0];
+  for (let i = 0; i < t.length; i += 3) { m[0] += t[i]; m[1] += t[i + 1]; m[2] += t[i + 2]; }
+  const n = Math.max(1, t.length / 3);
+  return `#${m.map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('')}`;
 }

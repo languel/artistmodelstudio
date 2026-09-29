@@ -165,7 +165,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
     fit(src, opts = {}) {
       const s = typeof src === 'string' ? api.source(src) : src;
       const key = `fit:${by?.name || ''}:${tgt.id || 'main'}:${fitCount++}:${opts.key || ''}`;
-      const res = fitSource(s, tgt.w / tgt.h, { ...opts, key });
+      const res = fitSource(s, tgt.w / tgt.h, { ...opts, key, board: tgt.id || 'main' });
       const u = (fx, fy) => (frac ? [fx, fy] : [fx * tgt.w, fy * tgt.h]);
       const stageName = opts.stage || 'Fit', why = opts.why || `fitted to ${s.name}`, brush = opts.brush || 'flat';
       if (opts.ground !== false) api.plane([u(0, 0), u(1, 0), u(1, 1), u(0, 1)], { color: res.background, brush, path: 'straight', stage: stageName, why: `${why}: the ground` });
@@ -307,7 +307,7 @@ export const SCRIPT_VOCAB = [
   ['brush', "brush({ id, label, roles, doc, params: { key: [min, max, default, doc] }, draw(ctx, e, p, k) { … } })", 'Define a brush in code (the drawing keeps it). k is the brush kit: k.frames, k.smoothPath, k.spans, k.segment, k.beginInk, k.rng, k.noise, k.draw.'],
   ['board', "board(title, { width, height, x, y, ground })", 'Later marks land on this board (made if new, right of the others); coordinates are fractions of it. board() goes back to the main board. Returns { id, title, width, height }.'],
   ['source', "source(name)", 'A named source (Sources panel: camera, image, video): .color(x, y), .value(x, y) 0..1, .rgb(x, y), .pose [[{x, y, v}]], .hands [[{x, y}]], .mask(x, y), .frame. Fractions of the board.'],
-  ['fit', "fit(source, { shapes: 80, kinds: ['rect', 'triangle', 'circle'], brush, stage, seed, ground, live })", 'Redraw a source as plane marks by greedy shape fitting. live: true keeps the shapes and replaces a few per new frame (continuous, with a board that follows its sources).'],
+  ['fit', "fit(source, { shapes: 80, kinds: ['rect', 'triangle', 'circle'], quality: 'fine' | 'fast', brush, stage, seed, ground, live })", 'Redraw a source as plane marks by greedy shape fitting (in the background: the board shows the last fit until the next is ready). quality: \'fast\' is about ten times cheaper (rectangles and circles, the p5 export\'s fitter). live: true keeps the shapes and replaces a few per new frame (continuous, with a board that follows its sources).'],
   ['state', "state(name)", 'An object kept between runs of the board\'s code (it runs again on each frame of a source it follows): keep what a process carries on with, e.g. the shapes of a live fit.'],
   ['stage', "stage(name, kind)", `Start a stage; later marks land in it. kind: ${STAGE_KINDS.join(', ')}.`],
   ['point', 'point(x, y, { size, color, why })', 'A mark at a place.'],

@@ -4,11 +4,13 @@
  * localStorage (the last ~30 minutes), so it survives a reload and can be read after a freeze:
  * window.ams.diagnostics() in the console, or ams_diagnostics for agents.
  *
- * A line: t (time), vis (v visible / h hidden), foc (focus), raf (frames the browser gave the page),
+ * A line: t (time), vis (v visible / h hidden), foc (focus), raf (ms until the browser gave the page a
+ * frame when asked, once per interval; -1: no frame at all),
  * draw (canvas redraws), heap (MB), smp (source samples), det (landmark detections), live (live
  * board runs), lag (worst event-loop delay, ms), long (long tasks, ms).
  *
- * Frozen-while-visible looks like vis v with raf 0: the page runs but is given no frames.
+ * Frozen-while-visible looks like vis v with raf -1: the page runs but is given no frames.
+ * It asks for one frame per interval, not every frame: an idle page is left idle.
  */
 const KEY = 'ams_flight_v1';
 const MAX = 900;   // 2 s each: 30 minutes
@@ -22,9 +24,11 @@ export function startDiagnostics(app) {
   const event = (kind, detail = '') => push({ t: Date.now(), ev: kind, ...(detail ? { d: String(detail).slice(0, 200) } : {}) });
   event('load', location.href);
 
-  // Frames the browser gives the page (none while hidden, and none when it is stuck).
-  const frame = () => { c.raf++; requestAnimationFrame(frame); };
-  requestAnimationFrame(frame);
+  // Whether the browser gives the page frames: one asked for per interval (none while hidden, and none
+  // when it is stuck), timed. Not a loop over every frame, which would keep an idle page busy.
+  let asked = 0;
+  const probe = () => { const t0 = performance.now(); asked = t0; c.raf = -1; requestAnimationFrame(() => { if (asked === t0) c.raf = Math.round(performance.now() - t0); }); };
+  probe();
   // Event-loop delay: a timer that should fire every 250 ms, and how late it is.
   let expect = performance.now() + 250;
   setInterval(() => { const now = performance.now(); c.lag = Math.max(c.lag, Math.round(now - expect)); expect = now + 250; }, 250);
@@ -50,7 +54,8 @@ export function startDiagnostics(app) {
     const d = app.canvas?.stats?.frames || 0;
     push({ t: Date.now(), vis: document.visibilityState[0], foc: document.hasFocus() ? 1 : 0, raf: c.raf, draw: d - draws, heap: Math.round((performance.memory?.usedJSHeapSize || 0) / 1e6), smp: c.smp, det: c.det, live: c.live, lag: c.lag, long: c.long });
     draws = d;
-    Object.assign(c, { raf: 0, smp: 0, det: 0, live: 0, lag: 0, long: 0 });
+    Object.assign(c, { smp: 0, det: 0, live: 0, lag: 0, long: 0 });
+    probe();
     save();
   }, 2000);
   window.addEventListener('pagehide', save);

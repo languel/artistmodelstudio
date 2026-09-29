@@ -18,6 +18,7 @@ import { canvasBlob } from './ui.js';
 import { renderToCanvas, renderDocument } from '../process/render.js';
 import { EXERCISES } from '../process/exercises.js';
 import { runScript } from '../process/script.js';
+import { onFitReady } from '../process/fit.js';
 import { createZip } from '../export/zip.js';
 import { AssetStore } from '../assets/assetStore.js';
 import { AssetPanel } from '../ui/AssetPanel.js';
@@ -120,9 +121,10 @@ export class Workbench {
     this.gestures = new Gestures(this);
     this.artists = new ArtistRegistry();
     this.store.subscribe((doc, reason) => {
-      // At most one save per interval, not a debounce: a board following its sources changes the
-      // drawing many times a second, and a debounce would never save while it runs.
-      if (!this.saveTimer) this.saveTimer = setTimeout(() => { this.saveTimer = 0; this.saveDoc(); }, reason === 'live board code' ? 1000 : 300);
+      // At most one save per interval (3 s while boards run live: a large scene is a large save), not a
+      // debounce: a board following its sources changes the drawing many times a second, and a
+      // debounce would never save while it runs.
+      if (!this.saveTimer) this.saveTimer = setTimeout(() => { this.saveTimer = 0; this.saveDoc(); }, reason === 'live board code' ? 3000 : 300);
       // The scene store (IndexedDB) keeps it too, less often: it has room for large drawings.
       if (!this.persistTimer && this.scenes && reason !== 'scene') this.persistTimer = setTimeout(() => { this.persistTimer = 0; this.scenes.persist().catch(() => {}); }, reason === 'live board code' ? 5000 : 1500);
       if (reason === 'live board code') return;   // a live redraw: saved, drawn; the panels stay as they are
@@ -821,20 +823,26 @@ export class Workbench {
       const doc = this.store.doc;
       if (boardsOf(doc).some(b => b.source === name) || readRecently(name)) this.canvas?.invalidate();
       for (const b of boardsOf(doc)) {
-        if (!b.follow || !reads(b.code, name) || pending.has(b.id) || !this.isBoardActive(b.id, b)) continue;
-        const since = performance.now() - (last.get(b.id)?.at || 0), wait = Math.max(0, Math.max(80, 2 * (last.get(b.id)?.took || 0)) - since);
+        if (!b.follow || !reads(b.code, name) || !this.isBoardActive(b.id, b)) continue;
+        rerun(b);
+      }
+    });
+    // A fit finished in the background (see process/fit.js): the board runs again to draw it.
+    onFitReady(id => { const b = boardById(this.store.doc, id); if (b?.code && this.isBoardActive(b.id, b)) rerun(b, true); });
+    const rerun = (b, now = false) => {
+        if (pending.has(b.id)) return;
+        const since = performance.now() - (last.get(b.id)?.at || 0), wait = now ? 0 : Math.max(0, Math.max(80, 2 * (last.get(b.id)?.took || 0)) - since);
         pending.set(b.id, setTimeout(() => {
           pending.delete(b.id);
           const cur = boardById(this.store.doc, b.id);
-          if (!cur?.follow || !cur.code) return;
+          if (!cur?.code || (!cur.follow && !now)) return;   // a fit that finished redraws any board; frames only following ones
           const t0 = performance.now();
           const res = this.store.runBoardCode(b.id, cur.code, runScript, { by: 'code', transient: true });
           last.set(b.id, { at: performance.now(), took: performance.now() - t0 });
           if (res.error && !last.get(`${b.id}:err`)) { last.set(`${b.id}:err`, true); this.log(`Board “${cur.title}” (following): ${res.error}`, 'error'); }
           if (!res.error) last.delete(`${b.id}:err`);
         }, wait));
-      }
-    });
+    };
   }
 
   /**
