@@ -275,15 +275,19 @@ export class AssetStore {
    * and time, to see how fast a board that follows one really updates.
    */
   async seedClips(clips) {
-    const key = 'ams_assets_seeded_clips_v1';
-    try { if (localStorage.getItem(key)) return; } catch { /* storage unavailable */ }
+    // Each clip once (a clip you delete stays deleted); new ones are added when they appear.
+    const key = 'ams_assets_seeded_clips_v2';
+    let done = [];
+    try { done = JSON.parse(localStorage.getItem(key) || '[]'); } catch { /* start again */ }
     for (const c of clips) {
+      if (done.includes(c.id)) continue;
       try {
         const blob = await (await fetch(c.url)).blob();
-        await this.add(blob, { id: `clip:${c.id}`, title: c.title, kind: 'import', folder: 'Test clips', tags: ['test', 'clip'], meta: { doc: c.doc } });
+        await this.add(blob, { id: `clip:${c.id}`, title: c.title, kind: 'import', folder: c.folder || 'Test clips', tags: ['clip', ...(c.tags || ['test'])], meta: { doc: c.doc, source: c.source, license: c.license, artist: c.artist, date: c.date } });
+        done.push(c.id);
+        try { localStorage.setItem(key, JSON.stringify(done)); } catch { /* storage unavailable */ }
       } catch (err) { console.warn('Could not seed', c.id, err); }
     }
-    try { localStorage.setItem(key, '1'); } catch { /* storage unavailable */ }
   }
 
   /**
