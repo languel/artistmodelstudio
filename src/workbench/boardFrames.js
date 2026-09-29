@@ -118,6 +118,9 @@ export class BoardFrames {
     // A document longer than its board scrolls: the wheel over it scrolls it (its code blocks sideways)
     // until it can go no further, then pans the canvas as usual. Ctrl/Cmd+wheel still zooms.
     this.canvas.host.addEventListener('wheel', e => this.scroll(e), { capture: true, passive: false });
+    // With Cmd/Ctrl held a click is for the board's Properties, not for what is drawn in it.
+    const mods = e => this.layer.classList.toggle('mod', e.metaKey || e.ctrlKey);
+    addEventListener('keydown', mods); addEventListener('keyup', mods); addEventListener('blur', () => this.layer.classList.remove('mod'));
   }
 
   scroll(e) {

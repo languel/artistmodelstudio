@@ -402,6 +402,8 @@ Drag a clip or an animated GIF from Assets onto the canvas (or double-click it) 
 
 Show or hide the controls from Properties → Board (the controls glyph, beside play, on a board that shows the clip or on the player itself) or the board's menu → Board → *Show / Hide media controls*. Hiding it hides the player board (a dashed outline marks where it is); showing it again brings it back, or makes one if there is none.
 
+Cmd (or Ctrl) + click anywhere in a board, not only on its title, selects it and opens its Properties. That includes boards drawn as pages over the canvas (documents, HTML, p5 sketches, players): while Cmd is held they let clicks through. Over a mark, Cmd + click selects the mark (adding to the selection) and opens its Properties.
+
 ### Board switches
 
 Properties → Board has four switches as glyphs beside its title (and the board's menu → Board):

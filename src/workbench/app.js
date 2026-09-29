@@ -721,6 +721,7 @@ export class Workbench {
     this.canvas.onContext = (e, hit, at) => (e.altKey ? openToolParams(this, e.clientX, e.clientY) : showMenu(this.contextItems(hit, at), e.clientX, e.clientY));
     this.activeBoard = MAIN;
     this.canvas.onBoardSelect = id => { this.activeBoard = id; this.emit('board'); };
+    this.canvas.onOpenProperties = () => this.docks.open('properties');
     this.canvas.onBoardRename = id => this.renameBoard(id);
     this.canvas.onBoardContext = (id, e) => this.boardMenu(id, e.clientX, e.clientY);
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));

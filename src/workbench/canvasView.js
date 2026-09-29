@@ -685,7 +685,24 @@ export class CanvasView {
       }
       this.onContext?.(e, hit, [wx, wy]);
     });
+    // Cmd/Ctrl+click anywhere in a board (not only its title) selects it and opens its Properties.
+    // (Over a mark, the mark is what is selected: its Properties open too.) Boards drawn as pages over
+    // the canvas (documents, sketches, players) are reached through the layer that holds them.
+    const properties = (e, target) => {
+      if ((!e.metaKey && !e.ctrlKey) || e.button !== 0 || this.previewDoc || this.space) return false;
+      const [wx, wy] = this.toWorld(...this.local(e));
+      const hit = target === c ? this.hitTest(wx, wy) : null;
+      if (hit) { queueMicrotask(() => this.onOpenProperties?.()); return false; }   // the mark's selection goes on as before
+      const b = boardAt(this.store.doc, wx, wy);
+      if (!b) return false;
+      e.preventDefault(); e.stopPropagation();
+      this.selectBoard(b.id);
+      this.onOpenProperties?.();
+      return true;
+    };
+    this.host.addEventListener('pointerdown', e => { if (e.target !== c && e.target.closest?.('.wb-frames')) properties(e, e.target); }, true);
     c.addEventListener('pointerdown', e => {
+      if (properties(e, c)) return;
       // Working on the canvas takes the keyboard back from panel fields, so tool keys (V, H, P…) work.
       const f = document.activeElement;
       if (f && f !== document.body && f.closest?.('input, textarea, select, [contenteditable]') && !f.classList.contains('wb-note-input')) f.blur();
