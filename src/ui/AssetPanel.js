@@ -18,10 +18,11 @@ const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k)
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const KIND_ICONS = { audio: 'play', text: 'script', take: 'play', walkthrough: 'play', dataset: 'database', process: 'paintBrush', variation: 'squaresPlus', painting: 'paintBrush', import: 'arrowUpTray', klee: 'photo' };
 const KIND_TIPS = { process: 'Process document (workbench)', variation: 'Variation (generated candidate)', painting: 'Painting (continuous mode)', import: 'Imported image', klee: 'Bundled Klee reference' };
-const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', walkthrough: 'Walkthroughs', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee' };
+const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', walkthrough: 'Walkthroughs', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee', stream: 'Streams' };
 
 export class AssetPanel {
-  constructor({ store, onUseAsReference, onExport, onOpen, onPlace }) {
+  constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect }) {
+    this.onSelect = onSelect;
     this.onOpen = onOpen;
     this.onPlace = onPlace;
     this.previewId = null;
@@ -193,6 +194,7 @@ export class AssetPanel {
         else { this.sel = new Set([id]); this.anchor = id; }
         this.markSelection();
         if (!e.shiftKey && !(e.metaKey || e.ctrlKey)) this.preview(id);
+        this.onSelect?.(this.sel.size === 1 ? asset : null);   // its properties
       });
       card.addEventListener('dragstart', e => {
         if (!this.sel.has(id)) { this.sel = new Set([id]); this.anchor = id; this.markSelection(); }

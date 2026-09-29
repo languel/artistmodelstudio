@@ -706,7 +706,7 @@ export class Workbench {
       getDefaults: r => this.defaults(r),
       getSculpt: () => this.sculpt,
       getLazy: () => this.lazy,
-      onSelect: () => { this.emit('selection'); this.renderChrome(); },
+      onSelect: ids => { if (ids?.length) this.selectedAsset = null; this.emit('selection'); this.renderChrome(); },
       onNoteStyled: note => this.setDefaults('note', { note }),
       onTool: t => this.setTool(t),
       viewMode: () => this.view.mode
@@ -720,7 +720,7 @@ export class Workbench {
     try { const bg = localStorage.getItem('ams_workspace_bg'); if (bg && bg !== 'default') { const log = this.log; this.log = () => {}; this.setBackground(bg); this.log = log; } } catch { /* ignore */ }
     this.canvas.onContext = (e, hit, at) => (e.altKey ? openToolParams(this, e.clientX, e.clientY) : showMenu(this.contextItems(hit, at), e.clientX, e.clientY));
     this.activeBoard = MAIN;
-    this.canvas.onBoardSelect = id => { this.activeBoard = id; this.emit('board'); };
+    this.canvas.onBoardSelect = id => { this.activeBoard = id; this.selectedAsset = null; this.emit('board'); };
     this.canvas.onOpenProperties = () => this.docks.open('properties');
     this.canvas.onBoardRename = id => this.renameBoard(id);
     this.canvas.onBoardContext = (id, e) => this.boardMenu(id, e.clientX, e.clientY);
@@ -862,6 +862,7 @@ export class Workbench {
     this.assetPanel = new AssetPanel({
       store: this.assetStore,
       onOpen: a => this.openAsset(a),
+      onSelect: a => { this.selectedAsset = a?.id || null; if (a) { this.canvas.select([]); this.canvas.selectBoard(null); } this.emit('asset'); },
       onPlace: a => { const c = this.canvas; this.placeAsset(a.id, c.toWorld(c.w / 2, c.h / 2)).catch(err => this.log(err.message, 'error')); },
       onUseAsReference: a => this.setReferenceFromBlob(a.blob, a.title),
       onExport: a => (a.kind === 'dataset' && a.program?.jsonl
@@ -909,7 +910,7 @@ export class Workbench {
     if (have) { const b = boardsOf(this.store.doc).find(x => x.source === have.name && !x.code); if (b) { this.goToBoard(b.id, { animate: true }); return b; } }
     const c = this.canvas, name = await this.addSourceUrl(s.page, { quality: s.quality || '480', start: s.start, end: s.end, title: s.note, lazy: true, asset: false, at: at || c.toWorld(c.w / 2, c.h / 2), assetId: a.id });
     const b = boardsOf(this.store.doc).find(x => x.source === name && !x.code);
-    if (b) this.store.updateBoard(b.id, { title: a.title });
+    if (b) { this.store.updateBoard(b.id, { title: a.title }); this.applyAssetDefaults(name, b, a); }
     return b;
   }
 
@@ -978,6 +979,18 @@ export class Workbench {
     c.saveCam?.(); c.invalidate();
   }
 
+  /** A clip's default state (Properties of the asset) applied to its new source and board. */
+  applyAssetDefaults(name, board, a) {
+    const d = a?.meta?.defaults;
+    if (!d) return;
+    const patch = {};
+    if (d.speed != null) patch.speed = d.speed;
+    if (d.loop != null) patch.loop = d.loop;
+    if (d.volume != null) patch.volume = d.volume;
+    if (Object.keys(patch).length) this.sources.update(name, patch);
+    if (board && (d.opacity != null || d.blend || d.fit)) this.setBoardSourceLook(board.id, { ...(d.opacity != null ? { opacity: d.opacity } : {}), ...(d.blend ? { blend: d.blend } : {}), ...(d.fit ? { fit: d.fit } : {}) });
+  }
+
   /** An asset as a source, and a board previewing it (see placeSource). */
   async previewAsset(a, at = null) {
     let name = this.sources.list.find(d => d.kind === 'asset' && d.assetId === a.id)?.name;
@@ -985,10 +998,13 @@ export class Workbench {
       name = await this.sources.add({ kind: 'asset', assetId: a.id });
       // GIFs play as they arrive; a movie waits (on its first frame) for the player's play.
       if (this.sources.entries.get(name)?.live?.kind === 'video') this.sources.update(name, { speed: 0 });
+      const dur = this.sources.entries.get(name)?.live?.video?.duration, d = a.meta?.defaults;
+      if (dur && (d?.in != null || d?.out != null)) this.sources.update(name, { in: (d.in ?? 0) / dur, out: (d.out ?? dur) / dur });
     }
     const have = boardsOf(this.store.doc).find(b => b.source === name && b.title === name && !b.code);
     if (have) { this.addPlayer(name, have); this.goToBoard(have.id, { animate: true }); return have; }
     const c = this.canvas, b = await this.placeSource(name, at || c.toWorld(c.w / 2, c.h / 2));
+    this.applyAssetDefaults(name, b, a);
     this.log(`Source “${name}”: source('${name}') in code; a board previews it.`);
     return b;
   }

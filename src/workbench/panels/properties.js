@@ -18,6 +18,7 @@ export function mountProperties(el, app) {
     el.innerHTML = '';
     if (app.selectedClip && app.player?.take?.clips.includes(app.selectedClip)) return renderClip(app.selectedClip);
     const sel = app.selectedElements();
+    if (!sel.length && app.selectedAsset) { renderAsset(app.selectedAsset); return; }
     if (!sel.length && app.canvas?.selectedBoard) return renderBoard(app.canvas.selectedBoard);
     if (!sel.length) return renderDefaults();
     const e = sel[0];
@@ -72,6 +73,58 @@ export function mountProperties(el, app) {
       h('div', { class: 'wb-row wb-row-actions' }, h('button', { class: 'wb-btn', title: 'Sculpt tools are code: fork one or write your own', onclick: () => app.openCode?.('sculpt', s.tool) }, 'Show code'))
     ));
   };
+
+  /**
+   * An asset (selected in Assets): its title, folder, tags and rating, and, for a stream or a clip, its
+   * default state: what it starts with when dragged into a scene (the address, size and range of a stream;
+   * speed, loop, volume and how it shows under its board). Kept in the asset, not in a source file.
+   */
+  let assetToken = 0;
+  const renderAsset = async id => {
+    const token = ++assetToken;
+    const a = await app.assetStore.get(id);
+    if (token !== assetToken || !a) return;
+    if (el.dataset.asset !== id) el.innerHTML = '';
+    el.dataset.asset = id;
+    el.innerHTML = '';
+    const save = patch => app.assetStore.update(id, patch);
+    const setMeta = fn => { const meta = structuredClone(a.meta || {}); fn(meta); Object.assign(a, { meta }); return save({ meta }); };
+    const text = (value, onChange, opts = {}) => {
+      const i = h('input', { class: 'wb-inline', value: value ?? '', ...opts });
+      i.addEventListener('change', () => onChange(i.value.trim()));
+      i.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') i.blur(); });
+      return i;
+    };
+    const stream = a.meta?.stream, defaults = a.meta?.defaults || {};
+    el.append(h('div', { class: 'wb-panel-title' }, 'Asset', h('span', { class: 'wb-muted' }, ` · ${a.kind}`)));
+    el.append(section('Asset', true,
+      row('Title', text(a.title, v => v && save({ title: v }))),
+      row('Folder', text(a.folder, v => save({ folder: v }), { title: 'Folders are paths: Streams/Faces' })),
+      row('Tags', text((a.tags || []).join(', '), v => save({ tags: v.split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean) }), { title: 'Comma-separated' })),
+      row('Rating', numberField({ value: a.rating || 0, min: 0, max: 5, step: 1, def: 0, onChange: (v, { final }) => { if (final) save({ rating: Math.round(v) }); } }))));
+    if (stream) {
+      el.append(section('Stream', true,
+        row('Address', text(stream.page, v => v && setMeta(m => { m.stream.page = v; }), { title: 'A video or picture URL, or a Wikipedia / Commons File: page' })),
+        row('Size', selectField([['240', '240p'], ['480', '480p'], ['1080', '1080p'], ['original', 'original']], String(stream.quality || '480'), v => setMeta(m => { m.stream.quality = v; }), 'A wiki video: the version to stream (smaller is lighter and quicker to seek)')),
+        row('In', numberField({ value: stream.start ?? 0, min: 0, max: 100000, step: 0.5, def: 0, title: 'Seconds: where playing starts', onChange: (v, { final }) => { if (final) setMeta(m => { if (v > 0) m.stream.start = v; else delete m.stream.start; }); } })),
+        row('Out', numberField({ value: stream.end ?? 0, min: 0, max: 100000, step: 0.5, def: 0, title: 'Seconds: where playing ends (0: the end of the clip)', onChange: (v, { final }) => { if (final) setMeta(m => { if (v > 0) m.stream.end = v; else delete m.stream.end; }); } })),
+        row('Note', text(stream.note || a.meta?.note, v => setMeta(m => { m.stream.note = v; m.note = v; }))),
+        row('Licence', text(a.meta?.license, v => setMeta(m => { m.license = v; }))),
+        row('Author', text(a.meta?.artist, v => setMeta(m => { m.artist = v; })))));
+    }
+    // What a clip starts with in a scene (a stream, a video or a GIF).
+    if (stream || /^(video|image)\//.test(a.blob?.type || '')) {
+      const d = k => (v, opts = {}) => setMeta(m => { m.defaults = m.defaults || {}; if (v === '' || v == null) delete m.defaults[k]; else m.defaults[k] = v; });
+      el.append(section('Starts with', true,
+        row('Speed', selectField([['', 'as is'], ['0', 'paused'], ['0.25', '¼×'], ['0.5', '½×'], ['1', '1×'], ['2', '2×'], ['4', '4×']], defaults.speed == null ? '' : String(defaults.speed), v => d('speed')(v === '' ? '' : Number(v)), 'A movie waits paused by default, a GIF plays')),
+        row('Loop', selectField([['', 'as is'], ['1', 'loop'], ['0', 'stop at the end']], defaults.loop == null ? '' : defaults.loop ? '1' : '0', v => d('loop')(v === '' ? '' : v === '1'))),
+        row('Volume', numberField({ value: defaults.volume ?? 0, min: 0, max: 1, step: 0.05, def: 0, title: 'Muted (0) unless raised', onChange: (v, { final }) => { if (final) d('volume')(v > 0 ? v : ''); } })),
+        row('Opacity', numberField({ value: defaults.opacity ?? 1, min: 0, max: 1, step: 0.05, def: 1, title: 'How much of it shows under its board', onChange: (v, { final }) => { if (final) d('opacity')(v < 1 ? v : ''); } })),
+        row('Blend', selectField(BLENDS.map(x => [x, x]), defaults.blend || 'normal', v => d('blend')(v === 'normal' ? '' : v), 'How it mixes with the paper')),
+        row('Fit', selectField([['cover', 'Cover'], ['contain', 'Contain']], defaults.fit === 'contain' ? 'contain' : 'cover', v => d('fit')(v === 'cover' ? '' : v)))));
+    }
+  };
+  app.on('asset', () => { if (app.selectedAsset) render(); });
 
   /** A board: title, size, paper; what it holds. */
   const renderBoard = id => {

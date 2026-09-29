@@ -195,14 +195,19 @@ export class AssetStore {
     return asset;
   }
 
-  async update(id, patch) {
-    const a = await this.get(id);
-    if (!a) return null;
-    if ('folder' in patch) patch.folder = normFolder(patch.folder);
-    Object.assign(a, patch);
-    await tx(this.db, 'readwrite', s => s.put(a));
-    this.emit();
-    return a;
+  /** Change an asset's fields. One at a time (read, change, write), so quick edits do not overwrite each other. */
+  update(id, patch) {
+    const run = async () => {
+      const a = await this.get(id);
+      if (!a) return null;
+      if ('folder' in patch) patch.folder = normFolder(patch.folder);
+      Object.assign(a, patch);
+      await tx(this.db, 'readwrite', s => s.put(a));
+      this.emit();
+      return a;
+    };
+    this.queue = (this.queue || Promise.resolve()).then(run, run);
+    return this.queue;
   }
 
   async remove(id) {
