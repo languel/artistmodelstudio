@@ -98,8 +98,23 @@ async function videoThumb(blob) {
   } finally { URL.revokeObjectURL(v.src); }
 }
 
+/** A card for a stream: a reference (an address and a range), with no picture of its own. */
+function streamThumb(blob) {
+  const c = document.createElement('canvas'); c.width = 240; c.height = 150;
+  const x = c.getContext('2d');
+  x.fillStyle = '#1b1b1b'; x.fillRect(0, 0, 240, 150);
+  x.strokeStyle = '#8c8c8c'; x.lineWidth = 1.4; x.strokeRect(20, 22, 200, 76);
+  x.fillStyle = '#c9c7c2'; x.beginPath(); x.moveTo(108, 44); x.lineTo(140, 60); x.lineTo(108, 76); x.closePath(); x.fill();
+  x.fillStyle = '#dadada'; x.font = '12px ui-sans-serif, system-ui, sans-serif';
+  const words = String(blob.label || 'stream').split(' '); let line = '', y = 118;
+  for (const w of words) { if (x.measureText(line + w).width > 210 && line) { x.fillText(line.trim(), 14, y); y += 15; line = ''; } line += w + ' '; if (y > 140) break; }
+  if (y <= 140) x.fillText(line.trim(), 14, y);
+  return { thumb: c.toDataURL('image/webp', 0.85), width: 0, height: 0 };
+}
+
 async function makeThumb(blob) {
   const kind = blob.kindHint;
+  if (kind === 'stream') return streamThumb(blob);
   if (kind === 'video' || (blob.type || '').startsWith('video/')) return videoThumb(blob);
   if (kind === 'audio' || kind === 'text' || kind === 'json') return cardThumb(blob, kind);
   // createImageBitmap works in background tabs too (img.decode() can wait until the tab is shown).
@@ -288,6 +303,30 @@ export class AssetStore {
         try { localStorage.setItem(key, JSON.stringify(done)); } catch { /* storage unavailable */ }
       } catch (err) { console.warn('Could not seed', c.id, err); }
     }
+  }
+
+  /**
+   * Streams as assets: a reference (an address, a size, an in and out point), with no media kept.
+   * Dragging one to the canvas (or double-clicking) starts the stream as a source with a board.
+   * Each once (a stream you delete stays deleted); new ones appear when added to the list.
+   */
+  async seedStreams(list) {
+    const key = 'ams_assets_seeded_streams_v1';
+    let done = [];
+    try { done = JSON.parse(localStorage.getItem(key) || '[]'); } catch { /* again */ }
+    for (const s of list) {
+      const id = `stream:${s.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+      if (done.includes(id)) continue;
+      await this.addStream({ id, ...s });
+      done.push(id);
+      try { localStorage.setItem(key, JSON.stringify(done)); } catch { /* full */ }
+    }
+  }
+
+  async addStream({ id, title, page, quality, start, end, note, group = '', folder, license, artist }) {
+    const blob = new Blob([page], { type: 'text/uri-list' });
+    blob.kindHint = 'stream'; blob.label = title;
+    return this.add(blob, { id, title, kind: 'stream', folder: folder || `Streams${group ? `/${group}` : ''}`, tags: ['stream', 'public-domain'], meta: { stream: { page, quality, start, end, note }, note, license, artist } });
   }
 
   /**

@@ -801,6 +801,7 @@ export class Workbench {
     this.renderChrome();
     this.assetStore.seed(bundledReferences()).catch(() => {});
     // Test clips: a countdown (frame number, time, a sweep each second) as a 30 fps video and a 10 fps GIF.
+    import('./streamSamples.js').then(m => this.assetStore.seedStreams(m.STREAM_SAMPLES)).catch(() => {});
     this.assetStore.seedClips([
       { id: 'countdown-30fps', title: 'countdown 30fps', url: new URL('../../examples/media/countdown-30fps.mp4', import.meta.url).href, doc: '10 s at 30 fps: each frame shows its number and time' },
       { id: 'countdown-10fps', title: 'countdown 10fps', url: new URL('../../examples/media/countdown-10fps.gif', import.meta.url).href, doc: '10 s at 10 fps (a GIF, 100 ms a frame)' },
@@ -871,6 +872,7 @@ export class Workbench {
   }
 
   async openAsset(a) {
+    if (a.kind === 'stream' && a.meta?.stream) { await this.streamAsset(a); return; }
     // A picture, GIF or video opens as a source (code reads it by name) with a board previewing it:
     // the one you have for it already, or a new one at the middle of the view. (It is not put under
     // the main board: the asset card's reference button does that.)
@@ -900,10 +902,21 @@ export class Workbench {
    * A source from an address (a video or picture URL, or a Wikipedia / Commons File: page): streamed,
    * not stored. A movie waits on its first frame; a board previews it, with a player.
    */
-  async addSourceUrl(text, { quality = '480', start = null, end = null, title = null, lazy = false, place = true } = {}) {
+  /** A stream asset (a reference): its address, size and range, started as a source with a board at `at` (or the middle of the view). */
+  async streamAsset(a, at = null) {
+    const s = a.meta.stream;
+    const have = this.sources.list.find(d => d.meta?.source === s.page && d.meta?.assetId === a.id);
+    if (have) { const b = boardsOf(this.store.doc).find(x => x.source === have.name && !x.code); if (b) { this.goToBoard(b.id, { animate: true }); return b; } }
+    const c = this.canvas, name = await this.addSourceUrl(s.page, { quality: s.quality || '480', start: s.start, end: s.end, title: s.note, lazy: true, asset: false, at: at || c.toWorld(c.w / 2, c.h / 2), assetId: a.id });
+    const b = boardsOf(this.store.doc).find(x => x.source === name && !x.code);
+    if (b) this.store.updateBoard(b.id, { title: a.title });
+    return b;
+  }
+
+  async addSourceUrl(text, { quality = '480', start = null, end = null, title = null, lazy = false, place = true, asset = true, at = null, assetId = null } = {}) {
     const { resolveMediaUrl } = await import('./mediaUrl.js');
     const m = await resolveMediaUrl(text, { quality });
-    const name = await this.sources.add({ kind: 'url', url: m.url, mediaKind: m.kind, name: m.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'link', lazy, meta: { title: m.title, license: m.license, artist: m.artist, source: m.source, height: m.height, width: m.srcHeight ? Math.round(m.srcHeight * (m.width / m.srcHeight)) : null, srcWidth: m.width, srcHeight: m.srcHeight, note: title } });
+    const name = await this.sources.add({ kind: 'url', url: m.url, mediaKind: m.kind, name: m.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'link', lazy, meta: { title: m.title, license: m.license, artist: m.artist, source: m.source, assetId, height: m.height, width: m.srcHeight ? Math.round(m.srcHeight * (m.width / m.srcHeight)) : null, srcWidth: m.width, srcHeight: m.srcHeight, note: title } });
     if (m.kind === 'video') this.sources.update(name, { speed: 0 });
     // A moment of a long film: the in and out points, from seconds (fractions of the clip once its length is known).
     const dur = this.sources.entries.get(name)?.live?.video?.duration || m.duration;
@@ -911,7 +924,12 @@ export class Workbench {
     if (!lazy && dur && start != null) this.sources.entries.get(name).live.video.currentTime = start;
     this.log(`Source “${name}”: streamed from ${new URL(m.url).host}${m.license ? ` (${m.license}${m.artist ? `, ${m.artist}` : ''})` : ''}.`);
     const c = this.canvas;
-    if (place) await this.placeSource(name, c.toWorld(c.w / 2, c.h / 2));
+    if (place) await this.placeSource(name, at || c.toWorld(c.w / 2, c.h / 2));
+    // An address you typed is kept as a stream asset too (a reference to drag into any scene).
+    if (asset && !assetId) {
+      const id = `stream:${m.source}${start != null ? `#${start}-${end}` : ''}`;
+      if (!(await this.assetStore.get(id).catch(() => null))) await this.assetStore.addStream({ id, title: m.title, page: text, quality, start, end, note: '', license: m.license, artist: m.artist, folder: 'Streams' });
+    }
     return name;
   }
 
@@ -938,7 +956,7 @@ export class Workbench {
     let streamed = 0;
     for (const s of STREAM_SAMPLES) {
       try {
-        const name = await this.addSourceUrl(s.page, { quality: s.quality || '480', start: s.start, end: s.end, title: s.note, lazy: true, place: false });
+        const name = await this.addSourceUrl(s.page, { quality: s.quality || '480', start: s.start, end: s.end, title: s.note, lazy: true, place: false, asset: false });
         const b = await this.placeSource(name, [(i % cols) * gx + 1300, Math.floor(i / cols) * gy + 100], { go: false });
         const m = this.sources.def(name)?.meta || {};
         this.store.updateBoard(b.id, { title: s.title, text: [s.note, m.license && `${m.license}${m.artist ? `, ${m.artist}` : ''}`, 'Streamed: nothing is downloaded.'].filter(Boolean).join('  \n') });
@@ -1534,7 +1552,8 @@ export class Workbench {
       return;
     }
     if (a.kind === 'audio') { this.log('Sound goes on the Timeline: drag it there.'); this.docks.open('timeline'); return; }
-    // A clip or an animated GIF: a source, a board showing it and a player board for it.
+    if (a.kind === 'stream' && a.meta?.stream) { await this.streamAsset(a, at); return; }
+    // A clip or an animated GIF: a source, a board showing it and its controls.
     if (a.kind === 'video' || /^video\//.test(a.blob?.type || '') || a.blob?.type === 'image/gif') { await this.previewAsset(a, at); return; }
     if (!a.blob) throw new Error('This asset has no picture');
     await this.placeImage(a.blob, at, { title: a.title, asset: a.id });
