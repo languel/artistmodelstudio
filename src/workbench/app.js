@@ -63,6 +63,8 @@ import { p5ToStudio, isStudioSketch, textKind, p5Size } from '../process/convert
 import { toP5Code, p5SketchHtml, usesMl5 } from '../process/p5code.js';
 import { readRecently } from '../process/streams.js';
 import { mountSources } from './panels/sources.js';
+import { mountGestures } from './panels/gestures.js';
+import { Gestures } from './gestures.js';
 import { Guide } from './guide.js';
 
 const DOC_KEY = 'ams_process_doc_v1';
@@ -114,6 +116,7 @@ export class Workbench {
     // Whatever is waiting to be saved is saved when the page goes away.
     window.addEventListener('pagehide', () => { if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = 0; this.saveDoc(); } if (this.persistTimer) { clearTimeout(this.persistTimer); this.persistTimer = 0; this.scenes?.persist().catch(() => {}); } });
     this.sources = new Sources(this);
+    this.gestures = new Gestures(this);
     this.artists = new ArtistRegistry();
     this.store.subscribe((doc, reason) => {
       // At most one save per interval, not a debounce: a board following its sources changes the
@@ -734,6 +737,7 @@ export class Workbench {
     reg('outliner', 'Outliner', 'layers', 'left', mountOutliner);
     reg('assets', 'Assets', 'assets', 'left', el => this.mountAssets(el));
     reg('sources', 'Sources', 'source', 'left', mountSources);
+    reg('gestures', 'Gestures', 'hand', 'left', mountGestures);
     reg('properties', 'Properties', 'properties', 'right', mountProperties);
     reg('script', 'Code', 'script', 'right', mountCode);
     reg('process', 'Process', 'process', 'right', mountProcess);

@@ -97,7 +97,8 @@ export async function detectRaw(kind, img, { stream = null, t = 0, full = false 
   // A stream (a camera, a video, an animated image) is tracked in video mode: steadier, and faster.
   const run = async (name, onVideo, onImage) => { const tk = await task(name, stream ? 'VIDEO' : 'IMAGE', stream || '', full); return stream ? tk[onVideo](img, t) : tk[onImage](img); };
   if (kind === 'pose') { const r = await run('pose', 'detectForVideo', 'detect'); return (r.landmarks || []).map(p => p.map(q => ({ x: q.x, y: q.y, v: q.visibility ?? 1 }))); }
-  if (kind === 'hands') { const r = await run('hands', 'detectForVideo', 'detect'); return (r.landmarks || []).map(p => p.map(q => ({ x: q.x, y: q.y }))); }
+  // Each hand keeps the model's label (Left/Right, as if the picture were mirrored) as .label.
+  if (kind === 'hands') { const r = await run('hands', 'detectForVideo', 'detect'); return (r.landmarks || []).map((p, i) => Object.assign(p.map(q => ({ x: q.x, y: q.y })), { label: r.handedness?.[i]?.[0]?.categoryName || null })); }
   if (kind === 'mask') {
     const r = await run('segment', 'segmentForVideo', 'segment'), m = r.confidenceMasks?.[0];
     if (!m) return null;

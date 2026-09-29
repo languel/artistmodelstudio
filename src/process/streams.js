@@ -9,6 +9,8 @@
  *   colorAt(x, y), valueAt(x, y)                                              (world coordinates)
  *   pose  [[{ x, y, v }] × 33 per person], hands [[{ x, y }] × 21 per hand]   (fractions of the rect)
  *   mask(x, y) 0..1: how much a person is there (segmentation)
+ *   point(name) { x, y } or null: a named point of the person (nose, left.pinky, right.palm…)
+ *   fired(gesture, ms = 500) whether a gesture (the Gestures panel) fired just now
  *   pixels(w, h) Float32Array RGB (w×h×3), cover-fitted to the rect's shape
  *
  * Fitting is "cover" (the source fills the rect, cropped to its aspect) or "contain" (all of the
@@ -27,7 +29,7 @@ function emptySampler(name, rect) {
     ready: false, name, frame: 0, width: 1, height: 1,
     rgb: () => [EMPTY.r, EMPTY.g, EMPTY.b], color: () => '#808080', value: () => 0.5,
     colorAt: () => '#808080', valueAt: () => 0.5,
-    pose: [], hands: [], mask: () => 0,
+    pose: [], hands: [], mask: () => 0, point: () => null, fired: () => false,
     pixels: (w, h) => new Float32Array(w * h * 3).fill(128)
   };
   s.rect = rect;

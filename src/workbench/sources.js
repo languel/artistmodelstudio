@@ -11,6 +11,7 @@
  */
 import { LiveSource, SourceSampler } from '../fitting/referenceSource.js';
 import { setSourceProvider } from '../process/streams.js';
+import { bodyFrom } from '../process/gestures.js';
 
 const KEY = 'ams_sources_v1';
 const SAMPLE = 256;   // the sampled frame's long side (what code reads)
@@ -20,6 +21,7 @@ export class Sources {
     this.app = app;
     this.entries = new Map();   // name → runtime { def, live, still, frame (canvas), data, version, samples, landmarks }
     this.listeners = new Set();
+    this.keep = new Map();      // name → kinds of landmarks something outside code needs (gestures)
     try { this.defs = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { this.defs = []; }
     setSourceProvider((name, rect, fit) => this.sampler(name, rect, fit));
     this.last = performance.now();
@@ -126,7 +128,9 @@ export class Sources {
     for (const e of this.entries.values()) {
       if (!e.ready || !e.live) continue;
       // Paused while nothing live needs it (this.wanted, set by the app): it keeps its last frame.
-      const want = this.wanted ? this.wanted(e.def.name) : true;
+      const kept = this.keep.get(e.def.name);
+      if (kept) for (const k of kept) e.want.set(k, now);
+      const want = Boolean(kept?.size) || (this.wanted ? this.wanted(e.def.name) : true);
       if (Boolean(e.paused) === want) { e.paused = !want; changed = true; }
       if (!want) continue;
       e.live.tick(dt);
@@ -175,11 +179,22 @@ export class Sources {
         if (!empty) { e.landmarks[kind] = r; (e.foundAt ||= {})[kind] = now; }
         else if (now - (e.foundAt?.[kind] || 0) > 600) e.landmarks[kind] = r;
       }
-      e.landmarkVersion = e.version;
+      e.landmarkVersion = e.version; e.landmarkAt = performance.now();
       this.emit(e.def.name);
     } catch (err) {
       if (!e.warned) { e.warned = true; this.app.log(`Landmarks for “${e.def.name}”: ${err.message}`, 'error'); }
     } finally { e.busy = false; }
+  }
+
+  /**
+   * The person in a source, as a body (see process/gestures.js): named points in the source's pixels.
+   * Null until its pose or hands have been found once.
+   */
+  body(name) {
+    const e = this.entries.get(name);
+    if (!e || (!e.landmarks.pose && !e.landmarks.hands)) return null;
+    const img = e.live?.canvas || e.still;
+    return bodyFrom({ pose: e.landmarks.pose?.[0] || null, hands: (e.landmarks.hands || []).map(p => ({ points: p, label: p.label })), width: img?.width || 1, height: img?.height || 1, mirrored: Boolean(e.def.mirrored), t: e.landmarkAt || performance.now() });
   }
 
   /** A sampler for code (see src/process/streams.js), fitted (cover) to a rectangle in world units. */
@@ -209,6 +224,9 @@ export class Sources {
       colorAt: (x, y) => hex(rgb(...world(x, y))), valueAt: (x, y) => lum(rgb(...world(x, y))),
       get pose() { return (land('pose') || []).map(p => p.map(q => { const [x, y] = toRect(q.x, q.y); return { x, y, v: q.v }; })); },
       get hands() { return (land('hands') || []).map(p => p.map(q => { const [x, y] = toRect(q.x, q.y); return { x, y }; })); },
+      // A named point of the person (nose, left.pinky…; see process/gestures.js), and gestures that fired.
+      point: n => { land('pose'); land('hands'); const b = this.body(name), p = b?.point(n); if (!p) return null; const [x, y] = toRect(p.x / b.width, p.y / b.height); return { x, y }; },
+      fired: (g, ms) => Boolean(this.app.gestures?.recent(g, ms)),
       mask: (fx, fy) => {
         const m = land('mask');
         if (!m) return 0;

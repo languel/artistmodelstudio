@@ -377,6 +377,25 @@ Every other board is paused and **baked**: drawn once into a picture and shown a
 
 Agents use `ams_get` with `format: 'p5code'` for a board's code as p5, and `ams_source`: list, add, remove, update, sample (colors, values and landmarks at points), frame (a PNG), show, follow.
 
+## Gestures
+
+The Gestures panel (the hand) watches a source (the camera, or a video to test with) for gestures and does something when one completes. Gestures are written as code:
+
+```js
+gesture('pick color', [{ touch: ['left.pinky', 'nose'], hold: 300 }], 'color next')
+gesture('sample color', [{ pinch: 'right', hold: 500 }], 'color sample right.index')
+gesture('undo', [{ fist: 'left' }, { open: 'left' }, { fist: 'left' }], 'undo', { within: 900 })
+```
+
+- **Steps** follow each other in order; each must hold for `hold` ms (default 120), and the next must come within `within` ms (default 1500). After firing, a gesture waits `cooldown` ms (default 800).
+- **Conditions** (a step's keys, all must hold): `touch: [a, b, tol?]`, `apart: [a, b, tol?]`, `above` / `below: [a, b]`, `pinch`, `fist`, `open`, `point: side`, `fingers: [side, '01100']` (thumb to pinky), `still: point`, `move: [point, 'left' | 'right' | 'up' | 'down', speed?]`, `learned: 'label'`, `not: step`, `any: [steps]`.
+- **Points:** `nose`, `mouth`, `neck`, and `left.` / `right.` + `eye`, `ear`, `shoulder`, `elbow`, `wrist`, `hip`, `knee`, `ankle`, `hand`, `palm`, `thumb`, `index`, `middle`, `ring`, `pinky`. Left and right are the person's own. Distances are in body units: a shoulder width (or the torso's length / 1.4, turned sideways).
+- **Learned poses:** a step can be a label (`'palm out'`, the same as `{ learned: 'palm out' }`). The panel lists the labels the script uses; ● records 2 seconds of examples of each. The nearest examples decide. Sequences of learned poses make moving gestures (a wave: out, in, out).
+- **Actions:** `color next` / `color prev` (the palette chosen in the panel, or `color next Bauhaus`), `color sample <point>` (the source's color there), `undo`, `redo`, `run` (play or pause the board), `board next` / `board prev`, `slot <n>`, `!<console command>`, or a function `(app, body) => …`.
+- **In code:** `source('cam').point('right.index')` is where a point is (fractions of the board), and `source('cam').fired('pick color')` is true for half a second after it fires.
+
+The script, the examples and the watched source are kept in the browser.
+
 ## Exports
 
 From the menu:
