@@ -541,6 +541,7 @@ export class Workbench {
         { label: b.hidden ? 'Show' : 'Hide', hint: 'Hidden: not drawn and not run (a dashed outline marks where it is)', run: () => this.setBoardFlag(id, 'hidden', !b.hidden) },
         { label: b.hideLabel ? 'Show title' : 'Hide title', run: () => this.setBoardFlag(id, 'hideLabel', !b.hideLabel) },
         this.playableSource(b) ? { label: this.playerShown(b) ? 'Hide media controls' : 'Show media controls', hint: 'The player under the board: play, step, scrub, speed', run: () => this.togglePlayer(b) } : null,
+        { label: this.captureOf(id) ? `Stop being a source (${this.captureOf(id).name})` : 'Use as a source', hint: 'Its picture (what is under it, then its marks), live, as a source other boards read by name', run: () => this.setBoardCapture(id) },
         { label: b.perf ? 'Hide performance' : 'Show performance', hint: 'A line under it: runs a second, code time, source fps (measured only while shown)', run: () => this.setBoardFlag(id, 'perf', !b.perf) }
       ] },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
@@ -967,6 +968,24 @@ export class Workbench {
     }
     this.fitAllBoards();
     return assets.length + streamed;
+  }
+
+  /** The source a board is captured as (its picture, live), or null. */
+  captureOf(id) { return this.sources.list.find(d => d.kind === 'board' && d.boardId === id) || null; }
+
+  /**
+   * Use a board as a source: its picture (what is under it, then its marks) as a live stream that other
+   * boards read by name: source('title'). Again to stop.
+   */
+  async setBoardCapture(id, on = !this.captureOf(id)) {
+    const have = this.captureOf(id), b = boardById(this.store.doc, id);
+    if (!b) return null;
+    if (!on) { if (have) this.sources.remove(have.name); this.emit('document', 'capture'); return null; }
+    if (have) return have.name;
+    const name = await this.sources.add({ kind: 'board', boardId: id, name: String(b.title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'board' });
+    this.log(`Board “${b.title}” is a source: source('${name}') in code.`);
+    this.emit('document', 'capture');
+    return name;
   }
 
   /** The view fitted around every board. */

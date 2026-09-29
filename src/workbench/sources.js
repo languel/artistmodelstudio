@@ -13,6 +13,7 @@ import { LiveSource, SourceSampler } from '../fitting/referenceSource.js';
 import { setSourceProvider } from '../process/streams.js';
 import { bodyFrom, expressionsOf } from '../process/gestures.js';
 import { isVideoUrl } from './mediaUrl.js';
+import { boardLive } from './boardSource.js';
 
 const KEY = 'ams_sources_v1';
 const SAMPLE = 256;   // the sampled frame's long side (what code reads)
@@ -55,10 +56,10 @@ export class Sources {
   paused(name) { return Boolean(this.entries.get(name)?.paused); }
 
   /** Add a source: { kind: 'camera' } or { kind: 'asset', assetId }. Returns its name. */
-  async add({ kind, assetId, name, sampling = 'continuous', interval = 2, url, mediaKind, meta, lazy = false }) {
+  async add({ kind, assetId, name, sampling = 'continuous', interval = 2, url, mediaKind, meta, lazy = false, boardId }) {
     const asset = kind === 'asset' ? await this.app.assetStore.get(assetId) : null;
     if (kind === 'asset' && !asset) throw new Error('No such asset');
-    const d = { name: this.uniqueName(name || (kind === 'camera' ? 'cam' : String(asset?.title || 'source').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'source')), kind, ...(assetId ? { assetId } : {}), ...(url ? { url, mediaKind, ...(meta ? { meta } : {}) } : {}), ...(lazy ? { lazy: true } : {}), sampling, interval };
+    const d = { name: this.uniqueName(name || (kind === 'camera' ? 'cam' : String(asset?.title || 'source').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'source')), kind, ...(assetId ? { assetId } : {}), ...(boardId ? { boardId } : {}), ...(url ? { url, mediaKind, ...(meta ? { meta } : {}) } : {}), ...(lazy ? { lazy: true } : {}), sampling, interval };
     this.defs.push(d);
     this.save();
     if (lazy) return d.name;   // a lazy stream starts when a board that shows it is on screen and big enough (see wake)
@@ -67,7 +68,7 @@ export class Sources {
   }
 
   remove(name) {
-    this.entries.get(name)?.live?.stop();
+    this.entries.get(name)?.live?.stop?.();
     this.entries.delete(name);
     this.defs = this.defs.filter(d => d.name !== name);
     this.save();
@@ -99,6 +100,7 @@ export class Sources {
     const e = { def: d, frame: document.createElement('canvas'), data: null, version: 0, landmarks: {}, want: new Map(), busy: false, sampler: new SourceSampler({ mode: d.sampling, interval: d.interval }) };
     this.entries.set(d.name, e);
     if (d.kind === 'camera') e.live = await LiveSource.webcam();
+    else if (d.kind === 'board') e.live = boardLive(this.app, d.boardId);   // a board's picture, live
     else if (d.kind === 'url' && isVideoUrl(d)) e.live = await LiveSource.video(d.url, { crossOrigin: true });   // streamed
     else {
       const a = d.kind === 'url' ? { blob: await fetch(d.url).then(r => { if (!r.ok) throw new Error(`The address answered ${r.status}`); return r.blob(); }) } : await this.app.assetStore.get(d.assetId);
