@@ -81,7 +81,12 @@ export function mountProperties(el, app) {
     title.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') title.blur(); });
     // Its switches, as glyphs: lock, visibility, title, performance.
     const flag = (key, on, glyphOn, glyphOff, tip) => h('button', { class: `wb-icon-btn${on ? ' on' : ''}`, title: tip, html: icon(on ? glyphOn : glyphOff), onclick: () => app.setBoardFlag(b.id, key, !b[key]) });
+    // Play / pause first (as on the board's title: it shows what a click does), for boards that run.
+    const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));
+    const live = app.isBoardLive(b.id);
+    const play = runs ? h('button', { class: `wb-icon-btn${live ? ' on' : ''}`, title: live ? 'Running: click to pause (a paused board is baked into a picture)' : 'Paused: click to play', html: icon(live ? 'pause' : 'play'), onclick: () => app.toggleBoardRun(b.id) }) : null;
     const flags = h('span', { class: 'wb-board-flags' },
+      play,
       flag('locked', b.locked, 'lock', 'unlock', b.locked ? 'Locked: its marks and the board stay as they are (click to unlock)' : 'Lock the board (its marks, its place and size)'),
       h('button', { class: `wb-icon-btn${b.hidden ? ' on' : ''}`, title: b.hidden ? 'Hidden: not drawn, not run (click to show)' : 'Hide the board (not drawn, not run)', html: icon(b.hidden ? 'eyeOff' : 'eye'), onclick: () => app.setBoardFlag(b.id, 'hidden', !b.hidden) }),
       h('button', { class: `wb-icon-btn${b.hideLabel ? ' on' : ''}`, title: b.hideLabel ? 'Title hidden (click to show it)' : 'Hide the title above it', html: icon(b.hideLabel ? 'labelOff' : 'label'), onclick: () => app.setBoardFlag(b.id, 'hideLabel', !b.hideLabel) }),

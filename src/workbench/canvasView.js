@@ -809,8 +809,10 @@ export class CanvasView {
       const room = Math.max(40, w - lead - marks * 16);
       const tw = Math.min(ctx.measureText(label).width, room);
       if (runs) {
-        // Sized and centred on the title's letters (12px text: cap height ~9, centre ~9.5 above its baseline).
-        const live = Boolean(this.isBoardLive?.(b.id)), gx = bx, cy = by - 9.5;
+        // Sized and centred on the title's digits.
+        // (The text sits on a 'bottom' baseline: its letters' own baseline is a descent higher.)
+        const dm = ctx.measureText('0'), cy = Math.round(by - 5 - (dm.fontBoundingBoxDescent ?? 3) - dm.actualBoundingBoxAscent / 2) + 0.5;
+        const live = Boolean(this.isBoardLive?.(b.id)), gx = bx;
         ctx.save();
         ctx.fillStyle = muted;
         if (live) { ctx.fillRect(gx, cy - 3.5, 2.5, 7); ctx.fillRect(gx + 5, cy - 3.5, 2.5, 7); }   // pause
