@@ -31,7 +31,7 @@ export function boardLive(app, boardId) {
       ctx.drawImage(under, (w - dw) / 2, (h - dh) / 2, dw, dh); ctx.restore();
     }
     const els = doc.elements.filter(e => (e.board || 'main') === boardId);
-    if (els.length) renderDocument(ctx, { ...doc, elements: els }, { mode: 'picture', transform: { x: -b.x * k, y: -b.y * k, scale: k }, ground: false, screenNotes: true, frozen: true });
+    if (els.length) renderDocument(ctx, { ...doc, elements: els }, { mode: 'picture', transform: { x: -b.x * k, y: -b.y * k, scale: k }, ground: false, screenNotes: true, frozen: true, now: Date.now() });
     live.version++;
   }, stop() { live.ready = false; } };
   // The rest of a source's controls: a board has nothing to play.

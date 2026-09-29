@@ -1259,7 +1259,7 @@ export class Workbench {
       const s = Math.min(2, 4096 / Math.max(rect.width, rect.height));
       const c = document.createElement('canvas');
       c.width = Math.max(1, Math.round(rect.width * s)); c.height = Math.max(1, Math.round(rect.height * s));
-      renderDocument(c.getContext('2d'), { ...doc, elements: marks }, { mode: 'picture', transform: { x: -rect.x * s, y: -rect.y * s, scale: s }, ground: false, frozen: true });
+      renderDocument(c.getContext('2d'), { ...doc, elements: marks }, { mode: 'picture', transform: { x: -rect.x * s, y: -rect.y * s, scale: s }, ground: false, frozen: true, now: Date.now() });
       src = c.toDataURL('image/png');
     }
     const gone = new Set(marks.map(e => e.id));

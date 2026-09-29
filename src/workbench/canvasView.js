@@ -795,7 +795,7 @@ export class CanvasView {
         if (!marks) { marks = new Map(); for (const e of doc.elements) { const k = e.board || MAIN; (marks.get(k) || marks.set(k, []).get(k)).push(e); } }
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(W * s)); canvas.height = Math.max(1, Math.round(H * s));
-        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, frozen: true });
+        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, frozen: true, now: this.frameNow });
         c = { key, canvas };
         this.baked.set(b.id, c);
       }
@@ -1435,7 +1435,7 @@ export class CanvasView {
     const doc = boardDoc(this.store.doc, board);
     const { width, height } = doc.artboard;
     c.width = Math.round(width * scale); c.height = Math.round(height * scale);
-    renderDocument(c.getContext('2d'), doc, { mode, upTo: this.upTo, transform: { x: 0, y: 0, scale } });
+    renderDocument(c.getContext('2d'), doc, { mode, upTo: this.upTo, transform: { x: 0, y: 0, scale }, now: Date.now() });
     return c;
   }
 }
