@@ -178,7 +178,7 @@ Notes are writing on the page, in artboard units. Styles: **notebook** (handwrit
     T('draw-textured', 'Drawing', 'Textured brushes and time', 'Brushes with grain, hairs and washes, painted through layers; marks that fade and draw themselves on.', () => h('div', {},
       prose(`
 These brushes paint each mark into a small layer, multiply in the **grain of the paper** and tint it. The grain is fixed to the paper, so strokes that cross share one tooth, as on real paper. A mark's layer is kept while it stays the same, so a mark that only fades is a cheap picture, not painted again.`),
-      brushTable(['charcoal', 'chalk', 'pencil', 'bristles', 'marker', 'wash']),
+      brushTable(['charcoal', 'chalk', 'pencil', 'bristles', 'oil', 'marker', 'wash']),
       prose(`
 ## Make your own
 The layer kit is in every brush (\`k.paint\`, \`k.dabs\`, \`k.hairs\`, \`k.wash\`, \`k.grain\`). A brush says what to paint, and the kit does the layer, the grain and the cache:

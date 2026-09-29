@@ -14,7 +14,8 @@ function fakeContext() {
     set: (t, k, v) => { t[k] = v; return true; }
   });
 }
-const fakeCanvas = () => { const ctx = fakeContext(); return { width: 0, height: 0, getContext: () => ctx, ctx }; };
+let lostNow = false, listeners = [];
+const fakeCanvas = () => { const ctx = fakeContext(); ctx.isContextLost = () => lostNow; return { width: 0, height: 0, getContext: () => ctx, ctx, addEventListener: (ev, f) => { if (ev === 'contextlost') listeners.push(f); } }; };
 
 describe('texture helpers', () => {
   it('txHash ignores float dust and tells different marks apart', () => {
@@ -63,6 +64,24 @@ describe('txPaint', () => {
     txPaint(target, { ...base, color: '#f00' });
     txPaint(target, { ...base, color: '#000', scale: 2 });
     expect(painted).toBe(3);
+  });
+  it('after the browser takes every canvas away, it paints nothing until they are back, then paints anew', () => {
+    const target = fakeContext();
+    let painted = 0;
+    const spec = { key: 'unit-test-lost', bounds: [0, 0, 10, 10], draw: () => { painted++; }, scale: 1 };
+    txPaint(target, spec);
+    txPaint(target, spec);
+    expect(painted).toBe(1);
+    lostNow = true; listeners.forEach(f => f());
+    const before = target.calls.filter(c => c[0] === 'drawImage').length;
+    txPaint(target, spec);
+    expect(target.calls.filter(c => c[0] === 'drawImage')).toHaveLength(before);   // nothing kept is trusted, nothing new is drawn
+    lostNow = false;
+    txPaint(target, spec);
+    expect(painted).toBe(2);   // what was kept is dropped and painted anew
+    txPaint(target, spec);
+    expect(painted).toBe(2);
+    listeners = [];
   });
   it('without a canvas, nothing is drawn and nothing breaks', () => {
     delete globalThis.document;

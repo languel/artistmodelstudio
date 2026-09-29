@@ -19,11 +19,32 @@ const TX_BUDGET = 96 * 1024 * 1024;  // bytes of layers kept
 const txLayers = new Map();          // key → layer, least recently used first
 let txBytes = 0;
 
+let txLost = false;                  // a canvas lost its context: what we kept is blank (see txReady)
+
 function txCanvas(w, h) {
   const c = typeof document !== 'undefined' ? document.createElement('canvas') : typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1) : null;
   if (!c) return null;   // no canvas here (a test, a worker without one): a textured mark is simply not drawn
   c.width = Math.max(1, w); c.height = Math.max(1, h);
+  c.addEventListener?.('contextlost', () => { txLost = true; });
   return c;
+}
+
+/** Give a canvas's memory back now (the browser would wait for a collection). */
+function txRelease(c) { if (c) { c.width = 0; c.height = 0; } }
+
+/**
+ * Browsers take every canvas's contents away at times (memory pressure, a hidden window, a graphics reset):
+ * what we kept, layers and grain tiles and tips, is then blank, and a blank grain tile wipes a whole mark.
+ * After a loss nothing is painted until canvases work again; then everything kept is dropped and painted anew.
+ */
+function txReady() {
+  if (!txLost) return true;
+  const probe = txCanvas(2, 2), x = probe?.getContext('2d');
+  if (!x || x.isContextLost?.()) return false;
+  for (const l of txLayers.values()) txRelease(l.canvas);
+  txLayers.clear(); txBytes = 0; txSprites.clear(); txGrainTiles.clear();
+  txLost = false;
+  return true;
 }
 
 /** Pixels per unit for a view scale: about what the screen needs, in half-octave steps so zooming reuses layers. */
@@ -205,16 +226,18 @@ export function txDabs(lctx, frames, { tip = 'soft', size = 10, flow = 0.5, spac
  * Bristles: `count` parallel hairs across `width` (units), each its own thin line along the walk,
  * with its own thickness and strength. The paint runs down along the stroke (faster with `dry`, and
  * with speed): hairs lift off one after another and leave gaps: the dry-brush look.
- *   width  across the whole brush, or (frame) => width (pressure spreads the bristles)
+ *   width  across the whole brush, or (frame, u) => width (u: 0..1 along the walk; pressure spreads the bristles)
+ *   trim   0..1: each hair may start late and end early, by up to this share of the walk (ragged ends)
+ *   streaks  0..1: how much the hairs differ in the paint they carry (0 an even body of paint)
  *   dry    0 (loaded, unbroken) .. 1 (nearly dry)
  */
-export function txHairs(lctx, frames, { count = 24, width = 20, thickness = 1.2, dry = 0.35, flow = 0.85, rng = Math.random } = {}) {
+export function txHairs(lctx, frames, { count = 24, width = 20, thickness = 1.2, dry = 0.35, flow = 0.85, trim = 0, streaks = 0.55, rng = Math.random } = {}) {
   if (frames.length < 2) return;
-  const widthAt = f => (typeof width === 'function' ? width(f) : width);
+  const widthAt = (f, i) => (typeof width === 'function' ? width(f, i / Math.max(1, frames.length - 1)) : width);
   lctx.save();
   lctx.lineCap = 'round'; lctx.lineJoin = 'round'; lctx.strokeStyle = '#fff';
   const phases = [];
-  for (let h = 0; h < count; h++) phases.push({ off: count === 1 ? 0 : h / (count - 1) - 0.5 + (rng() - 0.5) * 0.5 / count, th: thickness * (0.5 + rng()), a: flow * (0.45 + 0.55 * rng()), ph: rng() * 1000, fq: 0.015 + rng() * 0.04, need: rng() });
+  for (let h = 0; h < count; h++) phases.push({ off: count === 1 ? 0 : h / (count - 1) - 0.5 + (rng() - 0.5) * 0.5 / count, th: thickness * (0.5 + rng()), a: flow * (1 - streaks * rng()), ph: rng() * 1000, fq: 0.015 + rng() * 0.04, need: rng(), from: rng() * trim, to: 1 - rng() * trim });
   // Arc length along the walk: the paint on the brush runs down along it.
   const len = [0];
   for (let i = 1; i < frames.length; i++) len.push(len[i - 1] + Math.hypot(frames[i].x - frames[i - 1].x, frames[i].y - frames[i - 1].y));
@@ -227,8 +250,8 @@ export function txHairs(lctx, frames, { count = 24, width = 20, thickness = 1.2,
       // The load falls along the stroke and with speed; each hair needs its own amount to hold paint, so the
       // hairs drop out one after another (a little wavering keeps the breaks uneven).
       const paint = 1 - dry * (0.3 + 0.7 * len[i] / total) - dry * Math.min(0.35, f.speed * 0.008);
-      const holds = paint + 0.3 * (Math.sin(hr.ph + len[i] * hr.fq) * 0.5) > hr.need * 0.9;
-      const o = hr.off * widthAt(f), x = f.x + f.nx * o, y = f.y + f.ny * o;
+      const holds = paint + 0.3 * (Math.sin(hr.ph + len[i] * hr.fq) * 0.5) > hr.need * 0.9 && len[i] >= hr.from * total && len[i] <= hr.to * total;
+      const o = hr.off * widthAt(f, i), x = f.x + f.nx * o, y = f.y + f.ny * o;
       if (holds) { drawing ? lctx.lineTo(x, y) : lctx.moveTo(x, y); drawing = true; }
       else drawing = false;
     });
@@ -269,6 +292,7 @@ export function txWash(layer, poly, { edge = 0.5, rimWidth = 4, rough = 1.5, bas
     ac.setTransform(1, 0, 0, 1, 0, 0); ac.globalCompositeOperation = 'destination-out'; ac.drawImage(b, 0, 0);
     lctx.setTransform(1, 0, 0, 1, 0, 0);
     lctx.globalAlpha = Math.min(1, edge * 1.6); lctx.drawImage(a, 0, 0); lctx.drawImage(a, 0, 0);   // twice: the rim reads through the grain
+    txRelease(a); txRelease(b);
   } else if (edge > 0) {
     lctx.globalAlpha = edge * 0.7; lctx.strokeStyle = '#fff'; lctx.lineWidth = rimWidth * 0.6; path(lctx); lctx.stroke();
   }
@@ -286,6 +310,7 @@ export function txWash(layer, poly, { edge = 0.5, rimWidth = 4, rough = 1.5, bas
  *              grain: { kind, scale, strength, seed } or null;  color, alpha: how it lands on the picture
  */
 export function txPaint(ctx, { key, bounds, draw, grain = null, color = '#1d1b19', alpha = 1, scale = 1 }) {
+  if (!txReady()) return;
   const ppu = txPpu(scale), full = `${key}|${color}|${ppu}|${txHash(grain)}`;
   let layer = txLayers.get(full);
   if (layer) { txLayers.delete(full); txLayers.set(full, layer); }
@@ -305,7 +330,7 @@ export function txPaint(ctx, { key, bounds, draw, grain = null, color = '#1d1b19
     txLayers.set(full, layer); txBytes += layer.bytes;
     while (txBytes > TX_BUDGET && txLayers.size > 1) {
       const [oldKey, old] = txLayers.entries().next().value;
-      txLayers.delete(oldKey); txBytes -= old.bytes;
+      txLayers.delete(oldKey); txBytes -= old.bytes; txRelease(old.canvas);
     }
   }
   ctx.save();

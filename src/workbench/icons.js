@@ -98,6 +98,7 @@ const BRUSH_ICONS = {
   chalk: '<path d="M3.5 17c4-7 9-9 17-9" stroke-width="3.6" stroke-dasharray="2.2 1.4" stroke-linecap="butt"/>',
   pencil: '<path d="M3.5 19c3-5 7-8.5 12-10" stroke-width="1.1"/><path d="M15 7.5l3 3-2 .5-1.5-1.5z" stroke-width="1.2"/><path d="M18 10.5l2.4-2.4a1.4 1.4 0 0 0-2-2L16 8.5" stroke-width="1.2"/>',
   bristles: '<path d="M4 14c4-4 9-6 17-6M4 16.5c5-4 10-5.4 14-5.5M4.5 19c4-3.4 8-4.6 11-5" stroke-width="1.3"/><path d="M6 12c3-3 7-4.4 12-4.6" stroke-width="1.3" opacity=".5"/>',
+  oil: '<path d="M4 16c4-6 9-8 17-8M4.5 18.5c4-5.5 9-7.5 15.5-7.8M6 20c3.5-4 7.5-5.6 11-5.8" stroke-width="2.2" opacity=".8"/>',
   marker: '<path d="M4 17c4-6 9-8 16-8" stroke-width="4.6" stroke-linecap="butt" opacity=".65"/>',
   wash: `<path ${F} d="M5 9c4-4 11-4 14 0s1 8-4 9.5-10 0-10.5-4.5z" opacity=".3"/><path d="M5 9c4-4 11-4 14 0s1 8-4 9.5-10 0-10.5-4.5z" stroke-width="1.5" opacity=".75"/>`,
   dot: `<circle cx="12" cy="12" r="5" ${F}/>`

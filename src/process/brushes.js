@@ -512,6 +512,34 @@ export const BRUSHES = {
       });
     }
   },
+  oil: {
+    label: 'Oil', roles: ['line', 'gesture'], doc: 'A loaded flat brush: many hairs packed side by side into one body of paint with streaks in it, a tapered stroke and ragged ends; the painterly stroke.',
+    params: [
+      param('width', 'Width', 4, 160, 0.5, 40, 'Brush width in artboard units.'),
+      param('hair', 'Hair', 0.5, 6, 0.1, 1.6, 'Thickness of a bristle: coarse hairs leave visible streaks.'),
+      param('flow', 'Load', 0.2, 1, 0.05, 0.9, 'How much paint each hair carries (less: more streaks).'),
+      param('dry', 'Dry', 0, 1, 0.05, 0.1, 'How soon the paint runs out along the stroke.'),
+      param('trim', 'Ragged ends', 0, 0.8, 0.05, 0.3, 'How far hairs may start late and end early.'),
+      param('streaks', 'Streaks', 0, 1, 0.05, 0.35, 'How much the hairs differ in the paint they carry (0: an even body of paint).'),
+      param('taper', 'Taper', 0, 1, 0.05, 0.4, 'How much the stroke narrows at its ends.'),
+      param('grain', 'Grain size', 0.2, 4, 0.1, 0.5, 'Size of the canvas weave.'),
+      param('tooth', 'Tooth', 0, 1, 0.05, 0.2, 'How much the canvas weave shows in the paint.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
+    ],
+    draw(ctx, e, p, k) {
+      const fr = k.frames(e, 3, 0.7);
+      if (fr.length < 2) return k.draw('dot', ctx, e, { size: p.width * 0.5, opacity: p.opacity });
+      k.paint(ctx, {
+        key: k.hash('oil', e.points, p, e.seed), bounds: k.bounds(fr, p.width * 0.8),
+        color: e.color || k.INK, alpha: p.opacity, grain: { kind: 'canvas', scale: p.grain, strength: p.tooth, seed: 17 },
+        draw: l => k.hairs(l, fr, {
+          count: Math.max(6, Math.min(160, Math.round(p.width / (p.hair * 0.5)))),
+          width: (f, u) => p.width * (0.5 + 0.7 * f.pressure) * (1 - p.taper * (1 - Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, u))), 0.5))),
+          thickness: p.hair, flow: p.flow, dry: p.dry, trim: p.trim, streaks: p.streaks, rng: k.rng
+        })
+      });
+    }
+  },
   marker: {
     label: 'Marker', roles: ['line', 'gesture'], doc: 'A broad felt tip: even and slightly see-through, so crossing strokes show through each other, and a stroke does not darken where it overlaps itself.',
     params: [
