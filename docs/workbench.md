@@ -388,9 +388,18 @@ Every other board is paused and **baked**: drawn once into a picture and shown a
 
 Agents use `ams_get` with `format: 'p5code'` for a board's code as p5, and `ams_source`: list, add, remove, update, sample (colors, values and landmarks at points), frame (a PNG), show, follow.
 
+### Board switches
+
+Properties → Board has four switches as glyphs beside its title (and the board's menu → Board):
+
+- **Lock:** its marks cannot be selected, changed or drawn over, and the board cannot be moved or resized.
+- **Hide:** not drawn and not run; a dashed outline marks where it is. Hidden boards are left out of the exported page.
+- **Title:** hides the title above it (it shows while the board is selected, so it can still be moved).
+- **Performance:** a line under it (see below). Only boards that show it are measured.
+
 ### Performance
 
-**View → Performance under boards** (or click the performance readout by the zoom control) writes a line under each board that runs:
+**View → Performance under boards** (or click the performance readout by the zoom control) writes a line under every board; a board's own switch writes it under that board. Nothing is measured for boards that do not show it:
 
 - **studio code:** runs a second, the code's time per run, the fit's time in the background, each source's new frames a second, and its marks;
 - **p5:** frames drawn a second (of how many `draw()` calls: a sketch following a GIF skips frames that have not changed) and the time each took.

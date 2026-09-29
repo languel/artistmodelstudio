@@ -148,7 +148,8 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-muted { color: var(--wb-muted); }
 .wb-small { font-size: var(--ui-small); }
 .wb-empty { color: var(--wb-muted); padding: 12px 2px; }
-.wb-panel-title { font-weight: 600; font-size: 12px; padding: 2px 0 4px; }
+.wb-panel-title { font-weight: 600; font-size: 12px; padding: 2px 0 4px; display: flex; align-items: center; gap: 2px; }
+.wb-board-flags { display: inline-flex; gap: 2px; font-weight: 400; }
 .wb-section { border-top: 1px solid var(--wb-line); padding: 4px 0; }
 .wb-section > summary { cursor: pointer; color: var(--wb-muted); font-weight: 600; padding: 4px 0; list-style: none; }
 .wb-section > summary::before { content: '▸ '; }

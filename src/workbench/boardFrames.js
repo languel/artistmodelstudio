@@ -52,7 +52,7 @@ const fileLoader = files => `(() => {
 })();`;
 
 /** The page a frame runs: the bridge, then (for p5) p5.js and its files, then the board's code. */
-function frameDoc(kind, code, token, board, p5Source = '', files = {}) {
+function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false) {
   const bridge = `(() => {
   // A sandboxed frame has no storage: reading it throws. Libraries that touch it (ml5, tfjs) get a
   // stand-in that forgets on reload.
@@ -64,8 +64,10 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}) {
   }
   const token = ${JSON.stringify(token)}, pending = new Map(); let seq = 0;
   const ask = (type, data, transfer) => new Promise((ok, fail) => { const id = ++seq; pending.set(id, { ok, fail }); parent.postMessage({ amsFrame: token, type, id, ...data }, '*'); });
+  let perfOn = ${perf ? 'true' : 'false'};   // timed only while the studio shows it
   addEventListener('message', e => {
     const d = e.data; if (!d || d.amsFrame !== token) return;
+    if (d.type === 'perf') perfOn = Boolean(d.on);
     if (d.type === 'reply') { const p = pending.get(d.id); if (p) { pending.delete(d.id); d.error ? p.fail(new Error(d.error)) : p.ok(d.result); } }
     if (d.type === 'snapshot') { const c = document.querySelector('canvas'); parent.postMessage({ amsFrame: token, type: 'snapshot', url: c ? c.toDataURL('image/png') : null }, '*'); }
   });
@@ -77,8 +79,12 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}) {
     // when the frame has not changed), and the time they took.
     let calls = 0, drawn = 0, ms = 0, painted = false;
     if (window.p5) { const bg = p5.prototype.background; p5.prototype.background = function (...a) { painted = true; return bg.apply(this, a); }; }
-    window.draw = function (...a) { const t0 = performance.now(); painted = false; try { return draw.apply(this, a); } finally { calls++; if (painted || !window.p5) { drawn++; ms += performance.now() - t0; } } };
-    setInterval(() => { parent.postMessage({ amsFrame: token, type: 'perf', fps: drawn, calls, ms: drawn ? ms / drawn : 0 }, '*'); calls = drawn = ms = 0; }, 1000);
+    window.draw = function (...a) {
+      if (!perfOn) return draw.apply(this, a);
+      const t0 = performance.now(); painted = false;
+      try { return draw.apply(this, a); } finally { calls++; if (painted || !window.p5) { drawn++; ms += performance.now() - t0; } }
+    };
+    setInterval(() => { if (perfOn) parent.postMessage({ amsFrame: token, type: 'perf', fps: drawn, calls, ms: drawn ? ms / drawn : 0 }, '*'); calls = drawn = ms = 0; }, 1000);
   });
   addEventListener('error', e => parent.postMessage({ amsFrame: token, type: 'error', message: e.message, line: e.lineno }, '*'));
   addEventListener('unhandledrejection', e => parent.postMessage({ amsFrame: token, type: 'error', message: String(e.reason && e.reason.message || e.reason) }, '*'));
@@ -140,7 +146,7 @@ export class BoardFrames {
     if (sig !== this.titles) { this.titles = sig; this.relink(); }
     for (const b of boardsOf(doc)) {
       const kind = boardKind(b);
-      if (kind === 'drawing' || kind === 'frame' || !this.canvas.boardOnScreen(b, 0.05)) continue;
+      if (kind === 'drawing' || kind === 'frame' || b.hidden || !this.canvas.boardOnScreen(b, 0.05)) continue;
       seen.add(b.id);
       let f = this.frames.get(b.id);
       if (f && f.kind !== kind) { f.el.remove(); f = null; }
@@ -215,10 +221,14 @@ export class BoardFrames {
       iframe.setAttribute('sandbox', 'allow-scripts');
       iframe.setAttribute('credentialless', '');
       iframe.title = b.title;
-      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files);
+      f.perf = Boolean(this.app.perfWanted?.(b));
+      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf);
       f.iframe = iframe;
       f.el.append(iframe);
     }
+    // Its performance shown or not: the sketch times its draw() only while it is.
+    const perf = Boolean(this.app.perfWanted?.(b));
+    if (f.iframe && f.perf !== perf) { f.perf = perf; f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'perf', on: perf }, '*'); if (!perf) this.perf.delete(b.id); }
   }
 
   /** Read files a sketch loads by name (seurat.jpg → the source “seurat”) as data URLs; null when none. */

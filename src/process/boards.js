@@ -39,11 +39,18 @@ export function slidesOf(doc) {
   return frames.length ? frames.sort((a, b) => (Math.abs(a.y - b.y) < 40 ? a.x - b.x : a.y - b.y)) : boardsOf(doc);
 }
 
+/**
+ * A board's switches: locked (its marks and the board itself stay as they are), hidden (not drawn,
+ * not run), hideLabel (no title above it), perf (a performance line under it).
+ */
+export const BOARD_FLAGS = ['locked', 'hidden', 'hideLabel', 'perf'];
+const flagsOf = b => Object.fromEntries(BOARD_FLAGS.filter(k => b?.[k]).map(k => [k, true]));
+
 /** All boards, the main one first, each with its place: { id, title, x, y, width, height, ground, main }. */
 export function boardsOf(doc) {
   const a = doc.artboard || { width: 1000, height: 1000, ground: '#f3efe6' };
   return [
-    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.pseudo ? { pseudo: a.pseudo } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.paused ? { paused: true } : {}), ...(a.kind ? { kind: a.kind } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity, ...(a.sourceFit ? { sourceFit: a.sourceFit } : {}) } : {}), main: true },
+    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.pseudo ? { pseudo: a.pseudo } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.paused ? { paused: true } : {}), ...(a.kind ? { kind: a.kind } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity, ...(a.sourceFit ? { sourceFit: a.sourceFit } : {}) } : {}), ...flagsOf(a), main: true },
     ...(doc.boards || []).map(b => ({ ...b, main: false }))
   ];
 }
@@ -126,7 +133,7 @@ export function migrateBoards(d) {
       id: String(b.id), title: String(b.title || b.id), x: Number(b.x) || 0, y: Number(b.y) || 0,
       width: Math.max(10, Number(b.width) || 1000), height: Math.max(10, Number(b.height) || 1000), ground: b.ground || d.artboard.ground,
       ...(b.text ? { text: String(b.text) } : {}), ...(b.code ? { code: String(b.code) } : {}), ...(b.pseudo ? { pseudo: String(b.pseudo) } : {}),
-      ...(b.follow ? { follow: true } : {}), ...(b.live ? { live: true } : {}), ...(b.paused ? { paused: true } : {}), ...(b.kind ? { kind: String(b.kind) } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5), ...(b.sourceFit ? { sourceFit: String(b.sourceFit) } : {}) } : {})
+      ...(b.follow ? { follow: true } : {}), ...(b.live ? { live: true } : {}), ...(b.paused ? { paused: true } : {}), ...(b.kind ? { kind: String(b.kind) } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5), ...(b.sourceFit ? { sourceFit: String(b.sourceFit) } : {}) } : {}), ...flagsOf(b)
     }));
     const ids = new Set([MAIN, BLACKBOARD, ...d.boards.map(b => b.id)]);
     for (const e of d.elements) if (e.board && !ids.has(e.board)) e.board = BLACKBOARD;

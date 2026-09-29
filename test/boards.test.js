@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { runScript } from '../src/process/script.js';
-import { normalizeDocument, ProcessStore } from '../src/process/document.js';
+import { normalizeDocument, ProcessStore, createDocument } from '../src/process/document.js';
 import { boardsOf, boardDoc, boardForPoints, BLACKBOARD, MAIN, trainBoard } from '../src/process/boards.js';
 
 describe('boards', () => {
@@ -224,5 +224,25 @@ for (const i of range(8)) line([[10, 100 + i * 10], [50, 120 + i * 10], [90, 100
     expect(src).toContain('function shape(pts, smooth, closed)');
     expect(src.match(/splineVertex/g).length).toBe(1);
     expect(() => new Function(src)).not.toThrow();
+  });
+});
+
+describe('board switches', () => {
+  it('lock, hide, hide the title and show performance: kept, cleared, and normalized', () => {
+    const store = new ProcessStore(createDocument());
+    const b = store.addBoard({ title: 'B' });
+    store.updateBoard(b.id, { locked: true, hidden: true, hideLabel: true, perf: true });
+    let got = boardsOf(store.doc).find(x => x.id === b.id);
+    expect([got.locked, got.hidden, got.hideLabel, got.perf]).toEqual([true, true, true, true]);
+    store.updateBoard(b.id, { hidden: false, perf: 0 });
+    got = boardsOf(store.doc).find(x => x.id === b.id);
+    expect('hidden' in got).toBe(false);
+    expect('perf' in got).toBe(false);
+    expect(got.locked).toBe(true);
+    store.updateBoard('main', { locked: true });
+    expect(boardsOf(store.doc)[0].locked).toBe(true);
+    // A reloaded document keeps them.
+    const again = new ProcessStore(normalizeDocument(JSON.parse(JSON.stringify(store.doc))));
+    expect(boardsOf(again.doc).find(x => x.id === b.id).locked).toBe(true);
   });
 });

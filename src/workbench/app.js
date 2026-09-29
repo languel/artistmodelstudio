@@ -128,6 +128,7 @@ export class Workbench {
       // The scene store (IndexedDB) keeps it too, less often: it has room for large drawings.
       if (!this.persistTimer && this.scenes && reason !== 'scene') this.persistTimer = setTimeout(() => { this.persistTimer = 0; this.scenes.persist().catch(() => {}); }, reason === 'live board code' ? 5000 : 1500);
       if (reason === 'live board code') return;   // a live redraw: saved, drawn; the panels stay as they are
+      this.perfTick?.();   // a board's performance switch (or a scene with some) starts or stops the count
       if (!this.store.doc.stages.some(s => s.id === this.activeStageId)) this.activeStageId = this.store.doc.stages[0]?.id;
       this.emit('document', reason);
       this.renderChrome();
@@ -219,18 +220,38 @@ export class Workbench {
   toggleBoardPerf(on = !this.boardPerfOn) {
     this.boardPerfOn = on;
     try { localStorage.setItem('ams_board_perf', on ? '1' : '0'); } catch { /* ignore */ }
-    clearInterval(this.boardPerfTimer);
-    if (on) this.boardPerfTimer = setInterval(() => {
-      this.perfMarks = new Map();
-      for (const e of this.store.doc.elements) this.perfMarks.set(e.board || MAIN, (this.perfMarks.get(e.board || MAIN) || 0) + 1);
-      this.canvas.invalidate();
-    }, 1000);
+    this.perfTick();
     this.canvas.invalidate();
     this.renderChrome?.();
   }
 
+  /** Whether a board's performance is shown (so measured): all boards (View), or its own switch. */
+  perfWanted(b) { return Boolean(b) && (this.boardPerfOn || Boolean(b.perf)); }
+
+  /** Once a second while any board's performance shows: count marks per board and redraw the lines. */
+  perfTick() {
+    const any = this.boardPerfOn || boardsOf(this.store.doc).some(b => b.perf);
+    if (!any) { clearInterval(this.boardPerfTimer); this.boardPerfTimer = 0; this.perfMarks = null; return; }
+    if (this.boardPerfTimer) return;
+    const tick = () => {
+      if (!(this.boardPerfOn || boardsOf(this.store.doc).some(b => b.perf))) { clearInterval(this.boardPerfTimer); this.boardPerfTimer = 0; return; }
+      this.perfMarks = new Map();
+      for (const e of this.store.doc.elements) this.perfMarks.set(e.board || MAIN, (this.perfMarks.get(e.board || MAIN) || 0) + 1);
+      this.canvas.invalidate();
+    };
+    tick();
+    this.boardPerfTimer = setInterval(tick, 1000);
+  }
+
+  /** Set one of a board's switches (locked, hidden, hideLabel, perf). */
+  setBoardFlag(id, flag, on) {
+    this.store.updateBoard(id, { [flag]: Boolean(on) });
+    if (flag === 'perf') this.perfTick();
+    if (flag === 'hidden' || flag === 'locked') this.canvas.select?.([]);
+  }
+
   boardPerfText(b) {
-    if (!this.boardPerfOn) return null;
+    if (!this.perfWanted(b)) return null;
     const kind = boardKind(b), live = this.isBoardLive(b.id), now = performance.now();
     if (kind === 'p5') {
       const p = this.frames?.perf.get(b.id);
@@ -508,6 +529,12 @@ export class Workbench {
       { label: `${b.title}` },
       { label: 'Go to', run: () => this.goToBoard(id) },
       { label: 'Rename…', run: () => this.renameBoard(id) },
+      { label: 'Board', items: [
+        { label: b.locked ? 'Unlock' : 'Lock', hint: 'Locked: its marks cannot be selected or changed, and it cannot be moved or resized', run: () => this.setBoardFlag(id, 'locked', !b.locked) },
+        { label: b.hidden ? 'Show' : 'Hide', hint: 'Hidden: not drawn and not run (a dashed outline marks where it is)', run: () => this.setBoardFlag(id, 'hidden', !b.hidden) },
+        { label: b.hideLabel ? 'Show title' : 'Hide title', run: () => this.setBoardFlag(id, 'hideLabel', !b.hideLabel) },
+        { label: b.perf ? 'Hide performance' : 'Show performance', hint: 'A line under it: runs a second, code time, source fps (measured only while shown)', run: () => this.setBoardFlag(id, 'perf', !b.perf) }
+      ] },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
       this.sources.list.length ? { label: 'Source underneath', hint: 'A source shown under the board: a reference, not part of its picture', items: [{ label: 'None', active: !b.source, run: () => this.setBoardSource(id, null) }, ...this.sources.list.map(s => ({ label: s.name, active: b.source === s.name, run: () => this.setBoardSource(id, s.name, b.source ? b.sourceOpacity : 1) }))] } : null,
       this.sources.list.length && boardKind(b) === 'drawing' ? { label: 'Draw from a source', hint: 'A demo: code that reads a source, which the board follows. Its code is yours to change', items: SOURCE_DEMOS.map(d => {
@@ -698,6 +725,7 @@ export class Workbench {
     this.runStats = new Map();
     const runBoardCode = this.store.runBoardCode.bind(this.store);
     this.store.runBoardCode = (id, ...rest) => {
+      if (!this.perfWanted(boardById(this.store.doc, id))) return runBoardCode(id, ...rest);   // timed only when shown
       const t0 = performance.now(), res = runBoardCode(id, ...rest), ms = performance.now() - t0;
       const s = this.runStats.get(id) || { at: [], ms: 0 };
       s.at.push(t0); if (s.at.length > 200) s.at.shift();
@@ -705,7 +733,7 @@ export class Workbench {
       this.runStats.set(id, s);
       return res;
     };
-    try { if (localStorage.getItem('ams_board_perf') === '1') this.toggleBoardPerf(true); } catch { /* ignore */ }
+    try { if (localStorage.getItem('ams_board_perf') === '1') this.toggleBoardPerf(true); else this.perfTick(); } catch { /* ignore */ }
     this.canvas.onToggleRun = id => this.toggleBoardRun(id);
     // Document and program boards (markdown, html, p5) over the canvas.
     this.frames = new BoardFrames(this);
@@ -909,7 +937,7 @@ export class Workbench {
    */
   isBoardLive(id) {
     const doc = this.store.doc, b = boardById(doc, id);
-    if (!b || b.paused) return false;   // paused by hand: stays paused, even while you are on it
+    if (!b || b.paused || b.hidden) return false;   // paused by hand (or hidden): stays paused, even while you are on it
     if (b.id === (this.activeBoard || MAIN) || b.live) return true;
     // On a frame (a slide): the boards it holds are live together.
     const active = boardById(doc, this.activeBoard || MAIN);

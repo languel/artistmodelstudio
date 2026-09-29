@@ -167,10 +167,20 @@ export class CanvasView {
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 18;
     for (const b of boards) {
-      if (b.kind === 'frame') continue;
+      if (b.kind === 'frame' || b.hidden) continue;
       const [bx, by] = this.toScreen(b.x, b.y);
       ctx.fillStyle = b.ground;
       ctx.fillRect(bx, by, b.width * this.cam.z, b.height * this.cam.z);
+    }
+    ctx.restore();
+    // A hidden board: only where it is (a dashed outline), none of its marks.
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = css.getPropertyValue('--wb-line').trim() || '#353535';
+    for (const b of boards) {
+      if (!b.hidden) continue;
+      const [bx, by] = this.toScreen(b.x, b.y);
+      ctx.strokeRect(Math.round(bx) + 0.5, Math.round(by) + 0.5, Math.round(b.width * this.cam.z), Math.round(b.height * this.cam.z));
     }
     ctx.restore();
     // Frames (slides): a quiet outline around the boards they hold, drawn under them.
@@ -195,6 +205,7 @@ export class CanvasView {
       ctx.restore();
     }
     const skip = this.drawBaked(ctx, doc);
+    for (const b of boards) if (b.hidden) skip.add(b.id);
     renderDocument(ctx, skip.size ? { ...doc, elements: doc.elements.filter(e => !skip.has(e.board || MAIN)) } : doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
       selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true,
@@ -370,8 +381,16 @@ export class CanvasView {
 
   editable(e) {
     if (e.hidden || e.locked) return false;
+    if (this.boardShut().has(e.board || MAIN)) return false;   // on a locked or hidden board
     const s = this.store.doc.stages.find(x => x.id === e.stage);
     return s && s.visible && !s.locked;
+  }
+
+  /** Boards whose marks cannot be edited (locked or hidden), cached per document. */
+  boardShut() {
+    const doc = this.store.doc;
+    if (this.shutFor !== doc) { this.shutFor = doc; this.shut = new Set(boardsOf(doc).filter(b => b.locked || b.hidden).map(b => b.id)); }
+    return this.shut;
   }
 
   // ---- transform frame ---------------------------------------------------------------
@@ -701,6 +720,8 @@ export class CanvasView {
       }
       const stage = this.getStage();
       if (!stage || stage.locked) { this.flash('This stage is locked'); return; }
+      const under = boardAt(this.store.doc, wx, wy);
+      if (under && (under.locked || under.hidden)) { this.flash(under.locked ? 'This board is locked' : 'This board is hidden'); return; }
       if (tool === 'point') { const [px, py] = this.snapPt(wx, wy); return this.commitNew('point', [[px, py, 0, 0.5]]); }
       if (tool === 'note') { const [nx, ny] = this.snapPt(wx, wy); const [nsx, nsy] = this.toScreen(nx, ny); return this.startNote(nsx, nsy, nx, ny); }
       this.startStroke(e, tool, wx, wy);
@@ -733,6 +754,7 @@ export class CanvasView {
     const zb = Math.pow(2, Math.round(Math.log2(z) * 2) / 2);
     let marks = null;
     for (const b of boards) {
+      if (b.hidden) { this.baked.delete(b.id); done.add(b.id); continue; }   // not drawn at all
       if (this.isBoardLive(b.id)) { this.baked.delete(b.id); continue; }
       if (busy.has(b.id)) continue;   // its picture is kept: edits end in a store change, which drops it
       // Off screen: not drawn, and its picture is let go (memory stays with what you see).
@@ -774,7 +796,11 @@ export class CanvasView {
     boards.forEach((b, i) => {
       const [bx, by] = this.toScreen(b.x, b.y), w = b.width * this.cam.z, h = b.height * this.cam.z;
       const on = this.selectedBoard === b.id;
-      const label = `${i + 1}  ${b.title}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
+      // Its performance, under it (the board's own switch, or View → Performance under boards).
+      const perf = this.boardPerf?.(b);
+      if (perf) { ctx.save(); ctx.fillStyle = muted; ctx.font = '11px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'top'; ctx.fillText(perf, bx, by + h + 6, Math.max(120, w * 1.6)); ctx.restore(); }
+      if (b.hideLabel && !on) return;   // no title (selected, it shows, so it can be moved)
+      const label = `${i + 1}  ${b.title}${b.locked ? '  ·  locked' : ''}${b.hidden ? '  ·  hidden' : ''}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
       // Boards with processes (code, following sources, a source under them) get a play / pause button
       // after the title. Like a player's, it shows what a click does: pause while running, play when paused.
       const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));   // documents (markdown, html) and frames have nothing to play
@@ -791,9 +817,6 @@ export class CanvasView {
         ctx.restore();
         this.runButtons.push({ id: b.id, x: gx - 4, y: gy - 4, w: 20, h: 20 });
       }
-      // Its performance, under it (View → Performance under boards).
-      const perf = this.boardPerf?.(b);
-      if (perf) { ctx.save(); ctx.fillStyle = muted; ctx.font = '11px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'top'; ctx.fillText(perf, bx, by + h + 6, Math.max(120, w * 1.6)); ctx.restore(); }
       if (on) {
         ctx.strokeStyle = sel; ctx.lineWidth = 1.5; ctx.strokeRect(bx - 0.5, by - 0.5, w + 1, h + 1);
         ctx.fillStyle = accent; ctx.fillRect(bx + w - 5, by + h - 5, 10, 10);
@@ -833,6 +856,7 @@ export class CanvasView {
     if (!b0) return;
     this.selectBoard(hd.id);
     if (hd.kind === 'title' && b0.main) return;   // the main board stays at the origin
+    if (b0.locked) { this.flash('This board is locked'); return; }
     const before = JSON.stringify(doc);
     const [wx, wy] = this.toWorld(...this.local(e));
     // A frame carries the boards it holds (and their marks) along.
