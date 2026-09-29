@@ -422,7 +422,7 @@ playlist({
 })
 ```
 
-Media items are routed to the **target** board, which shows the source under its marks with its controls; each plays from its in point and, at its range's end (or after `for` seconds), the next begins. Fields: `title`, `start`, `end` (seconds), `quality`, `for`, `speed`, `loop: true` (keep looping, so only `for` advances), `stay: true` (a board item leaves the view where it is). The board has previous, play / pause, next, loop, a target menu and a list (go to, earlier, later, remove). Add things by dragging an asset onto it, from a board's menu (*Add to playlist*: the media it shows, or the board itself; several selected boards at once), or from the **+** in the Assets preview.
+Media items are routed to the **target** board, which shows the source under its marks with its controls; each plays from its in point and, at its range's end (or after `for` seconds), the next begins. Fields: `title`, `start`, `end` (seconds), `quality`, `for`, `speed`, `loop: true` (keep looping, so only `for` advances), `stay: true` (a board item leaves the view where it is). The board has previous, play / pause, next, loop, a target menu and a list (go to, earlier, later, remove). Add things with the **+** on the playlist itself (a menu: a board, a source, a stream, a clip or picture, or an address), by dragging an asset onto it, from a board's menu (*Add to playlist*: the media it shows, or the board itself; several selected boards at once), or from the **+** in the Assets preview.
 
 Chain them: a playlist routes clips to *Screen*, *Screen* is a source, and a drawing board reads `source('screen')`: a string of dance videos drawn as they play.
 

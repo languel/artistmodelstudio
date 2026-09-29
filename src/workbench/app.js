@@ -51,6 +51,7 @@ import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
 import { openPalette } from './palette.js';
 import { showMenu } from './menu.js';
+import { askText } from './dialog.js';
 import { brushesForRole, KIT, BRUSHES } from '../process/brushes.js';
 import { Shortcuts } from './shortcuts.js';
 import { eyedropToTarget, openPicker, parseColor, formatColor } from './colorPicker.js';
@@ -990,6 +991,24 @@ export class Workbench {
   }
 
   playlistItemForAsset(a) { return a.kind === 'stream' ? { kind: 'stream', ref: a.id } : { kind: 'asset', ref: a.id }; }
+
+  /** The playlist's own + : anything in the scene or Assets to add (boards, sources, streams, assets, an address). */
+  async playlistAddMenu(id, x, y) {
+    const doc = this.store.doc, add = it => this.playlists.addItem(id, it);
+    const boards = boardsOf(doc).filter(b => b.id !== id && b.kind !== 'playlist' && b.kind !== 'frame' && !b.main);
+    const assets = await this.assetStore.all();
+    const streams = assets.filter(a => a.kind === 'stream'), groups = [...new Set(streams.map(a => a.folder))].sort();
+    const media = assets.filter(a => a.kind !== 'stream' && /^(video|image)\//.test(a.blob?.type || '') && !a.program);
+    showMenu([
+      { label: 'Add to the playlist' },
+      boards.length ? { label: 'A board', hint: 'It runs alone and the view goes to it', items: boards.map(b => ({ label: b.title, run: () => add({ kind: 'board', ref: b.title }) })) } : null,
+      this.sources.list.length ? { label: 'A source', items: this.sources.list.map(s => ({ label: s.name, run: () => add({ kind: 'source', ref: s.name }) })) } : null,
+      groups.length ? { label: 'A stream', items: groups.map(g => ({ label: g.replace(/^Streams\/?/, '') || 'Streams', items: streams.filter(a => a.folder === g).map(a => ({ label: a.title, run: () => add({ kind: 'stream', ref: a.id }) })) })) } : null,
+      media.length ? { label: 'A clip or picture', items: media.map(a => ({ label: a.title, run: () => add({ kind: 'asset', ref: a.id }) })) } : null,
+      '-',
+      { label: 'An address…', hint: 'A video or picture URL, or a Wikipedia / Commons File: page', run: async () => { const u = await askText('Address (https://…)', ''); if (u) add({ kind: 'url', ref: u.trim() }); } }
+    ].filter(Boolean), x, y);
+  }
 
   /** A playlist board (new, beside `near`) holding these items; its target is the board they came from when they show media. */
   newPlaylist(items, near = null, target = '') {

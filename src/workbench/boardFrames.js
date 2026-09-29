@@ -267,7 +267,7 @@ export class BoardFrames {
     f.el.innerHTML = `<div class="wb-playlist">
       <div class="pl-bar">
         <button data-a="prev" title="Previous">${icons.prev}</button><button data-a="toggle" title="Play / pause">${s.playing ? icons.pause : icons.play}</button><button data-a="next" title="Next">${icons.next}</button>
-        <button data-a="loop" class="${pl?.loop === false ? '' : 'on'}" title="Loop the list">${icons.loop}</button>
+        <button data-a="loop" class="${pl?.loop === false ? '' : 'on'}" title="Loop the list">${icons.loop}</button><button data-a="add" title="Add to the playlist: a board, a source, a stream, a clip, an address">${g('<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none"/>')}</button>
         <span class="pl-out" title="Where it plays: the board that shows each item (read it from other boards by making it a source)">→</span>
         <select data-a="target" title="Target board">${['', ...targets].map(t => `<option value="${esc(t)}"${t === (pl?.target ?? '') ? ' selected' : ''}>${t ? esc(t) : '(a board)'}</option>`).join('')}</select>
       </div>
@@ -284,6 +284,7 @@ export class BoardFrames {
       else if (a === 'next') P.next(b.id, 1);
       else if (a === 'toggle') P.toggle(b.id);
       else if (a === 'loop') P.edit(b.id, p => { p.loop = p.loop === false; });
+      else if (a === 'add') { const r = btn.getBoundingClientRect(); this.app.playlistAddMenu(b.id, r.left, r.bottom); }
       else if (a === 'up') P.edit(b.id, p => { if (i > 0) [p.items[i - 1], p.items[i]] = [p.items[i], p.items[i - 1]]; });
       else if (a === 'down') P.edit(b.id, p => { if (i < p.items.length - 1) [p.items[i + 1], p.items[i]] = [p.items[i], p.items[i + 1]]; });
       else if (a === 'rm') P.edit(b.id, p => { p.items.splice(i, 1); });
