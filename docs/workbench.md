@@ -398,6 +398,8 @@ Two speeds, set separately: the source's (Sources → speed: how fast a clip pla
 
 Drag a clip or an animated GIF from Assets onto the canvas (or double-click it) and you get a source, a board previewing it and, under it, a **player** board: play / pause, a frame back and forward, a scrubber with the time and frame, and the speed (¼× to 4×). The player is a board of its own (it moves and resizes like any other) and works on the source, so every board that reads the source follows it. A picture or a camera has nothing to play, so it gets no player.
 
+**Properties → Board → Media** mirrors all of it for the board's source: play / pause, steps, speed, the timeline with the time and frame, and (for a clip that can have sound) mute and volume, then how the source shows under the board: **Opacity**, **Blend** (multiply, screen, overlay… over the paper) and **Fit** (cover or contain). Clips are muted until you raise the volume; a movie added from Assets waits on its first frame for play, while a GIF plays at once. Hiding the player only hides it: playback is not touched, and a hidden player leaves no outline or title on the canvas.
+
 Show or hide the controls from Properties → Board (the controls glyph, beside play, on a board that shows the clip or on the player itself) or the board's menu → Board → *Show / Hide media controls*. Hiding it hides the player board (a dashed outline marks where it is); showing it again brings it back, or makes one if there is none.
 
 ### Board switches

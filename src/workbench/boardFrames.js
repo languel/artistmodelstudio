@@ -239,29 +239,27 @@ export class BoardFrames {
       f.built = true;
       const btn = (act, tip, html) => `<button type="button" data-act="${act}" title="${tip}">${html}</button>`;
       const g = d => `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">${d}</svg>`;
-      f.icons = { play: g('<path d="M8 5l11 7-11 7z"/>'), pause: g('<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>') };
+      f.icons = { play: g('<path d="M8 5l11 7-11 7z"/>'), pause: g('<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>'), volume: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 010 6M18 6.5a8 8 0 010 11"/></svg>`, mute: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>` };
       f.el.innerHTML = `<div class="wb-player">
         ${btn('play', 'Play / pause', f.icons.pause)}
         ${btn('back', 'Back a frame', g('<path d="M17 5v14l-9-7zM6 5h2v14H6z"/>'))}
         ${btn('fwd', 'Forward a frame', g('<path d="M7 5v14l9-7zM16 5h2v14h-2z"/>'))}
         <input type="range" min="0" max="1000" value="0" class="scrub" title="Scrub">
         <span class="time"></span>
+        <span class="vol" hidden>${btn('mute', 'Mute / unmute (muted by default)', '')}<input type="range" min="0" max="100" value="0" class="volume" title="Volume"></span>
         <select class="speed" title="Playback speed">${[['0.25', '¼×'], ['0.5', '½×'], ['1', '1×'], ['2', '2×'], ['4', '4×']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
       </div>`;
-      const el = f.el, scrub = el.querySelector('.scrub');
-      const src = () => this.app.sources.entries.get(b.source)?.live;
-      const speed = () => this.app.sources.def(b.source)?.speed ?? 1;
+      const el = f.el, scrub = el.querySelector('.scrub'), app = this.app;
       el.addEventListener('click', e => {
-        const a = e.target.closest('button')?.dataset.act, l = src();
-        if (!a || !l) return;
-        if (a === 'play') { if (speed() > 0) { f.last = speed(); this.app.sources.update(b.source, { speed: 0 }); } else this.app.sources.update(b.source, { speed: f.last || 1 }); }
-        else { if (speed() > 0) { f.last = speed(); this.app.sources.update(b.source, { speed: 0 }); } l.step(a === 'back' ? -1 : 1); }
-        this.canvas.invalidate();
+        const a = e.target.closest('button')?.dataset.act;
+        if (a === 'mute') app.mediaAct(b.source, 'mute');
+        else if (a) app.mediaAct(b.source, a === 'play' ? 'play' : 'step', a === 'back' ? -1 : 1);
       });
-      scrub.addEventListener('input', () => { const l = src(); if (l) { l.seek(Number(scrub.value) / 1000); this.canvas.invalidate(); } });
+      scrub.addEventListener('input', () => app.mediaAct(b.source, 'seek', Number(scrub.value) / 1000));
       scrub.addEventListener('pointerdown', () => { f.scrubbing = true; });
       addEventListener('pointerup', () => { f.scrubbing = false; });
-      el.querySelector('.speed').addEventListener('change', e => { this.app.sources.update(b.source, { speed: Number(e.target.value) }); this.canvas.invalidate(); });
+      el.querySelector('.speed').addEventListener('change', e => app.mediaAct(b.source, 'speed', e.target.value));
+      el.querySelector('.volume').addEventListener('input', e => app.mediaAct(b.source, 'volume', Number(e.target.value) / 100));
     }
     const pos = live?.position?.(), spd = def?.speed ?? 1, el = f.el;
     const scrub = el.querySelector('.scrub'), sel = el.querySelector('.speed');
@@ -271,6 +269,14 @@ export class BoardFrames {
     const playBtn = el.querySelector('[data-act="play"]'), want = spd > 0 ? 'pause' : 'play';
     if (playBtn.dataset.state !== want) { playBtn.dataset.state = want; playBtn.innerHTML = f.icons[want]; playBtn.title = spd > 0 ? 'Pause' : 'Play'; }
     if (spd > 0 && sel.value !== String(spd)) sel.value = String(spd);
+    // Volume, for a clip that can have sound (a GIF or a silent clip has none): muted until raised.
+    const st = this.app.mediaState(b.source), vol = el.querySelector('.vol');
+    vol.hidden = !(live?.kind === 'video' && st.sound !== false);
+    if (!vol.hidden) {
+      const mb = vol.querySelector('button'), muted = st.volume <= 0;
+      if (mb.dataset.state !== (muted ? 'mute' : 'volume')) { mb.dataset.state = muted ? 'mute' : 'volume'; mb.innerHTML = f.icons[muted ? 'mute' : 'volume']; mb.title = muted ? 'Unmute' : 'Mute'; }
+      const vi = vol.querySelector('.volume'); if (document.activeElement !== vi) vi.value = String(Math.round(st.volume * 100));
+    }
   }
 
   /** Read files a sketch loads by name (seurat.jpg → the source “seurat”) as data URLs; null when none. */

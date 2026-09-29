@@ -897,7 +897,12 @@ export class Workbench {
 
   /** An asset as a source, and a board previewing it (see placeSource). */
   async previewAsset(a, at = null) {
-    const name = this.sources.list.find(d => d.kind === 'asset' && d.assetId === a.id)?.name || await this.sources.add({ kind: 'asset', assetId: a.id });
+    let name = this.sources.list.find(d => d.kind === 'asset' && d.assetId === a.id)?.name;
+    if (!name) {
+      name = await this.sources.add({ kind: 'asset', assetId: a.id });
+      // GIFs play as they arrive; a movie waits (on its first frame) for the player's play.
+      if (this.sources.entries.get(name)?.live?.kind === 'video') this.sources.update(name, { speed: 0 });
+    }
     const have = boardsOf(this.store.doc).find(b => b.source === name && b.title === name && !b.code);
     if (have) { this.addPlayer(name, have); this.goToBoard(have.id, { animate: true }); return have; }
     const c = this.canvas, b = await this.placeSource(name, at || c.toWorld(c.w / 2, c.h / 2));
@@ -1155,6 +1160,28 @@ export class Workbench {
     return name && this.sources.entries.get(name)?.live?.position?.() ? name : null;
   }
 
+  /** A source's playback, for the controls (the player board and Properties): { pos, speed, playing }. */
+  mediaState(name) {
+    const pos = this.sources.entries.get(name)?.live?.position?.() || null, speed = this.sources.def(name)?.speed ?? 1;
+    const live = this.sources.entries.get(name)?.live;
+    return { pos, speed, playing: speed > 0, volume: this.sources.def(name)?.volume ?? 0, sound: live?.hasAudio?.() ?? false };
+  }
+
+  /** One control on a source: 'play' (toggle), 'step' (±1 frame), 'seek' (0..1), 'speed'. Playing is never touched by anything else. */
+  mediaAct(name, act, value) {
+    const S = this.sources, live = S.entries.get(name)?.live, speed = S.def(name)?.speed ?? 1;
+    if (!live) return;
+    this.mediaLast ||= new Map();
+    const pause = () => { if (speed > 0) { this.mediaLast.set(name, speed); S.update(name, { speed: 0 }); } };
+    if (act === 'play') { if (speed > 0) pause(); else S.update(name, { speed: this.mediaLast.get(name) || 1 }); }
+    else if (act === 'step') { pause(); live.step(value); }
+    else if (act === 'seek') live.seek(value);
+    else if (act === 'speed') S.update(name, { speed: Number(value) });
+    else if (act === 'volume') S.update(name, { volume: Math.max(0, Math.min(1, Number(value))) });
+    else if (act === 'mute') { const v = S.def(name)?.volume ?? 0; if (v > 0) { this.mediaLast.set(`${name}:vol`, v); S.update(name, { volume: 0 }); } else S.update(name, { volume: this.mediaLast.get(`${name}:vol`) || 0.7 }); }
+    this.canvas.invalidate();
+  }
+
   /** Whether a board's media controls (its source's player) are shown. */
   playerShown(b) {
     const name = this.playableSource(b);
@@ -1201,11 +1228,23 @@ export class Workbench {
     this.openCode?.('board', id);
   }
 
+  /** A board's source underneath: its opacity, blend and fit (the source itself: setBoardSource). */
+  setBoardSourceLook(id, patch) {
+    this.store.change('board source look', d => {
+      const t = !id || id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
+      if (!t?.source) return;
+      if ('opacity' in patch) t.sourceOpacity = Math.max(0, Math.min(1, Number(patch.opacity)));
+      if ('blend' in patch) { if (patch.blend && patch.blend !== 'normal') t.sourceBlend = patch.blend; else delete t.sourceBlend; }
+      if ('fit' in patch) { if (patch.fit === 'contain') t.sourceFit = 'contain'; else delete t.sourceFit; }
+    });
+  }
+
   /** Show a source under a board (a reference: not part of the picture), or none. */
   setBoardSource(id, name, opacity, fit = 'cover') {
     this.store.change(name ? 'board source' : 'no board source', d => {
       const t = !id || id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
       if (!t) return;
+      if (!name) delete t.sourceBlend;
       if (name) { t.source = name; t.sourceOpacity = opacity ?? t.sourceOpacity ?? 0.5; if (fit === 'contain') t.sourceFit = 'contain'; else delete t.sourceFit; } else { delete t.source; delete t.sourceOpacity; delete t.sourceFit; }
     });
   }
@@ -1218,6 +1257,7 @@ export class Workbench {
       ctx.save();
       ctx.beginPath(); ctx.rect(b.x, b.y, b.width, b.height); ctx.clip();
       ctx.globalAlpha = b.sourceOpacity ?? 0.5;
+      if (b.sourceBlend && b.sourceBlend !== 'normal') ctx.globalCompositeOperation = b.sourceBlend;   // over the paper
       ctx.drawImage(img, b.x + (b.width - w) / 2, b.y + (b.height - hh) / 2, w, hh);
       ctx.restore();
     }

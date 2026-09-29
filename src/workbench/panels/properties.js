@@ -5,6 +5,7 @@
  */
 import { h, row, numberField, selectField, section, esc } from '../ui.js';
 import { icon } from '../icons.js';
+import { rangeInput, paintRange } from '../codeParams.js';
 import { colorField } from '../colorPicker.js';
 import { BRUSHES, brushesForRole, resolveParams } from '../../process/brushes.js';
 import { ROLES, BLENDS } from '../../process/document.js';
@@ -103,6 +104,54 @@ export function mountProperties(el, app) {
       row('Redraw', numberField({ value: rateOf(b), min: 0, max: 60, step: 1, def: 0, title: 'Runs a second for a board that follows a source (each with fresh randomness); 0: once per new frame of the source', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { rate: Math.round(v) }); } })),
       row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app })),
       h('div', { class: 'wb-muted wb-small' }, `${marksOf(app.store.doc, b.id).length} marks${trainBoard(app.store.doc) === b.id ? ' · models learn from this board' : ''}`)));
+    // Media: the same controls as the player board (play / pause, frame steps, the timeline, speed),
+    // for the source this board shows or plays. The values follow the source while this is showing.
+    const mediaName = app.playableSource(b);
+    media = null;
+    // The source under a board (any): how it shows (opacity, blend, fit).
+    const look = b.source && b.kind !== 'player' ? [
+      row('Opacity', numberField({ value: b.sourceOpacity ?? 0.5, min: 0, max: 1, step: 0.05, def: 0.5, title: 'How much of the source shows under the board’s marks', onChange: v => app.setBoardSourceLook(b.id, { opacity: v }) })),
+      row('Blend', selectField(BLENDS.map(x => [x, x]), b.sourceBlend || 'normal', v => app.setBoardSourceLook(b.id, { blend: v }), 'How the source mixes with the paper')),
+      row('Fit', selectField([['cover', 'Cover'], ['contain', 'Contain']], b.sourceFit === 'contain' ? 'contain' : 'cover', v => app.setBoardSourceLook(b.id, { fit: v }), 'Cover fills the board (cropped); contain shows all of it'))
+    ] : [];
+    if (b.source && !mediaName && look.length) el.append(section(`Source · ${b.source}`, true, ...look));
+    if (mediaName) {
+      const btn = (act, tip, glyph, onclick) => h('button', { class: 'wb-icon-btn', 'data-act': act, title: tip, html: glyph, onclick });
+      const step = d => '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="' + (d < 0 ? 'M17 5v14l-9-7zM6 5h2v14H6z' : 'M7 5v14l9-7zM16 5h2v14h-2z') + '"/></svg>';
+      const play = btn('play', 'Play / pause', icon('pause'), () => app.mediaAct(mediaName, 'play'));
+      const scrub = rangeInput({ min: 0, max: 1000, step: 1, value: 0, title: 'Timeline' });
+      let scrubbing = false;
+      scrub.addEventListener('pointerdown', () => { scrubbing = true; });
+      for (const ev of ['pointerup', 'pointercancel', 'blur']) scrub.addEventListener(ev, () => { scrubbing = false; });
+      scrub.addEventListener('input', () => app.mediaAct(mediaName, 'seek', Number(scrub.value) / 1000));
+      const time = h('span', { class: 'wb-muted wb-small wb-media-time' });
+      // Volume, for a clip that can have sound: muted until raised.
+      const mute = h('button', { class: 'wb-icon-btn', title: 'Mute / unmute (muted by default)', html: icon('mute'), onclick: () => app.mediaAct(mediaName, 'mute') });
+      const vol = rangeInput({ min: 0, max: 100, step: 1, value: 0, title: 'Volume' });
+      vol.addEventListener('input', () => app.mediaAct(mediaName, 'volume', Number(vol.value) / 100));
+      const volRow = h('div', { class: 'wb-row', hidden: true }, mute, vol);
+      const speed = selectField([['0.25', '¼×'], ['0.5', '½×'], ['1', '1×'], ['2', '2×'], ['4', '4×']], String(app.mediaState(mediaName).speed || 1), v => app.mediaAct(mediaName, 'speed', v), 'Playback speed');
+      const t = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+      media = { name: mediaName, update() {
+        const { pos, speed: sp, playing } = app.mediaState(mediaName);
+        if (!scrubbing && pos) { scrub.value = String(Math.round(pos.fraction * 1000)); paintRange(scrub); }
+        time.textContent = pos ? (pos.duration ? `${t(pos.time)} / ${t(pos.duration)} · ${pos.frame}/${pos.frames}` : `${pos.frame + 1}/${pos.frames}`) : '—';
+        if (play.dataset.state !== (playing ? 'pause' : 'play')) { play.dataset.state = playing ? 'pause' : 'play'; play.innerHTML = icon(playing ? 'pause' : 'play'); play.title = playing ? 'Pause' : 'Play'; }
+        if (playing && speed.value !== String(sp)) speed.value = String(sp);
+        const st = app.mediaState(mediaName), has = app.sources.entries.get(mediaName)?.live?.kind === 'video' && st.sound !== false;
+        volRow.hidden = !has;
+        if (has) {
+          const muted = st.volume <= 0;
+          if (mute.dataset.state !== (muted ? 'mute' : 'volume')) { mute.dataset.state = muted ? 'mute' : 'volume'; mute.innerHTML = icon(muted ? 'mute' : 'volume'); }
+          if (document.activeElement !== vol) { vol.value = String(Math.round(st.volume * 100)); paintRange(vol); }
+        }
+      } };
+      el.append(section(`Media · ${mediaName}`, true,
+        h('div', { class: 'wb-row' }, play, btn('back', 'Back a frame', step(-1), () => app.mediaAct(mediaName, 'step', -1)), btn('fwd', 'Forward a frame', step(1), () => app.mediaAct(mediaName, 'step', 1)), h('span', { style: { flex: 1 } }), speed),
+        h('div', { class: 'wb-row' }, scrub),
+        time, volRow, ...look));
+      media.update();
+    }
     const text = h('textarea', { class: 'wb-why', rows: 6, placeholder: 'What this board says (Markdown): on the exported page, under the picture' });
     text.value = b.text || '';
     text.addEventListener('keydown', e => e.stopPropagation());
@@ -156,6 +205,9 @@ export function mountProperties(el, app) {
     if (c.track === 'audio') el.append(section('Audio', true, h('div', { class: 'wb-small' }, c.label || 'audio')));
   };
 
+  // The media controls follow the source (a new frame, or a change of speed) while they show.
+  let media = null;
+  app.sources.on(name => { if (media && (!name || name === media.name)) media.update(); });
   app.store.subscribe(render);
   app.on('clip-select', render);
   app.on('selection', () => { if (app.canvas?.selected.size) app.selectedClip = null; render(); });

@@ -178,7 +178,7 @@ export class CanvasView {
     ctx.setLineDash([4, 4]);
     ctx.strokeStyle = css.getPropertyValue('--wb-line').trim() || '#353535';
     for (const b of boards) {
-      if (!b.hidden) continue;
+      if (!b.hidden || b.kind === 'player') continue;   // (a hidden player leaves no trace: its switch is in Properties)
       const [bx, by] = this.toScreen(b.x, b.y);
       ctx.strokeRect(Math.round(bx) + 0.5, Math.round(by) + 0.5, Math.round(b.width * this.cam.z), Math.round(b.height * this.cam.z));
     }
@@ -800,6 +800,7 @@ export class CanvasView {
       const perf = this.boardPerf?.(b);
       if (perf) { ctx.save(); ctx.fillStyle = muted; ctx.font = '11px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'top'; ctx.fillText(perf, bx, by + h + 6, Math.max(120, w * 1.6)); ctx.restore(); }
       if (b.hideLabel && !on) return;   // no title (selected, it shows, so it can be moved)
+      if (b.kind === 'player' && b.hidden) return;
       const label = `${i + 1}  ${b.title}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
       // Boards with processes (code, following sources, a source under them) get a play / pause button
       // after the title. Like a player's, it shows what a click does: pause while running, play when paused.

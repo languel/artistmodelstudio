@@ -86,6 +86,7 @@ export class Sources {
     Object.assign(d, patch);
     const e = this.entries.get(name);
     if (e) e.sampler = new SourceSampler({ mode: d.sampling, interval: d.interval });
+    if (e && 'volume' in patch) e.live?.setVolume?.(d.volume ?? 0);
     if (e && 'speed' in patch) e.live?.setRate?.(d.speed ?? 1);   // playback speed: a GIF or video only (a camera is live)
     this.save();
   }
@@ -113,6 +114,7 @@ export class Sources {
       }
     }
     e.live?.setRate?.(d.speed ?? 1);
+    e.live?.setVolume?.(d.volume ?? 0);   // muted unless raised
     e.ready = true;
     this.sample(e);
   }

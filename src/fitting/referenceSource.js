@@ -100,6 +100,24 @@ export class LiveSource {
     this.version++;
   }
 
+  /** Volume 0..1 (0: muted: the default, so a clip never surprises anyone); a video only. */
+  setVolume(v) {
+    if (!this.video || this.kind !== 'video') return;
+    const vol = Math.max(0, Math.min(1, Number(v) || 0));
+    this.video.volume = vol;
+    this.video.muted = vol <= 0;
+  }
+
+  /** Whether the clip has a sound track: true, false, or null when the browser cannot say (yet). */
+  hasAudio() {
+    const v = this.video;
+    if (!v || this.kind !== 'video') return false;
+    if (typeof v.mozHasAudio === 'boolean') return v.mozHasAudio;
+    if (v.audioTracks && typeof v.audioTracks.length === 'number') return v.audioTracks.length > 0;
+    if (typeof v.webkitAudioDecodedByteCount === 'number' && v.currentTime > 0.5) return v.webkitAudioDecodedByteCount > 0;
+    return null;
+  }
+
   setRate(rate) {
     this.rate = Math.max(0, rate);
     if (this.video && this.kind === 'video') {

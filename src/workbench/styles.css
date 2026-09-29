@@ -689,6 +689,9 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-player button:hover { border-color: #8c8c8c; }
 .wb-player .scrub { flex: 1; min-width: 40px; accent-color: #c9c7c2; }
 .wb-player .time { min-width: 9em; text-align: right; color: #8c8c8c; white-space: nowrap; }
+.wb-player .vol { display: flex; align-items: center; gap: 6px; }
+.wb-player .vol[hidden] { display: none; }
+.wb-player .vol .volume { width: 64px; accent-color: #c9c7c2; }
 .wb-player .speed { color: inherit; background: #262626; border: 1px solid #3a3a3a; border-radius: 4px; font: inherit; padding: 4px; }
 .wb-bframe-still { position: absolute; inset: 0; display: grid; place-items: center; color: #8c8c8c; font: 14px var(--font-mono); }
 .wb-bframe-still img { width: 100%; height: 100%; object-fit: contain; }
