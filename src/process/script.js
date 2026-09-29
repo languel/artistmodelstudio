@@ -22,7 +22,7 @@
 import { createDocument, normalizeDocument, newId, STAGE_KINDS } from './document.js';
 import { BRUSHES, mulberry32, installLines, defSource, registerBrush, isBuiltin } from './brushes.js';
 import { findBoard, newBoardId, nextBoardPlace } from './boards.js';
-import { getSource } from './streams.js';
+import { getSource, streamState } from './streams.js';
 import { fitSource } from './fit.js';
 
 const ELEMENT_KEYS = new Set(['path', 'fill', 'why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id']);
@@ -172,6 +172,11 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
       for (const sh of res.shapes) api.plane(sh.points.map(([x, y]) => u(x, y)), { color: sh.color, brush, ...(sh.straight ? { path: 'straight' } : {}), stage: stageName, why });
       return res.shapes.length;
     },
+    /**
+     * state(name): an object kept between runs of this board's code (a board that follows a source
+     * runs again on each frame): for processes that carry on, like a live fit written in code.
+     */
+    state(name = '') { return streamState(`state:${by?.name || ''}:${tgt.id || 'main'}:${name}`); },
     stage(name, kind = 'marks', opts = {}) {
       const k = STAGE_KINDS.includes(kind) ? kind : 'marks';
       let s = doc.stages.find(x => x.name === name);
@@ -303,6 +308,7 @@ export const SCRIPT_VOCAB = [
   ['board', "board(title, { width, height, x, y, ground })", 'Later marks land on this board (made if new, right of the others); coordinates are fractions of it. board() goes back to the main board. Returns { id, title, width, height }.'],
   ['source', "source(name)", 'A named source (Sources panel: camera, image, video): .color(x, y), .value(x, y) 0..1, .rgb(x, y), .pose [[{x, y, v}]], .hands [[{x, y}]], .mask(x, y), .frame. Fractions of the board.'],
   ['fit', "fit(source, { shapes: 80, kinds: ['rect', 'triangle', 'circle'], brush, stage, seed, ground, live })", 'Redraw a source as plane marks by greedy shape fitting. live: true keeps the shapes and replaces a few per new frame (continuous, with a board that follows its sources).'],
+  ['state', "state(name)", 'An object kept between runs of the board\'s code (it runs again on each frame of a source it follows): keep what a process carries on with, e.g. the shapes of a live fit.'],
   ['stage', "stage(name, kind)", `Start a stage; later marks land in it. kind: ${STAGE_KINDS.join(', ')}.`],
   ['point', 'point(x, y, { size, color, why })', 'A mark at a place.'],
   ['points', 'points([[x, y], …], opts)', 'Several points with the same options.'],

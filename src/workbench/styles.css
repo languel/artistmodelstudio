@@ -580,7 +580,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, [contentedita
 
 /* Param sliders: on the lines (right side, over the text) or beside the preview */
 .cm-line.cm-has-param { position: relative; }
-.cm-param { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: inline-flex; gap: 4px; padding: 2px 4px; border-radius: 6px; background: color-mix(in srgb, var(--wb-panel) 80%, transparent); }
+/* After the line's text (never over it): a long line wraps and the sliders follow its end. */
+.cm-param { display: inline-flex; vertical-align: middle; margin-left: 10px; gap: 4px; padding: 2px 4px; border-radius: 6px; background: color-mix(in srgb, var(--wb-panel) 80%, transparent); }
 .cm-param .wb-range { width: 72px; }
 .wb-preview-row { display: flex; gap: 8px; align-items: stretch; flex: none; }
 .wb-ctl-strip { flex: 1 1 40%; min-width: 150px; display: flex; flex-direction: column; justify-content: center; gap: 5px; overflow: auto; }

@@ -355,6 +355,8 @@ With `live: true`, `fit` keeps its shapes between frames and replaces the oldest
 fit(source('cam'), { shapes: 120 /* 10..400 */, live: true })
 ```
 
+`fit` is built in (`src/process/fit.js`, over the Reference Fitter in `src/fitting/fitReference.js`). To change how it works, a board's menu → *Draw from a source* → **Fit shapes, in code** writes the same idea out as board code: random tries, each shape the best of them (the one that brings the picture closest to the source), the oldest giving way on each new frame. Change how shapes are tried, kept or drawn. It keeps its shapes between runs with `state(name)`: an object that lasts across runs of the board's code, for any process that carries on from frame to frame.
+
 In the Sources panel:
 
 - The **redraw** glyph writes that code into the active board, shows the source under the board, and turns following on.
