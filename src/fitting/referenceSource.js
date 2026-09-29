@@ -114,10 +114,16 @@ export class LiveSource {
   hasAudio() {
     const v = this.video;
     if (!v || this.kind !== 'video') return false;
-    if (typeof v.mozHasAudio === 'boolean') return v.mozHasAudio;
-    if (v.audioTracks && typeof v.audioTracks.length === 'number') return v.audioTracks.length > 0;
-    if (typeof v.webkitAudioDecodedByteCount === 'number' && v.currentTime > 0.5) return v.webkitAudioDecodedByteCount > 0;
-    return null;
+    if (this.sound !== undefined) return this.sound;
+    let has = null;
+    if (typeof v.mozHasAudio === 'boolean') has = v.mozHasAudio;
+    else if (v.audioTracks && typeof v.audioTracks.length === 'number') has = v.audioTracks.length > 0;
+    else if (v.readyState >= 1 && typeof v.captureStream === 'function') {
+      // The tracks of the stream the element would give: an audio track is there when the clip has sound (paused or playing, muted or not).
+      try { const n = v.captureStream().getAudioTracks().length; has = n > 0 ? true : v.readyState >= 2 ? false : null; } catch { has = null; }
+    }
+    if (has !== null) this.sound = has;   // (settled: asked once)
+    return has;
   }
 
   /** Loop (or stop at the end) and the range played, as fractions of the clip (0..1): in and out. */

@@ -1269,7 +1269,7 @@ export class Workbench {
     const pos = this.sources.entries.get(name)?.live?.position?.() || null, speed = this.sources.def(name)?.speed ?? 1;
     const live = this.sources.entries.get(name)?.live;
     const def = this.sources.def(name);
-    return { pos, speed, playing: speed > 0, loop: def?.loop !== false, inP: def?.in ?? 0, outP: def?.out ?? 1, volume: this.sources.def(name)?.volume ?? 0, sound: live?.hasAudio?.() ?? false };
+    return { pos, speed, playing: speed > 0, loop: def?.loop !== false, inP: def?.in ?? 0, outP: def?.out ?? 1, volume: this.sources.def(name)?.volume ?? 0, sound: live?.hasAudio?.() ?? null };   // null: not known yet (the controls show)
   }
 
   /** One control on a source: 'play' (toggle), 'step' (±1 frame), 'seek' (0..1), 'speed'. Playing is never touched by anything else. */
