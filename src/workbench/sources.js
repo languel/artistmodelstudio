@@ -37,7 +37,7 @@ export class Sources {
   def(name) { return this.defs.find(d => d.name === name); }
 
   /** Start every listed source (cameras ask the browser for permission). */
-  async startAll() { for (const d of this.defs) await this.start(d).catch(err => this.app.log(`Source “${d.name}”: ${err.message}`, 'error')); }
+  async startAll() { for (const d of this.defs.filter(d => !d.lazy)) await this.start(d).catch(err => this.app.log(`Source “${d.name}”: ${err.message}`, 'error')); }
 
   uniqueName(base) { let n = base, i = 2; while (this.def(n)) n = `${base}${i++}`; return n; }
 
@@ -45,7 +45,7 @@ export class Sources {
   async whenReady(names = this.defs.map(d => d.name), timeout = 20000) {
     const t0 = performance.now();
     while (performance.now() - t0 < timeout) {
-      if (names.every(n => !this.def(n) || this.entries.get(n)?.data)) return true;
+      if (names.every(n => !this.def(n) || this.def(n).lazy && !this.entries.has(n) || this.entries.get(n)?.data)) return true;
       await new Promise(r => setTimeout(r, 100));
     }
     return false;
@@ -55,12 +55,13 @@ export class Sources {
   paused(name) { return Boolean(this.entries.get(name)?.paused); }
 
   /** Add a source: { kind: 'camera' } or { kind: 'asset', assetId }. Returns its name. */
-  async add({ kind, assetId, name, sampling = 'continuous', interval = 2, url, mediaKind, meta }) {
+  async add({ kind, assetId, name, sampling = 'continuous', interval = 2, url, mediaKind, meta, lazy = false }) {
     const asset = kind === 'asset' ? await this.app.assetStore.get(assetId) : null;
     if (kind === 'asset' && !asset) throw new Error('No such asset');
-    const d = { name: this.uniqueName(name || (kind === 'camera' ? 'cam' : String(asset?.title || 'source').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'source')), kind, ...(assetId ? { assetId } : {}), ...(url ? { url, mediaKind, ...(meta ? { meta } : {}) } : {}), sampling, interval };
+    const d = { name: this.uniqueName(name || (kind === 'camera' ? 'cam' : String(asset?.title || 'source').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'source')), kind, ...(assetId ? { assetId } : {}), ...(url ? { url, mediaKind, ...(meta ? { meta } : {}) } : {}), ...(lazy ? { lazy: true } : {}), sampling, interval };
     this.defs.push(d);
     this.save();
+    if (lazy) return d.name;   // a lazy stream starts when a board that shows it is on screen and big enough (see wake)
     try { await this.start(d); } catch (err) { this.remove(d.name); throw err; }   // (an address that does not work leaves nothing behind)
     return d.name;
   }
@@ -118,6 +119,9 @@ export class Sources {
     }
     e.live?.setRate?.(d.speed ?? 1);
     e.live?.setVolume?.(d.volume ?? 0);   // muted unless raised
+    // A clip cut from a long film waits at its in point (a paused first frame there).
+    const vd = e.live?.video?.duration;
+    if (vd && d.in > 0) e.live.video.currentTime = d.in * vd;
     if (e.live) { e.live.setLoop(d.loop); e.live.setRange(d.in, d.out); e.live.onEnd = () => { if ((this.def(d.name)?.speed ?? 1) > 0) this.update(d.name, { speed: 0 }); }; }   // stopping at the end reads as paused
     e.ready = true;
     this.sample(e);
@@ -127,6 +131,12 @@ export class Sources {
   fps(name) {
     const now = performance.now(), t = (this.entries.get(name)?.times || []).filter(x => now - x < 3000);
     return t.length / 3;
+  }
+
+  /** Start a lazy stream now. */
+  wake(d) {
+    (this.waking ||= new Set()).add(d.name);
+    this.start(d).catch(err => { this.app.log(`Source “${d.name}”: ${err.message}`, 'error'); this.entries.delete(d.name); d.lazy = 'failed'; }).finally(() => { this.waking.delete(d.name); this.emit(null); });
   }
 
   /** The current full-size frame (for underlays and previews). */
@@ -139,6 +149,16 @@ export class Sources {
     // and hours of sampling and detection in the background wear out the GPU.
     if (document.hidden) return;
     let changed = false;
+    // Lazy streams (from a list of clips) start only when a board showing them is on screen and big enough.
+    for (const d of this.defs) if (d.lazy === true && !this.entries.has(d.name) && this.lazyWanted?.(d.name) && !this.waking?.has(d.name)) this.wake(d);
+    // ...and lets go again after half a minute unseen (the stream is closed; it starts again at its in point when wanted).
+    for (const d of this.defs) {
+      const e = d.lazy === true && this.entries.get(d.name);
+      if (!e?.ready) continue;
+      if (!e.paused) { e.idleSince = 0; continue; }
+      e.idleSince ||= now;
+      if (now - e.idleSince > 30000) { e.live?.stop?.(); this.entries.delete(d.name); this.emit(null); }
+    }
     for (const e of this.entries.values()) {
       if (!e.ready || !e.live) continue;
       // Paused while nothing live needs it (this.wanted, set by the app): it keeps its last frame.

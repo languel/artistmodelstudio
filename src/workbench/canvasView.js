@@ -44,6 +44,7 @@ export class CanvasView {
     this.hovered = null;
     this.draft = null;      // element being drawn
     this.marquee = null;
+    this.boardSet = new Set();   // the boards selected together (Shift+click their titles, or a box): they move as a group
     // Note fonts are drawn on the canvas, so ask for them explicitly and redraw when they arrive.
     Promise.all(['22px Caveat', '17px "Patrick Hand"', '17px Newsreader'].map(f => document.fonts?.load(f).catch(() => null))).then(() => this.invalidate());
     this.upTo = Infinity;   // stage scrub
@@ -368,6 +369,7 @@ export class CanvasView {
   select(ids, additive = false) {
     if (!additive) this.selected.clear();
     for (const id of ids) this.selected.add(id);
+    if (ids.length && this.selectedBoard) { this.selectedBoard = null; this.boardSet.clear(); }   // marks or boards, not both
     this.onSelect?.([...this.selected]);
     this.invalidate();
   }
@@ -724,7 +726,7 @@ export class CanvasView {
         const bh = this.boardHandleAt(sx, sy);
         if (bh) return this.startBoardDrag(e, bh);
         if (tool === 'board') return this.startBoardRect(e, wx, wy);
-        if (this.selectedBoard && !this.hitTest(wx, wy)) this.selectBoard(null);
+        if (this.selectedBoard && !this.hitTest(wx, wy) && !e.shiftKey) this.selectBoard(null);
       }
       // Sculpt: the Sculpt tool, or Shift+drag over a mark with most tools.
       if (tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length && !(tool === 'select' && this.handleAt(sx, sy)))) {
@@ -812,7 +814,7 @@ export class CanvasView {
     ctx.textBaseline = 'bottom';
     boards.forEach((b, i) => {
       const [bx, by] = this.toScreen(b.x, b.y), w = b.width * this.cam.z, h = b.height * this.cam.z;
-      const on = this.selectedBoard === b.id;
+      const on = this.selectedBoard === b.id || this.boardSet.has(b.id);
       // Its performance, under it (the board's own switch, or View → Performance under boards).
       const perf = this.boardPerf?.(b);
       if (perf) { ctx.save(); ctx.fillStyle = muted; ctx.font = '11px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'top'; ctx.fillText(perf, bx, by + h + 6, Math.max(120, w * 1.6)); ctx.restore(); }
@@ -856,7 +858,7 @@ export class CanvasView {
       ctx.restore();
       if (on) {
         ctx.strokeStyle = sel; ctx.lineWidth = 1.5; ctx.strokeRect(bx - 0.5, by - 0.5, w + 1, h + 1);
-        ctx.fillStyle = accent; ctx.fillRect(bx + w - 5, by + h - 5, 10, 10);
+        if (this.boardSet.size <= 1) { ctx.fillStyle = accent; ctx.fillRect(bx + w - 5, by + h - 5, 10, 10); }   // (its corner: for one board)
       }
     });
     ctx.restore();
@@ -871,7 +873,7 @@ export class CanvasView {
   /** The board title (or the selected board's resize corner) under a screen point. */
   boardHandleAt(sx, sy) {
     const doc = this.store.doc;
-    if (this.selectedBoard) {
+    if (this.selectedBoard && this.boardSet.size <= 1) {
       const b = boardsOf(doc).find(x => x.id === this.selectedBoard);
       if (b) { const [bx, by] = this.toScreen(b.x + b.width, b.y + b.height); if (Math.abs(sx - bx) < 8 && Math.abs(sy - by) < 8) return { id: b.id, kind: 'resize' }; }
     }
@@ -879,10 +881,25 @@ export class CanvasView {
     return l ? { id: l.id, kind: 'title' } : null;
   }
 
-  selectBoard(id) {
+  /** Select a board (add: Shift, toggling it in the group of selected boards). */
+  selectBoard(id, add = false) {
     if (id && this.selected.size) this.select([]);
-    this.selectedBoard = id || null;
-    if (id) this.onBoardSelect?.(id);
+    if (!id) { this.boardSet.clear(); this.selectedBoard = null; }
+    else if (add) {
+      if (this.boardSet.has(id)) { this.boardSet.delete(id); this.selectedBoard = [...this.boardSet].at(-1) || null; }
+      else { if (this.selectedBoard) this.boardSet.add(this.selectedBoard); this.boardSet.add(id); this.selectedBoard = id; }
+    } else { this.boardSet = new Set([id]); this.selectedBoard = id; }
+    if (this.selectedBoard) this.onBoardSelect?.(this.selectedBoard);
+    this.invalidate();
+  }
+
+  /** Select several boards (a box around them). */
+  selectBoards(ids, add = false) {
+    if (!ids.length) return;
+    if (this.selected.size) this.select([]);
+    this.boardSet = new Set([...(add ? [...this.boardSet, ...(this.selectedBoard ? [this.selectedBoard] : [])] : []), ...ids]);
+    this.selectedBoard = ids.at(-1);
+    this.onBoardSelect?.(this.selectedBoard);
     this.invalidate();
   }
 
@@ -891,16 +908,23 @@ export class CanvasView {
     const doc = this.store.doc;
     const b0 = boardsOf(doc).find(b => b.id === hd.id);
     if (!b0) return;
-    this.selectBoard(hd.id);
-    if (hd.kind === 'title' && b0.main) return;   // the main board stays at the origin
+    // Shift+click a title: in or out of the group (no drag); dragging a selected one moves them all.
+    if (e.shiftKey && hd.kind === 'title') { this.selectBoard(hd.id, true); return; }
+    if (!(hd.kind === 'title' && this.boardSet.has(hd.id) && this.boardSet.size > 1)) this.selectBoard(hd.id);
+    const group = hd.kind === 'title' && this.boardSet.size > 1 ? boardsOf(doc).filter(b => this.boardSet.has(b.id) && !b.main && !b.locked) : [];
+    if (hd.kind === 'title' && b0.main && !group.length) return;   // the main board stays at the origin
     if (b0.locked) { this.flash('This board is locked'); return; }
     const before = JSON.stringify(doc);
     const [wx, wy] = this.toWorld(...this.local(e));
     // A frame carries the boards it holds (and their marks) along.
-    const carried = b0.kind === 'frame' && hd.kind === 'title' ? boardsInFrame(doc, b0).filter(b => !b.main) : [];
+    // (a frame in a group carries its boards too)
+    const movers = group.length ? group : [b0];
+    const carried = hd.kind === 'title' ? movers.filter(b => b.kind === 'frame').flatMap(f => boardsInFrame(doc, f)).filter(b => !b.main && !movers.some(m => m.id === b.id)) : [];
     const carriedIds = new Set(carried.map(b => b.id));
-    const marks = doc.elements.filter(el => el.board === hd.id || carriedIds.has(el.board)).map(el => [el, el.points.map(p => p.slice())]);
+    const moverIds = new Set(movers.filter(b => !b.main).map(b => b.id));
+    const marks = doc.elements.filter(el => moverIds.has(el.board) || carriedIds.has(el.board)).map(el => [el, el.points.map(p => p.slice())]);
     const starts = carried.map(b => [doc.boards.find(x => x.id === b.id), b.x, b.y]);
+    const groupStarts = movers.filter(b => b.id !== hd.id && !b.main).map(b => [doc.boards.find(x => x.id === b.id), b.x, b.y]);
     let moved = false;
     this.pointer = true;
     const mv = ev => {
@@ -915,7 +939,8 @@ export class CanvasView {
         else Object.assign(doc.boards.find(b => b.id === hd.id), { width: Math.round(w), height: Math.round(h) });
       } else {
         if (this.grid.snap) { const [sx0, sy0] = this.snapPt(b0.x + dx, b0.y + dy); dx = sx0 - b0.x; dy = sy0 - b0.y; }
-        Object.assign(doc.boards.find(b => b.id === hd.id), { x: Math.round(b0.x + dx), y: Math.round(b0.y + dy) });
+        Object.assign(doc.boards.find(b => b.id === hd.id) || {}, { x: Math.round(b0.x + dx), y: Math.round(b0.y + dy) });
+        for (const [b, x0, y0] of groupStarts) Object.assign(b, { x: x0 + Math.round(b0.x + dx) - b0.x, y: y0 + Math.round(b0.y + dy) - b0.y });
         for (const [b, x0, y0] of starts) Object.assign(b, { x: x0 + Math.round(b0.x + dx) - b0.x, y: y0 + Math.round(b0.y + dy) - b0.y });
         for (const [el, pts] of marks) el.points = pts.map(([px, py, t, p]) => [px + Math.round(b0.x + dx) - b0.x, py + Math.round(b0.y + dy) - b0.y, t, p]);
       }
@@ -1260,7 +1285,11 @@ export class CanvasView {
       const m = this.marquee; this.marquee = null;
       const [x0, x1] = [Math.min(m.x0, m.x1), Math.max(m.x0, m.x1)], [y0, y1] = [Math.min(m.y0, m.y1), Math.max(m.y0, m.y1)];
       if (x1 - x0 > 2 / this.cam.z || y1 - y0 > 2 / this.cam.z) {
-        const ids = this.store.doc.elements.filter(el => this.editable(el) && el.points.every(([x, y]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)).map(el => el.id);
+        // Boards wholly inside the box are selected as a group (their marks go with them, so are not picked).
+        const inside = boardsOf(this.store.doc).filter(b => !b.main && b.x >= x0 && b.y >= y0 && b.x + b.width <= x1 && b.y + b.height <= y1);
+        const insideIds = new Set(inside.map(b => b.id));
+        const ids = this.store.doc.elements.filter(el => this.editable(el) && !insideIds.has(el.board) && el.points.every(([x, y]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)).map(el => el.id);
+        if (inside.length && !ids.length) { this.selectBoards(inside.map(b => b.id), e.shiftKey); this.invalidate(); return; }
         const groups = new Set(this.store.doc.elements.filter(el => ids.includes(el.id) && el.group).map(el => el.group));
         this.select([...ids, ...this.store.doc.elements.filter(el => groups.has(el.group) && this.editable(el)).map(el => el.id)], true);
       }

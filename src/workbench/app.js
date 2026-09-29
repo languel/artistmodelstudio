@@ -900,19 +900,64 @@ export class Workbench {
    * A source from an address (a video or picture URL, or a Wikipedia / Commons File: page): streamed,
    * not stored. A movie waits on its first frame; a board previews it, with a player.
    */
-  async addSourceUrl(text, { quality = '480', start = null, end = null, title = null } = {}) {
+  async addSourceUrl(text, { quality = '480', start = null, end = null, title = null, lazy = false, place = true } = {}) {
     const { resolveMediaUrl } = await import('./mediaUrl.js');
     const m = await resolveMediaUrl(text, { quality });
-    const name = await this.sources.add({ kind: 'url', url: m.url, mediaKind: m.kind, name: m.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'link', meta: { title: m.title, license: m.license, artist: m.artist, source: m.source, height: m.height } });
+    const name = await this.sources.add({ kind: 'url', url: m.url, mediaKind: m.kind, name: m.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'link', lazy, meta: { title: m.title, license: m.license, artist: m.artist, source: m.source, height: m.height, width: m.srcHeight ? Math.round(m.srcHeight * (m.width / m.srcHeight)) : null, srcWidth: m.width, srcHeight: m.srcHeight, note: title } });
     if (m.kind === 'video') this.sources.update(name, { speed: 0 });
     // A moment of a long film: the in and out points, from seconds (fractions of the clip once its length is known).
-    const dur = this.sources.entries.get(name)?.live?.video?.duration;
+    const dur = this.sources.entries.get(name)?.live?.video?.duration || m.duration;
     if (dur && (start != null || end != null)) this.sources.update(name, { in: Math.max(0, (start ?? 0) / dur), out: Math.min(1, (end ?? dur) / dur) });
-    if (dur && start != null) this.sources.entries.get(name).live.video.currentTime = start;
+    if (!lazy && dur && start != null) this.sources.entries.get(name).live.video.currentTime = start;
     this.log(`Source “${name}”: streamed from ${new URL(m.url).host}${m.license ? ` (${m.license}${m.artist ? `, ${m.artist}` : ''})` : ''}.`);
     const c = this.canvas;
-    await this.placeSource(name, c.toWorld(c.w / 2, c.h / 2));
+    if (place) await this.placeSource(name, c.toWorld(c.w / 2, c.h / 2));
     return name;
+  }
+
+  /**
+   * A new scene with the stock samples (Assets › Samples), each a source on its own board with a player,
+   * in a grid. GIFs play; movies wait on their first frame.
+   */
+  async buildSamplesScene() {
+    const assets = (await this.assetStore.all()).filter(a => a.folder === 'Samples' && a.blob && /^(video|image)\//.test(a.blob.type)).sort((a, b) => String(a.title).localeCompare(b.title));
+    if (!assets.length) throw new Error('No samples in Assets (Samples folder)');
+    await this.scenes.create({ title: 'Samples' });
+    const cols = 4, gx = 1000, gy = 1100;
+    let i = 0;
+    for (const a of assets) {
+      let name = this.sources.list.find(d => d.kind === 'asset' && d.assetId === a.id)?.name;
+      if (!name) { name = await this.sources.add({ kind: 'asset', assetId: a.id }); if (this.sources.entries.get(name)?.live?.kind === 'video') this.sources.update(name, { speed: 0 }); }
+      const b = await this.placeSource(name, [(i % cols) * gx + 1300, Math.floor(i / cols) * gy + 100], { go: false });
+      this.store.updateBoard(b.id, { title: a.title });
+      i++;
+    }
+    // The clips to stream (public domain, from Wikipedia / Commons): each a lazy source, which starts when its board is on
+    // screen and big enough: the overview reads nothing.
+    const { STREAM_SAMPLES } = await import('./streamSamples.js');
+    let streamed = 0;
+    for (const s of STREAM_SAMPLES) {
+      try {
+        const name = await this.addSourceUrl(s.page, { quality: s.quality || '480', start: s.start, end: s.end, title: s.note, lazy: true, place: false });
+        const b = await this.placeSource(name, [(i % cols) * gx + 1300, Math.floor(i / cols) * gy + 100], { go: false });
+        const m = this.sources.def(name)?.meta || {};
+        this.store.updateBoard(b.id, { title: s.title, text: [s.note, m.license && `${m.license}${m.artist ? `, ${m.artist}` : ''}`, 'Streamed: nothing is downloaded.'].filter(Boolean).join('  \n') });
+        i++; streamed++;
+      } catch (err) { this.log(`Samples: ${s.title}: ${err.message}`, 'error'); }
+      await new Promise(r => setTimeout(r, 900));   // the wiki's API asks for a gentle pace
+    }
+    this.fitAllBoards();
+    return assets.length + streamed;
+  }
+
+  /** The view fitted around every board. */
+  fitAllBoards(margin = 60) {
+    const bs = boardsOf(this.store.doc).filter(b => b.kind !== 'frame');
+    if (!bs.length) return;
+    const x0 = Math.min(...bs.map(b => b.x)), y0 = Math.min(...bs.map(b => b.y)), x1 = Math.max(...bs.map(b => b.x + b.width)), y1 = Math.max(...bs.map(b => b.y + b.height));
+    const c = this.canvas, z = Math.min((c.w - 2 * margin) / (x1 - x0), (c.h - 2 * margin) / (y1 - y0), 2);
+    c.cam = { z, x: c.w / 2 - ((x0 + x1) / 2) * z, y: c.h / 2 - ((y0 + y1) / 2) * z + 10 };
+    c.saveCam?.(); c.invalidate();
   }
 
   /** An asset as a source, and a board previewing it (see placeSource). */
@@ -949,6 +994,8 @@ export class Workbench {
     const last = new Map(), pending = new Map();
     // A source samples only while something live needs it: a live board on screen that follows it or
     // shows it, or a live mark's brush that read it a moment ago. Paused, it keeps its last frame.
+    // A lazy stream wakes when a board showing it is live, on screen and big (not in a zoomed-out overview).
+    this.sources.lazyWanted = name => boardsOf(this.store.doc).some(b => b.source === name && this.isBoardActive(b.id, b) && b.width * this.canvas.cam.z >= 240);
     this.sources.wanted = name => readRecently(name, 1500) || boardsOf(this.store.doc).some(b => (b.source === name || (b.follow && reads(b.code, name))) && this.isBoardActive(b.id, b));
     const reads = (code, name) => new RegExp(`\\b(source|fit)\\(\\s*['"\`]${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`).test(code || '');
     this.sources.on(name => {
@@ -1193,26 +1240,28 @@ export class Workbench {
    * A board previewing a source: the source's shape, the source underneath it (live, whole), and no
    * code yet. Add code (or a demo: the board's menu) to draw from it.
    */
-  async placeSource(name, at) {
+  async placeSource(name, at, { go = true } = {}) {
     // Its shape comes from its picture: a video's once it has one (its canvas starts as a placeholder).
     await this.sources.whenReady([name], 5000);
     const video = this.sources.entries.get(name)?.live?.video;
     for (let i = 0; video && !video.videoWidth && i < 50; i++) await new Promise(r => setTimeout(r, 100));
     const view = this.sources.view(name), long = 800;
-    const w = video?.videoWidth || view?.width || 4, hgt = video?.videoHeight || view?.height || 3, k = long / Math.max(w, hgt);
+    const dm = this.sources.def(name)?.meta || {};
+    const w = video?.videoWidth || view?.width || dm.srcWidth || 4, hgt = video?.videoHeight || view?.height || dm.srcHeight || 3, k = long / Math.max(w, hgt);
     const width = Math.round(w * k), height = Math.round(hgt * k);
     const b = this.store.addBoard({ title: name, width, height, x: Math.round(at[0] - width / 2), y: Math.round(at[1] - height / 2), adopt: false });
     this.setBoardSource(b.id, name, 1);
     this.setBoardLive(b.id, true);
     this.addPlayer(name, b);
-    this.goToBoard(b.id, { animate: true });
+    if (go) this.goToBoard(b.id, { animate: true });
     return b;
   }
 
   /** The source a board shows or plays, when that source has a timeline (a clip or a GIF); else null. */
   playableSource(b) {
     const name = b?.source;
-    return name && this.sources.entries.get(name)?.live?.position?.() ? name : null;
+    const d = name && this.sources.def(name);
+    return name && (this.sources.entries.get(name)?.live?.position?.() || (d?.lazy && d.mediaKind === 'video')) ? name : null;   // (a lazy stream is a clip before it starts)
   }
 
   /** A source's playback, for the controls (the player board and Properties): { pos, speed, playing }. */
@@ -1243,18 +1292,17 @@ export class Workbench {
 
   /** Whether a board's media controls (its source's player) are shown. */
   playerShown(b) {
-    const name = this.playableSource(b);
-    const p = name && boardsOf(this.store.doc).find(x => x.kind === 'player' && x.source === name);
-    return Boolean(p && !p.hidden);
+    if (b?.kind === 'player') return !b.hidden;   // a player board from before
+    return Boolean(b?.controls && this.playableSource(b));
   }
 
   /** Show or hide the media controls of a board's source (its player board; made when there is none). */
   togglePlayer(b) {
     const name = this.playableSource(b);
     if (!name) return;
-    const p = boardsOf(this.store.doc).find(x => x.kind === 'player' && x.source === name);
-    if (!p) { this.addPlayer(name, b.kind === 'player' ? b : b); return; }
-    this.setBoardFlag(p.id, 'hidden', !p.hidden);
+    if (b.kind === 'player') { this.setBoardFlag(b.id, 'hidden', !b.hidden); return; }   // a player board from before
+    this.store.updateBoard(b.id, { controls: !b.controls });
+    this.canvas.invalidate();
   }
 
   /**
@@ -1262,15 +1310,12 @@ export class Workbench {
    * (a clip or a GIF; a picture or a camera has nothing to play, so none is made).
    */
   addPlayer(name, under) {
-    const live = this.sources.entries.get(name)?.live;
-    if (!live?.position?.() || under.kind === 'player') return null;
+    const live = this.sources.entries.get(name)?.live, d = this.sources.def(name);
+    if ((!live?.position?.() && !(d?.lazy && d.mediaKind === 'video')) || under.kind === 'player') return null;
     const have = boardsOf(this.store.doc).find(b => b.kind === 'player' && b.source === name);
-    if (have) return have;
-    const p = this.store.addBoard({ title: `${name} · player`, width: Math.max(320, under.width), height: 64, x: under.x, y: under.y + under.height + 24, ground: '#1c1c1c', adopt: false });
-    this.store.updateBoard(p.id, { kind: 'player' });
-    this.setBoardSource(p.id, name, 0);
-    this.setBoardLive(p.id, true);
-    return p;
+    if (have) return have;   // (a player board from before: a board of its own)
+    this.store.updateBoard(under.id, { controls: true });
+    return under;
   }
 
   /** A demo's code on a board, reading a source, followed (re-run on its frames). */

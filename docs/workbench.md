@@ -400,15 +400,23 @@ A tracker reads a source's picture and gives back what it sees: `pose` (33 point
 
 To see and test a tracker: board menu → *Draw from a source* → **Face and expressions** (the face as lines, its expressions as bars) or **Pose lines** or **Fingertips**. In the Gestures panel, `expr: ['smile', 0.5]` is a condition on an expression, and `chin`, `lip.top`, `lip.bottom`, `mouth.left`, `mouth.right` are points. Face tracking is studio-only: a p5 export says so. The demo's code has `/* 0..1 */` sliders for the source under the board (`underlay({ source, opacity, blend, fit })`, a call any board's code can make), the tracker's markers (points and bars) and the abstract faces; 0 hides each. An early result, "accidental art", is kept in `notes/accidental-art-unicursal-faces.md`.
 
+### Group selection of boards
+
+**Shift+click** a board's title to add it to (or take it out of) the selected boards, or drag a **box** on the empty canvas: boards wholly inside it are selected (their marks go with them). Dragging any selected board's title moves them all, with their marks, as one undo step; Shift or Cmd+click a row in the Boards panel does the same selection. Frames carry the boards they hold.
+
+### The Samples scene
+
+`/samples` (or `app.buildSamplesScene()`) makes a scene with the stock samples (Assets › Samples) and the clips to stream, each on its own board with controls. The streamed ones are **lazy**: a board only starts reading its clip when it is live, on screen and big enough (at least 240 px wide on screen), so the zoomed-out overview streams nothing; a clip left unseen for half a minute is closed, and starts again at its in point when you come back.
+
 ### Redraw rate
 
 Two speeds, set separately: the source's (Sources → speed: how fast a clip plays) and the board's (Properties → Board → **Redraw**: how many times a second its code runs). With Redraw at 0 a board following a source runs once per new frame of the source. With a rate (up to 60) it runs on its own clock, each run with fresh randomness: a slow GIF still gives dots, strokes and shapes that are drawn again and again, and a live `fit` carries on refining while the clip changes slowly. The demos (board menu → *Draw from a source*) set a rate of their own, take the source from under the board (it changes with each frame, the paper should not) and leave the ground alone: `fit` runs with `ground: false`. A p5 sketch exported from such a board draws at that rate, reseeded each frame.
 
 ### Media controls
 
-Drag a clip or an animated GIF from Assets onto the canvas (or double-click it) and you get a source, a board previewing it and, under it, a **player** board: play / pause, a frame back and forward, a scrubber with the time and frame, and the speed (¼× to 4×). The player is a board of its own (it moves and resizes like any other) and works on the source, so every board that reads the source follows it. A picture or a camera has nothing to play, so it gets no player.
+Drag a clip or an animated GIF from Assets onto the canvas (or double-click it) and you get a source and a board previewing it, with **media controls** under the board: play / pause, a frame back and forward, a scrubber with the time and frame, and the speed (¼× to 4×). The controls belong to the board (its `controls` switch): they move and resize with it, and are not a board of their own. They work on the source, so every board that reads the source follows them. A picture or a camera has nothing to play, so it gets none.
 
-**Loop, stop and a range:** the player and Properties have a loop button (looping by default; off, the clip stops at its end and reads as paused, and play starts it again from the start), and **[** and **]**, which set the in and out points at the current position: playing loops (or stops) inside that range, whatever the clip's length. Shift+click **[** or **]** on the player (or the ✕ in Properties) clears the range. The range is kept with the source (`in`, `out` as fractions), so it works for streams too: set it and the rest is never played.
+Show or hide the controls from Properties → Board (the controls glyph, beside play) or the board's menu → Board → *Show / Hide media controls*. Hiding only hides them; playback is untouched. (Scenes saved before this have separate "player" boards; they still work.)
 
 **Properties → Board → Media** mirrors all of it for the board's source: play / pause, steps, speed, the timeline with the time and frame, and (for a clip that can have sound) mute and volume, then how the source shows under the board: **Opacity**, **Blend** (multiply, screen, overlay… over the paper) and **Fit** (cover or contain). Clips are muted until you raise the volume; a movie added from Assets waits on its first frame for play, while a GIF plays at once. Hiding the player only hides it: playback is not touched, and a hidden player leaves no outline or title on the canvas.
 

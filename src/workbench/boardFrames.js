@@ -159,6 +159,19 @@ export class BoardFrames {
       f.el.style.transform = `translate(${sx}px, ${sy}px) scale(${z})`;
       f.el.style.width = `${b.width}px`; f.el.style.height = `${b.height}px`;
     }
+    // A board's media controls (board.controls): under it, as wide as it, following it. Not a board of their own.
+    for (const b of boardsOf(doc)) {
+      if (!b.controls || !b.source || b.hidden || !this.canvas.boardOnScreen(b, 0.05)) continue;
+      const key = `${b.id}:controls`;
+      seen.add(key);
+      let f = this.frames.get(key);
+      if (!f) { f = this.create({ id: key, ground: '#1c1c1c' }, 'player'); this.frames.set(key, f); }
+      const pb = { id: key, source: b.source, ground: '#1c1c1c' };
+      this.refresh(f, pb);
+      const [sx, sy] = this.canvas.toScreen(b.x, b.y + b.height + 14);
+      f.el.style.transform = `translate(${sx}px, ${sy}px) scale(${z})`;
+      f.el.style.width = `${b.width}px`; f.el.style.height = '64px';
+    }
     for (const [id, f] of this.frames) if (!seen.has(id)) { this.release(id, f); }
   }
 

@@ -8,7 +8,7 @@
 const W = 'https://en.wikipedia.org/wiki/File:', C = 'https://commons.wikimedia.org/wiki/File:';
 export const STREAM_SAMPLES = [
   // Faces and expression
-  { group: 'Faces', title: 'Metropolis 1927 · Maria’s wink', page: `${W}Metropolis_(1927).webm`, start: 5121, end: 5132, quality: '240', quality: '240', note: 'Brigitte Helm, the machine-Maria: a close-up and a wink' },
+  { group: 'Faces', title: 'Metropolis 1927 · Maria’s wink', page: `${W}Metropolis_(1927).webm`, start: 5123.5, end: 5131.5, quality: '240', quality: '240', note: 'Brigitte Helm, the machine-Maria: a close-up and a wink' },
   { group: 'Faces', title: 'Metropolis 1927 · the machine becomes Maria', page: `${W}Metropolis_(1927).webm`, start: 4964, end: 4987, quality: '240', quality: '240', note: 'The robot’s face turns into Maria’s: eyes closed, then open' },
   { group: 'Faces', title: 'Fred Ott’s Sneeze 1894', page: `${C}Fred_Ott's_Sneeze_(1894).webm`, note: 'Edison: a face, three seconds' },
   { group: 'Faces', title: 'Un homme de têtes 1898', page: `${C}Un_homme_de_tête_(1898).webm`, note: 'Méliès: a man takes off his heads' },
