@@ -57,8 +57,9 @@ const mdHeight = (t, w) => {
 
 /** A document board: words, as a markdown board on the canvas (a page section too). */
 function words(title, text, { width = 900 } = {}) {
-  const b = store.addBoard({ title, width, height: mdHeight(text, width), ground: '#ffffff' });
-  store.updateBoard(b.id, { kind: 'markdown', code: text });
+  const doc = `## ${title}\n\n${text}`;
+  const b = store.addBoard({ title, width, height: mdHeight(doc, width), ground: '#ffffff' });
+  store.updateBoard(b.id, { kind: 'markdown', code: doc });
   return b;
 }
 
