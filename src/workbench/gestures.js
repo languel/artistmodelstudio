@@ -47,12 +47,16 @@ export class Gestures {
   save() { try { localStorage.setItem(KEY, JSON.stringify({ code: this.code, examples: this.examples, source: this.source, on: this.on_, palette: this.palette })); } catch { /* full */ } }
   get enabled() { return this.on_; }
 
+  /** The trackers the script needs: the body, and the face only when it asks for an expression. */
+  kinds() { return new Set(['pose', 'hands', ...(/\bexpr\b/.test(this.code) ? ['face'] : [])]); }
+
   /** Read the gesture script; an error keeps the last working one. */
   compile(code = this.code) {
     try {
       const list = readGestures(code);
       this.code = code; this.error = null; this.list = list;
       this.recognizer = new Recognizer(list, { classify: classifier(this.examples) });
+      if (this.on_ && this.source) this.app.sources.keep.set(this.source, this.kinds());
     } catch (err) { this.code = code; this.error = err.message; }
     this.save(); this.emit('code');
     return this.error;
@@ -64,7 +68,7 @@ export class Gestures {
     if (this.source && this.source !== source) S.keep.delete(this.source);
     this.source = source || S.list.find(d => d.kind === 'camera')?.name || S.list[0]?.name || null;
     this.on_ = Boolean(on && this.source);
-    if (this.source) { if (this.on_) S.keep.set(this.source, new Set(['pose', 'hands'])); else S.keep.delete(this.source); }
+    if (this.source) { if (this.on_) S.keep.set(this.source, this.kinds()); else S.keep.delete(this.source); }
     this.save(); this.emit('state');
   }
 

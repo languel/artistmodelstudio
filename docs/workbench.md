@@ -333,6 +333,8 @@ const cam = source('cam')         // fitted to the board (cover), fractions of t
 cam.color(0.5, 0.5)               // '#rrggbb'; also rgb(x, y), value(x, y) 0..1
 cam.pose                          // [[{ x, y, v }] × 33 per person], MediaPipe, on demand
 cam.hands                         // [[{ x, y }] × 21 per hand]
+cam.face                          // [{ points: [{ x, y, z }] × 478, blend: { smile, jawOpen, blink, browUp… 0..1 }, box }]
+cam.track('face')                 // any tracker by name: 'pose' | 'hands' | 'face' | 'mask'
 cam.mask(0.5, 0.5)                // 0..1: a person there (segmentation)
 cam.frame                         // changes with each new sample
 ```
@@ -389,6 +391,12 @@ Every other board is paused and **baked**: drawn once into a picture and shown a
 - Baked images are ordinary marks: add them to Assets, or use them as thumbnails.
 
 Agents use `ams_get` with `format: 'p5code'` for a board's code as p5, and `ams_source`: list, add, remove, update, sample (colors, values and landmarks at points), frame (a PNG), show, follow.
+
+### Trackers
+
+A tracker reads a source's picture and gives back what it sees: `pose` (33 points per person), `hands` (21 per hand), `face` (478 points and 52 expression scores per face) and `mask` (where a person is). Any source can be tracked from board code, and only while code asks: `source('cam').face`, or by name, `source('cam').track('face')`. A face is `{ points, blend, box }`, in fractions of the board; `blend` has the model's scores (`jawOpen`, `mouthSmileLeft`, `eyeBlinkRight`…) and blends of them: `smile`, `frown`, `blink`, `browUp`, `browDown`, `squint`. Trackers are a registry in `src/perception/mediapipe.js` (`registerTracker(kind, { create, image, video, read })`): a new one is one entry.
+
+To see and test a tracker: board menu → *Draw from a source* → **Face and expressions** (the face as lines, its expressions as bars) or **Pose lines** or **Fingertips**. In the Gestures panel, `expr: ['smile', 0.5]` is a condition on an expression, and `chin`, `lip.top`, `lip.bottom`, `mouth.left`, `mouth.right` are points. Face tracking is studio-only: a p5 export says so.
 
 ### Redraw rate
 

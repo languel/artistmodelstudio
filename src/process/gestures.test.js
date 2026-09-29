@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bodyFrom, holds, Recognizer, readGestures, classifier, features, learnedLabels } from './gestures.js';
+import { bodyFrom, holds, Recognizer, readGestures, classifier, features, learnedLabels, expressionsOf } from './gestures.js';
 
 // A person facing an unmirrored camera: their left is the image's right.
 const W = 1000, H = 1000;
@@ -101,5 +101,25 @@ describe('Recognizer', () => {
     expect(learnedLabels(gs)).toEqual(['hi']);
     const r = new Recognizer(gs, { classify });
     expect([0, 100, 200].flatMap(t => r.feed({ ...open, t }))).toEqual(['greet']);
+  });
+});
+
+describe('face', () => {
+  const face = shapes => ({ points: Array.from({ length: 478 }, (_, i) => ({ x: 0.4 + (i % 10) * 0.01, y: 0.3 + Math.floor(i / 10) * 0.002, z: 0 })), shapes });
+  it('expressions: blends of the model\'s scores, and a condition on them', () => {
+    const e = expressionsOf({ mouthSmileLeft: 0.8, mouthSmileRight: 0.6, eyeBlinkLeft: 0.1, eyeBlinkRight: 0.3 });
+    expect(e.smile).toBeCloseTo(0.7);
+    expect(e.blink).toBeCloseTo(0.2);
+    const b = bodyFrom({ face: face({ mouthSmileLeft: 0.8, mouthSmileRight: 0.6 }), width: 1000, height: 1000 });
+    expect(holds({ expr: ['smile', 0.5] }, b)).toBe(true);
+    expect(holds({ expr: ['smile', 0.9] }, b)).toBe(false);
+    expect(holds({ expr: ['jawOpen', 0, 0.2] }, b)).toBe(false);   // not scored: not a match
+    expect(holds({ expr: ['smile', 0.5] }, bodyFrom({ width: 1, height: 1 }))).toBe(false);   // no face
+  });
+  it('face points, and the mouth from the face when there is one', () => {
+    const b = bodyFrom({ face: face({}), width: 1000, height: 1000 });
+    expect(b.point('chin')).toBeTruthy();
+    expect(b.point('mouth').x).toBeGreaterThan(0);
+    expect(b.point('lip.top')).toBeTruthy();
   });
 });

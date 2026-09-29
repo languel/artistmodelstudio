@@ -15,6 +15,7 @@
  *   fist / open / point: side     all fingers curled / all extended / only the index extended
  *   fingers: [side, '01100']      which fingers are extended (thumb, index, middle, ring, pinky)
  *   still: point           barely moving;   move: [point, 'left' | 'right' | 'up' | 'down', speed?]
+ *   expr: [name, min, max?] a facial expression (smile, frown, blink, browUp, browDown, squint, jawOpen, mouthPucker… 0..1)
  *   learned: label         the nearest recorded example has this label
  *   not: step              the step does not hold;   any: [steps]   one of them holds
  * A step can also say hold (ms, default 120).
@@ -36,10 +37,18 @@ const POSE = {
   // Rough fingertips from the pose (used when the hand itself is not tracked).
   'left.pinky': 17, 'right.pinky': 18, 'left.index': 19, 'right.index': 20, 'left.thumb': 21, 'right.thumb': 22
 };
+/** The face model's 52 scores plus a few blends of them (smile, frown, blink, browUp, browDown, squint): 0..1. */
+export function expressionsOf(shapes = {}) {
+  const avg = (...n) => n.reduce((s, k) => s + (shapes[k] || 0), 0) / n.length;
+  return { ...shapes, smile: avg('mouthSmileLeft', 'mouthSmileRight'), frown: avg('mouthFrownLeft', 'mouthFrownRight'), blink: avg('eyeBlinkLeft', 'eyeBlinkRight'), browUp: avg('browInnerUp', 'browOuterUpLeft', 'browOuterUpRight'), browDown: avg('browDownLeft', 'browDownRight'), squint: avg('eyeSquintLeft', 'eyeSquintRight') };
+}
+
+/** A few named points of the face (indices into its 478). */
+const FACE_POINT = { 'nose': 1, 'chin': 152, 'lip.top': 13, 'lip.bottom': 14, 'mouth.left': 291, 'mouth.right': 61, 'eye.left': 263, 'eye.right': 33, 'brow.left': 276, 'brow.right': 46 };
 const FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
 const TIP = { thumb: 4, index: 8, middle: 12, ring: 16, pinky: 20 };
 const PIP = { thumb: 2, index: 6, middle: 10, ring: 14, pinky: 18 };
-export const POINT_NAMES = ['nose', 'mouth', 'head', 'neck', ...['left', 'right'].flatMap(s => ['eye', 'ear', 'shoulder', 'elbow', 'wrist', 'hip', 'knee', 'ankle', 'hand', 'palm', ...FINGERS].map(p => `${s}.${p}`))];
+export const POINT_NAMES = ['nose', 'mouth', 'head', 'neck', 'chin', 'lip.top', 'lip.bottom', 'mouth.left', 'mouth.right', ...['left', 'right'].flatMap(s => ['eye', 'ear', 'shoulder', 'elbow', 'wrist', 'hip', 'knee', 'ankle', 'hand', 'palm', ...FINGERS].map(p => `${s}.${p}`))];
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const mid = (a, b) => (a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null);
@@ -50,7 +59,7 @@ const mid = (a, b) => (a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : nul
  * Hands are matched to the person's wrists when the pose is there; otherwise by the model's label
  * (which assumes a mirrored image: the camera's is not, so it is swapped; mirrored: true keeps it).
  */
-export function bodyFrom({ pose = null, hands = [], width = 1, height = 1, mirrored = false, t = 0 } = {}) {
+export function bodyFrom({ pose = null, hands = [], face = null, width = 1, height = 1, mirrored = false, t = 0 } = {}) {
   const px = q => (q ? { x: q.x * width, y: q.y * height } : null);
   const P = pose && pose.length >= 33 ? pose.map(q => ((q.v ?? 1) > 0.4 ? px(q) : null)) : null;
   const H = { left: null, right: null };
@@ -78,7 +87,8 @@ export function bodyFrom({ pose = null, hands = [], width = 1, height = 1, mirro
   const unit = Math.max(shoulders, torso) || Math.max(handSize('left'), handSize('right')) * 2.2 || Math.min(width, height) * 0.25;
   const point = name => {
     if (name === 'head') name = 'nose';
-    if (name === 'mouth') return P ? mid(P[9], P[10]) : null;
+    if (name === 'mouth') return face ? px(mid(face.points[13], face.points[14])) : P ? mid(P[9], P[10]) : null;
+    if (face && name in FACE_POINT) return px(face.points[FACE_POINT[name]]);
     if (name === 'neck') return P ? mid(P[11], P[12]) : null;
     const [side, part] = name.split('.');
     const hand = H[side];
@@ -98,7 +108,9 @@ export function bodyFrom({ pose = null, hands = [], width = 1, height = 1, mirro
     if (finger === 'thumb') return dist(h[TIP.thumb], h[17]) > dist(h[2], h[17]) * 1.25;
     return dist(h[TIP[finger]], h[0]) > dist(h[PIP[finger]], h[0]) * 1.1;
   };
-  return { t, width, height, unit, pose: P, hands: H, point, extended, handSize };
+  // Expressions by name (the face model's 52 scores, 0..1) and a few blends of them.
+  const expr = face ? expressionsOf(face.shapes || {}) : null;
+  return { t, width, height, unit, pose: P, hands: H, face: face || null, expr, point, extended, handSize };
 }
 
 // ---- conditions -------------------------------------------------------------------------
@@ -141,6 +153,10 @@ export function holds(step, body, prev = null, ctx = {}) {
           ok = along > speed;
         }
       }
+    } else if (k === 'expr') {
+      // expr: ['smile', 0.5]: at least; expr: ['jawOpen', 0, 0.2]: within a range
+      const [name, lo, hi = 1.01] = v, x = body.expr?.[name];
+      ok = x !== undefined && x >= lo && x <= hi;
     } else if (k === 'learned') {
       ok = Boolean(ctx.classify) && ctx.classify(body) === v;
     } else if (k === 'not') {

@@ -11,7 +11,7 @@
  */
 import { LiveSource, SourceSampler } from '../fitting/referenceSource.js';
 import { setSourceProvider } from '../process/streams.js';
-import { bodyFrom } from '../process/gestures.js';
+import { bodyFrom, expressionsOf } from '../process/gestures.js';
 
 const KEY = 'ams_sources_v1';
 const SAMPLE = 256;   // the sampled frame's long side (what code reads)
@@ -203,9 +203,9 @@ export class Sources {
    */
   body(name) {
     const e = this.entries.get(name);
-    if (!e || (!e.landmarks.pose && !e.landmarks.hands)) return null;
+    if (!e || (!e.landmarks.pose && !e.landmarks.hands && !e.landmarks.face)) return null;
     const img = e.live?.canvas || e.still;
-    return bodyFrom({ pose: e.landmarks.pose?.[0] || null, hands: (e.landmarks.hands || []).map(p => ({ points: p, label: p.label })), width: img?.width || 1, height: img?.height || 1, mirrored: Boolean(e.def.mirrored), t: e.landmarkAt || performance.now() });
+    return bodyFrom({ face: e.landmarks.face?.[0] || null, pose: e.landmarks.pose?.[0] || null, hands: (e.landmarks.hands || []).map(p => ({ points: p, label: p.label })), width: img?.width || 1, height: img?.height || 1, mirrored: Boolean(e.def.mirrored), t: e.landmarkAt || performance.now() });
   }
 
   /** A sampler for code (see src/process/streams.js), fitted (cover) to a rectangle in world units. */
@@ -235,6 +235,16 @@ export class Sources {
       colorAt: (x, y) => hex(rgb(...world(x, y))), valueAt: (x, y) => lum(rgb(...world(x, y))),
       get pose() { return (land('pose') || []).map(p => p.map(q => { const [x, y] = toRect(q.x, q.y); return { x, y, v: q.v }; })); },
       get hands() { return (land('hands') || []).map(p => p.map(q => { const [x, y] = toRect(q.x, q.y); return { x, y }; })); },
+      // Faces: { points: [{ x, y, z }] × 478, blend: { jawOpen, mouthSmileLeft… 0..1 }, box: { x0, y0, x1, y1 } } (fractions of the rect).
+      get face() {
+        return (land('face') || []).map(f => {
+          const points = f.points.map(q => { const [x, y] = toRect(q.x, q.y); return { x, y, z: q.z }; });
+          const xs = points.map(q => q.x), ys = points.map(q => q.y);
+          return { points, blend: expressionsOf(f.shapes), box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
+        });
+      },
+      // Any tracker by name: track('pose' | 'hands' | 'face'); the same as the getters above.
+      track(kind) { return kind === 'pose' ? this.pose : kind === 'hands' ? this.hands : kind === 'face' ? this.face : kind === 'mask' ? this.mask : (() => { throw new Error(`No tracker “${kind}” (pose, hands, face, mask)`); })(); },
       // A named point of the person (nose, left.pinky…; see process/gestures.js), and gestures that fired.
       point: n => { land('pose'); land('hands'); const b = this.body(name), p = b?.point(n); if (!p) return null; const [x, y] = toRect(p.x / b.width, p.y / b.height); return { x, y }; },
       fired: (g, ms) => Boolean(this.app.gestures?.recent(g, ms)),

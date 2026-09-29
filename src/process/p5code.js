@@ -31,6 +31,7 @@ export function toP5Code(source, { board, sources = {}, loop = false, seed = 1, 
   code = code.replace(/^\s*units\([^)]*\)\s*;?\s*$/gm, '').replace(/^\s*artboard\([^)]*\)\s*;?\s*$/gm, '');
   const uses = word => new RegExp(`(?<![.\\w$])${word}\\s*\\(`).test(code);
   const missing = ['board', 'decide', 'sculpt', 'guide', 'gesture'].filter(uses);
+  if (/\.face\b|\.track\(\s*['"]face/.test(code)) missing.push('source.face');   // (the face model is studio-only; ml5's faceMesh has no expression scores)
   // What the code asks the sources for (ml5.js models, one per kind).
   const kinds = [/\.pose\b/.test(code) && 'pose', /\.hands\b/.test(code) && 'hands', /\.mask\s*\(/.test(code) && 'mask'].filter(Boolean);
   const brushes = uses('brush');
@@ -341,7 +342,7 @@ function newFrame() {
 
   const head = [`// ${board?.title || 'A board'}: its code from Artist Model Studio, as a p5.js sketch.`,
     absolute ? '// Coordinates are in pixels.' : '// Coordinates are fractions of the canvas (0..1), as in the studio.',
-    ...(missing.length ? [`// Not in this sketch: ${missing.map(m => `${m}()`).join(', ')} (studio only; see the note at the end).`] : []),
+    ...(missing.length ? [`// Not in this sketch: ${missing.map(m => (m.includes('.') ? m : `${m}()`)).join(', ')} (studio only; see the note at the end).`] : []),
     ...(files.some(f => f.file) ? [`// Needs ${files.filter(f => f.file).map(f => f.file).join(', ')} next to it.`] : [])].join('\n');
 
   return `${head}
@@ -360,7 +361,7 @@ ${[...frames, ...asks].join('\n')}${frames.length || asks.length ? '\n' : ''}${b
 // ---- the studio's words it uses, in p5 ----
 
 ${defs.join('\n\n')}
-${missing.length ? `\n// ${missing.map(m => `${m}()`).join(', ')}: run the board in the studio for these.\n` : ''}`;
+${missing.length ? `\n// ${missing.map(m => (m.includes('.') ? m : `${m}()`)).join(', ')}: run the board in the studio for these.\n` : ''}`;
 }
 
 /** An index.html for a sketch (p5 from the CDN, the latest of a major version; ml5.js when it uses pose, hands or a mask). */
