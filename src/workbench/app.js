@@ -65,6 +65,7 @@ import { readRecently } from '../process/streams.js';
 import { mountSources } from './panels/sources.js';
 import { mountGestures } from './panels/gestures.js';
 import { Gestures } from './gestures.js';
+import { SOURCE_DEMOS } from './sourceDemos.js';
 import { Guide } from './guide.js';
 
 const DOC_KEY = 'ams_process_doc_v1';
@@ -467,6 +468,11 @@ export class Workbench {
       { label: 'Go to', run: () => this.goToBoard(id) },
       { label: 'Rename…', run: () => this.renameBoard(id) },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
+      this.sources.list.length ? { label: 'Source underneath', hint: 'A source shown under the board: a reference, not part of its picture', items: [{ label: 'None', active: !b.source, run: () => this.setBoardSource(id, null) }, ...this.sources.list.map(s => ({ label: s.name, active: b.source === s.name, run: () => this.setBoardSource(id, s.name, b.source ? b.sourceOpacity : 1) }))] } : null,
+      this.sources.list.length && boardKind(b) === 'drawing' ? { label: 'Draw from a source', hint: 'A demo: code that reads a source, which the board follows. Its code is yours to change', items: SOURCE_DEMOS.map(d => {
+        const names = this.sources.list.map(s => s.name), pick = b.source && names.includes(b.source) ? b.source : null;
+        return names.length === 1 || pick ? { label: d.label, hint: d.hint, run: () => this.sourceDemo(id, d.id, pick || names[0]) } : { label: d.label, hint: d.hint, items: names.map(n => ({ label: n, run: () => this.sourceDemo(id, d.id, n) })) };
+      }) } : null,
       { label: this.isBoardLive(id) ? 'Pause' : 'Play', hint: 'Live boards run (their code follows sources, their brushes read live frames); paused boards are baked into a picture and stay paused until played', run: () => this.toggleBoardRun(id) },
       { label: 'Export as JSON', hint: 'The marks as a file (.ams.json), to import again into any scene', run: () => { const d = selectionPart(this.selectionDoc(ids)); if (d) download(JSON.stringify(d, null, 2), `${this.slug()}-selection.ams.json`, 'application/json'); } },
       { label: 'Copy as', items: [
@@ -642,6 +648,7 @@ export class Workbench {
     this.canvas.onBoardRename = id => this.renameBoard(id);
     this.canvas.onBoardContext = (id, e) => this.boardMenu(id, e.clientX, e.clientY);
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
+    this.canvas.onDropSource = (name, at) => this.placeSource(name, at);
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));
     KIT.onImageLoad = () => { this.canvas.baked?.clear(); this.canvas.invalidate(); };
     this.canvas.isBoardLive = id => this.isBoardLive(id);
@@ -985,6 +992,33 @@ export class Workbench {
       if (!t) return;
       if (on) { t.follow = true; delete t.paused; } else delete t.follow;
     });
+  }
+
+  /**
+   * A board previewing a source: the source's shape, the source underneath it (live, whole), and no
+   * code yet. Add code (or a demo: the board's menu) to draw from it.
+   */
+  placeSource(name, at) {
+    const view = this.sources.view(name), long = 800;
+    const w = view?.width || 4, hgt = view?.height || 3, k = long / Math.max(w, hgt);
+    const width = Math.round(w * k), height = Math.round(hgt * k);
+    const b = this.store.addBoard({ title: name, width, height, x: Math.round(at[0] - width / 2), y: Math.round(at[1] - height / 2), adopt: false });
+    this.setBoardSource(b.id, name, 1);
+    this.setBoardLive(b.id, true);
+    this.goToBoard(b.id, { animate: true });
+    return b;
+  }
+
+  /** A demo's code on a board, reading a source, followed (re-run on its frames). */
+  sourceDemo(id, demoId, name) {
+    const demo = SOURCE_DEMOS.find(d => d.id === demoId);
+    if (!demo) return;
+    // A preview board's source (shown whole) steps back to a faint reference under the drawing.
+    const b = boardById(this.store.doc, id);
+    if (b?.source && (b.sourceOpacity ?? 0.5) > 0.4) this.setBoardSource(id, b.source, 0.25, b.sourceFit);
+    this.store.runBoardCode(id, demo.code(name), this.runScript || runScript);
+    this.setBoardFollow(id, true);
+    this.openCode?.('board', id);
   }
 
   /** Show a source under a board (a reference: not part of the picture), or none. */

@@ -626,10 +626,11 @@ export class CanvasView {
     c.addEventListener('pointerleave', () => { if (this.brushAt) { this.brushAt = null; this.invalidate(); } });
 
     // Drop an asset (from the Assets panel) or image files anywhere on the canvas: it becomes a layer.
+    // Drop a source (from the Sources panel): a board previewing it.
     // Listen on the whole stage area (islands and overlays sit above the canvas element).
     const zone = this.host;
     zone.addEventListener('dragover', e => {
-      if (![...e.dataTransfer.types].some(t => t === 'text/asset-id' || t === 'Files')) return;
+      if (![...e.dataTransfer.types].some(t => t === 'text/asset-id' || t === 'text/ams-source' || t === 'Files')) return;
       e.preventDefault();
       // The effect must be one the source allows (asset cards allow copy and move).
       const allowed = e.dataTransfer.effectAllowed;
@@ -641,8 +642,9 @@ export class CanvasView {
       zone.classList.remove('wb-drop-target');
       e.preventDefault();
       const at = this.toWorld(...this.local(e));
-      const id = e.dataTransfer.getData('text/asset-id');
-      if (id) this.onDropAsset?.(id, at);
+      const id = e.dataTransfer.getData('text/asset-id'), source = e.dataTransfer.getData('text/ams-source');
+      if (source) this.onDropSource?.(source, at);
+      else if (id) this.onDropAsset?.(id, at);
       else if (e.dataTransfer.files?.length) this.onDropFiles?.([...e.dataTransfer.files], at);
     });
     c.addEventListener('dblclick', e => {

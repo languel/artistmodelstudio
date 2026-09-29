@@ -665,7 +665,7 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-row-inline { display: inline-flex; align-items: center; gap: 4px; }
 
 /* Sources */
-.wb-source { display: flex; align-items: center; gap: 4px; padding: 4px 2px; }
+.wb-source { display: flex; align-items: center; gap: 4px; padding: 4px 2px; cursor: grab; }
 .wb-source .wb-icon-btn { flex: none; }
 .wb-source-ctl select { min-width: 0; max-width: 100%; }
 .wb-source-thumb { width: 44px; height: 32px; border-radius: 3px; background: var(--wb-canvas, #222); flex: none; }
