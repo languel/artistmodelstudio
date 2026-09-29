@@ -11,7 +11,9 @@
  * Custom brushes (brush({ … draw(ctx, e, p, k) })) run as they are, on p5's drawingContext, with a
  * small kit (frames, smoothPath, tracePath, beginInk, segment, rng, noise, source).
  *
- * Not carried over (a comment says so): fit() (the shape fitter), several boards.
+ * fit() comes as a compact greedy fitter (rectangles and circles; live: true keeps its shapes between
+ * frames through state()), and state(name) as an object kept across draw() calls.
+ * Not carried over (a comment says so): several boards, decide, sculpt, guide, gesture.
  */
 
 const RENAMES = [['point', 'drawPoint'], ['line', 'drawLine'], ['plane', 'drawPlane'], ['rect', 'rectPoints'], ['circle', 'circlePoints']];
@@ -28,11 +30,11 @@ export function toP5Code(source, { board, sources = {}, loop = false, seed = 1, 
   const absolute = /\bunits\(\s*['"]artboard['"]\s*\)/.test(code);
   code = code.replace(/^\s*units\([^)]*\)\s*;?\s*$/gm, '').replace(/^\s*artboard\([^)]*\)\s*;?\s*$/gm, '');
   const uses = word => new RegExp(`(?<![.\\w$])${word}\\s*\\(`).test(code);
-  const missing = ['fit', 'board', 'decide', 'sculpt', 'guide', 'gesture'].filter(uses);
+  const missing = ['board', 'decide', 'sculpt', 'guide', 'gesture'].filter(uses);
   // What the code asks the sources for (ml5.js models, one per kind).
   const kinds = [/\.pose\b/.test(code) && 'pose', /\.hands\b/.test(code) && 'hands', /\.mask\s*\(/.test(code) && 'mask'].filter(Boolean);
   const brushes = uses('brush');
-  const names = Object.keys(sources).filter(n => new RegExp(`source\\(\\s*['"\`]${n}['"\`]`).test(code));
+  const names = Object.keys(sources).filter(n => new RegExp(`(source|fit)\\(\\s*['"\`]${n}['"\`]`).test(code));
   const moving = names.some(n => sources[n].kind !== 'image');
 
   const body = code.trim().split('\n').map(l => `  ${l}`).join('\n');
@@ -42,7 +44,8 @@ export function toP5Code(source, { board, sources = {}, loop = false, seed = 1, 
   if (uses('drawPoint')) need.add('drawPoint');
   if (uses('drawLine')) need.add('drawLine').add('shape');
   if (uses('drawPlane')) need.add('drawPlane').add('shape');
-  if (uses('source')) need.add('source');
+  if (uses('source') || uses('fit')) need.add('source');
+  if (uses('fit')) need.add('drawPlane').add('shape');
 
   const INK = "'#1d1b19'";
   const viaBrush = role => (brushes ? `\n  if (o.brush && brushes[o.brush]) return useBrush(${role === 'point' ? '[[x, y]]' : 'pts'}, o, '${role}');` : '');
@@ -101,6 +104,62 @@ function walk({ from = [0, 0], heading = 0, steps = 50, step = ${absolute ? 10 :
   }
   return pts;
 }`);
+  if (uses('fit')) defs.push(`// fit(): greedy shape fitting (the studio's, simplified): each shape is the best of many random tries,
+// the one that brings the picture closest to the source. live: true keeps the shapes from one frame
+// to the next and replaces the oldest few (the continuous redraw).
+function fit(src, o = {}) {
+  const s = typeof src === 'string' ? source(src) : src;
+  const n = o.shapes ?? 80, tries = o.tries ?? 40, turnover = max(1, round(n * (o.turnover ?? 0.08)));
+  const W = 64, H = max(8, round(64 * height / width));
+  const target = s.pixels(W, H), memo = state('fit' + (o.key || ''));
+  const cells = sh => {
+    const out = [];
+    if (sh.kind === 'rect') { for (let y = sh.y0; y < sh.y1; y++) for (let x = sh.x0; x < sh.x1; x++) out.push(y * W + x); }
+    else for (let y = max(0, ceil(sh.cy - sh.r)); y <= min(H - 1, sh.cy + sh.r); y++)
+      for (let x = max(0, ceil(sh.cx - sh.r)); x <= min(W - 1, sh.cx + sh.r); x++)
+        if ((x - sh.cx) ** 2 + (y - sh.cy) ** 2 <= sh.r ** 2) out.push(y * W + x);
+    return out;
+  };
+  const colorOf = cs => [0, 1, 2].map(k => { let t = 0; for (const j of cs) t += target[j * 3 + k]; return t / max(1, cs.length); });
+  const gain = (img, cs, c) => { let g = 0; for (const j of cs) for (const k of [0, 1, 2]) { const t = target[j * 3 + k]; g += (img[j * 3 + k] - t) ** 2 - (c[k] - t) ** 2; } return g; };
+  const paint = (img, cs, c) => { for (const j of cs) for (const k of [0, 1, 2]) img[j * 3 + k] = c[k]; };
+  const tryShape = () => {
+    const size = 2 + Math.random() * W / 3;
+    if (Math.random() < 0.5) {
+      const x0 = floor(Math.random() * W), y0 = floor(Math.random() * H);
+      return { kind: 'rect', x0, y0, x1: min(W, x0 + 1 + floor(Math.random() * size)), y1: min(H, y0 + 1 + floor(Math.random() * size)) };
+    }
+    return { kind: 'circle', cx: Math.random() * W, cy: Math.random() * H, r: 1 + Math.random() * size / 2 };
+  };
+  const ground = colorOf(range(W * H));
+  const img = new Float32Array(W * H * 3).map((_, i) => ground[i % 3]);
+  memo.shapes = o.live ? (memo.shapes || []).slice((memo.shapes || []).length >= n ? turnover : 0) : [];
+  for (const sh of memo.shapes) { const cs = cells(sh); sh.color = colorOf(cs); paint(img, cs, sh.color); }
+  while (memo.shapes.length < n) {
+    let best = null;
+    for (let i = 0; i < tries; i++) {
+      const sh = tryShape(), cs = cells(sh);
+      if (!cs.length) continue;
+      const c = colorOf(cs), g = gain(img, cs, c);
+      if (!best || g > best.g) best = { sh, cs, c, g };
+    }
+    if (!best || best.g <= 0) break;
+    best.sh.color = best.c; paint(img, best.cs, best.c); memo.shapes.push(best.sh);
+  }
+  const hexOf = c => '#' + c.map(v => hex(round(v), 2)).join('');
+  const at = (x, y) => [x / W${absolute ? ' * width' : ''}, y / H${absolute ? ' * height' : ''}];
+  if (o.ground !== false) drawPlane([at(0, 0), at(W, 0), at(W, H), at(0, H)], { color: hexOf(ground), path: 'straight' });
+  for (const sh of memo.shapes) {
+    if (sh.kind === 'rect') drawPlane([at(sh.x0, sh.y0), at(sh.x1, sh.y0), at(sh.x1, sh.y1), at(sh.x0, sh.y1)], { color: hexOf(sh.color), path: 'straight' });
+    else drawPlane(range(12).map(i => at(sh.cx + sh.r * cos(i / 12 * TAU), sh.cy + sh.r * sin(i / 12 * TAU))), { color: hexOf(sh.color) });
+  }
+  return memo.shapes.length;
+}`);
+  if (uses('state') || uses('fit')) defs.push(`// state(name): an object kept from one draw() to the next (for processes that carry on).
+const states = {};
+function state(name = '') {
+  return states[name] ??= {};
+}`);
   if (/(?<![.\w$])range\s*\(/.test(code) || defs.some(d => d.includes('range('))) defs.push(`function range(n) {
   return Array.from({ length: n }, (_, i) => i);
 }`);
@@ -132,7 +191,13 @@ function source(name, o = {}) {
   return {
     rgb,
     color: (x, y) => '#' + rgb(x, y).map(c => hex(c, 2)).join(''),
-    value: (x, y) => { const [r, g, b] = rgb(x, y); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; }${brushes ? `,
+    value: (x, y) => { const [r, g, b] = rgb(x, y); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; },
+    // the picture as a w×h grid of r, g, b (as the canvas sees it)
+    pixels: (w, h) => {
+      const out = new Float32Array(w * h * 3);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) out.set(rgb((x + 0.5) / w${absolute ? ' * width' : ''}, (y + 0.5) / h${absolute ? ' * height' : ''}), (y * w + x) * 3);
+      return out;
+    }${brushes ? `,
     // in pixels (brushes work in pixels)
     colorAt: (x, y) => '#' + rgb(x${absolute ? '' : ' / width'}, y${absolute ? '' : ' / height'}).map(c => hex(c, 2)).join(''),
     valueAt: (x, y) => { const [r, g, b] = rgb(x${absolute ? '' : ' / width'}, y${absolute ? '' : ' / height'}); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; }` : ''}${kinds.includes('pose') ? `,
@@ -274,7 +339,7 @@ ${[...frames, ...asks].join('\n')}${frames.length || asks.length ? '\n' : ''}${b
 // ---- the studio's words it uses, in p5 ----
 
 ${defs.join('\n\n')}
-${missing.length ? `\n// ${missing.map(m => `${m}()`).join(', ')}: ${missing.includes('fit') ? 'fit() fits shapes to a source with a search that is too long to carry here; ' : ''}run the board in the studio for these.\n` : ''}`;
+${missing.length ? `\n// ${missing.map(m => `${m}()`).join(', ')}: run the board in the studio for these.\n` : ''}`;
 }
 
 /** An index.html for a sketch (p5 from the CDN, the latest of a major version; ml5.js when it uses pose, hands or a mask). */

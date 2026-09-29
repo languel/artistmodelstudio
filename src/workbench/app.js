@@ -1402,7 +1402,7 @@ export class Workbench {
     if (!b?.code) return null;
     const sources = {}, files = [];
     for (const d of this.sources.list) {
-      if (!new RegExp(`source\\(\\s*['"\`]${d.name}['"\`]`).test(b.code)) continue;
+      if (!new RegExp(`(source|fit)\\(\\s*['"\`]${d.name}['"\`]`).test(b.code)) continue;
       if (d.kind === 'camera') { sources[d.name] = { kind: 'camera' }; continue; }
       const a = await this.assetStore.get(d.assetId);
       if (!a?.blob) continue;

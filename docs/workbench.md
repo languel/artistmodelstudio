@@ -426,7 +426,7 @@ From the menu:
     - `bodySegmentation('SelfieSegmentation', { maskType: 'person' })` for the mask.
     - Videos and cameras are watched with `detectStart`; pictures and GIF frames are asked with `detect` each time they are drawn. `index.html` loads ml5 too.
   - **Custom brushes** run as written: `brush()` keeps them, and `drawLine` / `drawPlane` / `drawPoint` hand a mark (`points` of `[x, y, t, p]` in pixels, `color`, `closed`) to the brush's `draw(ctx, e, p, k)` on p5's `drawingContext`. The kit is small: `frames`, `smoothPath`, `tracePath`, `segment`, `beginInk`, `rng`, `noise`, `source` (with `colorAt` / `valueAt` in pixels).
-  - `fit()` is not carried over, and a comment says so.
+  - `fit()` comes as a compact greedy fitter (rectangles and circles; `live: true` keeps its shapes between frames), and `state(name)` as an object kept across `draw()` calls. `source().pixels(w, h)` is there too, so a fit written out in code exports as it is. What cannot be carried (decide, sculpt, guide, gesture) is named in a comment.
 - **p5.js version:** Settings → Export: 2.x (latest, the default) or 1.x (`curveVertex`). The full export loads `p5@2` or `p5@1`.
 - **Page (HTML):** see *Scenes, boards and pages*.
 - **Process sheet:** a PNG of the stages and the decisions.

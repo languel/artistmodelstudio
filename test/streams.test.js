@@ -91,11 +91,33 @@ line([[0.1, 0.2], [0.5, 0.3], [0.9, 0.2]], { width: 4 })`;
     expect(() => new Function(out)).not.toThrow();
   });
   it('says what it cannot carry', () => {
-    const out = toP5Code(`fit(source('cam'), { shapes: 50 })`, { sources: { cam: { kind: 'camera' } }, loop: true });
-    expect(out).toContain('Not in this sketch: fit()');
+    const out = toP5Code(`decide('which')\nfit(source('cam'), { shapes: 50 })`, { sources: { cam: { kind: 'camera' } }, loop: true });
+    expect(out).toContain('Not in this sketch: decide()');
+    expect(out).not.toContain('Not in this sketch: fit');
     expect(out).toContain('createCapture(VIDEO)');
     expect(out).toContain('frameRate(12)');
     expect(() => new Function(out)).not.toThrow();
+  });
+
+  it('carries fit() and state(): the sketch fits shapes, and a live fit keeps them between frames', () => {
+    const out = toP5Code(`const m = state('runs'); m.n = (m.n || 0) + 1\nfit(source('cam'), { shapes: 20, live: true })`, { sources: { cam: { kind: 'camera' } }, loop: true, board: { width: 80, height: 60 } });
+    // A minimal p5: a canvas, a picture (left half dark, right half light), shapes counted.
+    const planes = [];
+    const p5 = {
+      width: 80, height: 60, TAU: Math.PI * 2, VIDEO: 'video', CLOSE: 'close',
+      createCanvas() {}, background() {}, randomSeed() {}, noStroke() {}, noFill() {}, stroke() {}, strokeWeight() {}, frameRate() {}, noLoop() {},
+      fill: c => planes.push(c), beginShape() {}, vertex() {}, curveVertex() {}, splineVertex() {}, endShape() {},
+      hex: (v, d) => v.toString(16).padStart(d, '0').toUpperCase(),
+      min: Math.min, max: Math.max, floor: Math.floor, ceil: Math.ceil, round: Math.round, cos: Math.cos, sin: Math.sin,
+      createCapture: () => ({ hide() {}, width: 8, height: 6, loadPixels() {}, pixels: Uint8ClampedArray.from({ length: 8 * 6 * 4 }, (_, i) => ((i >> 2) % 8 < 4 ? 20 : 230)) })
+    };
+    const run = new Function(...Object.keys(p5), `${out}\nsetup(); draw(); const first = states.fit.shapes.slice(); draw(); return { first, after: states.fit.shapes, runs: states.runs.n };`);
+    const { first, after, runs } = run(...Object.values(p5));
+    expect(runs).toBe(2);
+    expect(first.length).toBeGreaterThan(0);
+    expect(after.length).toBeLessThanOrEqual(20);
+    expect(after.some(s => first.includes(s))).toBe(true);   // live: most shapes are kept
+    expect(planes.length).toBeGreaterThan(first.length);
   });
 });
 
