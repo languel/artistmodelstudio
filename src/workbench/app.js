@@ -896,6 +896,21 @@ export class Workbench {
     await this.setReferenceFromBlob(a.blob, a.title);
   }
 
+  /**
+   * A source from an address (a video or picture URL, or a Wikipedia / Commons File: page): streamed,
+   * not stored. A movie waits on its first frame; a board previews it, with a player.
+   */
+  async addSourceUrl(text, { quality = '480' } = {}) {
+    const { resolveMediaUrl } = await import('./mediaUrl.js');
+    const m = await resolveMediaUrl(text, { quality });
+    const name = await this.sources.add({ kind: 'url', url: m.url, mediaKind: m.kind, name: m.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'link', meta: { title: m.title, license: m.license, artist: m.artist, source: m.source, height: m.height } });
+    if (m.kind === 'video') this.sources.update(name, { speed: 0 });
+    this.log(`Source “${name}”: streamed from ${new URL(m.url).host}${m.license ? ` (${m.license}${m.artist ? `, ${m.artist}` : ''})` : ''}.`);
+    const c = this.canvas;
+    await this.placeSource(name, c.toWorld(c.w / 2, c.h / 2));
+    return name;
+  }
+
   /** An asset as a source, and a board previewing it (see placeSource). */
   async previewAsset(a, at = null) {
     let name = this.sources.list.find(d => d.kind === 'asset' && d.assetId === a.id)?.name;

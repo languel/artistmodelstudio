@@ -48,16 +48,18 @@ export class LiveSource {
   }
 
   /** Video file (or blob) played muted and looped. */
-  static async video(url) {
+  static async video(url, { crossOrigin = false } = {}) {
     const src = new LiveSource('video');
     const video = document.createElement('video');
+    // From another address: the server must allow it (CORS), or the picture could not be read.
+    if (crossOrigin) video.crossOrigin = 'anonymous';
     video.muted = true;
     video.loop = true;
     video.playsInline = true;
     video.src = url;
     await new Promise((resolve, reject) => {
       video.onloadeddata = resolve;
-      video.onerror = () => reject(new Error('Could not load the video'));
+      video.onerror = () => reject(new Error(crossOrigin ? 'Could not stream the video (the address, the format, or the server does not allow it)' : 'Could not load the video'));
     });
     await video.play().catch(() => {});
     src.video = video;

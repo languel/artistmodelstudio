@@ -6,6 +6,7 @@
  */
 import { h, selectField, editable } from '../ui.js';
 import { icon } from '../icons.js';
+import { QUALITIES } from '../mediaUrl.js';
 
 const SPEEDS = [['0', 'paused'], ['0.25', '¼×'], ['0.5', '½×'], ['1', '1×'], ['2', '2×'], ['4', '4×']];
 const SAMPLING = [['continuous', 'continuous'], ['interval', 'every…'], ['hold', 'hold']];
@@ -39,7 +40,17 @@ export function mountSources(el, app) {
     if (!S.list.length) list.append(h('div', { class: 'wb-muted wb-small', title: 'Sources are streams code reads by name: source(\'cam\'), fit(\'cam\')' }, '—'));
     const pick = h('select', { class: 'wb-select', title: 'Add an image or video from Assets', onchange: async e => { const id = e.target.value; e.target.value = ''; if (id) await add({ kind: 'asset', assetId: id }); } },
       h('option', { value: '' }, '+ asset…'), ...assets.map(a => h('option', { value: a.id }, a.title)));
-    el.append(list, h('div', { class: 'wb-row wb-row-actions' },
+    const url = h('input', { class: 'wb-input', type: 'text', placeholder: 'https://…', title: 'Stream a video or picture from an address, or a Wikipedia / Commons File: page (nothing is downloaded or kept)', style: { flex: 1, minWidth: 0 } });
+    const quality = selectField(QUALITIES, '480', () => {}, 'For a Wikipedia / Commons video: the size to stream (smaller is lighter and quicker to seek)');
+    const go = async () => {
+      const text = url.value.trim();
+      if (!text) return;
+      url.disabled = true;
+      try { await app.addSourceUrl(text, { quality: quality.value }); url.value = ''; } catch (err) { app.log(`Source: ${err.message}`, 'error'); }
+      url.disabled = false;
+    };
+    url.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') go(); });
+    el.append(list, h('div', { class: 'wb-row wb-row-actions' }, url, quality, h('button', { class: 'wb-icon-btn', title: 'Add the address as a source', html: icon('plus'), onclick: go })), h('div', { class: 'wb-row wb-row-actions' },
       h('button', { class: 'wb-icon-btn', title: 'Add the camera', html: icon('camera'), onclick: () => add({ kind: 'camera' }) }),
       pick));
     paint();
