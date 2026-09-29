@@ -438,7 +438,9 @@ export class ProcessStore {
         for (const e of d.elements) if (e.board === id) e.points = e.points.map(([x, y, t, p]) => [x + dx, y + dy, t, p]);
       }
       for (const k of ['title', 'ground', 'width', 'height', 'x', 'y']) if (k in patch) b[k] = patch[k];
-      for (const k of ['text', 'code', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete b[k]; else b[k] = String(patch[k]); }
+      for (const k of ['text', 'code', 'pseudo', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete b[k]; else b[k] = String(patch[k]); }
+      // A p5 board is its sketch's canvas: resized, the sketch's createCanvas(w, h) follows.
+      if (b.kind === 'p5' && b.code && ('width' in patch || 'height' in patch)) b.code = b.code.replace(/createCanvas\(\s*\d+\s*,\s*\d+/, `createCanvas(${Math.round(b.width)}, ${Math.round(b.height)}`);
     }, opts);
   }
 

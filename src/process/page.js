@@ -457,7 +457,7 @@ const PAGE_UI = String.raw`
       const files = {};
       for (const m of (b.code || '').matchAll(/(?:loadImage|createVideo|loadJSON|loadStrings)\(\s*["'\x60]([^"'\x60]+)["'\x60]/g)) { const k = m[1].split('/').pop().replace(/\.[^.]+$/, ''); if (MEDIA[k]) files[m[1]] = MEDIA[k].url; }
       const loader = '(() => { const F = ' + JSON.stringify(files).replace(/</g, '\\u003c') + '; for (const k of ["loadImage", "createVideo", "loadJSON", "loadStrings"]) { const f = p5.prototype[k]; if (typeof f === "function") p5.prototype[k] = function (p, ...r) { return f.call(this, F[p] || p, ...r); }; } })();';
-      f.srcdoc = '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;overflow:hidden;background:transparent}canvas{display:block;width:100%!important;height:auto!important}</style>' + bridge(b) + '<script>' + (p5 ? p5.textContent : '') + '<\/script><script>' + loader + '<\/script><script>' + (b.code || '').replace(/<\/script/gi, '<\\/script') + '<\/script>';
+      f.srcdoc = '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{display:block;width:100%!important;height:100%!important;object-fit:contain}</style>' + bridge(b) + '<script>' + (p5 ? p5.textContent : '') + '<\/script><script>' + loader + '<\/script><script>' + (b.code || '').replace(/<\/script/gi, '<\\/script') + '<\/script>';
       st.prepend(f); setRun(btn, true);
     });
   }

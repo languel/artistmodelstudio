@@ -18,7 +18,7 @@ import { canvasBlob } from './ui.js';
 import { renderToCanvas, renderDocument } from '../process/render.js';
 import { EXERCISES } from '../process/exercises.js';
 import { runScript } from '../process/script.js';
-import { onFitReady } from '../process/fit.js';
+import { onFitReady, fitTimes } from '../process/fit.js';
 import { createZip } from '../export/zip.js';
 import { AssetStore } from '../assets/assetStore.js';
 import { AssetPanel } from '../ui/AssetPanel.js';
@@ -209,6 +209,45 @@ export class Workbench {
       try { localStorage.removeItem(DOC_KEY); localStorage.setItem(`${DOC_KEY}_saved`, '0'); } catch { /* ignore */ }
       if (!this.warnedQuota) { this.warnedQuota = true; this.log('This drawing is too large for quick saving; it is kept in the scene store instead.'); }
     }
+  }
+
+  /**
+   * A performance line under each board that runs: for studio code, runs a second, the code's time,
+   * the fit's time in the background, the source's frames a second and the marks; for p5 boards, the
+   * sketch's frames a second and its draw() time.
+   */
+  toggleBoardPerf(on = !this.boardPerfOn) {
+    this.boardPerfOn = on;
+    try { localStorage.setItem('ams_board_perf', on ? '1' : '0'); } catch { /* ignore */ }
+    clearInterval(this.boardPerfTimer);
+    if (on) this.boardPerfTimer = setInterval(() => {
+      this.perfMarks = new Map();
+      for (const e of this.store.doc.elements) this.perfMarks.set(e.board || MAIN, (this.perfMarks.get(e.board || MAIN) || 0) + 1);
+      this.canvas.invalidate();
+    }, 1000);
+    this.canvas.invalidate();
+    this.renderChrome?.();
+  }
+
+  boardPerfText(b) {
+    if (!this.boardPerfOn) return null;
+    const kind = boardKind(b), live = this.isBoardLive(b.id), now = performance.now();
+    if (kind === 'p5') {
+      const p = this.frames?.perf.get(b.id);
+      if (!live) return 'paused';
+      return p && now - p.at < 3000 ? `p5 · ${p.fps} frames/s${p.calls > p.fps ? ` (of ${p.calls} draw calls)` : ''} · draw ${p.ms.toFixed(1)} ms` : 'p5 · …';
+    }
+    if (kind !== 'drawing' || !b.code) return null;
+    const s = this.runStats.get(b.id), recent = (s?.at || []).filter(t => now - t < 3000);
+    const names = [...String(b.code).matchAll(/(?:source|fit)\(\s*['"`]([^'"`]+)['"`]/g)].map(m => m[1]);
+    const src = [...new Set(names)].map(n => `${n} ${this.sources.fps(n).toFixed(1)} fps`);
+    const fit = /(?<![.\w$])fit\s*\(/.test(b.code) && fitTimes.has(b.id) ? `fit ${Math.round(fitTimes.get(b.id))} ms (worker)` : null;
+    return [
+      live ? `${(recent.length / 3).toFixed(1)} runs/s` : 'paused',
+      s ? `code ${s.ms.toFixed(1)} ms` : null,
+      fit, ...src,
+      `${this.perfMarks?.get(b.id) ?? '…'} marks`
+    ].filter(Boolean).join(' · ');
   }
 
   /** A small performance readout beside the zoom control: the browser's fps, canvas redraws and their time, marks. */
@@ -654,6 +693,19 @@ export class Workbench {
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));
     KIT.onImageLoad = () => { this.canvas.baked?.clear(); this.canvas.invalidate(); };
     this.canvas.isBoardLive = id => this.isBoardLive(id);
+    this.canvas.boardPerf = b => this.boardPerfText(b);
+    // Each board's code runs, timed (for the performance line under boards).
+    this.runStats = new Map();
+    const runBoardCode = this.store.runBoardCode.bind(this.store);
+    this.store.runBoardCode = (id, ...rest) => {
+      const t0 = performance.now(), res = runBoardCode(id, ...rest), ms = performance.now() - t0;
+      const s = this.runStats.get(id) || { at: [], ms: 0 };
+      s.at.push(t0); if (s.at.length > 200) s.at.shift();
+      s.ms = s.ms ? s.ms * 0.7 + ms * 0.3 : ms;
+      this.runStats.set(id, s);
+      return res;
+    };
+    try { if (localStorage.getItem('ams_board_perf') === '1') this.toggleBoardPerf(true); } catch { /* ignore */ }
     this.canvas.onToggleRun = id => this.toggleBoardRun(id);
     // Document and program boards (markdown, html, p5) over the canvas.
     this.frames = new BoardFrames(this);
@@ -711,6 +763,11 @@ export class Workbench {
     this.bindKeys();
     this.renderChrome();
     this.assetStore.seed(bundledReferences()).catch(() => {});
+    // Test clips: a countdown (frame number, time, a sweep each second) as a 30 fps video and a 10 fps GIF.
+    this.assetStore.seedClips([
+      { id: 'countdown-30fps', title: 'countdown 30fps', url: new URL('../../examples/media/countdown-30fps.mp4', import.meta.url).href, doc: '10 s at 30 fps: each frame shows its number and time' },
+      { id: 'countdown-10fps', title: 'countdown 10fps', url: new URL('../../examples/media/countdown-10fps.gif', import.meta.url).href, doc: '10 s at 10 fps (a GIF, 100 ms a frame)' }
+    ]).catch(() => {});
     this.followSources();
     this.sources.startAll();
     initWorkbenchMCP(this);
@@ -831,7 +888,7 @@ export class Workbench {
     onFitReady(id => { const b = boardById(this.store.doc, id); if (b?.code && this.isBoardActive(b.id, b)) rerun(b, true); });
     const rerun = (b, now = false) => {
         if (pending.has(b.id)) return;
-        const since = performance.now() - (last.get(b.id)?.at || 0), wait = now ? 0 : Math.max(0, Math.max(80, 2 * (last.get(b.id)?.took || 0)) - since);
+        const since = performance.now() - (last.get(b.id)?.at || 0), wait = now ? 0 : Math.max(0, Math.max(30, 2 * (last.get(b.id)?.took || 0)) - since);   // up to ~30 runs a second, fewer when a run is slow
         pending.set(b.id, setTimeout(() => {
           pending.delete(b.id);
           const cur = boardById(this.store.doc, b.id);
@@ -1006,9 +1063,13 @@ export class Workbench {
    * A board previewing a source: the source's shape, the source underneath it (live, whole), and no
    * code yet. Add code (or a demo: the board's menu) to draw from it.
    */
-  placeSource(name, at) {
+  async placeSource(name, at) {
+    // Its shape comes from its picture: a video's once it has one (its canvas starts as a placeholder).
+    await this.sources.whenReady([name], 5000);
+    const video = this.sources.entries.get(name)?.live?.video;
+    for (let i = 0; video && !video.videoWidth && i < 50; i++) await new Promise(r => setTimeout(r, 100));
     const view = this.sources.view(name), long = 800;
-    const w = view?.width || 4, hgt = view?.height || 3, k = long / Math.max(w, hgt);
+    const w = video?.videoWidth || view?.width || 4, hgt = video?.videoHeight || view?.height || 3, k = long / Math.max(w, hgt);
     const width = Math.round(w * k), height = Math.round(hgt * k);
     const b = this.store.addBoard({ title: name, width, height, x: Math.round(at[0] - width / 2), y: Math.round(at[1] - height / 2), adopt: false });
     this.setBoardSource(b.id, name, 1);
@@ -1122,7 +1183,7 @@ export class Workbench {
       h('button', { class: 'wb-tool', title: 'Zoom in', html: icon('up'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1.2) }),
       h('button', { class: 'wb-tool', title: 'Fit the active board (F)', html: icon('fit'), onclick: () => { this.canvas.fit(60, this.activeBoard || MAIN); this.renderChrome(); } })
     );
-    if (this.perfOn) this.zoomIsland.append(this.perfEl ||= h('span', { class: 'wb-perf', title: 'Frames per second while the canvas redraws · the last redraw · marks' }));
+    if (this.perfOn) this.zoomIsland.append(this.perfEl ||= h('span', { class: 'wb-perf', title: 'Frames per second while the canvas redraws · the last redraw · marks. Click: performance under each board', style: { cursor: 'pointer' }, onclick: () => this.toggleBoardPerf() }));
     this.zoomIsland.oncontextmenu = e => { e.preventDefault(); this.togglePerf(); };
     this.makeMovable(this.zoomIsland, 'zoom');
   }

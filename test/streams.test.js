@@ -95,8 +95,24 @@ line([[0.1, 0.2], [0.5, 0.3], [0.9, 0.2]], { width: 4 })`;
     expect(out).toContain('Not in this sketch: decide()');
     expect(out).not.toContain('Not in this sketch: fit');
     expect(out).toContain('createCapture(VIDEO)');
-    expect(out).toContain('frameRate(12)');
+    expect(out).toContain('frameRate(30)');
     expect(() => new Function(out)).not.toThrow();
+  });
+
+  it('plays a GIF at its own timing, and draws only when its frame changes', () => {
+    const out = toP5Code(`const s = source('walk')\npoint(0.5, 0.5, { color: s.color(0.5, 0.5) })`, { sources: { walk: { kind: 'animated', file: 'walk.gif' } }, loop: true });
+    expect(out).toContain('if (!newFrame()) return;');
+    expect(out).toContain('function gifFrame(img)');
+    expect(out).not.toContain('frameCount % ');
+    // A GIF of three frames (100, 200, 100 ms): at 250 ms it shows the second.
+    let frame = 0, set = [];
+    const img = { gifProperties: { frames: [{ delay: 100 }, { delay: 200 }, { delay: 100 }] }, getCurrentFrame: () => frame, setFrame: i => { set.push(i); frame = i; } };
+    const gifFrame = new Function('millis', 'frameCount', `${out.slice(out.indexOf('function gifFrame'), out.indexOf('\n}\n', out.indexOf('function gifFrame')) + 2)}; return gifFrame;`);
+    expect(gifFrame(() => 250, 5)(img)).toBe(true);
+    expect(frame).toBe(1);
+    expect(gifFrame(() => 280, 6)(img)).toBe(false);   // still the second: nothing new
+    expect(gifFrame(() => 390, 7)(img)).toBe(true);
+    expect(frame).toBe(2);
   });
 
   it('carries fit() and state(): the sketch fits shapes, and a live fit keeps them between frames', () => {

@@ -19,6 +19,8 @@ let ready = () => {};
 const waiting = new Map();   // key → board, for fits sent to the worker
 /** Called with a board's id when a fit it asked for is ready (the studio runs the board again). */
 export const onFitReady = fn => { ready = fn; };
+/** board → the last fit's time in the worker (ms), for the performance readout. */
+export const fitTimes = new Map();
 
 function getWorker() {
   if (worker !== null) return worker;
@@ -40,6 +42,7 @@ function getWorker() {
     const { key, frame, result, error, took } = e.data, st = streamState(key);
     st.busy = false; waiting.delete(key);
     if (error) { console.warn(`fit (worker): ${error}; fitting here instead`); waiting.set(key, st.board); fallBack(); return; }
+    fitTimes.set(st.board, took);
     if (st.frameAsked === frame || !st.result) Object.assign(st, { result, frame, took });
     else st.result = result;   // an older frame: still better than nothing
     if (st.pending) { const p = st.pending; st.pending = null; post(key, st, p); }

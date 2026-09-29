@@ -115,6 +115,12 @@ export class Sources {
     this.sample(e);
   }
 
+  /** New frames per second over the last few (for the performance readout). */
+  fps(name) {
+    const now = performance.now(), t = (this.entries.get(name)?.times || []).filter(x => now - x < 3000);
+    return t.length / 3;
+  }
+
   /** The current full-size frame (for underlays and previews). */
   view(name) { const e = this.entries.get(name); return e?.live?.canvas || e?.still || null; }
 
@@ -150,6 +156,7 @@ export class Sources {
     ctx.drawImage(src, 0, 0, w, h);
     e.data = ctx.getImageData(0, 0, w, h).data;
     e.version++;
+    (e.times ||= []).push(performance.now()); if (e.times.length > 200) e.times.shift();
     this.detect(e);
     this.emit(e.def.name);
   }

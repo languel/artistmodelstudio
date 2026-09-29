@@ -69,6 +69,17 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}) {
     if (d.type === 'reply') { const p = pending.get(d.id); if (p) { pending.delete(d.id); d.error ? p.fail(new Error(d.error)) : p.ok(d.result); } }
     if (d.type === 'snapshot') { const c = document.querySelector('canvas'); parent.postMessage({ amsFrame: token, type: 'snapshot', url: c ? c.toDataURL('image/png') : null }, '*'); }
   });
+  // The sketch's own pace (for the studio's performance readout): draw() calls a second and their time.
+  addEventListener('load', () => {
+    const draw = window.draw;
+    if (typeof draw !== 'function') return;
+    // Frames drawn: draw() calls that paint (call background(); a sketch following a GIF returns early
+    // when the frame has not changed), and the time they took.
+    let calls = 0, drawn = 0, ms = 0, painted = false;
+    if (window.p5) { const bg = p5.prototype.background; p5.prototype.background = function (...a) { painted = true; return bg.apply(this, a); }; }
+    window.draw = function (...a) { const t0 = performance.now(); painted = false; try { return draw.apply(this, a); } finally { calls++; if (painted || !window.p5) { drawn++; ms += performance.now() - t0; } } };
+    setInterval(() => { parent.postMessage({ amsFrame: token, type: 'perf', fps: drawn, calls, ms: drawn ? ms / drawn : 0 }, '*'); calls = drawn = ms = 0; }, 1000);
+  });
   addEventListener('error', e => parent.postMessage({ amsFrame: token, type: 'error', message: e.message, line: e.lineno }, '*'));
   addEventListener('unhandledrejection', e => parent.postMessage({ amsFrame: token, type: 'error', message: String(e.reason && e.reason.message || e.reason) }, '*'));
   window.ams = Object.freeze({
@@ -78,7 +89,7 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}) {
     frame: name => ask('frame', { name })
   });
 })();`;
-  const style = `html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}canvas{display:block}`;
+  const style = `html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}canvas{display:block;width:100%!important;height:100%!important;object-fit:contain}`;   // a canvas of another size than the board: fitted whole
   const body = kind === 'p5'
     ? `<script>${bridge}</script><script>${p5Source.replace(/<\/script/gi, '<\\/script')}</script><script>${fileLoader(files)}</script>${/\bml5\./.test(code) ? '<script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/ml5@1/dist/ml5.min.js"></script>' : ''}<script>${code.replace(/<\/script/gi, '<\\/script')}</script>`
     : `<script>${bridge}</script>${code}`;
@@ -95,6 +106,7 @@ export class BoardFrames {
     this.frames = new Map();   // board id → { kind, el, code, token, ... }
     this.snapshots = new Map();   // p5 board id → last picture (data URL)
     this.files = {};             // file name a sketch loads → data URL (from a source), or null
+    this.perf = new Map();        // p5 board id → { fps, ms, at }: the sketch's own pace
     this.tokens = new Map();      // a frame's token → its board id (kept a moment after it goes, for its last picture)
     window.addEventListener('message', e => this.onMessage(e));
     // A document longer than its board scrolls: the wheel over it scrolls it (its code blocks sideways)
@@ -247,6 +259,7 @@ export class BoardFrames {
     if (!id) return;
     const f = this.frames.get(id);
     const reply = (msg, transfer) => e.source?.postMessage({ amsFrame: d.amsFrame, type: 'reply', id: d.id, ...msg }, '*', transfer);
+    if (d.type === 'perf') { this.perf.set(id, { fps: d.fps, calls: d.calls, ms: d.ms, at: performance.now() }); return; }
     if (d.type === 'snapshot') { if (d.url) { this.snapshots.set(id, d.url); if (f?.still) f.still.innerHTML = `<img src="${d.url}" alt="">`; } return; }
     if (d.type === 'error') { this.app.log(`Board “${boardsOf(this.app.store.doc).find(b => b.id === id)?.title || '?'}”: ${d.message}${d.line ? ` (line ${d.line})` : ''}`, 'error'); if (f) (f.errors ||= []).push(d); this.app.emit('frame-error', id, d); return; }
     if (d.type === 'call') {

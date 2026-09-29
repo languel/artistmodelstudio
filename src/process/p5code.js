@@ -315,8 +315,28 @@ const kit = {
   const globals = [names.length && 'let sources = {};', kinds.length && `let ${kinds.map(kd => MODELS[kd][0]).join(', ')};`, kinds.length && `let found = { ${names.map(n => `${q(n)}: {}`).join(', ')} };   // the models' latest answers, per source`].filter(Boolean).join('\n');
   const preload = !globals ? '' : `${globals}\n${v1 && allLoads.length ? `\nfunction preload() {\n${allLoads.map(l => `  ${l}`).join('\n')}\n}\n` : ''}`;
   const startVideo = [...(v1 ? [] : allLoads.map(l => `  ${l}`)), ...starts, ...watch];
-  const frames = names.filter(n => sources[n].kind === 'animated').map(n => `  sources[${JSON.stringify(n)}].setFrame(frameCount % sources[${JSON.stringify(n)}].numFrames());   // the GIF's next frame`);
+  const gifs = names.filter(n => sources[n].kind === 'animated');
   const looping = loop && moving;
+  // GIFs play at their own timing; a sketch that follows only GIFs draws when one shows a new frame
+  // (as a studio board that follows its sources runs again on each new frame).
+  const onlyGifs = looping && gifs.length && names.every(n => sources[n].kind === 'animated' || sources[n].kind === 'image');
+  const frames = onlyGifs ? [] : gifs.map(n => `  gifFrame(sources[${JSON.stringify(n)}]);   // the GIF's frame now`);
+  const gate = onlyGifs ? `  if (!newFrame()) return;   // nothing new: keep the picture\n` : '';
+  if (gifs.length) defs.push(`// A GIF at its own timing (each frame's delay): shows the frame for now; true if it changed.
+function gifFrame(img) {
+  const f = img.gifProperties && img.gifProperties.frames;
+  if (!f) return false;
+  const delay = x => x.delay || 100;
+  let t = millis() % f.reduce((sum, x) => sum + delay(x), 0), i = 0;
+  while (i < f.length - 1 && t >= delay(f[i])) { t -= delay(f[i]); i++; }
+  if (img.getCurrentFrame() === i && frameCount > 1) return false;
+  img.setFrame(i);
+  return true;
+}`);
+  if (onlyGifs) defs.push(`// Whether any GIF shows a new frame (the first frame always draws).
+function newFrame() {
+  return [${gifs.map(n => JSON.stringify(n)).join(', ')}].map(n => gifFrame(sources[n])).some(Boolean) || frameCount === 1;
+}`);
 
   const head = [`// ${board?.title || 'A board'}: its code from Artist Model Studio, as a p5.js sketch.`,
     absolute ? '// Coordinates are in pixels.' : '// Coordinates are fractions of the canvas (0..1), as in the studio.',
@@ -327,11 +347,11 @@ const kit = {
 ${preload ? `\n${preload}` : ''}
 ${v1 || !allLoads.length ? '' : 'async '}function setup() {
   createCanvas(${Math.round(board?.width || 800)}, ${Math.round(board?.height || 600)});
-${startVideo.join('\n')}${startVideo.length ? '\n' : ''}  ${looping ? 'frameRate(12);' : 'noLoop();'}
+${startVideo.join('\n')}${startVideo.length ? '\n' : ''}  ${looping ? 'frameRate(30);' : 'noLoop();'}
 }
 
 function draw() {
-  background('${board?.ground && board.ground !== 'transparent' ? board.ground : '#f3efe6'}');
+${gate}  background('${board?.ground && board.ground !== 'transparent' ? board.ground : '#f3efe6'}');
   randomSeed(${seed});
 ${[...frames, ...asks].join('\n')}${frames.length || asks.length ? '\n' : ''}${body}
 }

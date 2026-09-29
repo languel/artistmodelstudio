@@ -271,6 +271,22 @@ export class AssetStore {
   }
 
   /**
+   * Seed the test clips once (Assets › Test clips): moving sources that show their own frame number
+   * and time, to see how fast a board that follows one really updates.
+   */
+  async seedClips(clips) {
+    const key = 'ams_assets_seeded_clips_v1';
+    try { if (localStorage.getItem(key)) return; } catch { /* storage unavailable */ }
+    for (const c of clips) {
+      try {
+        const blob = await (await fetch(c.url)).blob();
+        await this.add(blob, { id: `clip:${c.id}`, title: c.title, kind: 'import', folder: 'Test clips', tags: ['test', 'clip'], meta: { doc: c.doc } });
+      } catch (err) { console.warn('Could not seed', c.id, err); }
+    }
+    try { localStorage.setItem(key, '1'); } catch { /* storage unavailable */ }
+  }
+
+  /**
    * Import files picked from a folder (webkitdirectory) or a plain multi-select.
    * Subfolders are kept under `into`; a sources.json manifest supplies titles.
    */

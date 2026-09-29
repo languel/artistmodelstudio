@@ -25,6 +25,7 @@ import { findBoard, newBoardId, nextBoardPlace } from './boards.js';
 import { getSource, streamState } from './streams.js';
 import { fitSource } from './fit.js';
 
+const EXTRA_KEYS = ['label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'path', 'fill'];
 const ELEMENT_KEYS = new Set(['path', 'fill', 'why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id']);
 
 /** 1D/2D value noise (seeded, smooth), enough for gentle variation. */
@@ -73,7 +74,20 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
   const aspect = () => tgt.w / tgt.h;
   let maxRaw = 0, fitCount = 0;
   // Score coordinates → world units: fractions of the current board (or its own units), at its place.
-  const toAb = pts => pts.map(q => { maxRaw = Math.max(maxRaw, Math.abs(q[0]), Math.abs(q[1])); return frac ? [tgt.x + q[0] * tgt.w, tgt.y + q[1] * tgt.h, ...q.slice(2)] : [tgt.x + q[0], tgt.y + q[1], ...q.slice(2)]; });
+  const toAb = pts => pts.map(q => {
+    const x = +q[0], y = +q[1];
+    if (Math.abs(x) > maxRaw) maxRaw = Math.abs(x);
+    if (Math.abs(y) > maxRaw) maxRaw = Math.abs(y);
+    const ax = frac ? tgt.x + x * tgt.w : tgt.x + x, ay = frac ? tgt.y + y * tgt.h : tgt.y + y;
+    return q.length > 2 ? [ax, ay, ...q.slice(2)] : [ax, ay];
+  });
+  // Marks made in one run share an id stem (unique per run) and count up: cheaper than a fresh
+  // random id each, which matters for code that makes thousands of marks per frame.
+  const idStem = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+  let idCount = 0;
+  const markId = role => `${role}_${idStem}${(idCount++).toString(36)}`;
+  const stageIds = new Map();   // a stage's name or id → its id (looked up once per run)
+  let linesInstalled = false;
   const logs = [];
 
   const ensureStage = () => {
@@ -82,7 +96,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
   };
   const splitOpts = (opts = {}) => {
     const el = {}, params = {};
-    for (const [k, v] of Object.entries(opts)) (ELEMENT_KEYS.has(k) ? el : params)[k] = v;
+    for (const k in opts) (ELEMENT_KEYS.has(k) ? el : params)[k] = opts[k];
     return { el, params };
   };
   const timed = (pts, pressure) => {
@@ -95,33 +109,44 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
     return out;
   };
   const add = (role, pts, opts, defaultBrush) => {
-    if (!Array.isArray(pts) || !pts.length || !pts.every(q => Array.isArray(q) && Number.isFinite(Number(q[0])) && Number.isFinite(Number(q[1])))) {
+    let ok = Array.isArray(pts) && pts.length > 0;
+    for (let i = 0; ok && i < pts.length; i++) { const q = pts[i]; ok = Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1]); }
+    if (!ok) {
       throw new Error(`${role}() needs a list of points like [[x, y], [x, y], ...] (got ${Array.isArray(pts) ? `an array whose items are ${typeof pts[0]}` : typeof pts}). walk(), circle() and rect() return such lists.`);
     }
     const { el, params } = splitOpts(opts);
-    for (const [k, v] of Object.entries(params)) {
+    for (const k in params) {
+      const v = params[k];
       if (typeof v !== 'number' && typeof v !== 'string') throw new Error(`Brush parameter "${k}" must be a number (got ${typeof v}). For per-point variation use pressures: t => 0..1, or make several marks.`);
     }
     // stage: an existing stage's id or name (created if new), else the current stage.
-    const named = el.stage ? doc.stages.find(st => st.id === el.stage || st.name === el.stage) : null;
-    const stage = named ? named.id : el.stage ? api.stage(String(el.stage), 'marks').id : ensureStage().id;
+    let stage;
+    if (el.stage) {
+      stage = stageIds.get(el.stage);
+      if (!stage || !doc.stages.some(st => st.id === stage)) {
+        const named = doc.stages.find(st => st.id === el.stage || st.name === el.stage);
+        stage = named ? named.id : api.stage(String(el.stage), 'marks').id;
+        stageIds.set(el.stage, stage);
+      }
+    } else stage = ensureStage().id;
     const brush = el.brush || defaultBrush;
-    installLines(doc);
+    // The drawing's own brushes: installed on the run's first mark, and again for one not known yet.
+    if (!linesInstalled || !BRUSHES[brush]) { installLines(doc); linesInstalled = true; }
     if (!BRUSHES[brush]) throw new Error(`Unknown brush "${brush}" (have: ${Object.keys(BRUSHES).join(', ')})`);
     const e = {
-      id: newId(role), stage, role,
+      id: markId(role), stage, role,
       points: timed(toAb(pts), el.pressures),
       closed: role === 'plane' ? true : Boolean(el.closed),
       realize: { brush, params },
       color: el.color || null,
       text: el.text,
-      ...Object.fromEntries(['label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'path', 'fill'].filter(k => el[k] !== undefined).map(k => [k, el[k]])),
       why: el.why || '',
       by: el.by || by,
       seed: el.seed ?? Math.floor(rng() * 1e9),
       created: clock,
       ...(tgt.id ? { board: tgt.id } : {})
     };
+    for (const k of EXTRA_KEYS) if (el[k] !== undefined) e[k] = el[k];
     doc.elements.push(e);
     return e.id;
   };
@@ -165,7 +190,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
     fit(src, opts = {}) {
       const s = typeof src === 'string' ? api.source(src) : src;
       const key = `fit:${by?.name || ''}:${tgt.id || 'main'}:${fitCount++}:${opts.key || ''}`;
-      const res = fitSource(s, tgt.w / tgt.h, { ...opts, key, board: tgt.id || 'main' });
+      const res = fitSource(s, tgt.w / tgt.h, { ...opts, key, board: (by?.kind === 'code' && by.name) || tgt.id || 'main' });
       const u = (fx, fy) => (frac ? [fx, fy] : [fx * tgt.w, fy * tgt.h]);
       const stageName = opts.stage || 'Fit', why = opts.why || `fitted to ${s.name}`, brush = opts.brush || 'flat';
       if (opts.ground !== false) api.plane([u(0, 0), u(1, 0), u(1, 1), u(0, 1)], { color: res.background, brush, path: 'straight', stage: stageName, why: `${why}: the ground` });

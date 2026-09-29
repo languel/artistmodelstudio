@@ -791,6 +791,9 @@ export class CanvasView {
         ctx.restore();
         this.runButtons.push({ id: b.id, x: gx - 4, y: gy - 4, w: 20, h: 20 });
       }
+      // Its performance, under it (View → Performance under boards).
+      const perf = this.boardPerf?.(b);
+      if (perf) { ctx.save(); ctx.fillStyle = muted; ctx.font = '11px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'top'; ctx.fillText(perf, bx, by + h + 6, Math.max(120, w * 1.6)); ctx.restore(); }
       if (on) {
         ctx.strokeStyle = sel; ctx.lineWidth = 1.5; ctx.strokeRect(bx - 0.5, by - 0.5, w + 1, h + 1);
         ctx.fillStyle = accent; ctx.fillRect(bx + w - 5, by + h - 5, 10, 10);

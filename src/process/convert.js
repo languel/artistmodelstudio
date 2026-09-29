@@ -28,7 +28,7 @@ export function p5ToStudio(p5) {
   const canvas = /createCanvas\(\s*(\d+)\s*,\s*(\d+)\s*\)/.exec(main);
   const ground = /^\s*background\('([^']+)'\);/m.exec(m[1])?.[1];
   let code = m[1].split('\n')
-    .filter(l => !/^\s*(background\(|randomSeed\(|sources\[[^\]]+\]\.setFrame\(|ask\()/.test(l))
+    .filter(l => !/^\s*(background\(|randomSeed\(|sources\[[^\]]+\]\.setFrame\(|gifFrame\(|if \(!newFrame\(\)\)|ask\()/.test(l))
     .map(l => l.replace(/^ {2}/, ''))
     .join('\n');
   for (const [p5Name, studio] of BACK) code = code.replace(new RegExp(`(?<![.\\w$])${p5Name}\\s*\\(`, 'g'), `${studio}(`);

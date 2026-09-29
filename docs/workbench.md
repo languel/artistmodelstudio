@@ -388,6 +388,17 @@ Every other board is paused and **baked**: drawn once into a picture and shown a
 
 Agents use `ams_get` with `format: 'p5code'` for a board's code as p5, and `ams_source`: list, add, remove, update, sample (colors, values and landmarks at points), frame (a PNG), show, follow.
 
+### Performance
+
+**View → Performance under boards** (or click the performance readout by the zoom control) writes a line under each board that runs:
+
+- **studio code:** runs a second, the code's time per run, the fit's time in the background, each source's new frames a second, and its marks;
+- **p5:** frames drawn a second (of how many `draw()` calls: a sketch following a GIF skips frames that have not changed) and the time each took.
+
+**Assets › Test clips** has a countdown (10 s, each frame showing its number, the time and a sweep each second) as a 30 fps video and a 10 fps GIF. Add one as a source and draw from it: the numbers show how often a board really updates.
+
+A board following a source runs up to about 30 times a second, fewer when a run takes longer (it waits twice a run's time). Studio code makes real marks (each can be selected, restyled, exported), so thousands of marks per frame cost more than a p5 sketch painting the same dots.
+
 ## Gestures
 
 The Gestures panel (the hand) watches a source (the camera, or a video to test with) for gestures and does something when one completes. Gestures are written as code:
