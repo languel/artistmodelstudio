@@ -19,6 +19,7 @@ import { renderMarkdown, md } from './markdown.js';
 import boardsSrc from './boards.js?raw';
 import envelopeSrc from './envelope.js?raw';
 import documentSrc from './document.js?raw';
+import textureSrc from './texture.js?raw';
 import brushesSrc from './brushes.js?raw';
 import notesSrc from './notes.js?raw';
 import renderSrc from './render.js?raw';
@@ -36,7 +37,7 @@ const strip = src => src
   .replace(/^export\s+(default\s+)?/gm, '');
 /** The studio's renderer and score runner, as one script (no imports). The fitter keeps to itself. */
 export const pageRuntime = () => [
-  ...[streamsSrc, boardsSrc, envelopeSrc, documentSrc, brushesSrc, notesSrc, renderSrc].map(strip),
+  ...[streamsSrc, boardsSrc, envelopeSrc, documentSrc, textureSrc, brushesSrc, notesSrc, renderSrc].map(strip),
   // The page fits on the spot (no worker: it is one file).
   `const fitSource = (() => {\n${strip(fitterSrc)}\n;\n${strip(fitCoreSrc)}\n;\n${strip(fitSrc).replace(/new Worker\(new URL\([^)]*\)[^)]*\)/, 'false')}\nreturn fitSource;\n})();`,
   ...[scriptSrc, controlsSrc].map(strip)

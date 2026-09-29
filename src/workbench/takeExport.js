@@ -8,6 +8,7 @@
 import boardsSrc from '../process/boards.js?raw';
 import envelopeSrc from '../process/envelope.js?raw';
 import documentSrc from '../process/document.js?raw';
+import textureSrc from '../process/texture.js?raw';
 import brushesSrc from '../process/brushes.js?raw';
 import notesSrc from '../process/notes.js?raw';
 import renderSrc from '../process/render.js?raw';
@@ -28,7 +29,7 @@ const clean = take => { const t = JSON.parse(JSON.stringify(take)); delete t.ass
 
 /** The renderer and player as one script (no imports). */
 export function playerScript() {
-  return [boardsSrc, envelopeSrc, documentSrc, brushesSrc, notesSrc, renderSrc, takeSrc, takeRenderSrc].map(strip).join('\n;\n') + '\n' + PLAYER_UI;
+  return [boardsSrc, envelopeSrc, documentSrc, textureSrc, brushesSrc, notesSrc, renderSrc, takeSrc, takeRenderSrc].map(strip).join('\n;\n') + '\n' + PLAYER_UI;
 }
 
 const PLAYER_UI = String.raw`

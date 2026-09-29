@@ -175,6 +175,29 @@ Notes are writing on the page, in artboard units. Styles: **notebook** (handwrit
       prose('A brush only realizes a path: it never decides where marks go. Parameters are in Properties; the same values are options in a score (`line(pts, {brush: "hatch", spacing: 8})`).'),
       brushTable(['dot', 'ink', 'flat', 'hatch', 'stipple', 'guide']))),
 
+    T('draw-textured', 'Drawing', 'Textured brushes and time', 'Brushes with grain, hairs and washes, painted through layers; marks that fade and draw themselves on.', () => h('div', {},
+      prose(`
+These brushes paint each mark into a small layer, multiply in the **grain of the paper** and tint it. The grain is fixed to the paper, so strokes that cross share one tooth, as on real paper. A mark's layer is kept while it stays the same, so a mark that only fades is a cheap picture, not painted again.`),
+      brushTable(['charcoal', 'chalk', 'pencil', 'bristles', 'marker', 'wash']),
+      prose(`
+## Make your own
+The layer kit is in every brush (\`k.paint\`, \`k.dabs\`, \`k.hairs\`, \`k.wash\`, \`k.grain\`). A brush says what to paint, and the kit does the layer, the grain and the cache:
+
+\`\`\`
+brush({ id: 'sponge', roles: ['line'], params: { size: [4, 60, 20] },
+  draw(ctx, e, p, k) {
+    const fr = k.frames(e, 3, 0.5)
+    k.paint(ctx, { key: k.hash('sponge', e.points, p, e.seed), bounds: k.bounds(fr, p.size),
+      color: e.color || k.INK, grain: { kind: 'noise', scale: 0.5, strength: 0.9, seed: 2 },
+      draw: l => k.dabs(l, fr, { tip: 'soft', size: p.size, flow: 0.4, spacing: 0.3, scatter: 0.8, rng: k.rng }) })
+  } })
+\`\`\`
+Grain kinds: \`paper\`, \`canvas\`, \`fibre\`, \`noise\`. Tips: \`soft\`, \`flat\`, \`square\`.
+
+## Time
+A mark can carry a **time envelope**: \`line(pts, { brush: 'charcoal', time: { in: 0.4, hold: 2, out: 1.5, draw: 1 } })\`. Seconds: \`in\` fades it in, \`hold\` keeps it, \`out\` fades it out, \`life\` ends it (it is then dropped), \`draw\` draws the stroke on along its length, \`curve\` is \`smooth\`, \`linear\`, \`ease-in\` or \`ease-out\`, and \`loop\` repeats it. A plain number is a fade out over that many seconds. The mark's age (\`k.age\`) counts from its birth (\`born\`), and the canvas keeps redrawing while any mark still changes. Every brush fades this way, textured or not.`)))
+,
+
     T('draw-lines', 'Drawing', 'Line forms and your own lines', 'After William Ngan: whose line is it? Line forms from the walk\'s speed, and defineLine.', () => h('div', {},
       prose(`
 William Ngan's essay *Taking a line for a walk* (2016) asks: when a line is drawn with an app, **whose line is it?** The app maker's invisible hand guides the artist's. His answer: artists should create their own lines before they draw them. A line is a function of its walk.

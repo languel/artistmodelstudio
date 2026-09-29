@@ -18,6 +18,7 @@ import { renderToCanvas } from './render.js';
 import boardsSrc from './boards.js?raw';
 import envelopeSrc from './envelope.js?raw';
 import documentSrc from './document.js?raw';
+import textureSrc from './texture.js?raw';
 import brushesSrc from './brushes.js?raw';
 import renderSrc from './render.js?raw';
 import notesSrc from './notes.js?raw';
@@ -251,6 +252,7 @@ function keyPressed() {
 ${strip(boardsSrc)}
 ${strip(envelopeSrc)}
 ${strip(documentSrc)}
+${strip(textureSrc)}
 ${strip(brushesSrc)}
 ${strip(notesSrc)}
 ${strip(renderSrc)}

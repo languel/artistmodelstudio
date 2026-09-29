@@ -10,6 +10,7 @@
  * env: { rng, scale (screen px per artboard unit), overlay (drawing construction), board (the mark's board rect) }
  */
 import { getSource } from './streams.js';
+import { txPaint, txDabs, txHairs, txWash, txBounds, txHash, txLayer, txGrain } from './texture.js';
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -421,6 +422,136 @@ export const BRUSHES = {
       }
       ctx.restore();
     }
+  },
+
+  // ---- textured brushes: grain, hairs, washes (see texture.js) --------------------------------------------
+  charcoal: {
+    label: 'Charcoal', roles: ['line', 'gesture'], doc: 'Soft, smudgy dabs that catch on the paper\'s tooth: the more pressure, the wider and blacker; strong grain breaks the edge.',
+    params: [
+      param('width', 'Width', 2, 80, 0.5, 14, 'Stick width in artboard units.'),
+      param('pressure', 'Pressure', 0, 1, 0.05, 0.6, 'How much pressure widens the mark and strengthens it (0 = even).'),
+      param('dry', 'Dry', 0, 1, 0.05, 0.7, 'How much the paper\'s tooth holds the charcoal back (0 = smooth, 1 = only the peaks).'),
+      param('grain', 'Grain size', 0.2, 4, 0.1, 0.7, 'Size of the paper\'s tooth.'),
+      param('flow', 'Flow', 0.05, 1, 0.05, 0.35, 'How much each dab lays down: dabs overlap and build up.'),
+      param('scatter', 'Scatter', 0, 1.5, 0.05, 0.35, 'How far dabs drift across the line, in widths.'),
+      param('hardness', 'Hardness', 0, 1, 0.05, 0.3, 'Softness of the dab\'s edge.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
+    ],
+    draw(ctx, e, p, k) {
+      const fr = k.frames(e, 3, 0.5);
+      if (!fr.length) return;
+      k.paint(ctx, {
+        key: k.hash('charcoal', e.points, p, e.seed), bounds: k.bounds(fr, p.width * (1 + p.scatter)),
+        color: e.color || k.INK, alpha: p.opacity, grain: { kind: 'paper', scale: p.grain, strength: p.dry, seed: 3 },
+        draw: l => k.dabs(l, fr, { tip: 'soft', hardness: p.hardness, size: f => p.width * (0.45 + 0.55 * (1 + p.pressure * (f.pressure - 0.5) * 2)), flow: f => p.flow * (0.6 + 0.8 * p.pressure * f.pressure), spacing: 0.08, scatter: p.scatter, rng: k.rng })
+      });
+    }
+  },
+  chalk: {
+    label: 'Chalk', roles: ['line', 'gesture'], doc: 'A flat stick of pastel dragged across canvas: broad, dry, broken by the weave.',
+    params: [
+      param('width', 'Width', 2, 80, 0.5, 18, 'Stick width in artboard units.'),
+      param('aspect', 'Thickness', 0.1, 1, 0.05, 0.35, 'Thickness of the stick relative to its width.'),
+      param('dry', 'Dry', 0, 1, 0.05, 0.8, 'How much the weave holds the chalk back.'),
+      param('grain', 'Grain size', 0.2, 4, 0.1, 0.9, 'Size of the weave.'),
+      param('flow', 'Flow', 0.05, 1, 0.05, 0.55, 'How much each dab lays down.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
+    ],
+    draw(ctx, e, p, k) {
+      const fr = k.frames(e, 3, 0.6);
+      if (!fr.length) return;
+      k.paint(ctx, {
+        key: k.hash('chalk', e.points, p, e.seed), bounds: k.bounds(fr, p.width),
+        color: e.color || k.INK, alpha: p.opacity, grain: { kind: 'canvas', scale: p.grain, strength: p.dry, seed: 5 },
+        draw: l => k.dabs(l, fr, { tip: 'flat', aspect: p.aspect, angle: 'follow', size: f => p.width * (0.7 + 0.6 * f.pressure), flow: p.flow, spacing: 0.06, scatter: 0.1, rng: k.rng })
+      });
+    }
+  },
+  pencil: {
+    label: 'Pencil', roles: ['line', 'gesture'], doc: 'A hard graphite point: thin, and it builds up where you go over it; light pressure leaves only the paper\'s peaks.',
+    params: [
+      param('width', 'Width', 0.5, 12, 0.25, 2.5, 'Point width in artboard units.'),
+      param('pressure', 'Pressure', 0, 1, 0.05, 0.7, 'How much pressure darkens the line.'),
+      param('dry', 'Dry', 0, 1, 0.05, 0.55, 'How much the paper\'s tooth shows through.'),
+      param('grain', 'Grain size', 0.1, 3, 0.1, 0.45, 'Size of the paper\'s tooth.'),
+      param('flow', 'Flow', 0.05, 1, 0.05, 0.3, 'How much each dab lays down: passes build up.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
+    ],
+    draw(ctx, e, p, k) {
+      const fr = k.frames(e, 4, 0.5);
+      if (!fr.length) return;
+      k.paint(ctx, {
+        key: k.hash('pencil', e.points, p, e.seed), bounds: k.bounds(fr, p.width * 2),
+        color: e.color || k.INK, alpha: p.opacity, grain: { kind: 'paper', scale: p.grain, strength: p.dry, seed: 11 },
+        draw: l => k.dabs(l, fr, { tip: 'soft', hardness: 0.85, size: p.width, flow: f => p.flow * (1 - p.pressure + p.pressure * 1.6 * f.pressure), spacing: 0.18, scatter: 0.25, rng: k.rng })
+      });
+    }
+  },
+  bristles: {
+    label: 'Bristles', roles: ['line', 'gesture'], doc: 'A dry brush: many hairs side by side, each lifting off where the paint runs out (sooner when the hand is fast).',
+    params: [
+      param('width', 'Width', 4, 120, 0.5, 34, 'Brush width in artboard units.'),
+      param('hairs', 'Hairs', 3, 80, 1, 28, 'How many bristles.'),
+      param('thickness', 'Hair', 0.3, 6, 0.1, 1.5, 'Thickness of a bristle.'),
+      param('dry', 'Dry', 0, 1, 0.05, 0.4, 'How soon the paint runs out (0 = loaded, 1 = nearly dry).'),
+      param('body', 'Body', 0, 1, 0.05, 0.12, 'A faint even stroke under the hairs.'),
+      param('grain', 'Grain size', 0.2, 4, 0.1, 1, 'Size of the paper\'s tooth.'),
+      param('tooth', 'Tooth', 0, 1, 0.05, 0.25, 'How much the paper\'s tooth breaks the hairs up further.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
+    ],
+    draw(ctx, e, p, k) {
+      const fr = k.frames(e, 3, 0.7);
+      if (fr.length < 2) return k.draw('dot', ctx, e, { size: p.width * 0.5, opacity: p.opacity });
+      k.paint(ctx, {
+        key: k.hash('bristles', e.points, p, e.seed), bounds: k.bounds(fr, p.width * 0.8),
+        color: e.color || k.INK, alpha: p.opacity, grain: { kind: 'paper', scale: p.grain, strength: p.tooth, seed: 7 },
+        draw: l => {
+          if (p.body > 0) k.dabs(l, fr, { tip: 'soft', hardness: 0.6, size: p.width * 0.9, flow: p.body, spacing: 0.15, rng: k.rng });
+          k.hairs(l, fr, { count: p.hairs, width: f => p.width * (0.6 + 0.6 * f.pressure), thickness: p.thickness, dry: p.dry, rng: k.rng });
+        }
+      });
+    }
+  },
+  marker: {
+    label: 'Marker', roles: ['line', 'gesture'], doc: 'A broad felt tip: even and slightly see-through, so crossing strokes show through each other, and a stroke does not darken where it overlaps itself.',
+    params: [
+      param('width', 'Width', 2, 80, 0.5, 16, 'Tip width in artboard units.'),
+      param('aspect', 'Chisel', 0.1, 1, 0.05, 0.4, 'How flat the tip is (1 = round-ish).'),
+      param('grain', 'Grain size', 0.2, 4, 0.1, 0.6, 'Size of the paper\'s tooth.'),
+      param('tooth', 'Tooth', 0, 1, 0.05, 0.15, 'How much the paper shows through.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 0.6, 'Paint opacity (the whole stroke at once).')
+    ],
+    draw(ctx, e, p, k) {
+      const fr = k.frames(e, 3, 0.7);
+      if (!fr.length) return;
+      k.paint(ctx, {
+        key: k.hash('marker', e.points, p, e.seed), bounds: k.bounds(fr, p.width),
+        color: e.color || k.INK, alpha: p.opacity, grain: { kind: 'paper', scale: p.grain, strength: p.tooth, seed: 2 },
+        draw: l => k.dabs(l, fr, { tip: 'flat', aspect: p.aspect, angle: Math.PI / 4, size: p.width, flow: 1, spacing: 0.05 })
+      });
+    }
+  },
+  wash: {
+    label: 'Wash', roles: ['plane'], doc: 'Watercolor: a thin, transparent fill whose pigment gathers at the edge and settles into the paper\'s grain.',
+    params: [
+      param('body', 'Body', 0.05, 1, 0.05, 0.55, 'How strong the wash is inside.'),
+      param('edge', 'Edge', 0, 1, 0.05, 0.6, 'How much darker the rim is.'),
+      param('rim', 'Rim width', 0.5, 30, 0.5, 5, 'Width of the darker rim, in artboard units.'),
+      param('rough', 'Wander', 0, 12, 0.25, 1.5, 'How much the edge wanders.'),
+      param('granulation', 'Granulation', 0, 1, 0.05, 0.4, 'How much pigment settles into the paper\'s grain.'),
+      param('grain', 'Grain size', 0.2, 4, 0.1, 0.8, 'Size of the paper\'s grain.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
+    ],
+    draw(ctx, e, p, k) {
+      if (e.points.length < 3) return;
+      const poly = e.points.length > 12 ? k.smoothPath(e.points, true, 4) : e.points;
+      const xs = poly.map(q => q[0]), ys = poly.map(q => q[1]), pad = p.rough * 2 + p.rim * 2 + 4;
+      k.paint(ctx, {
+        key: k.hash('wash', e.points, p, e.seed), bounds: [Math.floor(Math.min(...xs) - pad), Math.floor(Math.min(...ys) - pad), Math.ceil(Math.max(...xs) + pad), Math.ceil(Math.max(...ys) + pad)],
+        color: e.color || '#8a8175', alpha: p.opacity, grain: { kind: 'paper', scale: p.grain, strength: p.granulation, seed: 13 },
+        draw: (l, layer) => k.wash(layer, poly, { edge: p.edge, rimWidth: p.rim, rough: p.rough, base: p.body, seed: e.seed || 1 })
+      });
+    }
   }
 };
 
@@ -439,6 +570,12 @@ export const BRUSHES = {
  *   k.noise(x, y)                           smooth value noise, about -1..1
  *   k.scale                                 screen scale (for hairlines)
  *   k.INK                                   the default ink color
+ *   k.paint(ctx, { key, bounds, draw(lctx, layer), grain, color, alpha })   paint a mark through a layer (cached by key)
+ *   k.dabs(lctx, frames, { tip, size, flow, spacing, scatter, hardness, aspect, angle, rng })   stamp a tip along a walk
+ *   k.hairs(lctx, frames, { count, width, thickness, dry, flow, rng })    bristles that lift off where the paint runs dry
+ *   k.wash(layer, poly, { edge, rimWidth, rough, base, seed })            a wash: pigment gathers at the edge
+ *   k.bounds(frames, pad)  k.hash(...parts)  k.grain(layer, { kind, scale, strength, seed })
+ *   k.age                                   seconds since the mark was born (its time envelope: see envelope.js)
  *   k.source(name)                          a source (camera, image…) fitted to the mark's board: .colorAt(x, y),
  *                                           .valueAt(x, y) in world units; .color(fx, fy), .pose, .mask(fx, fy) in fractions
  */
@@ -459,6 +596,9 @@ function getImage(src) {
 export const KIT = {
   image: getImage,
   smoothPath, tracePath, spans, rotatePts, frames: walkFrames, segment: strokeSegment, beginInk, INK, noise: valueNoise,
+  // Textured painting (texture.js): a mark is painted white into a layer, the paper's grain is multiplied in, and it is tinted
+  paint(ctx, spec) { return txPaint(ctx, { scale: this.scale, ...spec }); },
+  dabs: txDabs, hairs: txHairs, wash: txWash, bounds: txBounds, hash: txHash, layer: txLayer, grain: txGrain,
   draw(id, ctx, e, params = {}) { const b = BRUSHES[id]; if (b) b.draw(ctx, e, resolveParams(id, params), this); },
   source(name, rect) { return getSource(name, rect || this.board, { peek: Boolean(this.frozen) }); }
 };

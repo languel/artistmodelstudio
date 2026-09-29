@@ -317,12 +317,13 @@ board(title, {width, height})   later marks land on this board (made if new); fr
 source(name, { fit })   a camera / image / video: .color(x, y) .value(x, y) .rgb(x, y) .pose .hands .mask(x, y) .frame (fit: 'cover' crops, 'contain' letterboxes)
 fit(source, {shapes, kinds, brush, stage, live})   redraw a source as plane marks (live: continuous)
 point(x, y, {size, color, why})
-line(points, {brush, width, pressure, taper, wobble, color, why, pressures: t => 0..1})
-plane(points, {brush: flat | hatch | stipple, angle, spacing, density, color, why})
+line(points, {brush, width, pressure, taper, wobble, color, why, pressures: t => 0..1, time: {in, hold, out, life, draw, curve, loop}})
+plane(points, {brush: flat | hatch | stipple | wash, angle, spacing, density, color, why})   line brushes: ink charcoal chalk pencil bristles marker ...
 guide(points, {why})   gesture(points, {why})   note(x, y, text)
 decide(question, options, chosen, why)
 brush({id, label, roles, doc, params: {k: [min, max, def, doc]}, draw(ctx, e, p, k) {...}})   then line(pts, {brush: id})
-  k: frames(e) smoothPath spans rotatePts segment beginInk tracePath draw(id, ctx, e, p) rng() noise(x, y)
+  k: frames(e) smoothPath spans rotatePts segment beginInk tracePath draw(id, ctx, e, p) rng() noise(x, y) age
+  textured: k.paint(ctx, {key, bounds, draw(l), grain, color, alpha}) dabs hairs wash bounds hash grain
 defineLine(name, {doc, params: {k: [min, max, def]}}, (ctx, frames, p, env) => {...})   (shorthand)
   frames: [{x, y, nx, ny, speed, pressure}]   env: {color, rng, closed}
 walk({from, heading, steps, step, turn: (i, t) => degrees})

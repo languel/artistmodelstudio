@@ -201,6 +201,10 @@ brush({
 
 The kit: `k.frames(e)` (the walk with normals, speed and pressure), `k.smoothPath`, `k.spans` (for fills), `k.rotatePts`, `k.tracePath`, `k.segment`, `k.beginInk`, `k.draw(id, …)` (another brush), `k.rng()`, `k.noise(x, y)`, `k.image(src)`. The Brushes panel lists built-in, library and drawing brushes; scores define brushes with the same `brush({...})`; agents use `ams_brush`. A brush that fails draws plainly (and warns once) instead of breaking the drawing. Brush code runs in the page: open drawings from people you trust.
 
+**Textured brushes** (*charcoal, chalk, pencil, bristles, marker, wash*) paint each mark into a small layer of its own, multiply the paper's grain into it and tint it. The grain is fixed to the paper, so crossing strokes share one tooth; a layer is kept while its mark (points, parameters, seed, color, zoom) stays the same, so a mark that only fades is a bitmap, not painted again. The kit has `k.paint(ctx, { key, bounds, draw(layer ctx), grain: { kind: 'paper' | 'canvas' | 'fibre' | 'noise', scale, strength, seed }, color, alpha })`, `k.dabs` (a tip stamped along the walk: `soft`, `flat`, `square`; size, flow, spacing, scatter, angle), `k.hairs` (bristles that lift off as the paint runs down), `k.wash` (a fill whose pigment gathers at the edge), `k.bounds`, `k.hash`. Where there is no canvas (a test), a textured mark is simply not drawn.
+
+**Time envelopes**: any mark can carry `time: { in, hold, out, life, draw, curve, loop }` (seconds) and a `born` time (epoch ms, set when it is made). The renderer fades it by its age at the view's clock, draws its stroke on along its length (`draw`), and drops it when `life` is over; a number is a fade out. The canvas keeps redrawing while any mark still changes, then stops. In code: `line(pts, { time: { in: 0.3, out: 2 } })`, and a brush reads `k.age`. Exports and the p5 sketch carry the same code (`envelope.js`, `texture.js` are embedded).
+
 ## Marks and points
 
 A drawing is a set of **stages** holding **marks**. Each mark has:

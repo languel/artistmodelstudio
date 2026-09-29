@@ -94,6 +94,12 @@ const BRUSH_ICONS = {
   sleet: '<path d="M5 7l2 3M10 5l2 3M15 6l2 3M7 13l2 3M12 12l2 3M17 13l2 3M9 18l1.5 2.2M14 18l1.5 2.2"/>',
   scumble: '<path d="M4 15c2-4 4 2 6-2s3 3 5-1 3 2 5-2M4 11c2-3 4 1 6-2s3 2 5-1 3 1 5-1" stroke-width="2.2" opacity=".75"/>',
   incised: '<path d="M4 16c4-6 9-8 16-8"/><path d="M4.5 17.6c4-6 9-8 16-8" stroke-width=".8" opacity=".6"/>',
+  charcoal: `<path d="M3.5 17c4-7 9-9 17-9" stroke-width="3.6" opacity=".45"/><g ${F}><circle cx="7" cy="13.6" r=".9"/><circle cx="11.5" cy="10.6" r=".9"/><circle cx="15" cy="9.3" r=".9"/><circle cx="18.6" cy="8.4" r=".9"/><circle cx="9" cy="15.4" r=".7"/><circle cx="13.5" cy="12.2" r=".7"/></g>`,
+  chalk: '<path d="M3.5 17c4-7 9-9 17-9" stroke-width="3.6" stroke-dasharray="2.2 1.4" stroke-linecap="butt"/>',
+  pencil: '<path d="M3.5 19c3-5 7-8.5 12-10" stroke-width="1.1"/><path d="M15 7.5l3 3-2 .5-1.5-1.5z" stroke-width="1.2"/><path d="M18 10.5l2.4-2.4a1.4 1.4 0 0 0-2-2L16 8.5" stroke-width="1.2"/>',
+  bristles: '<path d="M4 14c4-4 9-6 17-6M4 16.5c5-4 10-5.4 14-5.5M4.5 19c4-3.4 8-4.6 11-5" stroke-width="1.3"/><path d="M6 12c3-3 7-4.4 12-4.6" stroke-width="1.3" opacity=".5"/>',
+  marker: '<path d="M4 17c4-6 9-8 16-8" stroke-width="4.6" stroke-linecap="butt" opacity=".65"/>',
+  wash: `<path ${F} d="M5 9c4-4 11-4 14 0s1 8-4 9.5-10 0-10.5-4.5z" opacity=".3"/><path d="M5 9c4-4 11-4 14 0s1 8-4 9.5-10 0-10.5-4.5z" stroke-width="1.5" opacity=".75"/>`,
   dot: `<circle cx="12" cy="12" r="5" ${F}/>`
 };
 const SCULPT_ICONS = {
