@@ -246,3 +246,20 @@ describe('board switches', () => {
     expect(boardsOf(again.doc).find(x => x.id === b.id).locked).toBe(true);
   });
 });
+
+describe('redraw rate', () => {
+  it('a board keeps a redraw rate (runs a second, at most 60), and drops it when zero', () => {
+    const store = new ProcessStore(createDocument());
+    const b = store.addBoard({ title: 'B' });
+    store.updateBoard(b.id, { rate: 12 });
+    expect(boardsOf(store.doc).find(x => x.id === b.id).rate).toBe(12);
+    store.updateBoard(b.id, { rate: 500 });
+    expect(boardsOf(store.doc).find(x => x.id === b.id).rate).toBe(60);
+    store.updateBoard(b.id, { rate: 0 });
+    expect('rate' in boardsOf(store.doc).find(x => x.id === b.id)).toBe(false);
+    // Each run of a board's code can carry its own seed: different dots.
+    const run = seed => { const st = new ProcessStore(createDocument()); const bb = st.addBoard({ title: 'B' }); st.runBoardCode(bb.id, 'point(random(), random())', runScript, { seed }); return st.doc.elements[0].points[0].slice(0, 2).join(); };
+    expect(run(1)).toBe(run(1));
+    expect(run(1)).not.toBe(run(2));
+  });
+});

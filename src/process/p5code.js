@@ -23,7 +23,7 @@ const RENAMES = [['point', 'drawPoint'], ['line', 'drawLine'], ['plane', 'drawPl
  * 'image' | 'animated' | 'video' } } for the sources it reads. loop: redraw every frame (a board
  * that follows moving sources).
  */
-export function toP5Code(source, { board, sources = {}, loop = false, seed = 1, version = '2' } = {}) {
+export function toP5Code(source, { board, sources = {}, loop = false, seed = 1, version = '2', rate = 0 } = {}) {
   const v1 = String(version) === '1';
   let code = String(source).replace(/\r/g, '');
   for (const [from, to] of RENAMES) code = code.replace(new RegExp(`(?<![.\\w$])${from}\\s*\\(`, 'g'), `${to}(`);
@@ -316,10 +316,11 @@ const kit = {
   const preload = !globals ? '' : `${globals}\n${v1 && allLoads.length ? `\nfunction preload() {\n${allLoads.map(l => `  ${l}`).join('\n')}\n}\n` : ''}`;
   const startVideo = [...(v1 ? [] : allLoads.map(l => `  ${l}`)), ...starts, ...watch];
   const gifs = names.filter(n => sources[n].kind === 'animated');
-  const looping = loop && moving;
+  const looping = loop && (moving || rate > 0);
   // GIFs play at their own timing; a sketch that follows only GIFs draws when one shows a new frame
   // (as a studio board that follows its sources runs again on each new frame).
-  const onlyGifs = looping && gifs.length && names.every(n => sources[n].kind === 'animated' || sources[n].kind === 'image');
+  // (With a redraw rate the sketch draws at that rate, with fresh randomness each time, and the GIF only decides what it sees.)
+  const onlyGifs = looping && !rate && gifs.length && names.every(n => sources[n].kind === 'animated' || sources[n].kind === 'image');
   const frames = onlyGifs ? [] : gifs.map(n => `  gifFrame(sources[${JSON.stringify(n)}]);   // the GIF's frame now`);
   const gate = onlyGifs ? `  if (!newFrame()) return;   // nothing new: keep the picture\n` : '';
   if (gifs.length) defs.push(`// A GIF at its own timing (each frame's delay): shows the frame for now; true if it changed.
@@ -347,12 +348,12 @@ function newFrame() {
 ${preload ? `\n${preload}` : ''}
 ${v1 || !allLoads.length ? '' : 'async '}function setup() {
   createCanvas(${Math.round(board?.width || 800)}, ${Math.round(board?.height || 600)});
-${startVideo.join('\n')}${startVideo.length ? '\n' : ''}  ${looping ? 'frameRate(30);' : 'noLoop();'}
+${startVideo.join('\n')}${startVideo.length ? '\n' : ''}  ${looping ? `frameRate(${rate > 0 ? Math.round(rate) : 30});` : 'noLoop();'}
 }
 
 function draw() {
 ${gate}  background('${board?.ground && board.ground !== 'transparent' ? board.ground : '#f3efe6'}');
-  randomSeed(${seed});
+  randomSeed(${rate > 0 ? 'frameCount' : seed});
 ${[...frames, ...asks].join('\n')}${frames.length || asks.length ? '\n' : ''}${body}
 }
 

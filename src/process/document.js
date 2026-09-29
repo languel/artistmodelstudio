@@ -11,7 +11,7 @@
  * Pure data + a tiny observable store with undo. No DOM.
  */
 import { installLines, embedBrushes } from './brushes.js';
-import { migrateBoards, boardsOf, newBoardId, nextBoardPlace, boardForPoints, MAIN, BLACKBOARD, BOARD_FLAGS } from './boards.js';
+import { migrateBoards, boardsOf, newBoardId, nextBoardPlace, boardForPoints, MAIN, BLACKBOARD, BOARD_FLAGS, rateOf } from './boards.js';
 
 export const PROCESS_VERSION = 1;
 
@@ -430,6 +430,7 @@ export class ProcessStore {
         if ('title' in patch) d.artboard.title = patch.title;
         for (const k of ['width', 'height', 'ground', 'text', 'code', 'pseudo', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete d.artboard[k]; else d.artboard[k] = patch[k]; }
         for (const k of BOARD_FLAGS) if (k in patch) { if (patch[k]) d.artboard[k] = true; else delete d.artboard[k]; }
+        if ('rate' in patch) { if (rateOf(patch)) d.artboard.rate = rateOf(patch); else delete d.artboard.rate; }
         return;
       }
       const b = d.boards.find(x => x.id === id);
@@ -440,6 +441,7 @@ export class ProcessStore {
       }
       for (const k of ['title', 'ground', 'width', 'height', 'x', 'y']) if (k in patch) b[k] = patch[k];
       for (const k of BOARD_FLAGS) if (k in patch) { if (patch[k]) b[k] = true; else delete b[k]; }
+      if ('rate' in patch) { if (rateOf(patch)) b.rate = rateOf(patch); else delete b.rate; }
       for (const k of ['text', 'code', 'pseudo', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete b[k]; else b[k] = String(patch[k]); }
       // A p5 board is its sketch's canvas: resized, the sketch's createCanvas(w, h) follows.
       if (b.kind === 'p5' && b.code && ('width' in patch || 'height' in patch)) b.code = b.code.replace(/createCanvas\(\s*\d+\s*,\s*\d+/, `createCanvas(${Math.round(b.width)}, ${Math.round(b.height)}`);
@@ -489,7 +491,7 @@ export class ProcessStore {
   runBoardCode(id, source, run, opts) {
     const b = boardsOf(this.doc).find(x => x.id === id);
     if (!b) return { error: 'No such board' };
-    const res = run(source, { base: { ...createDocument({ width: b.width, height: b.height, ground: b.ground }), stages: [] }, by: { kind: 'code', name: b.id }, origin: { x: b.x, y: b.y } });
+    const res = run(source, { base: { ...createDocument({ width: b.width, height: b.height, ground: b.ground }), stages: [] }, by: { kind: 'code', name: b.id }, origin: { x: b.x, y: b.y }, ...(opts?.seed !== undefined ? { seed: opts.seed } : {}), ...(opts?.fresh ? { fresh: true } : {}) });
     if (res.error) return { error: res.error, line: res.errorLine, logs: res.logs };
     if (opts?.transient) this.lastLiveBoard = id;
     this.change(opts?.transient ? 'live board code' : 'board code', d => {

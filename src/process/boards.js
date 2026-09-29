@@ -44,7 +44,9 @@ export function slidesOf(doc) {
  * not run), hideLabel (no title above it), perf (a performance line under it).
  */
 export const BOARD_FLAGS = ['locked', 'hidden', 'hideLabel', 'perf'];
-const flagsOf = b => Object.fromEntries(BOARD_FLAGS.filter(k => b?.[k]).map(k => [k, true]));
+/** Redraw rate: runs a second for a board that follows a source (none: once per new source frame). */
+export const rateOf = b => { const r = Number(b?.rate); return Number.isFinite(r) && r > 0 ? Math.min(60, r) : 0; };
+const flagsOf = b => ({ ...Object.fromEntries(BOARD_FLAGS.filter(k => b?.[k]).map(k => [k, true])), ...(rateOf(b) ? { rate: rateOf(b) } : {}) });
 
 /** All boards, the main one first, each with its place: { id, title, x, y, width, height, ground, main }. */
 export function boardsOf(doc) {

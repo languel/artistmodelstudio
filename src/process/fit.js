@@ -62,13 +62,14 @@ function post(key, st, msg) {
  * studio: the latest finished fit, or only the ground before the first).
  * opts: { shapes = 80, kinds, seed = 1, live = false, turnover = 0.08, quality = 'fine', key, board }
  */
-export function fitSource(sampler, aspect, { shapes = 80, kinds = ['rect', 'triangle', 'circle'], seed = 1, live = false, turnover = 0.08, quality = 'fine', key = 'fit', board = null } = {}) {
+export function fitSource(sampler, aspect, { shapes = 80, kinds = ['rect', 'triangle', 'circle'], seed = 1, live = false, turnover = 0.08, quality = 'fine', key = 'fit', board = null, advance = false } = {}) {
   const { w, h } = fitGrid(aspect, quality);
   const st = streamState(key);
   const sig = [w, h, shapes, kinds.join(), sampler.name, quality, seed].join('|');
   if (st.sig !== sig) { Object.assign(st, { sig, result: null, frame: null, frameAsked: null, pending: null }); }
   st.board = board;
-  if (st.result && st.frame === sampler.frame) return st.result;   // nothing new: the same marks
+  // advance: a live fit on a board redrawn faster than its source keeps going on the same frame.
+  if (st.result && st.frame === sampler.frame && !advance) return st.result;   // nothing new: the same marks
   const job = { target: sampler.pixels(w, h), w, h, shapes, kinds, seed, live, turnover, quality, sig };
   const wk = getWorker();
   if (!wk) {
@@ -78,7 +79,7 @@ export function fitSource(sampler, aspect, { shapes = 80, kinds = ['rect', 'tria
     return st.result;
   }
   const ground = st.result ? null : meanHex(job.target);   // before the frame goes to the worker
-  if (st.frameAsked !== sampler.frame) {
+  if (st.frameAsked !== sampler.frame || advance) {
     st.frameAsked = sampler.frame;
     const msg = { frame: sampler.frame, job };
     // One fit at a time per key: while one runs, only the newest frame waits.

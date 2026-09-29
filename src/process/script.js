@@ -55,7 +55,7 @@ export function runScript(source, opts = {}) {
   return first;
 }
 
-function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, base = null, units = 'fraction', target = null, origin = null } = {}) {
+function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, base = null, units = 'fraction', target = null, origin = null, fresh = false } = {}) {
   const doc = base ? normalizeDocument(base) : createDocument();
   if (!base) doc.stages = [];
   let rng = mulberry32(seed);
@@ -190,7 +190,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
     fit(src, opts = {}) {
       const s = typeof src === 'string' ? api.source(src) : src;
       const key = `fit:${by?.name || ''}:${tgt.id || 'main'}:${fitCount++}:${opts.key || ''}`;
-      const res = fitSource(s, tgt.w / tgt.h, { ...opts, key, board: (by?.kind === 'code' && by.name) || tgt.id || 'main' });
+      const res = fitSource(s, tgt.w / tgt.h, { ...opts, advance: fresh && Boolean(opts.live), key, board: (by?.kind === 'code' && by.name) || tgt.id || 'main' });
       const u = (fx, fy) => (frac ? [fx, fy] : [fx * tgt.w, fy * tgt.h]);
       const stageName = opts.stage || 'Fit', why = opts.why || `fitted to ${s.name}`, brush = opts.brush || 'flat';
       if (opts.ground !== false) api.plane([u(0, 0), u(1, 0), u(1, 1), u(0, 1)], { color: res.background, brush, path: 'straight', stage: stageName, why: `${why}: the ground` });

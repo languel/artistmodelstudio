@@ -7,6 +7,7 @@
 import { h, selectField, editable } from '../ui.js';
 import { icon } from '../icons.js';
 
+const SPEEDS = [['0', 'paused'], ['0.25', '¼×'], ['0.5', '½×'], ['1', '1×'], ['2', '2×'], ['4', '4×']];
 const SAMPLING = [['continuous', 'continuous'], ['interval', 'every…'], ['hold', 'hold']];
 
 
@@ -28,6 +29,7 @@ export function mountSources(el, app) {
         h('div', { class: 'wb-source-main' },
           name,
           h('div', { class: 'wb-source-ctl' },
+            d.kind === 'camera' ? '' : selectField(SPEEDS, String(d.speed ?? 1), v => S.update(d.name, { speed: Number(v) }), 'Playback speed of the clip (the board that draws from it redraws at its own rate)'),
             selectField(SAMPLING, d.sampling, v => { S.update(d.name, { sampling: v }); render(); }, 'Sampling: every frame, every few seconds, or one frame held'),
             d.sampling === 'interval' ? h('input', { class: 'wb-num', type: 'number', min: 0.1, step: 0.5, value: d.interval, title: 'Seconds between samples', onchange: e => S.update(d.name, { interval: Math.max(0.1, Number(e.target.value) || 2) }) }) : '')),
         h('button', { class: 'wb-icon-btn', title: 'Remove the source (its asset stays)', html: icon('trash'), onclick: () => { S.remove(d.name); } }));

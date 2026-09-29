@@ -5,13 +5,15 @@
  */
 export const SOURCE_DEMOS = [
   {
-    id: 'redraw', label: 'Redraw as shapes', hint: 'A continuous fit: each new frame replaces a few shapes',
-    code: name => `// Redraw “${name}” as shapes: each new frame replaces a few (live), while the board follows it.
-fit(source('${name}'), { shapes: 120 /* 10..400 */, live: true })
+    id: 'redraw', label: 'Redraw as shapes', hint: 'A continuous fit: at its own rate, a few shapes are replaced each time',
+    rate: 20,
+    code: name => `// Redraw “${name}” as shapes: a few are replaced on each run (live), at the board's redraw rate.
+// No ground: the paper stays as it is, and the shapes fill it.
+fit(source('${name}'), { shapes: 120 /* 10..400 */, live: true, ground: false })
 `
   },
   {
-    id: 'fitcode', label: 'Fit shapes, in code', hint: 'The greedy shape fitting of fit(), written out: change how shapes are tried, kept and drawn',
+    id: 'fitcode', label: 'Fit shapes, in code', rate: 20, hint: 'The greedy shape fitting of fit(), written out: change how shapes are tried, kept and drawn',
     code: name => `// Greedy shape fitting, written out (what fit() does, simplified): each shape is the best of many
 // random tries: the one that makes the picture closest to the source. On each new frame the oldest
 // shapes give way to a few new ones; the rest take the new frame's colors.
@@ -60,9 +62,10 @@ while (memo.shapes.length < n) {
   best.sh.color = best.c; paint(img, best.cs, best.c); memo.shapes.push(best.sh)
 }
 
-// Drawn as planes: the ground, then the shapes, oldest first.
+// Drawn as planes: the ground (as first seen), then the shapes, oldest first.
 const hex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('')
-plane([[0, 0], [1, 0], [1, 1], [0, 1]], { color: hex(ground), path: 'straight' })
+memo.ground ||= hex(ground)   // kept from the first run: the clip's mean color changes with each frame
+plane([[0, 0], [1, 0], [1, 1], [0, 1]], { color: memo.ground, path: 'straight' })
 for (const sh of memo.shapes) {
   if (sh.kind === 'rect') plane([[sh.x0 / W, sh.y0 / H], [sh.x1 / W, sh.y0 / H], [sh.x1 / W, sh.y1 / H], [sh.x0 / W, sh.y1 / H]], { color: hex(sh.color), path: 'straight' })
   else plane(range(12).map(i => [(sh.cx + sh.r * cos(i / 12 * TAU)) / W, (sh.cy + sh.r * sin(i / 12 * TAU)) / H]), { color: hex(sh.color) })
@@ -70,7 +73,7 @@ for (const sh of memo.shapes) {
 `
   },
   {
-    id: 'dots', label: 'Dots', hint: 'Pointillism: a dot of the source’s color at random places',
+    id: 'dots', label: 'Dots', rate: 12, hint: 'Pointillism: a dot of the source’s color at random places',
     code: name => `// Dots of “${name}”'s color at random places, larger where it is dark.
 const s = source('${name}')
 const n = 3000 /* 200..12000 */
@@ -81,7 +84,7 @@ for (const i of range(n)) {
 `
   },
   {
-    id: 'strokes', label: 'Strokes along forms', hint: 'Short strokes along the contours (where the light changes least)',
+    id: 'strokes', label: 'Strokes along forms', rate: 12, hint: 'Short strokes along the contours (where the light changes least)',
     code: name => `// Strokes along the forms of “${name}”: a quarter turn from the change of light.
 const s = source('${name}')
 const n = 900 /* 100..4000 */, len = 0.02, e = 0.01

@@ -4,7 +4,7 @@
  * command (see mcp.js), so agents drive the same surface.
  */
 import { openToolParams, openGridParams, openToolDefaults } from './toolParams.js';
-import { boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard } from '../process/boards.js';
+import { boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard, rateOf } from '../process/boards.js';
 import { linksOf } from '../process/markdown.js';
 import { sceneHtml, docFromPage, pageBoards, sourcesOf } from '../process/page.js';
 import { Scenes } from './scenes.js';
@@ -910,12 +910,27 @@ export class Workbench {
       const doc = this.store.doc;
       if (boardsOf(doc).some(b => b.source === name) || readRecently(name)) this.canvas?.invalidate();
       for (const b of boardsOf(doc)) {
-        if (!b.follow || !reads(b.code, name) || !this.isBoardActive(b.id, b)) continue;
+        if (!b.follow || rateOf(b) || !reads(b.code, name) || !this.isBoardActive(b.id, b)) continue;   // (a board with a redraw rate runs on its own clock)
         rerun(b);
       }
     });
     // A fit finished in the background (see process/fit.js): the board runs again to draw it.
-    onFitReady(id => { const b = boardById(this.store.doc, id); if (b?.code && this.isBoardActive(b.id, b)) rerun(b, true); });
+    onFitReady(id => { const b = boardById(this.store.doc, id); if (b?.code && !rateOf(b) && this.isBoardActive(b.id, b)) rerun(b, true); });
+    // The redraw clock: a board with a rate runs that many times a second (fewer when its runs are
+    // slow), whatever the pace of its sources: a slow GIF, a still. Each run has fresh randomness, so
+    // strokes and dots are drawn again; the source only changes what they see.
+    let seedCount = 1;
+    this.followClock = setInterval(() => {
+      if (document.hidden) return;
+      const now = performance.now();
+      for (const b of boardsOf(this.store.doc)) {
+        const rate = rateOf(b);
+        if (!rate || !b.follow || !b.code || pending.has(b.id) || !this.isBoardActive(b.id, b)) continue;
+        const l = last.get(b.id);
+        if (l && now - l.at < Math.max(1000 / rate, 1.5 * l.took)) continue;
+        run(b, { seed: ++seedCount, fresh: true });
+      }
+    }, 8);
     const rerun = (b, now = false) => {
         if (pending.has(b.id)) return;
         const since = performance.now() - (last.get(b.id)?.at || 0), wait = now ? 0 : Math.max(0, Math.max(30, 2 * (last.get(b.id)?.took || 0)) - since);   // up to ~30 runs a second, fewer when a run is slow
@@ -923,12 +938,16 @@ export class Workbench {
           pending.delete(b.id);
           const cur = boardById(this.store.doc, b.id);
           if (!cur?.code || (!cur.follow && !now)) return;   // a fit that finished redraws any board; frames only following ones
+          run(cur);
+        }, wait));
+    };
+    const run = (cur, extra = {}) => {
+          const b = cur;
           const t0 = performance.now();
-          const res = this.store.runBoardCode(b.id, cur.code, runScript, { by: 'code', transient: true });
+          const res = this.store.runBoardCode(b.id, cur.code, runScript, { by: 'code', transient: true, ...extra });
           last.set(b.id, { at: performance.now(), took: performance.now() - t0 });
           if (res.error && !last.get(`${b.id}:err`)) { last.set(`${b.id}:err`, true); this.log(`Board “${cur.title}” (following): ${res.error}`, 'error'); }
           if (!res.error) last.delete(`${b.id}:err`);
-        }, wait));
     };
   }
 
@@ -1112,9 +1131,11 @@ export class Workbench {
   sourceDemo(id, demoId, name) {
     const demo = SOURCE_DEMOS.find(d => d.id === demoId);
     if (!demo) return;
-    // A preview board's source (shown whole) steps back to a faint reference under the drawing.
+    // The drawing is on its own paper: a preview board's source underneath goes (it changes with each
+    // frame of the clip, and the paper should not), and the board's redraw rate is the demo's.
     const b = boardById(this.store.doc, id);
-    if (b?.source && (b.sourceOpacity ?? 0.5) > 0.4) this.setBoardSource(id, b.source, 0.25, b.sourceFit);
+    if (b?.source) this.setBoardSource(id, null);
+    this.store.updateBoard(id, { rate: demo.rate || 0 });
     this.store.runBoardCode(id, demo.code(name), this.runScript || runScript);
     this.setBoardFollow(id, true);
     this.openCode?.('board', id);
@@ -1510,7 +1531,7 @@ export class Workbench {
       sources[d.name] = { file, kind: t.startsWith('video/') ? 'video' : ext === 'gif' ? 'animated' : 'image' };
       files.push({ name: file, data: a.blob });
     }
-    return { code: toP5Code(b.code, { board: b, sources, loop: Boolean(b.follow), version: this.p5Version() }), files };
+    return { code: toP5Code(b.code, { board: b, sources, loop: Boolean(b.follow), rate: b.follow ? rateOf(b) : 0, version: this.p5Version() }), files };
   }
 
   /**

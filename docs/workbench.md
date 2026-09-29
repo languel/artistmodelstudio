@@ -311,6 +311,7 @@ The full vocabulary is in the Score panel (**Vocabulary**), in the Docs, and in 
 Sources are the project's streams: the camera, and images and videos from Assets. Later they will include other data. The **Sources** panel (left dock) lists them by name, and every scene and board shares them.
 
 - **Add:** the camera glyph adds the camera; **+ asset…** adds an image or a video.
+- **Speed:** a clip plays at ¼×, ½×, 1×, 2× or 4× (or paused). This is the source's pace only: how fast the man walks.
 - **Sampling:**
   - *continuous* samples every frame.
   - *every…* samples every N seconds.
@@ -387,6 +388,10 @@ Every other board is paused and **baked**: drawn once into a picture and shown a
 - Baked images are ordinary marks: add them to Assets, or use them as thumbnails.
 
 Agents use `ams_get` with `format: 'p5code'` for a board's code as p5, and `ams_source`: list, add, remove, update, sample (colors, values and landmarks at points), frame (a PNG), show, follow.
+
+### Redraw rate
+
+Two speeds, set separately: the source's (Sources → speed: how fast a clip plays) and the board's (Properties → Board → **Redraw**: how many times a second its code runs). With Redraw at 0 a board following a source runs once per new frame of the source. With a rate (up to 60) it runs on its own clock, each run with fresh randomness: a slow GIF still gives dots, strokes and shapes that are drawn again and again, and a live `fit` carries on refining while the clip changes slowly. The demos (board menu → *Draw from a source*) set a rate of their own, take the source from under the board (it changes with each frame, the paper should not) and leave the ground alone: `fit` runs with `ground: false`. A p5 sketch exported from such a board draws at that rate, reseeded each frame.
 
 ### Board switches
 
