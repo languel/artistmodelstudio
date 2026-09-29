@@ -900,11 +900,15 @@ export class Workbench {
    * A source from an address (a video or picture URL, or a Wikipedia / Commons File: page): streamed,
    * not stored. A movie waits on its first frame; a board previews it, with a player.
    */
-  async addSourceUrl(text, { quality = '480' } = {}) {
+  async addSourceUrl(text, { quality = '480', start = null, end = null, title = null } = {}) {
     const { resolveMediaUrl } = await import('./mediaUrl.js');
     const m = await resolveMediaUrl(text, { quality });
     const name = await this.sources.add({ kind: 'url', url: m.url, mediaKind: m.kind, name: m.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'link', meta: { title: m.title, license: m.license, artist: m.artist, source: m.source, height: m.height } });
     if (m.kind === 'video') this.sources.update(name, { speed: 0 });
+    // A moment of a long film: the in and out points, from seconds (fractions of the clip once its length is known).
+    const dur = this.sources.entries.get(name)?.live?.video?.duration;
+    if (dur && (start != null || end != null)) this.sources.update(name, { in: Math.max(0, (start ?? 0) / dur), out: Math.min(1, (end ?? dur) / dur) });
+    if (dur && start != null) this.sources.entries.get(name).live.video.currentTime = start;
     this.log(`Source “${name}”: streamed from ${new URL(m.url).host}${m.license ? ` (${m.license}${m.artist ? `, ${m.artist}` : ''})` : ''}.`);
     const c = this.canvas;
     await this.placeSource(name, c.toWorld(c.w / 2, c.h / 2));

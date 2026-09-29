@@ -7,6 +7,7 @@
 import { h, selectField, editable } from '../ui.js';
 import { icon } from '../icons.js';
 import { QUALITIES } from '../mediaUrl.js';
+import { STREAM_SAMPLES } from '../streamSamples.js';
 
 const SPEEDS = [['0', 'paused'], ['0.25', '¼×'], ['0.5', '½×'], ['1', '1×'], ['2', '2×'], ['4', '4×']];
 const SAMPLING = [['continuous', 'continuous'], ['interval', 'every…'], ['hold', 'hold']];
@@ -49,8 +50,16 @@ export function mountSources(el, app) {
       try { await app.addSourceUrl(text, { quality: quality.value }); url.value = ''; } catch (err) { app.log(`Source: ${err.message}`, 'error'); }
       url.disabled = false;
     };
+    // Clips to stream (early cinema, dance): chosen from a list, cut to their moment.
+    const groups = [...new Set(STREAM_SAMPLES.map(s => s.group))];
+    const samples = h('select', { class: 'wb-select', title: 'Stream a clip: early cinema, faces, dance (public domain; nothing is downloaded)', onchange: async e => {
+      const s = STREAM_SAMPLES[Number(e.target.value)]; e.target.value = '';
+      if (!s) return;
+      try { await app.addSourceUrl(s.page, { quality: s.quality || quality.value, start: s.start, end: s.end }); } catch (err) { app.log(`Source: ${err.message}`, 'error'); }
+    } }, h('option', { value: '' }, '+ stream…'),
+      ...groups.map(g => h('optgroup', { label: g }, ...STREAM_SAMPLES.map((s, i) => [s, i]).filter(([s]) => s.group === g).map(([s, i]) => h('option', { value: String(i), title: s.note }, s.title)))));
     url.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') go(); });
-    el.append(list, h('div', { class: 'wb-row wb-row-actions' }, url, quality, h('button', { class: 'wb-icon-btn', title: 'Add the address as a source', html: icon('plus'), onclick: go })), h('div', { class: 'wb-row wb-row-actions' },
+    el.append(list, h('div', { class: 'wb-row wb-row-actions' }, samples), h('div', { class: 'wb-row wb-row-actions' }, url, quality, h('button', { class: 'wb-icon-btn', title: 'Add the address as a source', html: icon('plus'), onclick: go })), h('div', { class: 'wb-row wb-row-actions' },
       h('button', { class: 'wb-icon-btn', title: 'Add the camera', html: icon('camera'), onclick: () => add({ kind: 'camera' }) }),
       pick));
     paint();
