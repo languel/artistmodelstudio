@@ -1,10 +1,10 @@
-# Handoff: 27 September 2026
+# Handoff: 29 September 2026
 
 Where Artist Model Studio stands, how the new parts fit together, and what is next. For the features themselves see [workbench.md](workbench.md); for agents, [mcp.md](mcp.md).
 
 ## State
 
-Everything is on `main`. The tag `milestone-sculpt-params` marks the state before scenes and boards. There are 174 tests (`npx vitest run`). Always run `npm run build` before committing: quoting in the docs strings has broken the build before. The dev server is at `localhost:3017`.
+Everything is on `main`. The tag `milestone-sculpt-params` marks the state before scenes and boards. There are 195 tests (`npx vitest run`). Always run `npm run build` before committing: quoting in the docs strings has broken the build before. The dev server is at `localhost:3017`.
 
 In one session (26 Sep) these were added, in order:
 
@@ -109,6 +109,17 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
     - p5.js loads as raw text (`?raw`): the dev server's transformed copy was 5 MB.
     - The dev server ignores `exports/`, because writing there reloaded the studio.
     - Lesson builders wait for `sources.whenReady()`.
+
+42. **Pages, code and the lesson report:** each board's code on a page is one box with tabs (Pseudocode, Studio, p5.js) and Copy (`codeBox` in `page.js`; boards keep `pseudo`). The run control is a small glyph under the picture. The sampling report (`scripts/lesson-sampling-report.mjs`) regenerates from the current lesson (4:3 pictures, the walk fitted whole, section 0's code folded, Studio first).
+43. **Gestures** (`src/process/gestures.js`, `src/workbench/gestures.js`, the Gestures panel): `gesture(name, steps, action)` over named body points (`bodyFrom`: pose and hands matched to the person's own sides, in body units), sequences with `hold`, `within` and `cooldown`, learned poses (nearest examples), actions (`color next`, `undo`, `board next`, `!console`…). `source().point()` and `.fired()` reach board code. Only the pose and hands models feed it; a face model is the next step.
+44. **Sources are streams, routing lives with what uses them:** the Sources panel lists sources with sampling and speed (`def.speed`, `def.volume`). A source can be dragged onto the canvas or double-clicked in Assets: `placeSource` / `previewAsset` make a preview board and, for a clip or GIF, a **player** board (`kind: 'player'`, `board.source`; `refreshPlayer` in `boardFrames.js`). `app.mediaState` and `app.mediaAct` are the one set of controls behind the player and the Media section of Properties (play, steps, seek, speed, mute, volume). A movie waits on its first frame, a GIF plays, clips are muted. The source's opacity, blend and fit under a board are `sourceOpacity`, `sourceBlend`, `sourceFit`.
+45. **Demos** (`src/workbench/sourceDemos.js`, the board menu → *Draw from a source*): ordinary followed code, none special. `state(name)` in studio code keeps an object between runs. *Fit shapes, in code* writes the fitter out.
+46. **Redraw rate:** `board.rate` runs a following board on its own clock (up to 60 a second, fresh seed each run, live fits keep going: `advance`), separate from the source's speed. Boards without a rate run once per new source frame.
+47. **`fit()` in a worker** (`src/fitting/fit.worker.js`, `fitCore.js`, `process/fit.js`): the board shows its last fit while the next is made, and falls back to fitting in place where workers cannot start (single-file builds from disk, tests, exported pages). `quality: 'fine' | 'fast'`; `fast` is the p5 export's fitter. `ReferenceFitter` computes coverage (no canvas).
+48. **p5 export bridge:** `fit()`, `state()` and `source().pixels()` are carried; GIFs play at their own timing and draw only on new frames (or at the board's rate, reseeded per frame); a canvas of another size is fitted whole and `createCanvas` follows the board's size.
+49. **Board switches:** `locked`, `hidden`, `hideLabel`, `perf` (`BOARD_FLAGS` in `boards.js`, `app.setBoardFlag`) as glyphs in Properties → Board and the board menu. Hidden boards are not drawn, run or exported; a hidden player leaves no trace. The performance line under a board (`app.boardPerfText`, View → Performance under boards, or a board's own switch) is measured only while shown.
+50. **Stock samples:** Assets › Samples and Test clips (`assetStore.seedClips`): the countdown clips (frame numbers, to see real update rates), the Muybridge horse (tracked), and the rest kept out of the repository in `examples/media/local/` with `samples.json` (sources and licences; two are CC BY-SA). Videos are H.264 MP4.
+51. **Cmd/Ctrl+click** anywhere in a board selects it and opens Properties; page boards let clicks through while the key is held (`.wb-frames.mod`).
 
 ## How the model fits
 
