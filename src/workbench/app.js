@@ -869,8 +869,11 @@ export class Workbench {
   }
 
   async openAsset(a) {
-    // A video (or an animated image) opens as a source: code reads it by name.
-    if (a.kind === 'video' || a.blob?.type?.startsWith('video/')) { const name = await this.sources.add({ kind: 'asset', assetId: a.id }); this.docks.open('sources'); this.log(`Source “${name}”: source('${name}') in code.`); return; }
+    // A picture, GIF or video opens as a source (code reads it by name) with a board previewing it:
+    // the one you have for it already, or a new one at the middle of the view. (It is not put under
+    // the main board: the asset card's reference button does that.)
+    const isDrawing = a.program?.type === 'ams-process' || a.program?.actions;
+    if (!isDrawing && (a.kind === 'video' || /^(video|image)\//.test(a.blob?.type || ''))) { await this.previewAsset(a); return; }
     if (a.kind === 'audio' || a.kind === 'text') { this.docks.open('timeline'); this.log(`Drag “${a.title}” onto the Timeline (or the canvas, for text).`); return; }
     if (a.kind === 'take' && a.program?.clips) { await this.openTake(a.id); return; }
     if (a.kind === 'walkthrough' && a.program?.steps) { await this.walkthroughs.loadUser(); this.walkthroughs.start(a.program.id); return; }
@@ -889,6 +892,16 @@ export class Workbench {
       return;
     }
     await this.setReferenceFromBlob(a.blob, a.title);
+  }
+
+  /** An asset as a source, and a board previewing it (see placeSource). */
+  async previewAsset(a) {
+    const name = this.sources.list.find(d => d.kind === 'asset' && d.assetId === a.id)?.name || await this.sources.add({ kind: 'asset', assetId: a.id });
+    const have = boardsOf(this.store.doc).find(b => b.source === name && b.title === name && !b.code);
+    if (have) { this.goToBoard(have.id, { animate: true }); return have; }
+    const c = this.canvas, b = await this.placeSource(name, c.toWorld(c.w / 2, c.h / 2));
+    this.log(`Source “${name}”: source('${name}') in code; a board previews it.`);
+    return b;
   }
 
   async setReferenceFromBlob(blob, title = 'reference') {

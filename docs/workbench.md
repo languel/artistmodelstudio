@@ -320,7 +320,8 @@ Sources are the project's streams: the camera, and images and videos from Assets
 
 Sources are time-based assets: the panel only lists them, with their own properties (sampling). What uses a source lives elsewhere, and any number of things can use the same one:
 
-- **Preview:** drag a source onto the canvas. You get a board in its shape, with the source shown underneath, whole and live.
+- **Preview:** double-click a picture, GIF or video in Assets, or drag a source onto the canvas. An asset becomes a source, and you get a board in its shape with the source shown underneath, whole and live (double-clicking the asset again goes to that board). The card's reference button still puts a picture under the main board as a faint reference.
+- **Drop:** drag a source onto the canvas. You get a board in its shape, with the source shown underneath, whole and live.
 - **Underneath:** a board's menu → *Source underneath* shows any source under any board (a reference, not part of its picture).
 - **Draw from it:** a board's menu → *Draw from a source* puts a demo's code on the board (redraw as shapes, dots, strokes along forms, pose lines, fingertips), which the board follows. It is ordinary code: change it, or write your own.
 - **Gestures** watch a source (see Gestures).

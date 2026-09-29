@@ -164,7 +164,7 @@ export class AssetPanel {
           <span class="asset-title" title="${esc(a.title)}">${esc(a.title)}</span>
           <span class="asset-kind" title="${esc(KIND_TIPS[a.kind] || a.kind)}">${icon(KIND_ICONS[a.kind] || 'photo', 'icon-sm')}</span>
         </div>
-        <div class="variant-thumb-wrap" title="Click to preview · double-click to open">
+        <div class="variant-thumb-wrap" title="Click to preview · double-click: pictures and clips become a source with a board previewing it">
           <img class="variant-thumb" src="${a.thumb}" alt="${esc(a.title)}" draggable="false" />
         </div>
         <div class="asset-tags" title="Double-click to edit tags (comma separated)">${a.tags?.length ? a.tags.map(t => `<span class="asset-tag">#${esc(t)}</span>`).join('') : '<span class="asset-tag muted">#</span>'}${this.query && a.folder !== this.folder ? `<span class="asset-folder">${esc(a.folder || '/')}</span>` : ''}</div>
