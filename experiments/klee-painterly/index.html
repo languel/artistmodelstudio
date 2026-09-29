@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><title>experiment</title><body style="background:#222;color:#ddd;font:12px sans-serif">
+<pre id="s">loading…</pre>
+<script type="module">
+import { E, IMAGES } from './harness.js';
+for (const n of Object.keys(IMAGES)) await E.load(n, IMAGES[n]);
+document.getElementById('s').textContent = 'ready';
+setInterval(() => { document.getElementById('s').textContent = JSON.stringify(E.jobs); }, 1000);
+</script>

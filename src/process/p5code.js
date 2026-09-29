@@ -8,13 +8,25 @@
  *
  * Pose, hands and a person mask come from ml5.js (bodyPose BlazePose: the same 33 points as the
  * studio; handPose: 21; bodySegmentation SelfieSegmentation), loaded only when the code asks.
- * Custom brushes (brush({ … draw(ctx, e, p, k) })) run as they are, on p5's drawingContext, with a
- * small kit (frames, smoothPath, tracePath, beginInk, segment, rng, noise, source).
+ * Brushes (brush({ … draw(ctx, e, p, k) }), and the studio's own textured ones by name: charcoal,
+ * chalk, pencil, bristles, oil, marker, wash) run as they are, on p5's drawingContext, with the studio's
+ * kit: its walk (frames, smoothPath), tracePath, beginInk, segment, rng, noise, source, and, for the
+ * textured ones, its layer kit (paint, dabs, hairs, wash: texture.js, embedded). Marks may carry a time
+ * envelope (time: { in, hold, out, life, draw }, born): they fade and draw on by their age (envelope.js).
  *
  * fit() comes as a compact greedy fitter (rectangles and circles; live: true keeps its shapes between
  * frames through state()), and state(name) as an object kept across draw() calls.
  * Not carried over (a comment says so): several boards, decide, sculpt, guide, gesture.
  */
+
+import { BRUSHES, brushSource } from './brushes.js';
+import walkSrc from './walk.js?raw';
+import textureSrc from './texture.js?raw';
+import envelopeSrc from './envelope.js?raw';
+
+// A module of the studio, as a value in the sketch: its source without import and export, in a function of its own.
+const strip = src => src.replace(/^import[^;]*;\s*$/gm, '').replace(/^export\s+\{[^}]*\};?\s*$/gm, '').replace(/^export\s+(default\s+)?/gm, '');
+const moduleAs = (src, take) => `(() => {\n${strip(src).trim().split('\n').map(l => `  ${l}`.trimEnd()).join('\n')}\n  return { ${take.join(', ')} };\n})()`;
 
 const RENAMES = [['point', 'drawPoint'], ['line', 'drawLine'], ['plane', 'drawPlane'], ['rect', 'rectPoints'], ['circle', 'circlePoints']];
 
@@ -34,7 +46,11 @@ export function toP5Code(source, { board, sources = {}, loop = false, seed = 1, 
   if (/\.face\b|\.track\(\s*['"]face/.test(code)) missing.push('source.face');   // (the face model is studio-only; ml5's faceMesh has no expression scores)
   // What the code asks the sources for (ml5.js models, one per kind).
   const kinds = [/\.pose\b/.test(code) && 'pose', /\.hands\b/.test(code) && 'hands', /\.mask\s*\(/.test(code) && 'mask'].filter(Boolean);
-  const brushes = uses('brush');
+  // Brushes: the code's own, and the studio's textured ones it asks for by name (their source goes in the sketch).
+  const builtIn = Object.keys(BRUSHES).filter(id => BRUSHES[id].texture && new RegExp(`['"\`]${id}['"\`]`).test(code));
+  const brushes = uses('brush') || builtIn.length > 0;
+  const texture = builtIn.length > 0 || /\bk\.(paint|dabs|hairs|wash|bounds|hash|layer|grain)\b/.test(code);
+  const timed = /\b(time|born)\s*:/.test(code);
   const names = Object.keys(sources).filter(n => new RegExp(`(source|fit)\\(\\s*['"\`]${n}['"\`]`).test(code));
   const moving = names.some(n => sources[n].kind !== 'image');
 
@@ -51,23 +67,23 @@ export function toP5Code(source, { board, sources = {}, loop = false, seed = 1, 
   const INK = "'#1d1b19'";
   const viaBrush = role => (brushes ? `\n  if (o.brush && brushes[o.brush]) return useBrush(${role === 'point' ? '[[x, y]]' : 'pts'}, o, '${role}');` : '');
   if (need.has('drawPoint')) defs.push(`// A point: a dot of a size (in pixels) and a color.
-function drawPoint(x, y, o = {}) {${viaBrush('point')}
+function drawPoint(x, y, o = {}) {${viaBrush('point')}${timed ? '\n  const a = fade(o);\n  if (a <= 0.003) return;\n  push();\n  drawingContext.globalAlpha *= a;' : ''}
   noStroke();
   fill(o.color || ${INK});
-  circle(x${S}, y${SY}, o.size ?? 12);
+  circle(x${S}, y${SY}, o.size ?? 12);${timed ? '\n  pop();' : ''}
 }`);
   if (need.has('drawLine')) defs.push(`// A line through a list of points: smooth unless its path is 'straight'.
-function drawLine(pts, o = {}) {${viaBrush('line')}
+function drawLine(pts, o = {}) {${viaBrush('line')}${timed ? '\n  const a = fade(o);\n  if (a <= 0.003) return;\n  pts = drawn(o, pts);\n  push();\n  drawingContext.globalAlpha *= a;' : ''}
   noFill();
   stroke(o.color || ${INK});
   strokeWeight(o.width ?? 3);
-  shape(pts, o.path !== 'straight', o.closed);
+  shape(pts, o.path !== 'straight', o.closed);${timed ? '\n  pop();' : ''}
 }`);
   if (need.has('drawPlane')) defs.push(`// A plane: a filled, closed shape.
-function drawPlane(pts, o = {}) {${viaBrush('plane')}
+function drawPlane(pts, o = {}) {${viaBrush('plane')}${timed ? '\n  const a = fade(o);\n  if (a <= 0.003) return;\n  push();\n  drawingContext.globalAlpha *= a;' : ''}
   noStroke();
   fill(o.color || ${INK});
-  shape(pts, o.path !== 'straight', true);
+  shape(pts, o.path !== 'straight', true);${timed ? '\n  pop();' : ''}
 }`);
   if (need.has('shape')) defs.push(v1 ? `function shape(pts, smooth, closed) {
   beginShape();
@@ -178,18 +194,27 @@ function note(x, y, words, o = {}) {
   textAlign(LEFT, TOP);
   text(words, x${S}, y${SY}, n.width ?? 280);
 }`);
-  if (need.has('source')) defs.push(`// A source, sampled where you ask: the picture covers the canvas (cropped), or with { fit: 'contain' } all of it shows.
+  const stills = names.filter(n => sources[n].kind === 'image');
+  if (need.has('source')) defs.push(`${stills.length ? 'const pixelsOf = {};   // the pictures\' pixels, once\n\n' : ''}// A source, sampled where you ask: the picture covers the canvas (cropped), or with { fit: 'contain' } all of it shows.
 // x, y are ${absolute ? 'pixels' : 'fractions of the canvas'}.
 function source(name, o = {}) {
   const img = sources[name];
-  img.loadPixels();
+  ${stills.length ? `// A picture is read once (a browser can take a canvas's contents away: a read that comes back empty is not kept).
+  let px;
+  if (${JSON.stringify(stills)}.includes(name) && pixelsOf[name]) px = pixelsOf[name];
+  else {
+    img.loadPixels();
+    px = img.pixels;
+    if (${JSON.stringify(stills)}.includes(name)) { for (let i = 0; i < px.length; i += 61) if (px[i]) { pixelsOf[name] = px = Uint8ClampedArray.from(px); break; } }
+  }` : `img.loadPixels();
+  const px = img.pixels;`}
   const iw = img.width, ih = img.height;
   const k = (o.fit === 'contain' ? min : max)(width / iw, height / ih), ox = (width - iw * k) / 2, oy = (height - ih * k) / 2;
   const rgb = (x, y) => {
     const u = floor((x${S} - ox) / k), v = floor((y${SY} - oy) / k);
     if (u < 0 || v < 0 || u >= iw || v >= ih) return [0, 0, 0];   // outside the picture (fit: 'contain')
     const i = 4 * (v * iw + u);
-    return [img.pixels[i], img.pixels[i + 1], img.pixels[i + 2]];
+    return [px[i], px[i + 1], px[i + 2]];
   };
   return {
     rgb,
@@ -227,53 +252,79 @@ function ask(model, name, kind) {
     asking[name + kind] = false;${loop ? '' : '\n    redraw();'}
   });
 }`);
+  if (timed) defs.push(`// A mark's time envelope (the studio's envelope.js): time: { in, hold, out, life, draw, curve }, born in milliseconds.
+const { envelope: lifeAlpha, reveal: lifeReveal, expired: lifeExpired, cutPath: lifeCut } = ${moduleAs(envelopeSrc, ['envelope', 'reveal', 'expired', 'cutPath'])};
+
+function ageOf(o) {
+  return (Date.now() - (o.born ?? Date.now())) / 1000;
+}
+
+// How visible a mark is now (0 when its life is over).
+function fade(o) {
+  if (!o.time) return 1;
+  const age = ageOf(o);
+  return lifeExpired(o.time, age) ? 0 : lifeAlpha(o.time, age);
+}
+
+// The part of a line drawn so far (a line that draws itself on), cut by its length as the canvas shows it.
+function drawn(o, pts) {
+  if (!o.time) return pts;
+  const share = lifeReveal(o.time, ageOf(o));
+  if (share >= 1) return pts;
+  const ry = ${absolute ? '1' : 'height / width'};
+  return lifeCut(pts.map(q => [q[0], q[1] * ry, ...q.slice(2)]), share).map(q => [q[0], q[1] / ry, ...q.slice(2)]);
+}`);
   if (brushes) defs.push(`// Brushes from the studio: each draws one mark with the canvas's 2D context (p5's drawingContext).
 const brushes = {};
 function brush(def) {
   brushes[def.id] = def;
 }
 
+// The studio's walk: a path resampled (Catmull-Rom), and at each step its place, normal, speed and pressure.
+const { smoothPath: walkSmooth, walkFrames } = ${moduleAs(walkSrc, ['smoothPath', 'walkFrames'])};
+${texture ? `
+// The studio's layer kit: a mark painted into a layer, the paper's grain multiplied in, tinted and put on the picture.
+const { txPaint, txDabs, txHairs, txWash, txBounds, txHash, txLayer, txGrain } = ${moduleAs(textureSrc, ['txPaint', 'txDabs', 'txHairs', 'txWash', 'txBounds', 'txHash', 'txLayer', 'txGrain'])};
+` : ''}
+// A seeded random for a mark (the same mark, the same marks).
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 // A mark for a brush: points [x, y, time, pressure] in pixels, its color and whether it is closed.
 function useBrush(pts, o, role) {
   const def = brushes[o.brush], p = {};
   for (const [key, v] of Object.entries(def.params || {})) p[key] = o[key] ?? (Array.isArray(v) ? v[2] : v.default);
-  const pressure = i => (typeof o.pressures === 'function' ? o.pressures(i / max(1, pts.length - 1), i) : 0.5);
-  const e = { role, color: o.color || kit.INK, closed: role === 'plane' || Boolean(o.closed),
-    points: pts.map(([x, y], i) => [x${S}, y${SY}, i * 16, pressure(i)]) };
-  push();
-  def.draw(drawingContext, e, p, kit);
+  const pressure = i => (typeof o.pressures === 'function' ? o.pressures(i / max(1, pts.length - 1), i) : 0.5);${timed ? '\n  const a = fade(o);\n  if (a <= 0.003) return;' : ''}
+  let seed = o.seed;
+  if (seed == null) { seed = 7; for (const q of pts) seed = (seed * 31 + round(q[0] * 1000) + round(q[1] * 1000) * 7) | 0; seed >>>= 0; }
+  const shown = ${timed ? 'drawn(o, ' : '('}pts.map(([x, y], i) => [x, y, i * 16, pressure(i)]));
+  const e = { role, color: o.color || kit.INK, closed: role === 'plane' || Boolean(o.closed), seed,
+    points: shown.map(([x, y, t, q]) => [x${S}, y${SY}, t, q]) };
+  const k = Object.create(kit);
+  k.rng = seeded(seed);
+  k.scale = 1;
+  k.age = ${timed ? 'ageOf(o)' : '0'};
+  push();${timed ? '\n  drawingContext.globalAlpha *= a;' : ''}
+  def.draw(drawingContext, e, p, k);
   pop();
 }
 
-// The studio's brush kit, in brief.
+// The studio's brush kit.
 const kit = {
   INK: ${INK},
   rng: () => random(),
   noise: (x, y = 0) => noise(x, y) * 2 - 1,
-  // A smooth path through the points (Catmull-Rom), n samples per span.
-  smoothPath(points, closed = false, n = 8) {
-    if (points.length < 3) return points.map(q => q.slice());
-    const out = [], m = points.length;
-    const at = i => (closed ? points[(i + m) % m] : points[constrain(i, 0, m - 1)]);
-    for (let i = 0; i < (closed ? m : m - 1); i++) {
-      const [a, b, c, d] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
-      for (let s = 0; s < n; s++) {
-        const t = s / n, cr = j => 0.5 * (2 * b[j] + (c[j] - a[j]) * t + (2 * a[j] - 5 * b[j] + 4 * c[j] - d[j]) * t * t + (3 * b[j] - a[j] - 3 * c[j] + d[j]) * t * t * t);
-        out.push([cr(0), cr(1), lerp(b[2], c[2], t), lerp(b[3], c[3], t)]);
-      }
-    }
-    if (!closed) out.push(points[m - 1].slice());
-    return out;
-  },
+  smoothPath: walkSmooth,
   // Along the mark: each step's place, its normal (nx, ny), speed and pressure.
-  frames(e, n = 4) {
-    const pts = kit.smoothPath(e.points, e.closed, n);
-    return pts.map((q, i) => {
-      const a = pts[max(0, i - 1)], b = pts[min(pts.length - 1, i + 1)];
-      const d = dist(a[0], a[1], b[0], b[1]) || 1;
-      return { x: q[0], y: q[1], nx: -(b[1] - a[1]) / d, ny: (b[0] - a[0]) / d, speed: i ? dist(q[0], q[1], a[0], a[1]) : 0, pressure: q[3] ?? 0.5 };
-    });
-  },
+  frames: walkFrames,
   tracePath(ctx, pts, closed) {
     ctx.beginPath();
     pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
@@ -288,9 +339,27 @@ const kit = {
     ctx.strokeStyle = ctx.fillStyle = e.color || kit.INK;
     ctx.lineWidth = p.width ?? 3;
     ctx.lineCap = ctx.lineJoin = 'round';
-  }${need.has('source') ? `,
+  },
+  // Another brush, or a dot.
+  draw(id, ctx, e, p = {}) {
+    const d = brushes[id];
+    if (d) return d.draw(ctx, e, p, kit);
+    ctx.save();
+    ctx.globalAlpha *= p.opacity ?? 1;
+    ctx.fillStyle = e.color || kit.INK;
+    ctx.beginPath();
+    ctx.arc(e.points[0][0], e.points[0][1], (p.size ?? 8) / 2, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }${texture ? `,
+  // Textured painting: paint a mark through a layer (cached), stamp a tip along a walk, hairs, a wash.
+  paint(ctx, spec) { return txPaint(ctx, { scale: this.scale ?? 1, ...spec }); },
+  dabs: txDabs, hairs: txHairs, wash: txWash, bounds: txBounds, hash: txHash, layer: txLayer, grain: txGrain` : ''}${need.has('source') ? `,
   source: name => source(name)` : ''}
-};`);
+};${builtIn.length ? `
+
+// The studio's own brushes this code asks for, as they are.
+${builtIn.map(id => brushSource(id)).join('\n')}` : ''}`);
 
   const files = names.map(n => sources[n]);
   const q = JSON.stringify;

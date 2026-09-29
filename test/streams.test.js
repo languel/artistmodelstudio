@@ -171,9 +171,47 @@ line([[0.1, 0.5], [0.5, 0.4], [0.9, 0.5]], { brush: 'teeth' })`, { board: { widt
     expect(out).not.toContain('Not in this sketch');
     expect(out).toContain('function brush(def)');
     expect(out).toContain("if (o.brush && brushes[o.brush]) return useBrush(pts, o, 'line')");
-    expect(out).toContain('def.draw(drawingContext, e, p, kit)');
-    expect(out).toContain('frames(e, n = 4)');
+    expect(out).toContain('def.draw(drawingContext, e, p, k)');
+    expect(out).toContain('frames: walkFrames');
     expect(() => new Function(out)).not.toThrow();
+  });
+});
+
+describe('p5 export: textured brushes and time envelopes', () => {
+  const code = `const s = source('pic')
+line([[0.1, 0.5], [0.5, 0.4], [0.9, 0.5]], { brush: 'oil', width: 30, color: s.color(0.5, 0.5), seed: 5, born: Date.now(), time: { in: 0.2, out: 1, life: 3, draw: 0.5 } })
+plane(circle(0.5, 0.5, 0.2), { brush: 'wash', color: '#3b6ea8' })
+point(0.2, 0.2, { size: 20, time: 2 })`;
+  const out = toP5Code(code, { board: { width: 400, height: 300 }, sources: { pic: { file: 'pic.jpg', kind: 'image' } } });
+  it('carries the brushes it names, with the layer kit, the walk and the envelope', () => {
+    expect(out).not.toContain('Not in this sketch');
+    expect(out).toContain('id: "oil"');
+    expect(out).toContain('id: "wash"');
+    expect(out).not.toContain('id: "charcoal"');   // only what the code asks for
+    expect(out).toContain('function txPaint');
+    expect(out).toContain('function smoothPath');
+    expect(out).toContain('function cutPath');
+    expect(out).toContain('paint(ctx, spec)');
+    expect(() => new Function(out)).not.toThrow();
+  });
+  it('fades marks by their age, and draws lines on', () => {
+    expect(out).toContain('const a = fade(o);');
+    expect(out).toContain('function drawn(o, pts)');
+    expect(out).toContain('shown = drawn(o, ');
+  });
+  it('goes back to studio code unchanged, whatever it carries', () => {
+    expect(p5ToStudio(out).code).toBe(code + '\n');
+  });
+  it('reads a still picture once, and does not keep an empty read', () => {
+    expect(out).toContain('const pixelsOf = {}');
+    expect(out).toContain('pixelsOf[name] = px = Uint8ClampedArray.from(px)');
+    const moving = toP5Code(`const s = source('walk')\npoint(0.5, 0.5, { color: s.color(0.5, 0.5) })`, { sources: { walk: { kind: 'animated', file: 'walk.gif' } }, loop: true });
+    expect(moving).not.toContain('pixelsOf');   // (a moving source is read as it changes)
+  });
+  it('a sketch with no textured brush and no time carries none of it', () => {
+    const plain = toP5Code(`line([[0.1, 0.5], [0.9, 0.5]], { width: 4 })`, { board: { width: 400, height: 300 } });
+    expect(plain).not.toContain('txPaint');
+    expect(plain).not.toContain('function fade');
   });
 });
 

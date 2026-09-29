@@ -10,6 +10,7 @@
  * env: { rng, scale (screen px per artboard unit), overlay (drawing construction), board (the mark's board rect) }
  */
 import { getSource } from './streams.js';
+import { smoothPath, walkFrames } from './walk.js';
 import { txPaint, txDabs, txHairs, txWash, txBounds, txHash, txLayer, txGrain } from './texture.js';
 
 export function mulberry32(seed) {
@@ -25,28 +26,6 @@ export function mulberry32(seed) {
 
 const INK = '#1d1b19';
 const param = (key, label, min, max, step, def, doc) => ({ key, label, min, max, step, default: def, doc });
-
-/** Catmull-Rom resampling so hand-drawn and scripted paths render smoothly. */
-function smoothPath(points, closed, samplesPerSeg) {
-  if (points.length < 3) return points.map(p => p.slice());
-  const out = [];
-  const n = points.length;
-  const get = i => (closed ? points[(i + n) % n] : points[Math.max(0, Math.min(n - 1, i))]);
-  const segs = closed ? n : n - 1;
-  for (let i = 0; i < segs; i++) {
-    const p0 = get(i - 1), p1 = get(i), p2 = get(i + 1), p3 = get(i + 2);
-    // Samples follow the span's length (about one per 3 units, 6 to 96), so few, far-apart points
-    // (a simplified line) still curve smoothly; a caller can ask for a fixed number.
-    const k = samplesPerSeg || Math.max(6, Math.min(96, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 3)));
-    for (let s = 0; s < k; s++) {
-      const t = s / k, t2 = t * t, t3 = t2 * t;
-      const f = (a, b, c, d) => 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
-      out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1]), p1[2] + (p2[2] - p1[2]) * t, p1[3] + (p2[3] - p1[3]) * t]);
-    }
-  }
-  if (!closed) out.push(points[n - 1].slice());
-  return out;
-}
 
 function tracePath(ctx, pts, closed) {
   ctx.beginPath();
@@ -69,27 +48,6 @@ function rotatePts(pts, a, cx, cy) {
   return pts.map(([x, y]) => [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c]);
 }
 
-
-/**
- * The walk of a line (after William Ngan's "Taking a line for a walk"): resampled points with
- * the unit normal and the hand's speed at each, from the recorded time (units per 16 ms frame),
- * smoothed so a line's character follows its motion rather than its jitter.
- */
-function walkFrames(e, samples = 4, smoothing = 0.5) {
-  const pts = smoothPath(e.points, e.closed, samples);
-  let v = 0;
-  return pts.map((q, i) => {
-    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
-    let dx = b[0] - a[0], dy = b[1] - a[1];
-    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
-    const prev = pts[Math.max(0, i - 1)];
-    const step = Math.hypot(q[0] - prev[0], q[1] - prev[1]);
-    const dt = (q[2] ?? 0) - (prev[2] ?? 0);
-    const raw = i === 0 ? 0 : dt > 0.5 ? (step / dt) * 16 : step;
-    v = i === 0 ? raw : v * smoothing + raw * (1 - smoothing);
-    return { x: q[0], y: q[1], nx: -dy, ny: dx, speed: v, pressure: q[3] ?? 0.5 };
-  });
-}
 
 function strokeSegment(ctx, x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
 
@@ -426,7 +384,7 @@ export const BRUSHES = {
 
   // ---- textured brushes: grain, hairs, washes (see texture.js) --------------------------------------------
   charcoal: {
-    label: 'Charcoal', roles: ['line', 'gesture'], doc: 'Soft, smudgy dabs that catch on the paper\'s tooth: the more pressure, the wider and blacker; strong grain breaks the edge.',
+    texture: true, label: 'Charcoal', roles: ['line', 'gesture'], doc: 'Soft, smudgy dabs that catch on the paper\'s tooth: the more pressure, the wider and blacker; strong grain breaks the edge.',
     params: [
       param('width', 'Width', 2, 80, 0.5, 14, 'Stick width in artboard units.'),
       param('pressure', 'Pressure', 0, 1, 0.05, 0.6, 'How much pressure widens the mark and strengthens it (0 = even).'),
@@ -448,7 +406,7 @@ export const BRUSHES = {
     }
   },
   chalk: {
-    label: 'Chalk', roles: ['line', 'gesture'], doc: 'A flat stick of pastel dragged across canvas: broad, dry, broken by the weave.',
+    texture: true, label: 'Chalk', roles: ['line', 'gesture'], doc: 'A flat stick of pastel dragged across canvas: broad, dry, broken by the weave.',
     params: [
       param('width', 'Width', 2, 80, 0.5, 18, 'Stick width in artboard units.'),
       param('aspect', 'Thickness', 0.1, 1, 0.05, 0.35, 'Thickness of the stick relative to its width.'),
@@ -468,7 +426,7 @@ export const BRUSHES = {
     }
   },
   pencil: {
-    label: 'Pencil', roles: ['line', 'gesture'], doc: 'A hard graphite point: thin, and it builds up where you go over it; light pressure leaves only the paper\'s peaks.',
+    texture: true, label: 'Pencil', roles: ['line', 'gesture'], doc: 'A hard graphite point: thin, and it builds up where you go over it; light pressure leaves only the paper\'s peaks.',
     params: [
       param('width', 'Width', 0.5, 12, 0.25, 2.5, 'Point width in artboard units.'),
       param('pressure', 'Pressure', 0, 1, 0.05, 0.7, 'How much pressure darkens the line.'),
@@ -488,7 +446,7 @@ export const BRUSHES = {
     }
   },
   bristles: {
-    label: 'Bristles', roles: ['line', 'gesture'], doc: 'A dry brush: many hairs side by side, each lifting off where the paint runs out (sooner when the hand is fast).',
+    texture: true, label: 'Bristles', roles: ['line', 'gesture'], doc: 'A dry brush: many hairs side by side, each lifting off where the paint runs out (sooner when the hand is fast).',
     params: [
       param('width', 'Width', 4, 120, 0.5, 34, 'Brush width in artboard units.'),
       param('hairs', 'Hairs', 3, 80, 1, 28, 'How many bristles.'),
@@ -513,7 +471,7 @@ export const BRUSHES = {
     }
   },
   oil: {
-    label: 'Oil', roles: ['line', 'gesture'], doc: 'A loaded flat brush: many hairs packed side by side into one body of paint with streaks in it, a tapered stroke and ragged ends; the painterly stroke.',
+    texture: true, label: 'Oil', roles: ['line', 'gesture'], doc: 'A loaded flat brush: many hairs packed side by side into one body of paint with streaks in it, a tapered stroke and ragged ends; the painterly stroke.',
     params: [
       param('width', 'Width', 4, 160, 0.5, 40, 'Brush width in artboard units.'),
       param('hair', 'Hair', 0.5, 6, 0.1, 1.6, 'Thickness of a bristle: coarse hairs leave visible streaks.'),
@@ -541,7 +499,7 @@ export const BRUSHES = {
     }
   },
   marker: {
-    label: 'Marker', roles: ['line', 'gesture'], doc: 'A broad felt tip: even and slightly see-through, so crossing strokes show through each other, and a stroke does not darken where it overlaps itself.',
+    texture: true, label: 'Marker', roles: ['line', 'gesture'], doc: 'A broad felt tip: even and slightly see-through, so crossing strokes show through each other, and a stroke does not darken where it overlaps itself.',
     params: [
       param('width', 'Width', 2, 80, 0.5, 16, 'Tip width in artboard units.'),
       param('aspect', 'Chisel', 0.1, 1, 0.05, 0.4, 'How flat the tip is (1 = round-ish).'),
@@ -560,7 +518,7 @@ export const BRUSHES = {
     }
   },
   wash: {
-    label: 'Wash', roles: ['plane'], doc: 'Watercolor: a thin, transparent fill whose pigment gathers at the edge and settles into the paper\'s grain.',
+    texture: true, label: 'Wash', roles: ['plane'], doc: 'Watercolor: a thin, transparent fill whose pigment gathers at the edge and settles into the paper\'s grain.',
     params: [
       param('body', 'Body', 0.05, 1, 0.05, 0.55, 'How strong the wash is inside.'),
       param('edge', 'Edge', 0, 1, 0.05, 0.6, 'How much darker the rim is.'),

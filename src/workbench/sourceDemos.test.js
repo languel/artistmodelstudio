@@ -14,7 +14,8 @@ const sampler = name => ({
   rgb: (x, y) => picture(x, y),
   color: (x, y) => '#' + picture(x, y).map(v => v.toString(16).padStart(2, '0')).join(''),
   value: (x, y) => { const [r, g, b] = picture(x, y); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; },
-  pose: [], hands: [], face: [], mask: () => 0, point: () => null, track: () => []
+  pose: [], hands: [], face: [], mask: () => 0, point: () => null, track: () => [],
+  pixels: (w, h) => { const o = new Float32Array(w * h * 3); for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) o.set(picture((i + 0.5) / w, (j + 0.5) / h), (j * w + i) * 3); return o; }
 });
 
 describe('demo: painterly, fading strokes', () => {
