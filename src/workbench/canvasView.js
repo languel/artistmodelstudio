@@ -717,7 +717,7 @@ export class CanvasView {
       const tool = this.getTool();
       // A board's play / pause button works with any tool.
       const run = this.runButtonAt(sx, sy);
-      if (run) { this.pointer = false; this.onToggleRun?.(run); return; }
+      if (run) { this.pointer = false; this.onToggleRun?.(run, e); return; }
       // Boards: their titles (and the selected board's corner) work with Select and the Board tool.
       if (tool === 'direct') return this.startDirect(e, sx, sy, wx, wy);
       if (tool === 'select' || tool === 'board') {

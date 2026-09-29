@@ -404,6 +404,8 @@ Show or hide the controls from Properties → Board (the controls glyph, beside 
 
 Cmd (or Ctrl) + click anywhere in a board, not only on its title, selects it and opens its Properties. That includes boards drawn as pages over the canvas (documents, HTML, p5 sketches, players): while Cmd is held they let clicks through. Over a mark, Cmd + click selects the mark (adding to the selection) and opens its Properties.
 
+**Solo:** Opt+click a board's play / pause button (in the Boards panel or above the board) to run only that board and pause all the others; Opt+click it again to play them all. **Create board from selection:** the context menu of selected marks makes a board around them (with a margin), and the marks move into it.
+
 ### Board switches
 
 Properties → Board has four switches as glyphs beside its title (and the board's menu → Board):

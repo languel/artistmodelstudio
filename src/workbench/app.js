@@ -743,7 +743,7 @@ export class Workbench {
       return res;
     };
     try { if (localStorage.getItem('ams_board_perf') === '1') this.toggleBoardPerf(true); else this.perfTick(); } catch { /* ignore */ }
-    this.canvas.onToggleRun = id => this.toggleBoardRun(id);
+    this.canvas.onToggleRun = (id, e) => (e?.altKey ? this.soloBoard(id) : this.toggleBoardRun(id));
     // Document and program boards (markdown, html, p5) over the canvas.
     this.frames = new BoardFrames(this);
     // The score runner, for code outside the app (lesson builders): the app's own, with its sources.
@@ -1004,6 +1004,41 @@ export class Workbench {
       if (live) { t.paused = true; delete t.live; }
       else { delete t.paused; if ((id || MAIN) !== (this.activeBoard || MAIN)) t.live = true; }
     });
+  }
+
+  /**
+   * Solo a board: it plays and every other board is paused (baked). Solo it again, when it already is
+   * the only one running, and they all play again. One undo step.
+   */
+  soloBoard(id) {
+    const boards = boardsOf(this.store.doc).filter(b => b.kind !== 'frame');
+    const others = boards.filter(b => b.id !== id);
+    const alone = this.isBoardLive(id) && others.every(b => b.paused);
+    this.store.change(alone ? 'boards play' : 'solo board', d => {
+      const all = [{ t: d.artboard, id: MAIN }, ...d.boards.map(t => ({ t, id: t.id }))];
+      for (const { t, id: bid } of all) {
+        if (t.kind === 'frame') continue;
+        if (alone) { delete t.paused; continue; }
+        if (bid === id) { delete t.paused; if (bid !== (this.activeBoard || MAIN)) t.live = true; }
+        else { t.paused = true; delete t.live; }
+      }
+    });
+    this.log(alone ? 'All boards play.' : `Solo: only “${boardById(this.store.doc, id)?.title}” runs.`);
+  }
+
+  /** A board around the selected marks (with a margin), which they move into. One undo step for the board, one for the move. */
+  boardFromSelection(ids) {
+    const b = this.canvas.selectionBounds();
+    if (!b || !ids.length) return null;
+    const pad = 40, x = Math.floor(b.x0 - pad), y = Math.floor(b.y0 - pad);
+    const width = Math.max(40, Math.ceil(b.x1 + pad - x)), height = Math.max(40, Math.ceil(b.y1 + pad - y));
+    const first = this.store.doc.elements.find(e => ids.includes(e.id)), from = boardById(this.store.doc, first?.board || MAIN);
+    const board = this.store.addBoard({ title: `Board ${boardsOf(this.store.doc).length}`, x, y, width, height, ground: from?.ground, adopt: false });
+    this.store.change('marks to board', d => { for (const e of d.elements) if (ids.includes(e.id)) e.board = board.id; });
+    this.canvas.select([]);
+    this.canvas.selectBoard(board.id);
+    this.log(`Board “${board.title}” from ${ids.length} mark${ids.length === 1 ? '' : 's'}.`);
+    return board;
   }
 
   /** Live and on screen: a board whose processes run now. */
@@ -1492,6 +1527,7 @@ export class Workbench {
       ] } : null,
       '-',
       { label: 'Duplicate', run: () => { const out = this.store.duplicate(ids, 20 / z, 20 / z); this.canvas.select(out); } },
+      { label: 'Create board from selection', hint: 'A board around the selected marks, which move into it', run: () => this.boardFromSelection(ids) },
       { label: 'Snap', hint: 'To the grid (its finest lines); one undo step', items: (() => {
         const q = this.canvas.grid.spacing / Math.max(1, this.canvas.grid.subdivisions);
         const snap = (mode, k = 1) => { const n = this.store.snapMarks(ids, mode, q * k); this.log(`Snapped ${n} mark${n === 1 ? '' : 's'} (${mode}${k > 1 ? `, ${k}× grid` : ''}).`); };
