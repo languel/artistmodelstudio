@@ -4,7 +4,7 @@
  * command (see mcp.js), so agents drive the same surface.
  */
 import { openToolParams, openGridParams, openToolDefaults } from './toolParams.js';
-import { boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard, rateOf } from '../process/boards.js';
+import { boardAt, boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard, rateOf } from '../process/boards.js';
 import { linksOf } from '../process/markdown.js';
 import { sceneHtml, docFromPage, pageBoards, sourcesOf } from '../process/page.js';
 import { Scenes } from './scenes.js';
@@ -66,6 +66,8 @@ import { readRecently } from '../process/streams.js';
 import { mountSources } from './panels/sources.js';
 import { mountGestures } from './panels/gestures.js';
 import { Gestures } from './gestures.js';
+import { Playlists } from './playlists.js';
+import { writePlaylist } from '../process/playlist.js';
 import { SOURCE_DEMOS } from './sourceDemos.js';
 
 // Stock samples kept out of the repository (examples/media/local/, with samples.json: sources and licences).
@@ -124,6 +126,7 @@ export class Workbench {
     window.addEventListener('pagehide', () => { if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = 0; this.saveDoc(); } if (this.persistTimer) { clearTimeout(this.persistTimer); this.persistTimer = 0; this.scenes?.persist().catch(() => {}); } });
     this.sources = new Sources(this);
     this.gestures = new Gestures(this);
+    this.playlists = new Playlists(this);
     this.artists = new ArtistRegistry();
     this.store.subscribe((doc, reason) => {
       // At most one save per interval (3 s while boards run live: a large scene is a large save), not a
@@ -540,6 +543,7 @@ export class Workbench {
         { label: b.locked ? 'Unlock' : 'Lock', hint: 'Locked: its marks cannot be selected or changed, and it cannot be moved or resized', run: () => this.setBoardFlag(id, 'locked', !b.locked) },
         { label: b.hidden ? 'Show' : 'Hide', hint: 'Hidden: not drawn and not run (a dashed outline marks where it is)', run: () => this.setBoardFlag(id, 'hidden', !b.hidden) },
         { label: b.hideLabel ? 'Show title' : 'Hide title', run: () => this.setBoardFlag(id, 'hideLabel', !b.hideLabel) },
+        { label: 'Add to playlist', hint: 'This board (or the selected boards): the media they show, or the boards themselves', run: () => { const ids = this.canvas.boardSet.has(id) && this.canvas.boardSet.size > 1 ? [...this.canvas.boardSet] : [id]; this.playlistMenu(ids.map(i => this.playlistItemForBoard(boardById(this.store.doc, i))), x, y, b); } },
         this.playableSource(b) ? { label: this.playerShown(b) ? 'Hide media controls' : 'Show media controls', hint: 'The player under the board: play, step, scrub, speed', run: () => this.togglePlayer(b) } : null,
         { label: this.captureOf(id) ? `Stop being a source (${this.captureOf(id).name})` : 'Use as a source', hint: 'Its picture (what is under it, then its marks), live, as a source other boards read by name', run: () => this.setBoardCapture(id) },
         { label: b.perf ? 'Hide performance' : 'Show performance', hint: 'A line under it: runs a second, code time, source fps (measured only while shown)', run: () => this.setBoardFlag(id, 'perf', !b.perf) }
@@ -863,6 +867,7 @@ export class Workbench {
     this.assetPanel = new AssetPanel({
       store: this.assetStore,
       onOpen: a => this.openAsset(a),
+      onPlaylist: (a, x, y) => this.playlistMenu([this.playlistItemForAsset(a)], x, y),
       onSelect: a => { this.selectedAsset = a?.id || null; if (a) { this.canvas.select([]); this.canvas.selectBoard(null); } this.emit('asset'); },
       onPlace: a => { const c = this.canvas; this.placeAsset(a.id, c.toWorld(c.w / 2, c.h / 2)).catch(err => this.log(err.message, 'error')); },
       onUseAsReference: a => this.setReferenceFromBlob(a.blob, a.title),
@@ -968,6 +973,43 @@ export class Workbench {
     }
     this.fitAllBoards();
     return assets.length + streamed;
+  }
+
+  // ---- playlists -----------------------------------------------------------------------------
+
+  /** The playlist item for a board: the media it shows, or the board itself. */
+  playlistItemForBoard(b) {
+    const d = b.source && this.sources.def(b.source);
+    if (d) {
+      if (d.meta?.assetId && d.kind === 'url') return { kind: 'stream', ref: d.meta.assetId };
+      if (d.kind === 'asset') return { kind: 'asset', ref: d.assetId };
+      if (d.kind === 'url') return { kind: 'url', ref: d.meta?.source || d.url };
+      return { kind: 'source', ref: d.name };
+    }
+    return { kind: 'board', ref: b.title };
+  }
+
+  playlistItemForAsset(a) { return a.kind === 'stream' ? { kind: 'stream', ref: a.id } : { kind: 'asset', ref: a.id }; }
+
+  /** A playlist board (new, beside `near`) holding these items; its target is the board they came from when they show media. */
+  newPlaylist(items, near = null, target = '') {
+    const at = near || { x: 0, y: 0, width: 400, height: 300 };
+    const b = this.store.addBoard({ title: 'Playlist', x: Math.round(at.x + at.width + 80), y: Math.round(at.y), width: 440, height: 360, ground: '#1c1c1c', adopt: false });
+    this.store.updateBoard(b.id, { kind: 'playlist', code: writePlaylist({ target, loop: true, items }) });
+    this.setBoardLive(b.id, true);
+    return b;
+  }
+
+  /** Add items to a playlist (a menu of the scene's playlists, and a new one). */
+  playlistMenu(items, x, y, near = null) {
+    const lists = boardsOf(this.store.doc).filter(b => b.kind === 'playlist');
+    const first = near && items[0]?.kind !== 'board' ? near.title : '';
+    showMenu([
+      { label: `Add ${items.length > 1 ? `${items.length} items` : 'it'} to a playlist` },
+      ...lists.map(l => ({ label: l.title, run: () => { for (const it of items) this.playlists.addItem(l.id, it); } })),
+      lists.length ? '-' : null,
+      { label: 'New playlist', run: () => { const b = this.newPlaylist(items, near, first); this.canvas.selectBoard(b.id); } }
+    ].filter(Boolean), x, y);
   }
 
   /** The source a board is captured as (its picture, live), or null. */
@@ -1129,6 +1171,9 @@ export class Workbench {
    * Solo a board: it plays and every other board is paused (baked). Solo it again, when it already is
    * the only one running, and they all play again. One undo step.
    */
+  /** Run only this board (the others pause), whatever the state was. */
+  soloOnly(id) { if (!(this.isBoardLive(id) && boardsOf(this.store.doc).filter(b => b.kind !== 'frame' && b.id !== id).every(b => b.paused))) this.soloBoard(id); }
+
   soloBoard(id) {
     const boards = boardsOf(this.store.doc).filter(b => b.kind !== 'frame');
     const others = boards.filter(b => b.id !== id);
@@ -1555,6 +1600,9 @@ export class Workbench {
   async placeAsset(id, at) {
     const a = await this.assetStore.get(id);
     if (!a) throw new Error('Asset not found');
+    // Dropped on a playlist board: into the list (not a new board).
+    const under = boardAt(this.store.doc, at[0], at[1]);
+    if (under?.kind === 'playlist') { this.playlists.addItem(under.id, this.playlistItemForAsset(a)); this.log(`Added “${a.title}” to “${under.title}”.`); return; }
     if (a.program?.type === 'ams-process') {
       const src = a.program, ab = this.store.doc.artboard;
       const k = (ab.width * 0.5) / (src.artboard?.width || ab.width);

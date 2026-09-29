@@ -684,6 +684,22 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-bframe { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; pointer-events: none; }
 .wb-bframe iframe { width: 100%; height: 100%; border: 0; display: block; background: transparent; pointer-events: none; }
 .wb-bframe.interactive iframe { pointer-events: auto; }
+.wb-bframe-playlist { overflow: hidden; }
+.wb-playlist { box-sizing: border-box; width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--ground, #1c1c1c); color: #dadada; font: 13px ui-monospace, Menlo, monospace; pointer-events: auto; }
+.wb-playlist button { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; color: inherit; background: none; border: 1px solid #3a3a3a; border-radius: 6px; cursor: pointer; font: inherit; }
+.wb-playlist button:hover { border-color: #8c8c8c; }
+.wb-playlist .pl-bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #333; }
+.wb-playlist .pl-bar button.on { color: #c9c7c2; border-color: #8c8c8c; }
+.wb-playlist .pl-out { color: #8c8c8c; margin-left: 6px; }
+.wb-playlist select { flex: 1; min-width: 0; color: inherit; background: #262626; border: 1px solid #3a3a3a; border-radius: 4px; font: inherit; padding: 4px; }
+.wb-playlist .pl-list { flex: 1; overflow: auto; padding: 4px 6px; }
+.wb-playlist .pl-item { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 6px; }
+.wb-playlist .pl-item.on { background: #2a2a2a; }
+.wb-playlist .pl-item .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-playlist .pl-item .k, .wb-playlist .pl-item .r { color: #8c8c8c; font-size: 11px; white-space: nowrap; }
+.wb-playlist .pl-item button { min-width: 24px; height: 24px; border-color: transparent; }
+.wb-playlist .pl-empty { color: #8c8c8c; padding: 8px; }
+.wb-playlist .pl-err { color: #c8664f; padding: 6px 10px; border-top: 1px solid #333; }
 .wb-bframe-player { overflow: hidden; }
 .wb-player { box-sizing: border-box; width: 100%; height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--ground, #1c1c1c); color: #dadada; font: 13px ui-monospace, Menlo, monospace; pointer-events: auto; }
 .wb-player button { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; color: inherit; background: none; border: 1px solid #3a3a3a; border-radius: 50%; cursor: pointer; }

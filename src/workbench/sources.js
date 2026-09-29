@@ -124,7 +124,7 @@ export class Sources {
     // A clip cut from a long film waits at its in point (a paused first frame there).
     const vd = e.live?.video?.duration;
     if (vd && d.in > 0) e.live.video.currentTime = d.in * vd;
-    if (e.live) { e.live.setLoop(d.loop); e.live.setRange(d.in, d.out); e.live.onEnd = () => { if ((this.def(d.name)?.speed ?? 1) > 0) this.update(d.name, { speed: 0 }); }; }   // stopping at the end reads as paused
+    if (e.live) { e.live.setLoop(d.loop); e.live.setRange(d.in, d.out); e.live.onEnd = () => { if ((this.def(d.name)?.speed ?? 1) > 0) this.update(d.name, { speed: 0 }); this.onEnded?.(d.name); }; }   // stopping at the end reads as paused
     e.ready = true;
     this.sample(e);
   }

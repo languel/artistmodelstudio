@@ -402,6 +402,30 @@ A tracker reads a source's picture and gives back what it sees: `pose` (33 point
 
 To see and test a tracker: board menu → *Draw from a source* → **Face and expressions** (the face as lines, its expressions as bars) or **Pose lines** or **Fingertips**. In the Gestures panel, `expr: ['smile', 0.5]` is a condition on an expression, and `chin`, `lip.top`, `lip.bottom`, `mouth.left`, `mouth.right` are points. Face tracking is studio-only: a p5 export says so. The demo's code has `/* 0..1 */` sliders for the source under the board (`underlay({ source, opacity, blend, fit })`, a call any board's code can make), the tracker's markers (points and bars) and the abstract faces; 0 hides each. An early result, "accidental art", is kept in `notes/accidental-art-unicursal-faces.md`.
 
+### Boards as sources, and playlists
+
+**Use as a source** (a board's menu → Board) makes a board a source: its picture (the source under it, then its marks), live and small, read by name from any board's code: `source('screen')`. So what one board shows is something others can draw from.
+
+A **playlist** is a board of kind *Playlist* (board menu → *Add to playlist* → *New playlist*, or *Playlist* in Code → Board's kind menu). It is code, one call, and it has its own controls as well; both edit the same thing (the controls rewrite the code, so comments you add by hand are lost when you use them):
+
+```js
+playlist({
+  target: 'Screen',            // the board that shows each item (a title)
+  loop: true,                  // start again after the last
+  items: [
+    { stream: 'stream:metropolis-1927-maria-s-wink' },          // a stream asset (Assets › Streams)
+    { asset: 'clip:muybridge-horse', for: 8 },                  // an asset: clip, GIF or picture; for: seconds
+    { url: 'https://…', start: 12, end: 30, title: 'A clip' },  // an address (or a Wikipedia / Commons File: page)
+    { source: 'cam' },                                          // a source already in the scene
+    { board: 'Dots', for: 10 }                                  // any board: it runs alone and the view goes there
+  ]
+})
+```
+
+Media items are routed to the **target** board, which shows the source under its marks with its controls; each plays from its in point and, at its range's end (or after `for` seconds), the next begins. Fields: `title`, `start`, `end` (seconds), `quality`, `for`, `speed`, `loop: true` (keep looping, so only `for` advances), `stay: true` (a board item leaves the view where it is). The board has previous, play / pause, next, loop, a target menu and a list (go to, earlier, later, remove). Add things by dragging an asset onto it, from a board's menu (*Add to playlist*: the media it shows, or the board itself; several selected boards at once), or from the **+** in the Assets preview.
+
+Chain them: a playlist routes clips to *Screen*, *Screen* is a source, and a drawing board reads `source('screen')`: a string of dance videos drawn as they play.
+
 ### Group selection of boards
 
 **Shift+click** a board's title to add it to (or take it out of) the selected boards, or drag a **box** on the empty canvas: boards wholly inside it are selected (their marks go with them). Dragging any selected board's title moves them all, with their marks, as one undo step; Shift or Cmd+click a row in the Boards panel does the same selection. Frames carry the boards they hold.

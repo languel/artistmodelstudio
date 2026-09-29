@@ -53,7 +53,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<':
  * each row left to right): every document and program board, and drawings with marks, text or code.
  */
 export function pageBoards(doc) {
-  const list = boardsOf(doc).filter(b => !b.hidden && b.kind !== 'player').filter(b => boardKind(b) !== 'drawing' || marksOf(doc, b.id).length || b.text || b.code || b.source || !b.main);
+  const list = boardsOf(doc).filter(b => !b.hidden && b.kind !== 'player' && b.kind !== 'playlist').filter(b => boardKind(b) !== 'drawing' || marksOf(doc, b.id).length || b.text || b.code || b.source || !b.main);
   return list.sort((a, b) => (Math.abs(a.y - b.y) < 40 ? a.x - b.x : a.y - b.y));
 }
 

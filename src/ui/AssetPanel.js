@@ -21,8 +21,9 @@ const KIND_TIPS = { process: 'Process document (workbench)', variation: 'Variati
 const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', walkthrough: 'Walkthroughs', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee', stream: 'Streams' };
 
 export class AssetPanel {
-  constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect }) {
+  constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect, onPlaylist }) {
     this.onSelect = onSelect;
+    this.onPlaylist = onPlaylist;
     this.onOpen = onOpen;
     this.onPlace = onPlace;
     this.previewId = null;
@@ -241,6 +242,7 @@ export class AssetPanel {
       const canOpen = a.program?.type === 'ams-process' || a.program?.actions || a.kind === 'take' || a.kind === 'walkthrough' || a.kind === 'dataset';
       if (canOpen) head.append(btn('', a.program?.type === 'ams-process' || a.program?.actions ? 'Open as the drawing (replaces the canvas; Undo brings yours back)' : 'Open', () => this.onOpen?.(a), 'arrowRight'));
       if (this.onPlace && a.kind !== 'dataset' && a.kind !== 'walkthrough') head.append(btn('', 'Place on the canvas (a drawing comes in as a group; a picture as a layer)', () => this.onPlace(a), 'squaresPlus'));
+      if (this.onPlaylist && (a.kind === 'stream' || /^(video|image)\//.test(a.blob?.type || ''))) head.append(btn('', 'Add to a playlist', ev => { const r = ev.currentTarget.getBoundingClientRect(); this.onPlaylist(a, r.left, r.bottom); }, 'plus'));
       if (a.blob?.type?.startsWith('image/')) head.append(btn('', 'Use as the reference under the artboard', () => this.onUseAsReference?.(a), 'photo'));
     }
     pane.replaceChildren(head);

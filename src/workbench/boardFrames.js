@@ -196,6 +196,7 @@ export class BoardFrames {
     f.el.style.setProperty('--ground', b.ground || '#f3efe6');
     const code = b.code || '';
     if (f.kind === 'player') { this.refreshPlayer(f, b); return; }
+    if (f.kind === 'playlist') { this.refreshPlaylist(f, b); return; }
     if (f.kind === 'markdown') {
       if (f.code !== code || f.version !== this.linkVersion) {
         f.code = code; f.version = this.linkVersion;
@@ -246,6 +247,48 @@ export class BoardFrames {
     // Its performance shown or not: the sketch times its draw() only while it is.
     const perf = Boolean(this.app.perfWanted?.(b));
     if (f.iframe && f.perf !== perf) { f.perf = perf; f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'perf', on: perf }, '*'); if (!perf) this.perf.delete(b.id); }
+  }
+
+  /** A playlist board: its list and controls; every edit writes the board's code. */
+  refreshPlaylist(f, b) {
+    const P = this.app.playlists, doc = this.app.store.doc, { pl, error } = P.spec(b), s = P.st(b.id);
+    const targets = boardsOf(doc).filter(x => x.id !== b.id && x.kind !== 'playlist' && x.kind !== 'frame' && !x.main).map(x => x.title);
+    const sig = JSON.stringify([b.code, s.index, s.playing, s.error || error, targets, [...P.titles.entries()]]);
+    if (f.sig === sig) return;
+    f.sig = sig;
+    const g = d => `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">${d}</svg>`;
+    const icons = { play: g('<path d="M8 5l11 7-11 7z"/>'), pause: g('<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>'), prev: g('<path d="M17 5v14l-9-7zM6 5h2v14H6z"/>'), next: g('<path d="M7 5v14l9-7zM16 5h2v14h-2z"/>'), loop: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l3 3-3 3M4 11V9a3 3 0 013-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 01-3 3H4"/></svg>` };
+    const kindMark = { stream: 'stream', asset: 'asset', url: 'url', source: 'source', board: 'board' };
+    const range = it => (it.start != null || it.end != null ? `${it.start ?? 0}–${it.end ?? ''}s` : '') + (it.for != null ? ` ${it.for}s` : '');
+    const rows = (pl?.items || []).map((it, i) => `<div class="pl-item${i === s.index ? ' on' : ''}" data-i="${i}">
+      <button data-a="go" title="Play this one">${i === s.index && s.playing ? icons.pause : icons.play}</button>
+      <span class="t" title="${esc(it.ref)}">${esc(P.titleOf(it))}</span><span class="k">${kindMark[it.kind]}</span><span class="r">${esc(range(it))}</span>
+      <button data-a="up" title="Earlier">↑</button><button data-a="down" title="Later">↓</button><button data-a="rm" title="Remove">✕</button></div>`).join('');
+    f.el.innerHTML = `<div class="wb-playlist">
+      <div class="pl-bar">
+        <button data-a="prev" title="Previous">${icons.prev}</button><button data-a="toggle" title="Play / pause">${s.playing ? icons.pause : icons.play}</button><button data-a="next" title="Next">${icons.next}</button>
+        <button data-a="loop" class="${pl?.loop === false ? '' : 'on'}" title="Loop the list">${icons.loop}</button>
+        <span class="pl-out" title="Where it plays: the board that shows each item (read it from other boards by making it a source)">→</span>
+        <select data-a="target" title="Target board">${['', ...targets].map(t => `<option value="${esc(t)}"${t === (pl?.target ?? '') ? ' selected' : ''}>${t ? esc(t) : '(a board)'}</option>`).join('')}</select>
+      </div>
+      <div class="pl-list">${rows || '<div class="pl-empty">—</div>'}</div>
+      ${s.error || error ? `<div class="pl-err">${esc(s.error || error)}</div>` : ''}
+    </div>`;
+    if (f.wired) return;
+    f.wired = true;
+    f.el.addEventListener('click', e => {
+      const btn = e.target.closest('button'); if (!btn) return;
+      const a = btn.dataset.a, i = Number(btn.closest('.pl-item')?.dataset.i);
+      if (a === 'go') P.play(b.id, i);
+      else if (a === 'prev') P.next(b.id, -1);
+      else if (a === 'next') P.next(b.id, 1);
+      else if (a === 'toggle') P.toggle(b.id);
+      else if (a === 'loop') P.edit(b.id, p => { p.loop = p.loop === false; });
+      else if (a === 'up') P.edit(b.id, p => { if (i > 0) [p.items[i - 1], p.items[i]] = [p.items[i], p.items[i - 1]]; });
+      else if (a === 'down') P.edit(b.id, p => { if (i < p.items.length - 1) [p.items[i + 1], p.items[i]] = [p.items[i], p.items[i + 1]]; });
+      else if (a === 'rm') P.edit(b.id, p => { p.items.splice(i, 1); });
+    });
+    f.el.addEventListener('change', e => { if (e.target.dataset.a === 'target') P.edit(b.id, p => { p.target = e.target.value; }); });
   }
 
   /** A player's controls, built once and updated with each redraw (a new frame of its source redraws the canvas). */
