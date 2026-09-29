@@ -84,8 +84,8 @@ export function mountProperties(el, app) {
     const flags = h('span', { class: 'wb-board-flags' },
       flag('locked', b.locked, 'lock', 'unlock', b.locked ? 'Locked: its marks and the board stay as they are (click to unlock)' : 'Lock the board (its marks, its place and size)'),
       h('button', { class: `wb-icon-btn${b.hidden ? ' on' : ''}`, title: b.hidden ? 'Hidden: not drawn, not run (click to show)' : 'Hide the board (not drawn, not run)', html: icon(b.hidden ? 'eyeOff' : 'eye'), onclick: () => app.setBoardFlag(b.id, 'hidden', !b.hidden) }),
-      h('button', { class: `wb-icon-btn${b.hideLabel ? ' on' : ''}`, title: b.hideLabel ? 'Title hidden (click to show it)' : 'Hide the title above it', html: icon('label'), onclick: () => app.setBoardFlag(b.id, 'hideLabel', !b.hideLabel) }),
-      flag('perf', b.perf, 'gauge', 'gauge', b.perf ? 'Performance shown under it (click to hide; hidden, it is not measured)' : 'Show its performance under it (runs, code time, source fps)'));
+      h('button', { class: `wb-icon-btn${b.hideLabel ? ' on' : ''}`, title: b.hideLabel ? 'Title hidden (click to show it)' : 'Hide the title above it', html: icon(b.hideLabel ? 'labelOff' : 'label'), onclick: () => app.setBoardFlag(b.id, 'hideLabel', !b.hideLabel) }),
+      flag('perf', b.perf, 'gauge', 'gaugeOff', b.perf ? 'Performance shown under it (click to hide; hidden, it is not measured)' : 'Show its performance under it (runs, code time, source fps)'));
     el.append(h('div', { class: 'wb-panel-title' }, 'Board', h('span', { class: 'wb-muted' }, b.main ? ' · main' : ''), h('span', { style: { flex: 1 } }), flags));
     el.append(section('Board', true,
       row('Title', title),

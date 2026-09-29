@@ -253,22 +253,24 @@ export class Workbench {
   boardPerfText(b) {
     if (!this.perfWanted(b)) return null;
     const kind = boardKind(b), live = this.isBoardLive(b.id), now = performance.now();
+    // Compact: FPS, ms, mk (marks), r/s (runs a second); no spaces around the dots.
+    const n = v => (v >= 10 ? String(Math.round(v)) : v.toFixed(1).replace(/\.0$/, ''));
     if (kind === 'p5') {
       const p = this.frames?.perf.get(b.id);
       if (!live) return 'paused';
-      return p && now - p.at < 3000 ? `p5 · ${p.fps} frames/s${p.calls > p.fps ? ` (of ${p.calls} draw calls)` : ''} · draw ${p.ms.toFixed(1)} ms` : 'p5 · …';
+      return p && now - p.at < 3000 ? `p5·${p.fps}${p.calls > p.fps ? `/${p.calls}` : ''}FPS·${n(p.ms)}ms` : 'p5·…';
     }
     if (kind !== 'drawing' || !b.code) return null;
     const s = this.runStats.get(b.id), recent = (s?.at || []).filter(t => now - t < 3000);
     const names = [...String(b.code).matchAll(/(?:source|fit)\(\s*['"`]([^'"`]+)['"`]/g)].map(m => m[1]);
-    const src = [...new Set(names)].map(n => `${n} ${this.sources.fps(n).toFixed(1)} fps`);
-    const fit = /(?<![.\w$])fit\s*\(/.test(b.code) && fitTimes.has(b.id) ? `fit ${Math.round(fitTimes.get(b.id))} ms (worker)` : null;
+    const src = [...new Set(names)].map(nm => `${nm}:${n(this.sources.fps(nm))}FPS`);
+    const fit = /(?<![.\w$])fit\s*\(/.test(b.code) && fitTimes.has(b.id) ? `fit${Math.round(fitTimes.get(b.id))}ms` : null;
     return [
-      live ? `${(recent.length / 3).toFixed(1)} runs/s` : 'paused',
-      s ? `code ${s.ms.toFixed(1)} ms` : null,
+      live ? `${n(recent.length / 3)}r/s` : 'paused',
+      s ? `${n(s.ms)}ms` : null,
       fit, ...src,
-      `${this.perfMarks?.get(b.id) ?? '…'} marks`
-    ].filter(Boolean).join(' · ');
+      `${this.perfMarks?.get(b.id) ?? '…'}mk`
+    ].filter(Boolean).join('·');
   }
 
   /** A small performance readout beside the zoom control: the browser's fps, canvas redraws and their time, marks. */

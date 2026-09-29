@@ -800,23 +800,40 @@ export class CanvasView {
       const perf = this.boardPerf?.(b);
       if (perf) { ctx.save(); ctx.fillStyle = muted; ctx.font = '11px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'top'; ctx.fillText(perf, bx, by + h + 6, Math.max(120, w * 1.6)); ctx.restore(); }
       if (b.hideLabel && !on) return;   // no title (selected, it shows, so it can be moved)
-      const label = `${i + 1}  ${b.title}${b.locked ? '  ·  locked' : ''}${b.hidden ? '  ·  hidden' : ''}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
+      const label = `${i + 1}  ${b.title}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
       // Boards with processes (code, following sources, a source under them) get a play / pause button
       // after the title. Like a player's, it shows what a click does: pause while running, play when paused.
       const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));   // documents (markdown, html) and frames have nothing to play
-      const tw = Math.min(ctx.measureText(label).width, Math.max(40, w - (runs ? 22 : 0)));
-      ctx.fillStyle = on ? text : muted;
-      ctx.fillText(label, bx, by - 5, Math.max(40, w - (runs ? 22 : 0)));
-      this.boardLabels.push({ id: b.id, x: bx - 2, y: by - 20, w: tw + 4, h: 18 });
+      // The play / pause button comes first, then the title, then icons for what is switched on.
+      const lead = runs ? 14 : 0, marks = (b.locked ? 1 : 0) + (b.hidden ? 1 : 0);
+      const room = Math.max(40, w - lead - marks * 16);
+      const tw = Math.min(ctx.measureText(label).width, room);
       if (runs) {
-        const live = Boolean(this.isBoardLive?.(b.id)), gx = bx + tw + 10, gy = by - 16;
+        // Sized and centred on the title's letters (12px text: cap height ~9, centre ~9.5 above its baseline).
+        const live = Boolean(this.isBoardLive?.(b.id)), gx = bx, cy = by - 9.5;
         ctx.save();
         ctx.fillStyle = muted;
-        if (live) { ctx.fillRect(gx + 1, gy + 1, 3, 10); ctx.fillRect(gx + 7, gy + 1, 3, 10); }   // pause
-        else { ctx.beginPath(); ctx.moveTo(gx + 1, gy); ctx.lineTo(gx + 11, gy + 6); ctx.lineTo(gx + 1, gy + 12); ctx.closePath(); ctx.fill(); }   // play
+        if (live) { ctx.fillRect(gx, cy - 3.5, 2.5, 7); ctx.fillRect(gx + 5, cy - 3.5, 2.5, 7); }   // pause
+        else { ctx.beginPath(); ctx.moveTo(gx, cy - 3.5); ctx.lineTo(gx + 7, cy); ctx.lineTo(gx, cy + 3.5); ctx.closePath(); ctx.fill(); }   // play
         ctx.restore();
-        this.runButtons.push({ id: b.id, x: gx - 4, y: gy - 4, w: 20, h: 20 });
+        this.runButtons.push({ id: b.id, x: gx - 4, y: cy - 10, w: 18, h: 20 });
       }
+      ctx.fillStyle = on ? text : muted;
+      ctx.fillText(label, bx + lead, by - 5, room);
+      this.boardLabels.push({ id: b.id, x: bx + lead - 2, y: by - 20, w: tw + 4, h: 18 });
+      // Locked and hidden: just an icon after the title.
+      let ix = bx + lead + tw + 8;
+      ctx.save();
+      ctx.strokeStyle = muted; ctx.lineWidth = 1.3; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      if (b.locked) {
+        ctx.strokeRect(ix + 1.5, by - 12, 8, 6);
+        ctx.beginPath(); ctx.moveTo(ix + 3.5, by - 12); ctx.lineTo(ix + 3.5, by - 14.5); ctx.arc(ix + 5.5, by - 14.5, 2, Math.PI, 0); ctx.lineTo(ix + 7.5, by - 12); ctx.stroke();
+        ix += 16;
+      }
+      if (b.hidden) {
+        ctx.beginPath(); ctx.moveTo(ix, by - 9); ctx.quadraticCurveTo(ix + 5.5, by - 16, ix + 11, by - 9); ctx.quadraticCurveTo(ix + 5.5, by - 2, ix, by - 9); ctx.moveTo(ix + 1, by - 3); ctx.lineTo(ix + 10, by - 15); ctx.stroke();
+      }
+      ctx.restore();
       if (on) {
         ctx.strokeStyle = sel; ctx.lineWidth = 1.5; ctx.strokeRect(bx - 0.5, by - 0.5, w + 1, h + 1);
         ctx.fillStyle = accent; ctx.fillRect(bx + w - 5, by + h - 5, 10, 10);
