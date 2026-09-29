@@ -510,6 +510,20 @@ export class ProcessStore {
       for (const e of res.doc.elements) d.elements.push({ ...e, id: newId(e.role), stage: stageId.get(e.stage) || d.stages[0].id, by: { kind: 'code', name: id }, ...(onBoard ? { board: onBoard } : {}), points: e.points.map(([x, y, t, p]) => [x + b.x, y + b.y, t, p]) });
       for (const x of res.doc.decisions) d.decisions.push({ ...x, id: newId('dec'), stage: stageId.get(x.stage) || d.stages[0].id, by: { kind: 'code', name: id } });
       if (id === MAIN) d.artboard.code = source; else d.boards.find(x => x.id === id).code = source;
+      // underlay(…) in the code sets the board's source underneath (a reference, not part of the picture).
+      const u = res.underlay, t = id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
+      if (u && t) {
+        if (u.source === null) { delete t.source; delete t.sourceOpacity; delete t.sourceFit; delete t.sourceBlend; }
+        else {
+          if (u.source) t.source = String(u.source);
+          if (t.source) {
+            if (u.opacity !== undefined) t.sourceOpacity = Math.max(0, Math.min(1, Number(u.opacity) || 0));
+            else t.sourceOpacity ??= 0.5;
+            if (u.blend !== undefined) { if (u.blend && u.blend !== 'normal') t.sourceBlend = String(u.blend); else delete t.sourceBlend; }
+            if (u.fit !== undefined) { if (u.fit === 'contain') t.sourceFit = 'contain'; else delete t.sourceFit; }
+          }
+        }
+      }
     }, opts);
     return { error: null, logs: res.logs, marks: res.doc.elements.length };
   }

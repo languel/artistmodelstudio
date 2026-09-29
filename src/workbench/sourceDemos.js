@@ -108,10 +108,16 @@ for (const p of s.pose) {
   },
   {
     id: 'face', label: 'Face and expressions', hint: 'The face as lines (outline, lips, eyes, brows) and its expressions as bars: to see and test the face tracker',
-    code: name => `// The face tracker on “${name}”: the face as a few lines, and its expressions as bars.
+    code: name => `// The face tracker on “${name}”: the face as a few lines (the abstract faces), the tracker's own
+// markers (its points and expression bars), and the source underneath. Each has its opacity: 0 hides it.
 // s.face is a list of faces: { points: [{ x, y, z }] × 478, blend: { smile, jawOpen, blink… 0..1 }, box }.
 const s = source('${name}')
-const ring = (f, ids, closed) => line(ids.map(i => [f.points[i].x, f.points[i].y]), { brush: 'pen', width: 3, color: '#1d1b19', closed })
+const under = 0.35 /* 0..1 */    // the source under the board
+const markers = 0.7 /* 0..1 */   // the tracker's points and expression bars
+const faces = 1 /* 0..1 */       // the abstract faces: outline, lips, eyes, brows
+const weight = 3 /* 1..14 */     // their line width
+underlay({ source: '${name}', opacity: under })
+const ring = (f, ids, closed) => faces > 0 && line(ids.map(i => [f.points[i].x, f.points[i].y]), { brush: 'pen', width: weight, color: '#1d1b19', closed, opacity: faces })
 const OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
 const LIPS = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185]
 const EYE_L = [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466]
@@ -119,13 +125,16 @@ const EYE_R = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160
 const BROW_L = [276, 283, 282, 295, 285], BROW_R = [46, 53, 52, 65, 55]
 const BARS = ['smile', 'frown', 'blink', 'browUp', 'jawOpen', 'mouthPucker']
 for (const f of s.face) {
+  if (markers > 0) for (const p of f.points) point(p.x, p.y, { size: 4, color: '#c8664f', opacity: markers })
   ring(f, OVAL, true); ring(f, LIPS, true); ring(f, EYE_L, true); ring(f, EYE_R, true); ring(f, BROW_L); ring(f, BROW_R)
-  BARS.forEach((k, i) => {
-    const v = f.blend[k] || 0, y = 0.06 + i * 0.05
-    plane([[0.04, y], [0.04 + 0.2 * v, y], [0.04 + 0.2 * v, y + 0.03], [0.04, y + 0.03]], { color: '#c8664f', path: 'straight' })
-    note(0.27, y - 0.004, k + ' ' + v.toFixed(2), { note: { size: 13, font: 'mono' } })
-  })
 }
+// The expression bars, once (for the first face): a bar and its value.
+const first = s.face[0]
+if (first && markers > 0) BARS.forEach((k, i) => {
+  const v = first.blend[k] || 0, y = 0.06 + i * 0.05
+  plane([[0.04, y], [0.04 + 0.2 * v, y], [0.04 + 0.2 * v, y + 0.03], [0.04, y + 0.03]], { color: '#c8664f', path: 'straight', opacity: markers })
+  note(0.27, y - 0.004, k + ' ' + v.toFixed(2), { note: { size: 13, font: 'mono' }, opacity: markers })
+})
 `
   },
   {
