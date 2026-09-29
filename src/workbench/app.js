@@ -540,6 +540,7 @@ export class Workbench {
         { label: b.locked ? 'Unlock' : 'Lock', hint: 'Locked: its marks cannot be selected or changed, and it cannot be moved or resized', run: () => this.setBoardFlag(id, 'locked', !b.locked) },
         { label: b.hidden ? 'Show' : 'Hide', hint: 'Hidden: not drawn and not run (a dashed outline marks where it is)', run: () => this.setBoardFlag(id, 'hidden', !b.hidden) },
         { label: b.hideLabel ? 'Show title' : 'Hide title', run: () => this.setBoardFlag(id, 'hideLabel', !b.hideLabel) },
+        this.playableSource(b) ? { label: this.playerShown(b) ? 'Hide media controls' : 'Show media controls', hint: 'The player under the board: play, step, scrub, speed', run: () => this.togglePlayer(b) } : null,
         { label: b.perf ? 'Hide performance' : 'Show performance', hint: 'A line under it: runs a second, code time, source fps (measured only while shown)', run: () => this.setBoardFlag(id, 'perf', !b.perf) }
       ] },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
@@ -895,11 +896,11 @@ export class Workbench {
   }
 
   /** An asset as a source, and a board previewing it (see placeSource). */
-  async previewAsset(a) {
+  async previewAsset(a, at = null) {
     const name = this.sources.list.find(d => d.kind === 'asset' && d.assetId === a.id)?.name || await this.sources.add({ kind: 'asset', assetId: a.id });
     const have = boardsOf(this.store.doc).find(b => b.source === name && b.title === name && !b.code);
-    if (have) { this.goToBoard(have.id, { animate: true }); return have; }
-    const c = this.canvas, b = await this.placeSource(name, c.toWorld(c.w / 2, c.h / 2));
+    if (have) { this.addPlayer(name, have); this.goToBoard(have.id, { animate: true }); return have; }
+    const c = this.canvas, b = await this.placeSource(name, at || c.toWorld(c.w / 2, c.h / 2));
     this.log(`Source “${name}”: source('${name}') in code; a board previews it.`);
     return b;
   }
@@ -1143,8 +1144,47 @@ export class Workbench {
     const b = this.store.addBoard({ title: name, width, height, x: Math.round(at[0] - width / 2), y: Math.round(at[1] - height / 2), adopt: false });
     this.setBoardSource(b.id, name, 1);
     this.setBoardLive(b.id, true);
+    this.addPlayer(name, b);
     this.goToBoard(b.id, { animate: true });
     return b;
+  }
+
+  /** The source a board shows or plays, when that source has a timeline (a clip or a GIF); else null. */
+  playableSource(b) {
+    const name = b?.source;
+    return name && this.sources.entries.get(name)?.live?.position?.() ? name : null;
+  }
+
+  /** Whether a board's media controls (its source's player) are shown. */
+  playerShown(b) {
+    const name = this.playableSource(b);
+    const p = name && boardsOf(this.store.doc).find(x => x.kind === 'player' && x.source === name);
+    return Boolean(p && !p.hidden);
+  }
+
+  /** Show or hide the media controls of a board's source (its player board; made when there is none). */
+  togglePlayer(b) {
+    const name = this.playableSource(b);
+    if (!name) return;
+    const p = boardsOf(this.store.doc).find(x => x.kind === 'player' && x.source === name);
+    if (!p) { this.addPlayer(name, b.kind === 'player' ? b : b); return; }
+    this.setBoardFlag(p.id, 'hidden', !p.hidden);
+  }
+
+  /**
+   * A player board under a preview board: play / pause, step, a scrubber and speed for the source
+   * (a clip or a GIF; a picture or a camera has nothing to play, so none is made).
+   */
+  addPlayer(name, under) {
+    const live = this.sources.entries.get(name)?.live;
+    if (!live?.position?.() || under.kind === 'player') return null;
+    const have = boardsOf(this.store.doc).find(b => b.kind === 'player' && b.source === name);
+    if (have) return have;
+    const p = this.store.addBoard({ title: `${name} · player`, width: Math.max(320, under.width), height: 64, x: under.x, y: under.y + under.height + 24, ground: '#1c1c1c', adopt: false });
+    this.store.updateBoard(p.id, { kind: 'player' });
+    this.setBoardSource(p.id, name, 0);
+    this.setBoardLive(p.id, true);
+    return p;
   }
 
   /** A demo's code on a board, reading a source, followed (re-run on its frames). */
@@ -1172,7 +1212,7 @@ export class Workbench {
 
   drawReference(ctx) {
     for (const b of boardsOf(this.store.doc)) {
-      const img = b.source && this.sources?.view(b.source);
+      const img = b.source && (b.sourceOpacity ?? 0.5) > 0 && this.sources?.view(b.source);
       if (!img?.width) continue;
       const k = (b.sourceFit === 'contain' ? Math.min : Math.max)(b.width / img.width, b.height / img.height), w = img.width * k, hh = img.height * k;
       ctx.save();
@@ -1350,6 +1390,8 @@ export class Workbench {
       return;
     }
     if (a.kind === 'audio') { this.log('Sound goes on the Timeline: drag it there.'); this.docks.open('timeline'); return; }
+    // A clip or an animated GIF: a source, a board showing it and a player board for it.
+    if (a.kind === 'video' || /^video\//.test(a.blob?.type || '') || a.blob?.type === 'image/gif') { await this.previewAsset(a, at); return; }
     if (!a.blob) throw new Error('This asset has no picture');
     await this.placeImage(a.blob, at, { title: a.title, asset: a.id });
   }

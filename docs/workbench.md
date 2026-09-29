@@ -394,6 +394,12 @@ Agents use `ams_get` with `format: 'p5code'` for a board's code as p5, and `ams_
 
 Two speeds, set separately: the source's (Sources → speed: how fast a clip plays) and the board's (Properties → Board → **Redraw**: how many times a second its code runs). With Redraw at 0 a board following a source runs once per new frame of the source. With a rate (up to 60) it runs on its own clock, each run with fresh randomness: a slow GIF still gives dots, strokes and shapes that are drawn again and again, and a live `fit` carries on refining while the clip changes slowly. The demos (board menu → *Draw from a source*) set a rate of their own, take the source from under the board (it changes with each frame, the paper should not) and leave the ground alone: `fit` runs with `ground: false`. A p5 sketch exported from such a board draws at that rate, reseeded each frame.
 
+### Media controls
+
+Drag a clip or an animated GIF from Assets onto the canvas (or double-click it) and you get a source, a board previewing it and, under it, a **player** board: play / pause, a frame back and forward, a scrubber with the time and frame, and the speed (¼× to 4×). The player is a board of its own (it moves and resizes like any other) and works on the source, so every board that reads the source follows it. A picture or a camera has nothing to play, so it gets no player.
+
+Show or hide the controls from Properties → Board (the controls glyph, beside play, on a board that shows the clip or on the player itself) or the board's menu → Board → *Show / Hide media controls*. Hiding it hides the player board (a dashed outline marks where it is); showing it again brings it back, or makes one if there is none.
+
 ### Board switches
 
 Properties → Board has four switches as glyphs beside its title (and the board's menu → Board):

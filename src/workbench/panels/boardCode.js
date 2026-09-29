@@ -118,7 +118,13 @@ export function mountBoardCode(root, app) {
     const b = id && boardById(app.store.doc, id);
     const kind = boardKind(b);
     // A frame has no code: it holds boards (listed here, each a link to it).
-    host.style.display = strip.style.display = kind === 'frame' ? 'none' : '';
+    host.style.display = strip.style.display = kind === 'frame' || kind === 'player' ? 'none' : '';
+    if (kind === 'player') {
+      out.classList.remove('error');
+      out.replaceChildren(h('span', {}, `A player: play, scrub, step and speed for the source “${b.source || '—'}”. It has no code.`));
+      head.replaceChildren(h('span', { class: 'wb-muted wb-small' }, b.title));
+      return;
+    }
     if (kind === 'frame') {
       const inside = boardsInFrame(app.store.doc, b);
       out.classList.remove('error');

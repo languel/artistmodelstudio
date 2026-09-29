@@ -179,6 +179,7 @@ export class BoardFrames {
     f.el.classList.toggle('dark', dark);
     f.el.style.setProperty('--ground', b.ground || '#f3efe6');
     const code = b.code || '';
+    if (f.kind === 'player') { this.refreshPlayer(f, b); return; }
     if (f.kind === 'markdown') {
       if (f.code !== code || f.version !== this.linkVersion) {
         f.code = code; f.version = this.linkVersion;
@@ -229,6 +230,47 @@ export class BoardFrames {
     // Its performance shown or not: the sketch times its draw() only while it is.
     const perf = Boolean(this.app.perfWanted?.(b));
     if (f.iframe && f.perf !== perf) { f.perf = perf; f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'perf', on: perf }, '*'); if (!perf) this.perf.delete(b.id); }
+  }
+
+  /** A player's controls, built once and updated with each redraw (a new frame of its source redraws the canvas). */
+  refreshPlayer(f, b) {
+    const S = this.app.sources, name = b.source, def = S.def(name), live = S.entries.get(name)?.live;
+    if (!f.built) {
+      f.built = true;
+      const btn = (act, tip, html) => `<button type="button" data-act="${act}" title="${tip}">${html}</button>`;
+      const g = d => `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">${d}</svg>`;
+      f.icons = { play: g('<path d="M8 5l11 7-11 7z"/>'), pause: g('<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>') };
+      f.el.innerHTML = `<div class="wb-player">
+        ${btn('play', 'Play / pause', f.icons.pause)}
+        ${btn('back', 'Back a frame', g('<path d="M17 5v14l-9-7zM6 5h2v14H6z"/>'))}
+        ${btn('fwd', 'Forward a frame', g('<path d="M7 5v14l9-7zM16 5h2v14h-2z"/>'))}
+        <input type="range" min="0" max="1000" value="0" class="scrub" title="Scrub">
+        <span class="time"></span>
+        <select class="speed" title="Playback speed">${[['0.25', '¼×'], ['0.5', '½×'], ['1', '1×'], ['2', '2×'], ['4', '4×']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+      </div>`;
+      const el = f.el, scrub = el.querySelector('.scrub');
+      const src = () => this.app.sources.entries.get(b.source)?.live;
+      const speed = () => this.app.sources.def(b.source)?.speed ?? 1;
+      el.addEventListener('click', e => {
+        const a = e.target.closest('button')?.dataset.act, l = src();
+        if (!a || !l) return;
+        if (a === 'play') { if (speed() > 0) { f.last = speed(); this.app.sources.update(b.source, { speed: 0 }); } else this.app.sources.update(b.source, { speed: f.last || 1 }); }
+        else { if (speed() > 0) { f.last = speed(); this.app.sources.update(b.source, { speed: 0 }); } l.step(a === 'back' ? -1 : 1); }
+        this.canvas.invalidate();
+      });
+      scrub.addEventListener('input', () => { const l = src(); if (l) { l.seek(Number(scrub.value) / 1000); this.canvas.invalidate(); } });
+      scrub.addEventListener('pointerdown', () => { f.scrubbing = true; });
+      addEventListener('pointerup', () => { f.scrubbing = false; });
+      el.querySelector('.speed').addEventListener('change', e => { this.app.sources.update(b.source, { speed: Number(e.target.value) }); this.canvas.invalidate(); });
+    }
+    const pos = live?.position?.(), spd = def?.speed ?? 1, el = f.el;
+    const scrub = el.querySelector('.scrub'), sel = el.querySelector('.speed');
+    if (!f.scrubbing && pos && document.activeElement !== scrub) scrub.value = String(Math.round(pos.fraction * 1000));
+    const t = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+    el.querySelector('.time').textContent = pos ? (pos.duration ? `${t(pos.time)} / ${t(pos.duration)} · ${pos.frame}/${pos.frames}` : `${pos.frame + 1}/${pos.frames}`) : '—';
+    const playBtn = el.querySelector('[data-act="play"]'), want = spd > 0 ? 'pause' : 'play';
+    if (playBtn.dataset.state !== want) { playBtn.dataset.state = want; playBtn.innerHTML = f.icons[want]; playBtn.title = spd > 0 ? 'Pause' : 'Play'; }
+    if (spd > 0 && sel.value !== String(spd)) sel.value = String(spd);
   }
 
   /** Read files a sketch loads by name (seurat.jpg → the source “seurat”) as data URLs; null when none. */

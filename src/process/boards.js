@@ -20,9 +20,11 @@ export const BLACKBOARD = '_';
  * document), 'html' (a page), 'p5' (a sketch), or 'frame': a slide, an area that holds the boards
  * whose centres lie inside it (they move with it, present together and export side by side).
  */
-export const BOARD_KINDS = ['drawing', 'markdown', 'html', 'p5', 'frame'];
+export const BOARD_KINDS = ['drawing', 'markdown', 'html', 'p5', 'frame', 'player'];
 export const boardKind = b => (BOARD_KINDS.includes(b?.kind) ? b.kind : 'drawing');
 export const isFrame = b => b?.kind === 'frame';
+/** A player: controls (play, scrub, step, speed) for the source it names (board.source). */
+export const isPlayer = b => b?.kind === 'player';
 
 /** The boards a frame holds (their centres inside it), in reading order. */
 export function boardsInFrame(doc, frame) {

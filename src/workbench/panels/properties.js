@@ -85,8 +85,12 @@ export function mountProperties(el, app) {
     const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));
     const live = app.isBoardLive(b.id);
     const play = runs ? h('button', { class: `wb-icon-btn${live ? ' on' : ''}`, title: live ? 'Running: click to pause (a paused board is baked into a picture)' : 'Paused: click to play', html: icon(live ? 'pause' : 'play'), onclick: () => app.toggleBoardRun(b.id) }) : null;
+    // Media controls: the player board under a board that shows a clip or a GIF.
+    const shown = app.playerShown(b);
+    const controls = app.playableSource(b) ? h('button', { class: `wb-icon-btn${shown ? ' on' : ''}`, title: shown ? 'Media controls shown (click to hide them)' : 'Show media controls: play, step, scrub, speed', html: icon(shown ? 'controls' : 'controlsOff'), onclick: () => app.togglePlayer(b) }) : null;
     const flags = h('span', { class: 'wb-board-flags' },
       play,
+      controls,
       flag('locked', b.locked, 'lock', 'unlock', b.locked ? 'Locked: its marks and the board stay as they are (click to unlock)' : 'Lock the board (its marks, its place and size)'),
       h('button', { class: `wb-icon-btn${b.hidden ? ' on' : ''}`, title: b.hidden ? 'Hidden: not drawn, not run (click to show)' : 'Hide the board (not drawn, not run)', html: icon(b.hidden ? 'eyeOff' : 'eye'), onclick: () => app.setBoardFlag(b.id, 'hidden', !b.hidden) }),
       h('button', { class: `wb-icon-btn${b.hideLabel ? ' on' : ''}`, title: b.hideLabel ? 'Title hidden (click to show it)' : 'Hide the title above it', html: icon(b.hideLabel ? 'labelOff' : 'label'), onclick: () => app.setBoardFlag(b.id, 'hideLabel', !b.hideLabel) }),
