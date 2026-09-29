@@ -25,8 +25,8 @@ import { findBoard, newBoardId, nextBoardPlace } from './boards.js';
 import { getSource, streamState } from './streams.js';
 import { fitSource } from './fit.js';
 
-const EXTRA_KEYS = ['label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'path', 'fill'];
-const ELEMENT_KEYS = new Set(['path', 'fill', 'why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id']);
+const EXTRA_KEYS = ['time', 'born', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'path', 'fill'];
+const ELEMENT_KEYS = new Set(['time', 'born', 'path', 'fill', 'why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id']);
 
 /** 1D/2D value noise (seeded, smooth), enough for gentle variation. */
 function makeNoise(rng) {

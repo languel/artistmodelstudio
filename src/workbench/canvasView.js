@@ -12,7 +12,7 @@ import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
 import { boardsOf, boardDoc, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD } from '../process/boards.js';
 import { closeLasso, lazyStep } from '../process/strokes.js';
 import { rdp } from '../process/sculpt.js';
-import { renderDocument } from '../process/render.js';
+import { renderDocument, timedActive } from '../process/render.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
 import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
 import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
@@ -147,10 +147,13 @@ export class CanvasView {
 
   draw() {
     const t0 = performance.now();
+    this.frameNow = Date.now();   // the moment marks with a time envelope are drawn at
     this.drawFrame_();
     const ms = performance.now() - t0;
     this.stats = { draw: ms, avg: this.stats ? this.stats.avg * 0.9 + ms * 0.1 : ms, frames: (this.stats?.frames || 0) + 1 };
     this.onDrawn?.();   // layers over the canvas (document boards) follow the camera
+    // Marks still fading, drawing themselves or looping: the next frame.
+    if (!this.previewDoc && timedActive(this.store.doc, this.frameNow)) this.invalidate();
   }
 
   drawFrame_() {
@@ -209,7 +212,7 @@ export class CanvasView {
     for (const b of boards) if (b.hidden) skip.add(b.id);
     renderDocument(ctx, skip.size ? { ...doc, elements: doc.elements.filter(e => !skip.has(e.board || MAIN)) } : doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
-      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true,
+      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, now: this.frameNow,
       selectColor: css.getPropertyValue('--wb-select').trim() || '#8a8a8a'
     });
     if (this.drawOverlay) {

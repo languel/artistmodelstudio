@@ -10,6 +10,7 @@
  *
  * Pure data + a tiny observable store with undo. No DOM.
  */
+import { normalizeTime } from './envelope.js';
 import { installLines, embedBrushes } from './brushes.js';
 import { migrateBoards, boardsOf, newBoardId, nextBoardPlace, boardForPoints, MAIN, BLACKBOARD, BOARD_FLAGS, rateOf } from './boards.js';
 
@@ -118,7 +119,9 @@ export function normalizeElement(e, stage) {
     ...(e.bake && typeof e.bake === 'object' ? { bake: { ...e.bake } } : {}),
     ...(Number.isFinite(Number(e.opacity)) && Number(e.opacity) < 1 ? { opacity: Math.max(0, Number(e.opacity)) } : {}),
     ...(e.blend && e.blend !== 'normal' ? { blend: String(e.blend) } : {}),
-    ...(e.path === 'straight' ? { path: 'straight' } : {})
+    ...(e.path === 'straight' ? { path: 'straight' } : {}),
+    // Time: a spec (see envelope.js) and the moment (epoch ms) it started; without `now` it is not applied.
+    ...(normalizeTime(e.time) ? { time: normalizeTime(e.time), born: Number.isFinite(Number(e.born)) ? Number(e.born) : Date.now() } : {})
   };
 }
 

@@ -7,13 +7,23 @@
  * upTo:       render only stages up to and including this index (filmstrip, replay)
  * transform:  { x, y, scale }, artboard → screen
  */
+import { envelope, reveal, expired, changing, cutPath } from './envelope.js';
 import { BRUSHES, mulberry32, resolveParams, installLines, KIT } from './brushes.js';
 import { boardDoc, boardsOf, MAIN } from './boards.js';
 import { drawNote, noteCorners } from './notes.js';
 
+// A mark's opacity from its time envelope, for the mark being drawn (read by withLook).
+let TIME_ALPHA = 1;
+
+/** Does any mark still change with time (fading, drawing, looping) at `now` (epoch ms)? Then the view must keep redrawing. */
+export function timedActive(doc, now) {
+  for (const e of doc.elements) if (e.time && changing(e.time, (now - (e.born ?? now)) / 1000)) return true;
+  return false;
+}
+
 export function renderDocument(ctx, doc, {
   mode = 'process', upTo = Infinity, transform = { x: 0, y: 0, scale: 1 },
-  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a', frozen = false
+  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a', frozen = false, now = null
 } = {}) {
   const { width, height } = doc.artboard;
   ctx.save();
@@ -31,13 +41,25 @@ export function renderDocument(ctx, doc, {
     .map(([e]) => e);
 
   installLines(doc);
-  const env = { scale: transform.scale, rng: null, frozen };
+  const env = { scale: transform.scale, rng: null, frozen, now, age: 0 };
   const boardRects = new Map(boardsOf(doc).map(b => [b.id, { x: b.x, y: b.y, width: b.width, height: b.height }]));
   const overlay = [];
-  for (const e of ordered) {
+  for (const e0 of ordered) {
+    let e = e0;
     const s = stageOf.get(e.stage);
     if (!s || !s.visible || e.hidden) continue;
     if ((rank.get(e.stage) ?? 0) > upTo) continue;
+    // Time: a mark with an envelope fades (and draws itself on) by its age; gone when its life is over.
+    TIME_ALPHA = 1; env.age = 0;
+    if (now != null && e.time) {
+      const age = (now - (e.born ?? now)) / 1000;
+      if (expired(e.time, age)) continue;
+      TIME_ALPHA = envelope(e.time, age);
+      if (TIME_ALPHA <= 0.003) continue;
+      env.age = age;
+      const share = reveal(e.time, age);
+      if (share < 1) e = { ...e, points: cutPath(e.points, share) };
+    }
     const brush = BRUSHES[e.realize?.brush] || BRUSHES.ink;
     const construction = brush.construction || e.role === 'guide' || e.role === 'gesture' || e.role === 'note';
     if (construction) { overlay.push(e); continue; }
@@ -58,6 +80,7 @@ export function renderDocument(ctx, doc, {
     if (e.fill && e.points.length > 2 && e.closed) withLook(ctx, e, () => fillShape(ctx, e));
     withLook(ctx, e, () => brush.draw(ctx, e, resolveParams(e.realize.brush, e.realize.params), env));
   }
+  TIME_ALPHA = 1;
   if (mode === 'process') {
     for (const e of overlay) {
       env.rng = mulberry32(e.seed || 1);
@@ -86,9 +109,9 @@ export function renderDocument(ctx, doc, {
 /** scale: screen px per unit when notes should keep a readable screen size (canvas view), else 1. */
 /** An element's own opacity and blend mode, on top of whatever its brush does. */
 function withLook(ctx, e, draw) {
-  if ((e.opacity ?? 1) >= 1 && (!e.blend || e.blend === 'normal')) return draw();
+  if ((e.opacity ?? 1) >= 1 && TIME_ALPHA >= 1 && (!e.blend || e.blend === 'normal')) return draw();
   ctx.save();
-  ctx.globalAlpha *= e.opacity ?? 1;
+  ctx.globalAlpha *= (e.opacity ?? 1) * TIME_ALPHA;
   if (e.blend && e.blend !== 'normal') ctx.globalCompositeOperation = e.blend;
   draw();
   ctx.restore();

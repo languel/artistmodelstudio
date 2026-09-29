@@ -464,7 +464,7 @@ export const KIT = {
 };
 export function kitFor(env = {}) {
   if (env && env.smoothPath) return env;
-  const k = Object.create(KIT); k.rng = env?.rng || Math.random; k.scale = env?.scale || 1; k.board = env?.board; k.frozen = env?.frozen;
+  const k = Object.create(KIT); k.rng = env?.rng || Math.random; k.scale = env?.scale || 1; k.board = env?.board; k.frozen = env?.frozen; k.age = env?.age || 0; k.now = env?.now ?? null;
   // A mark with path: 'straight' is drawn through its points as straight segments.
   if (env?.straight) k.smoothPath = points => points.map(p => p.slice());
   return k;

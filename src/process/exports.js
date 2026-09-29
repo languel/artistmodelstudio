@@ -16,6 +16,7 @@ import { noteSVG } from './notes.js';
 import { normalizeDocument, normalizeElement, createDocument } from './document.js';
 import { renderToCanvas } from './render.js';
 import boardsSrc from './boards.js?raw';
+import envelopeSrc from './envelope.js?raw';
 import documentSrc from './document.js?raw';
 import brushesSrc from './brushes.js?raw';
 import renderSrc from './render.js?raw';
@@ -248,6 +249,7 @@ function keyPressed() {
 
 // ---- Artist Model Studio process runtime (unchanged library code) ----
 ${strip(boardsSrc)}
+${strip(envelopeSrc)}
 ${strip(documentSrc)}
 ${strip(brushesSrc)}
 ${strip(notesSrc)}
