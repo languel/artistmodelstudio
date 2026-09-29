@@ -35,6 +35,8 @@ export const ICONS = {
   // The title (T) and the performance gauge, each with an "off" state (struck through, like the eye)
   label: svg('<path d="M5 5h14M12 5v14"/>'),
   labelOff: svg('<path d="M5 5h14M12 5v14"/><path d="M3 3l18 18"/>'),
+  repeat: svg('<path d="M17 3l3 3-3 3M4 11V9a3 3 0 013-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 01-3 3H4"/>'),
+  repeatOff: svg('<path d="M17 3l3 3-3 3M4 11V9a3 3 0 013-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 01-3 3H4"/><path d="M3 3l18 18"/>'),
   volume: svg('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 010 6M18 6.5a8 8 0 010 11"/>'),
   mute: svg('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>'),
   // Media controls (a player under a board): shown / hidden

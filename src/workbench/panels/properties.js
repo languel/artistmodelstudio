@@ -125,6 +125,11 @@ export function mountProperties(el, app) {
       for (const ev of ['pointerup', 'pointercancel', 'blur']) scrub.addEventListener(ev, () => { scrubbing = false; });
       scrub.addEventListener('input', () => app.mediaAct(mediaName, 'seek', Number(scrub.value) / 1000));
       const time = h('span', { class: 'wb-muted wb-small wb-media-time' });
+      const loopBtn = h('button', { class: 'wb-icon-btn', onclick: () => app.mediaAct(mediaName, 'loop') });
+      const inBtn = btn('in', 'Set the in point here (playing starts here)', '<b>[</b>', () => app.mediaAct(mediaName, 'in'));
+      const outBtn = btn('out', 'Set the out point here (playing ends here)', '<b>]</b>', () => app.mediaAct(mediaName, 'out'));
+      const clearBtn = btn('range', 'The whole clip again (clear in and out)', icon('close'), () => app.mediaAct(mediaName, 'range'));
+      const rangeText = h('span', { class: 'wb-muted wb-small' });
       // Volume, for a clip that can have sound: muted until raised.
       const mute = h('button', { class: 'wb-icon-btn', title: 'Mute / unmute (muted by default)', html: icon('mute'), onclick: () => app.mediaAct(mediaName, 'mute') });
       const vol = rangeInput({ min: 0, max: 100, step: 1, value: 0, title: 'Volume' });
@@ -139,6 +144,11 @@ export function mountProperties(el, app) {
         if (play.dataset.state !== (playing ? 'pause' : 'play')) { play.dataset.state = playing ? 'pause' : 'play'; play.innerHTML = icon(playing ? 'pause' : 'play'); play.title = playing ? 'Pause' : 'Play'; }
         if (playing && speed.value !== String(sp)) speed.value = String(sp);
         const st = app.mediaState(mediaName), has = app.sources.entries.get(mediaName)?.live?.kind === 'video' && st.sound !== false;
+        loopBtn.innerHTML = icon(st.loop ? 'repeat' : 'repeatOff'); loopBtn.title = st.loop ? 'Looping: click to stop at the end' : 'Stops at the end: click to loop';
+        loopBtn.classList.toggle('on', st.loop);
+        const ranged = st.inP > 0 || st.outP < 1, dur = st.pos?.duration;
+        rangeText.textContent = ranged ? (dur ? `${t(st.inP * dur)} – ${t(st.outP * dur)}` : `${Math.round(st.inP * 100)}–${Math.round(st.outP * 100)}%`) : '';
+        clearBtn.style.visibility = ranged ? 'visible' : 'hidden';
         volRow.hidden = !has;
         if (has) {
           const muted = st.volume <= 0;
@@ -149,7 +159,9 @@ export function mountProperties(el, app) {
       el.append(section(`Media · ${mediaName}`, true,
         h('div', { class: 'wb-row' }, play, btn('back', 'Back a frame', step(-1), () => app.mediaAct(mediaName, 'step', -1)), btn('fwd', 'Forward a frame', step(1), () => app.mediaAct(mediaName, 'step', 1)), h('span', { style: { flex: 1 } }), speed),
         h('div', { class: 'wb-row' }, scrub),
-        time, volRow, ...look));
+        time,
+        h('div', { class: 'wb-row' }, loopBtn, inBtn, outBtn, clearBtn, rangeText),
+        volRow, ...look));
       media.update();
     }
     const text = h('textarea', { class: 'wb-why', rows: 6, placeholder: 'What this board says (Markdown): on the exported page, under the picture' });

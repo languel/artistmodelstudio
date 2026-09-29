@@ -242,11 +242,15 @@ export class BoardFrames {
       f.built = true;
       const btn = (act, tip, html) => `<button type="button" data-act="${act}" title="${tip}">${html}</button>`;
       const g = d => `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">${d}</svg>`;
-      f.icons = { play: g('<path d="M8 5l11 7-11 7z"/>'), pause: g('<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>'), volume: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 010 6M18 6.5a8 8 0 010 11"/></svg>`, mute: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>` };
+      const rp = '<path d="M17 3l3 3-3 3M4 11V9a3 3 0 013-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 01-3 3H4"/>', sv = d => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+      f.icons = { repeat: sv(rp), repeatOff: sv(rp + '<path d="M3 3l18 18"/>'), play: g('<path d="M8 5l11 7-11 7z"/>'), pause: g('<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>'), volume: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 010 6M18 6.5a8 8 0 010 11"/></svg>`, mute: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>` };
       f.el.innerHTML = `<div class="wb-player">
         ${btn('play', 'Play / pause', f.icons.pause)}
         ${btn('back', 'Back a frame', g('<path d="M17 5v14l-9-7zM6 5h2v14H6z"/>'))}
         ${btn('fwd', 'Forward a frame', g('<path d="M7 5v14l9-7zM16 5h2v14h-2z"/>'))}
+        ${btn('loop', 'Loop (or stop at the end)', '')}
+        ${btn('in', 'Set the in point here (playing starts here)', '<b>[</b>')}
+        ${btn('out', 'Set the out point here (playing ends here; click again to clear both: Shift)', '<b>]</b>')}
         <input type="range" min="0" max="1000" value="0" class="scrub" title="Scrub">
         <span class="time"></span>
         <span class="vol" hidden>${btn('mute', 'Mute / unmute (muted by default)', '')}<input type="range" min="0" max="100" value="0" class="volume" title="Volume"></span>
@@ -256,6 +260,7 @@ export class BoardFrames {
       el.addEventListener('click', e => {
         const a = e.target.closest('button')?.dataset.act;
         if (a === 'mute') app.mediaAct(b.source, 'mute');
+        else if (a === 'loop' || a === 'in' || a === 'out') app.mediaAct(b.source, e.shiftKey && a !== 'loop' ? 'range' : a);
         else if (a) app.mediaAct(b.source, a === 'play' ? 'play' : 'step', a === 'back' ? -1 : 1);
       });
       scrub.addEventListener('input', () => app.mediaAct(b.source, 'seek', Number(scrub.value) / 1000));
@@ -269,6 +274,9 @@ export class BoardFrames {
     if (!f.scrubbing && pos && document.activeElement !== scrub) scrub.value = String(Math.round(pos.fraction * 1000));
     const t = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
     el.querySelector('.time').textContent = pos ? (pos.duration ? `${t(pos.time)} / ${t(pos.duration)} · ${pos.frame}/${pos.frames}` : `${pos.frame + 1}/${pos.frames}`) : '—';
+    const ms = this.app.mediaState(b.source), lb = el.querySelector('[data-act="loop"]');
+    if (lb.dataset.state !== String(ms.loop)) { lb.dataset.state = String(ms.loop); lb.innerHTML = ms.loop ? f.icons.repeat : f.icons.repeatOff; lb.title = ms.loop ? 'Looping: click to stop at the end' : 'Stops at the end: click to loop'; }
+    for (const k of ['in', 'out']) el.querySelector(`[data-act="${k}"]`).style.opacity = (k === 'in' ? ms.inP > 0 : ms.outP < 1) ? '1' : '0.45';
     const playBtn = el.querySelector('[data-act="play"]'), want = spd > 0 ? 'pause' : 'play';
     if (playBtn.dataset.state !== want) { playBtn.dataset.state = want; playBtn.innerHTML = f.icons[want]; playBtn.title = spd > 0 ? 'Pause' : 'Play'; }
     if (spd > 0 && sel.value !== String(spd)) sel.value = String(spd);

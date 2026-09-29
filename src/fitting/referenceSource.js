@@ -54,7 +54,7 @@ export class LiveSource {
     // From another address: the server must allow it (CORS), or the picture could not be read.
     if (crossOrigin) video.crossOrigin = 'anonymous';
     video.muted = true;
-    video.loop = true;
+    video.loop = false;   // looping is ours (a range, and stopping at its end: see tick)
     video.playsInline = true;
     video.src = url;
     await new Promise((resolve, reject) => {
@@ -119,6 +119,12 @@ export class LiveSource {
     if (typeof v.webkitAudioDecodedByteCount === 'number' && v.currentTime > 0.5) return v.webkitAudioDecodedByteCount > 0;
     return null;
   }
+
+  /** Loop (or stop at the end) and the range played, as fractions of the clip (0..1): in and out. */
+  setLoop(on) { this.loop = on !== false; }
+  setRange(a = 0, b = 1) { this.inPoint = Math.max(0, Math.min(1, Number(a) || 0)); this.outPoint = Math.max(this.inPoint, Math.min(1, b == null ? 1 : Number(b))); }
+  /** Whether playback is at the end of its range (a stopped clip: play starts it again from the in point). */
+  atEnd() { const p = this.position?.(); return Boolean(p) && p.fraction >= (this.outPoint ?? 1) - 0.0005 && !this.loop || Boolean(this.video?.ended); }
 
   setRate(rate) {
     this.rate = Math.max(0, rate);
@@ -192,11 +198,21 @@ export class LiveSource {
       this.ctx.drawImage(v, 0, 0, w, h);
       this.ctx.restore();
       this.version++;
+      // The end of the range (or of the clip): back to the in point, or stop there.
+      const d = v.duration, out = (this.outPoint ?? 1) * d, inn = (this.inPoint ?? 0) * d;
+      if (d && (v.currentTime >= out - 0.04 || v.ended) && (!v.paused || v.ended) && this.rate > 0) {
+        if (this.loop !== false) { v.currentTime = inn; if (v.paused) v.play().catch(() => {}); }
+        else { v.pause(); v.currentTime = Math.min(out, d); this.onEnd?.(); }
+      }
     } else if (this.decoder && !this.decoding && this.rate > 0) {
       this.frameClock += dt * this.rate;
       if (this.frameClock >= this.frameDuration) {
         this.frameClock %= Math.max(0.01, this.frameDuration);
-        this.frameIndex = (this.frameIndex + 1) % this.frameCount;
+        const last = Math.round((this.outPoint ?? 1) * (this.frameCount - 1)), first = Math.round((this.inPoint ?? 0) * (this.frameCount - 1));
+        if (this.frameIndex >= last) {
+          if (this.loop === false) { this.onEnd?.(); return; }   // stopped on its last frame
+          this.frameIndex = first;
+        } else this.frameIndex += 1;
         this.decoding = true;
         this.decode(this.frameIndex).finally(() => { this.decoding = false; });
       }

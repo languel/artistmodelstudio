@@ -1215,7 +1215,8 @@ export class Workbench {
   mediaState(name) {
     const pos = this.sources.entries.get(name)?.live?.position?.() || null, speed = this.sources.def(name)?.speed ?? 1;
     const live = this.sources.entries.get(name)?.live;
-    return { pos, speed, playing: speed > 0, volume: this.sources.def(name)?.volume ?? 0, sound: live?.hasAudio?.() ?? false };
+    const def = this.sources.def(name);
+    return { pos, speed, playing: speed > 0, loop: def?.loop !== false, inP: def?.in ?? 0, outP: def?.out ?? 1, volume: this.sources.def(name)?.volume ?? 0, sound: live?.hasAudio?.() ?? false };
   }
 
   /** One control on a source: 'play' (toggle), 'step' (±1 frame), 'seek' (0..1), 'speed'. Playing is never touched by anything else. */
@@ -1224,7 +1225,10 @@ export class Workbench {
     if (!live) return;
     this.mediaLast ||= new Map();
     const pause = () => { if (speed > 0) { this.mediaLast.set(name, speed); S.update(name, { speed: 0 }); } };
-    if (act === 'play') { if (speed > 0) pause(); else S.update(name, { speed: this.mediaLast.get(name) || 1 }); }
+    if (act === 'play') { if (speed > 0) pause(); else { if (live.atEnd?.()) live.seek(S.def(name)?.in ?? 0); S.update(name, { speed: this.mediaLast.get(name) || 1 }); } }
+    else if (act === 'loop') S.update(name, { loop: !(S.def(name)?.loop !== false) });
+    else if (act === 'in' || act === 'out') { const f = live.position?.()?.fraction ?? 0, d = S.def(name) || {}; S.update(name, act === 'in' ? { in: Math.min(f, d.out ?? 1) } : { out: Math.max(f, d.in ?? 0) }); }
+    else if (act === 'range') S.update(name, { in: 0, out: 1 });
     else if (act === 'step') { pause(); live.step(value); }
     else if (act === 'seek') live.seek(value);
     else if (act === 'speed') S.update(name, { speed: Number(value) });
