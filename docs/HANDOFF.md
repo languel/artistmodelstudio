@@ -1,10 +1,10 @@
-# Handoff: 29 September 2026
+# Handoff: 30 September 2026
 
 Where Artist Model Studio stands, how the new parts fit together, and what is next. For the features themselves see [workbench.md](workbench.md); for agents, [mcp.md](mcp.md).
 
 ## State
 
-Everything is on `main`. The tag `milestone-sculpt-params` marks the state before scenes and boards. There are 195 tests (`npx vitest run`). Always run `npm run build` before committing: quoting in the docs strings has broken the build before. The dev server is at `localhost:3017`.
+Everything is on `main`. The tag `milestone-sculpt-params` marks the state before scenes and boards. There are 200 tests (`npx vitest run`). Always run `npm run build` before committing: quoting in the docs strings has broken the build before. The dev server is at `localhost:3017`.
 
 In one session (26 Sep) these were added, in order:
 
@@ -120,6 +120,13 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 49. **Board switches:** `locked`, `hidden`, `hideLabel`, `perf` (`BOARD_FLAGS` in `boards.js`, `app.setBoardFlag`) as glyphs in Properties → Board and the board menu. Hidden boards are not drawn, run or exported; a hidden player leaves no trace. The performance line under a board (`app.boardPerfText`, View → Performance under boards, or a board's own switch) is measured only while shown.
 50. **Stock samples:** Assets › Samples and Test clips (`assetStore.seedClips`): the countdown clips (frame numbers, to see real update rates), the Muybridge horse (tracked), and the rest kept out of the repository in `examples/media/local/` with `samples.json` (sources and licences; two are CC BY-SA). Videos are H.264 MP4.
 51. **Cmd/Ctrl+click** anywhere in a board selects it and opens Properties; page boards let clicks through while the key is held (`.wb-frames.mod`).
+
+52. **Media in scenes:** clips and GIFs drag from Assets (or double-click) to a source, a preview board and **media controls** under it (a board switch, `board.controls`, drawn by `refreshPlayer` in `boardFrames.js`): play, steps, timeline, speed, loop or stop, in and out points, mute and volume (muted by default; the sound track is read from the clip's stream). Properties mirrors them (`app.mediaState`, `app.mediaAct`). A movie waits on its first frame, a GIF plays.
+53. **Streams:** `resolveMediaUrl` (`mediaUrl.js`) turns a URL or a Wikipedia / Commons `File:` page into the file (licence and author from the wiki API); wiki videos use a smaller derivative (240 / 480 / 1080 / original; WebM or MP4 only). Sources of kind `url` are streamed, never stored; `lazy` ones start when a live board shows them big enough (`sources.lazyWanted`) and close after 30 s unseen. `streamSamples.js` lists clips (Metropolis, Vertov, Edison, Lumière, Méliès, dance, Ruttmann, Duchamp, Chaplin, Keaton), some cut to a moment (`start`, `end` become the in and out points). They are also assets (kind `stream`, Assets › Streams: a reference of ~100 bytes). `/samples` builds a scene of them and the stock samples.
+54. **Asset properties:** selecting an asset shows its title, folder, tags, rating, a stream's address, size and range, and **Starts with** defaults (speed, loop, volume, underlay opacity, blend, fit) that a dragged-in source gets (`applyAssetDefaults`). `assetStore.update` is queued.
+55. **Trackers** (`perception/mediapipe.js` registry: pose, hands, face, mask; `registerTracker` adds one): `source().face` (478 points, expression scores and blends), `.track(kind)`; gesture conditions `expr`; the *Face and expressions* demo; `underlay({ source, opacity, blend, fit })` in board code. Note: `docs/notes/accidental-art-unicursal-faces.md` (the kiss drawn as one-line faces; revisit with ~/dev/sketchcam).
+56. **Board switches and groups:** `locked`, `hidden`, `hideLabel`, `perf`, `controls`; Shift+click titles or a box select boards as a group (`canvas.boardSet`), and dragging one moves the group with its marks; Opt+click a play button solos a board; Cmd+click anywhere in a board opens its Properties; *Create board from selection*.
+57. **Boards as sources and playlists:** *Use as a source* (`boardSource.js`: a board's picture, live and small, read by name). Playlist boards (`kind: 'playlist'`; `process/playlist.js` reads and writes the code, `workbench/playlists.js` plays it): media items are routed to a target board, board items run alone, each ends at its range or after `for` seconds; the board has its own controls and a **+** menu, and the code and the controls edit the same text.
 
 ## How the model fits
 
