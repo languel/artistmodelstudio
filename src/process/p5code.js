@@ -180,6 +180,8 @@ function state(name = '') {
   if (/(?<![.\w$])range\s*\(/.test(code) || defs.some(d => d.includes('range('))) defs.push(`function range(n) {
   return Array.from({ length: n }, (_, i) => i);
 }`);
+  if (uses('mask')) defs.push(`// A board's mask (crop its marks to the board): a p5 canvas crops at its edge already.
+function mask() {}`);
   if (uses('underlay')) defs.push(`// The studio shows a source under a board; in p5 the picture is the source itself (loadImage), so nothing to do.
 function underlay() {}`);
   if (uses('stage')) defs.push(`// Stages order the work in the studio; here the code runs top to bottom.

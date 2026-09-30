@@ -55,7 +55,7 @@ export function renderDocument(ctx, doc, {
 
   installLines(doc);
   const env = { scale: transform.scale, rng: null, frozen, now, age: 0 };
-  const boardRects = new Map(boardsOf(doc).map(b => [b.id, { x: b.x, y: b.y, width: b.width, height: b.height }]));
+  const boardRects = new Map(boardsOf(doc).map(b => [b.id, { x: b.x, y: b.y, width: b.width, height: b.height, mask: Boolean(b.mask) }]));
   env.boards = boardRects;
   const overlay = [];
   for (const e0 of ordered) {
@@ -77,8 +77,8 @@ export function renderDocument(ctx, doc, {
     const brush = BRUSHES[e.realize?.brush] || BRUSHES.ink;
     // A textured mark is painted once (its layer is kept): fading is a change of opacity, drawing on a clip, and a
     // mark whose layer is known is put on the picture without asking its brush.
-    // A board's code draws on the board as its whole canvas: what its marks reach beyond the edge is cropped (as a p5 canvas does).
-    const rect = e.by?.kind === 'code' ? boardRects.get(e.board || MAIN) : null;
+    // A masked board crops its marks to its rectangle (only the marks that reach over the edge pay for a clip).
+    const br = boardRects.get(e.board || MAIN), rect = br?.mask ? br : null;
     if (brush.texture && !e.fill && e.color !== 'none' && e.role !== 'guide' && e.role !== 'gesture' && e.role !== 'note') {
       drawTextured(ctx, e, brush, env, share, view, rect);
       continue;

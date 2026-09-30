@@ -514,8 +514,9 @@ export class ProcessStore {
       for (const e of res.doc.elements) d.elements.push({ ...e, id: newId(e.role), stage: stageId.get(e.stage) || d.stages[0].id, by: { kind: 'code', name: id }, ...(onBoard ? { board: onBoard } : {}), points: e.points.map(([x, y, t, p]) => [x + b.x, y + b.y, t, p]) });
       for (const x of res.doc.decisions) d.decisions.push({ ...x, id: newId('dec'), stage: stageId.get(x.stage) || d.stages[0].id, by: { kind: 'code', name: id } });
       if (id === MAIN) d.artboard.code = source; else d.boards.find(x => x.id === id).code = source;
-      // underlay(…) in the code sets the board's source underneath (a reference, not part of the picture).
+      // underlay(…) in the code sets the board's source underneath (a reference, not part of the picture); mask(…) its mask.
       const u = res.underlay, t = id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
+      if (t && res.mask !== undefined) { if (res.mask) t.mask = true; else delete t.mask; }
       if (u && t) {
         if (u.source === null) { delete t.source; delete t.sourceOpacity; delete t.sourceFit; delete t.sourceBlend; }
         else {

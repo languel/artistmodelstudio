@@ -58,20 +58,31 @@ line([[0.1, 0.5], [0.5, 0.4], [0.9, 0.5]], { brush: 'oil', width: 30, color: '#a
   });
 });
 
-describe('a board\'s code draws on the board as its canvas', () => {
+describe('a masked board', () => {
   beforeEach(() => { txClear(); globalThis.document = { createElement: () => fakeCanvas() }; globalThis.DOMMatrix = class { translate() { return this; } scale() { return this; } }; });
   afterEach(() => { delete globalThis.document; delete globalThis.DOMMatrix; });
-  const draw = (by, x) => {
-    const d = runScript(`artboard(400, 300)\nline([[${x}, 0.5], [${x + 0.05}, 0.45]], { brush: 'oil', width: 40, color: '#a03020', seed: ${Math.round(x * 100)} })`, { by }).doc;
+  const draw = (mask, x) => {
+    const d = runScript(`artboard(400, 300)\nline([[${x}, 0.5], [${x + 0.05}, 0.45]], { brush: 'oil', width: 40, color: '#a03020', seed: ${Math.round(x * 100)} })`).doc;
+    if (mask) d.artboard.mask = true;
     const target = fakeContext();
     renderDocument(target, d, { mode: 'final', ground: false });
     return target;
   };
-  it('crops what a mark made by code reaches beyond the board, and only when it does', () => {
-    const code = { kind: 'code', name: 'main' };
-    expect(count(draw(code, 0.97), 'clip')).toBe(1);   // near the edge: cropped
-    expect(count(draw(code, 0.5), 'clip')).toBe(0);    // inside: not
-    expect(count(draw({ kind: 'user', name: 'you' }, 0.97), 'clip')).toBe(0);   // made by hand: free to go over
+  it('crops what its marks reach beyond the board, and only when they do; unmasked, marks spill', () => {
+    expect(count(draw(true, 0.97), 'clip')).toBe(1);    // near the edge: cropped
+    expect(count(draw(true, 0.5), 'clip')).toBe(0);     // inside: not
+    expect(count(draw(false, 0.97), 'clip')).toBe(0);   // no mask: free to go over
+  });
+});
+
+describe('mask() in board code', () => {
+  it('turns the board\'s mask on or off from its code', async () => {
+    const { ProcessStore } = await import('./document.js');
+    const store = new ProcessStore();
+    store.runBoardCode('main', "mask(true)\npoint(0.5, 0.5)", runScript, { transient: true });
+    expect(store.doc.artboard.mask).toBe(true);
+    store.runBoardCode('main', "mask(false)\npoint(0.5, 0.5)", runScript, { transient: true });
+    expect(store.doc.artboard.mask).toBeUndefined();
   });
 });
 

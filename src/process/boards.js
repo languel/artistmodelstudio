@@ -43,9 +43,10 @@ export function slidesOf(doc) {
 
 /**
  * A board's switches: locked (its marks and the board itself stay as they are), hidden (not drawn,
- * not run), hideLabel (no title above it), perf (a performance line under it).
+ * not run), hideLabel (no title above it), perf (a performance line under it), mask (its marks are cropped to
+ * the board: the default mask is the board's own rectangle).
  */
-export const BOARD_FLAGS = ['locked', 'hidden', 'hideLabel', 'perf', 'controls'];
+export const BOARD_FLAGS = ['locked', 'hidden', 'hideLabel', 'perf', 'controls', 'mask'];
 /** Redraw rate: runs a second for a board that follows a source (none: once per new source frame). */
 export const rateOf = b => { const r = Number(b?.rate); return Number.isFinite(r) && r > 0 ? Math.min(60, r) : 0; };
 const flagsOf = b => ({ ...Object.fromEntries(BOARD_FLAGS.filter(k => b?.[k]).map(k => [k, true])), ...(rateOf(b) ? { rate: rateOf(b) } : {}) });

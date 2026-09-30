@@ -549,6 +549,7 @@ export class Workbench {
         { label: b.locked ? 'Unlock' : 'Lock', hint: 'Locked: its marks cannot be selected or changed, and it cannot be moved or resized', run: () => this.setBoardFlag(id, 'locked', !b.locked) },
         { label: b.hidden ? 'Show' : 'Hide', hint: 'Hidden: not drawn and not run (a dashed outline marks where it is)', run: () => this.setBoardFlag(id, 'hidden', !b.hidden) },
         { label: b.hideLabel ? 'Show title' : 'Hide title', run: () => this.setBoardFlag(id, 'hideLabel', !b.hideLabel) },
+        { label: b.mask ? 'Unmask' : 'Mask to board', hint: 'Its marks are cropped to the board (a mask the size of the board); off, they may spill over its edge', run: () => this.setBoardFlag(id, 'mask', !b.mask) },
         { label: 'Add to playlist', hint: 'This board (or the selected boards): the media they show, or the boards themselves', run: () => { const ids = this.canvas.boardSet.has(id) && this.canvas.boardSet.size > 1 ? [...this.canvas.boardSet] : [id]; this.playlistMenu(ids.map(i => this.playlistItemForBoard(boardById(this.store.doc, i))), x, y, b); } },
         this.playableSource(b) ? { label: this.playerShown(b) ? 'Hide media controls' : 'Show media controls', hint: 'The player under the board: play, step, scrub, speed', run: () => this.togglePlayer(b) } : null,
         { label: this.captureOf(id) ? `Stop being a source (${this.captureOf(id).name})` : 'Use as a source', hint: 'Its picture (what is under it, then its marks), live, as a source other boards read by name', run: () => this.setBoardCapture(id) },

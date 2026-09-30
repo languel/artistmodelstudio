@@ -42,6 +42,8 @@ export const ICONS = {
   // Media controls (a player under a board): shown / hidden
   controls: svg('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 10.5l3 1.5-3 1.5z" fill="currentColor"/><path d="M14 12h4"/>'),
   controlsOff: svg('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 10.5l3 1.5-3 1.5z" fill="currentColor"/><path d="M3 3l18 18"/>'),
+  mask: svg('<rect x="6" y="6" width="12" height="12"/><path d="M3 9h3M3 15h3M18 9h3M18 15h3M9 3v3M15 3v3M9 18v3M15 18v3"/>'),
+  maskOff: svg('<rect x="6" y="6" width="12" height="12" stroke-dasharray="2 2"/><path d="M3 9h3M3 15h3M18 9h3M18 15h3M9 3v3M15 3v3M9 18v3M15 18v3" opacity=".5"/>'),
   gauge: svg('<circle cx="12" cy="12" r="9"/><path d="M12 12l4-4"/><path d="M7 15.5h.01M12 6.5v.01M17 15.5h.01"/>'),
   gaugeOff: svg('<circle cx="12" cy="12" r="9"/><path d="M12 12l4-4"/><path d="M3 3l18 18"/>'),
   eyeOff: svg('<path d="M3 3l18 18M10.6 5.1A10 10 0 0112 5c6 0 10 7 10 7a17 17 0 01-3.2 3.9M6.1 6.2A17 17 0 002 12s4 7 10 7a9.8 9.8 0 005-1.3"/>'),

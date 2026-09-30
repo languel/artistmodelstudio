@@ -104,6 +104,7 @@ for (const i of range(n)) {
 // It draws itself on, stays, fades out; as strokes fade the model differs again, so the picture keeps repainting.
 // The paper is toned to the source's mean color, so where nothing is painted it is not white.
 const s = source('${name}')
+// mask(true)                     // crop the strokes to the board (they may spill over its edge otherwise)
 const brushId = 'oil'              // oil | bristles | charcoal | chalk | pencil | marker | ink | any brush of yours
 const look = { hair: 1.6, streaks: 0.3, taper: 0.25, trim: 0.15 }   // the brush's own parameters
 // How much is painted, and how much it costs (fewer strokes, fewer layers, no fading: faster):
