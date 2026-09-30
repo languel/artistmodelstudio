@@ -67,8 +67,9 @@ export function createDocument({ width = 1000, height = 1000, ground = '#f3efe6'
 }
 
 /** Fill in missing fields so older or hand-written documents load. */
-export function normalizeDocument(doc) {
-  const d = doc && typeof doc === 'object' ? structuredClone(doc) : createDocument();
+export function normalizeDocument(doc, { own = false } = {}) {
+  // own: the caller made this document and will not use it again (a script run): no copy of it first.
+  const d = doc && typeof doc === 'object' ? (own ? doc : structuredClone(doc)) : createDocument();
   d.type = 'ams-process';
   d.version = PROCESS_VERSION;
   d.artboard = { width: 1000, height: 1000, ground: '#f3efe6', ...(d.artboard || {}) };

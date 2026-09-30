@@ -217,6 +217,7 @@ function source(name, o = {}) {
     return [px[i], px[i + 1], px[i + 2]];
   };
   return {
+    frame: ${stills.length ? `${JSON.stringify(stills)}.includes(name) ? 1 : (globalThis.frameCount ?? 0)` : '(globalThis.frameCount ?? 0)'},   // changes when the picture does
     rgb,
     color: (x, y) => '#' + rgb(x, y).map(c => hex(c, 2)).join(''),
     value: (x, y) => { const [r, g, b] = rgb(x, y); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; },
@@ -273,10 +274,32 @@ function drawn(o, pts) {
   if (share >= 1) return pts;
   const ry = ${absolute ? '1' : 'height / width'};
   return lifeCut(pts.map(q => [q[0], q[1] * ry, ...q.slice(2)]), share).map(q => [q[0], q[1] / ry, ...q.slice(2)]);
+}
+
+// A clip that shows the first part of a stroke (in pixels): a strip along its path, as wide as the brush can be.
+function revealClip(ctx, points, share, half) {
+  const cut = lifeCut(points, share), n = cut.length;
+  ctx.beginPath();
+  if (n < 2) { ctx.rect(0, 0, 0, 0); ctx.clip(); return; }
+  const left = [], right = [];
+  for (let i = 0; i < n; i++) {
+    const a = cut[Math.max(0, i - 1)], b = cut[Math.min(n - 1, i + 1)];
+    let dx = b[0] - a[0], dy = b[1] - a[1];
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    let x = cut[i][0], y = cut[i][1];
+    if (i === n - 1) { x += dx * half * 0.4; y += dy * half * 0.4; }
+    left.push([x - dy * half, y + dx * half]); right.push([x + dy * half, y - dx * half]);
+  }
+  ctx.moveTo(left[0][0], left[0][1]);
+  for (let i = 1; i < n; i++) ctx.lineTo(left[i][0], left[i][1]);
+  for (let i = n - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
+  ctx.closePath();
+  ctx.clip();
 }`);
   if (brushes) defs.push(`// Brushes from the studio: each draws one mark with the canvas's 2D context (p5's drawingContext).
 const brushes = {};
 function brush(def) {
+  def.texture ??= /\\.paint\\(/.test(String(def.draw));   // a textured brush keeps a layer per mark: drawing on is a clip, not a new layer
   brushes[def.id] = def;
 }
 
@@ -305,14 +328,18 @@ function useBrush(pts, o, role) {
   const pressure = i => (typeof o.pressures === 'function' ? o.pressures(i / max(1, pts.length - 1), i) : 0.5);${timed ? '\n  const a = fade(o);\n  if (a <= 0.003) return;' : ''}
   let seed = o.seed;
   if (seed == null) { seed = 7; for (const q of pts) seed = (seed * 31 + round(q[0] * 1000) + round(q[1] * 1000) * 7) | 0; seed >>>= 0; }
-  const shown = ${timed ? 'drawn(o, ' : '('}pts.map(([x, y], i) => [x, y, i * 16, pressure(i)]));
+  const full = pts.map(([x, y], i) => [x, y, i * 16, pressure(i)]);${timed ? `
+  const share = o.time ? lifeReveal(o.time, ageOf(o)) : 1;
+  const clipped = share < 1 && def.texture && p.width > 0 && role === 'line';
+  const shown = clipped ? full : drawn(o, full);` : `
+  const shown = full;`}
   const e = { role, color: o.color || kit.INK, closed: role === 'plane' || Boolean(o.closed), seed,
     points: shown.map(([x, y, t, q]) => [x${S}, y${SY}, t, q]) };
   const k = Object.create(kit);
   k.rng = seeded(seed);
   k.scale = 1;
   k.age = ${timed ? 'ageOf(o)' : '0'};
-  push();${timed ? '\n  drawingContext.globalAlpha *= a;' : ''}
+  push();${timed ? '\n  drawingContext.globalAlpha *= a;\n  if (clipped) revealClip(drawingContext, e.points, share, p.width * 0.8);' : ''}
   def.draw(drawingContext, e, p, k);
   pop();
 }

@@ -12,7 +12,7 @@ import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
 import { boardsOf, boardDoc, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD } from '../process/boards.js';
 import { closeLasso, lazyStep } from '../process/strokes.js';
 import { rdp } from '../process/sculpt.js';
-import { renderDocument, timedActive } from '../process/render.js';
+import { renderDocument, nextTimed } from '../process/render.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
 import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
 import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
@@ -147,7 +147,21 @@ export class CanvasView {
     this.raf = requestAnimationFrame(() => { this.raf = 0; this.draw(); });
   }
 
+  /** The next frame of something that moves by itself (marks fading or drawing on): at most `animFps` a second, and never more than about a fifth of the main thread. */
+  invalidateSoon(t0) {
+    clearTimeout(this.timer);
+    const gap = Math.max(1000 / (this.animFps || 15), (this.stats?.avg || 0) * 5);   // (a draw of 10 ms waits 50 ms: animation takes about a fifth of the main thread)
+    this.timer = setTimeout(() => { this.timer = 0; this.invalidate(); }, Math.max(0, gap - (performance.now() - t0)));
+  }
+
+  /** What the canvas shows, in world units: [x0, y0, x1, y1] (marks outside it are not drawn). */
+  viewRect(margin = 40) {
+    const z = this.cam.z;
+    return [(-this.cam.x) / z - margin, (-this.cam.y) / z - margin, (this.w - this.cam.x) / z + margin, (this.h - this.cam.y) / z + margin];
+  }
+
   draw() {
+    clearTimeout(this.timer); this.timer = 0;
     const t0 = performance.now();
     this.frameNow = Date.now();   // the moment marks with a time envelope are drawn at
     this.drawFrame_();
@@ -155,7 +169,12 @@ export class CanvasView {
     this.stats = { draw: ms, avg: this.stats ? this.stats.avg * 0.9 + ms * 0.1 : ms, frames: (this.stats?.frames || 0) + 1 };
     this.onDrawn?.();   // layers over the canvas (document boards) follow the camera
     // Marks still fading, drawing themselves or looping: the next frame.
-    if (!this.previewDoc && timedActive(this.store.doc, this.frameNow)) this.invalidate();
+    if (!this.previewDoc) {
+      // Marks fading or drawing: the next frame soon. Marks that only stay: a frame when the next one goes or starts to fade.
+      const wait = nextTimed(this.store.doc, this.frameNow);
+      if (wait === 0) this.invalidateSoon(t0);
+      else if (wait < Infinity) { clearTimeout(this.timer); this.timer = setTimeout(() => { this.timer = 0; this.invalidate(); }, Math.max(250, Math.min(wait + 15, 5000))); }   // (not sooner than a quarter second: a picture that repaints itself redraws with each run anyway)
+    }
   }
 
   drawFrame_() {
@@ -214,7 +233,7 @@ export class CanvasView {
     for (const b of boards) if (b.hidden) skip.add(b.id);
     renderDocument(ctx, skip.size ? { ...doc, elements: doc.elements.filter(e => !skip.has(e.board || MAIN)) } : doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
-      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, now: this.frameNow,
+      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, now: this.frameNow, view: this.viewRect(),
       selectColor: css.getPropertyValue('--wb-select').trim() || '#8a8a8a'
     });
     if (this.drawOverlay) {

@@ -197,7 +197,9 @@ point(0.2, 0.2, { size: 20, time: 2 })`;
   it('fades marks by their age, and draws lines on', () => {
     expect(out).toContain('const a = fade(o);');
     expect(out).toContain('function drawn(o, pts)');
-    expect(out).toContain('shown = drawn(o, ');
+    expect(out).toContain('const shown = clipped ? full : drawn(o, full);');
+    expect(out).toContain('function revealClip(');
+    expect(out).toContain('def.texture ??=');
   });
   it('goes back to studio code unchanged, whatever it carries', () => {
     expect(p5ToStudio(out).code).toBe(code + '\n');

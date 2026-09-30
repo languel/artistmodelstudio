@@ -7,25 +7,38 @@
  * upTo:       render only stages up to and including this index (filmstrip, replay)
  * transform:  { x, y, scale }, artboard → screen
  */
-import { envelope, reveal, expired, changing, cutPath } from './envelope.js';
+import { envelope, reveal, expired, nextChange, cutPath } from './envelope.js';
 import { BRUSHES, mulberry32, resolveParams, installLines, KIT } from './brushes.js';
 import { boardDoc, boardsOf, MAIN } from './boards.js';
 import { drawNote, noteCorners } from './notes.js';
+import { txBeginFrame, txArm, txDisarm, txKnown, txBlit, txHash, txPpu } from './texture.js';
 
 // A mark's opacity from its time envelope, for the mark being drawn (read by withLook).
 let TIME_ALPHA = 1;
 
-/** Does any mark still change with time (fading, drawing, looping) at `now` (epoch ms)? Then the view must keep redrawing. */
-export function timedActive(doc, now) {
-  for (const e of doc.elements) if (e.time && changing(e.time, (now - (e.born ?? now)) / 1000)) return true;
-  return false;
+/**
+ * Milliseconds until a mark with a time envelope next changes: 0 while any mark is fading or drawing itself (the view must keep
+ * redrawing), the wait until the next mark starts to fade out or is gone, Infinity when nothing will change.
+ */
+export function nextTimed(doc, now) {
+  let wait = Infinity;
+  for (const e of doc.elements) {
+    if (!e.time) continue;
+    const w = nextChange(e.time, (now - (e.born ?? now)) / 1000);
+    if (w === 0) return 0;
+    if (w < wait) wait = w;
+  }
+  return wait * 1000;
 }
+/** Does any mark still move (fade, draw on, loop) at `now` (epoch ms)? */
+export const timedActive = (doc, now) => nextTimed(doc, now) === 0;
 
 export function renderDocument(ctx, doc, {
   mode = 'process', upTo = Infinity, transform = { x: 0, y: 0, scale: 1 },
-  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a', frozen = false, now = null
+  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a', frozen = false, now = null, view = null
 } = {}) {
   const { width, height } = doc.artboard;
+  txBeginFrame();
   ctx.save();
   ctx.translate(transform.x, transform.y);
   ctx.scale(transform.scale, transform.scale);
@@ -43,6 +56,7 @@ export function renderDocument(ctx, doc, {
   installLines(doc);
   const env = { scale: transform.scale, rng: null, frozen, now, age: 0 };
   const boardRects = new Map(boardsOf(doc).map(b => [b.id, { x: b.x, y: b.y, width: b.width, height: b.height }]));
+  env.boards = boardRects;
   const overlay = [];
   for (const e0 of ordered) {
     let e = e0;
@@ -51,16 +65,23 @@ export function renderDocument(ctx, doc, {
     if ((rank.get(e.stage) ?? 0) > upTo) continue;
     // Time: a mark with an envelope fades (and draws itself on) by its age; gone when its life is over.
     TIME_ALPHA = 1; env.age = 0;
+    let share = 1;
     if (now != null && e.time) {
       const age = (now - (e.born ?? now)) / 1000;
       if (expired(e.time, age)) continue;
       TIME_ALPHA = envelope(e.time, age);
       if (TIME_ALPHA <= 0.003) continue;
       env.age = age;
-      const share = reveal(e.time, age);
-      if (share < 1) e = { ...e, points: cutPath(e.points, share) };
+      share = reveal(e.time, age);
     }
     const brush = BRUSHES[e.realize?.brush] || BRUSHES.ink;
+    // A textured mark is painted once (its layer is kept): fading is a change of opacity, drawing on a clip, and a
+    // mark whose layer is known is put on the picture without asking its brush.
+    if (brush.texture && !e.fill && e.color !== 'none' && e.role !== 'guide' && e.role !== 'gesture' && e.role !== 'note') {
+      drawTextured(ctx, e, brush, env, share, view);
+      continue;
+    }
+    if (share < 1) e = { ...e, points: cutPath(e.points, share) };
     const construction = brush.construction || e.role === 'guide' || e.role === 'gesture' || e.role === 'note';
     if (construction) { overlay.push(e); continue; }
     env.rng = mulberry32(e.seed || 1);
@@ -103,6 +124,65 @@ export function renderDocument(ctx, doc, {
     if (xs.length) ctx.strokeRect(Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) - Math.min(...xs) + pad * 2, Math.max(...ys) - Math.min(...ys) + pad * 2);
     ctx.restore();
   }
+  ctx.restore();
+}
+
+/** Can the mark reach into the view (world units, [x0, y0, x1, y1])? Its points, grown by its brush's width. */
+function reaches(points, pad, view) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const q of points) { if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; }
+  return x1 + pad >= view[0] && x0 - pad <= view[2] && y1 + pad >= view[1] && y0 - pad <= view[3];
+}
+
+/** A clip that shows the first `share` of a stroke: a strip along its path, as wide as the brush can be. */
+function revealClip(ctx, points, share, half) {
+  const cut = cutPath(points, share), n = cut.length;
+  ctx.beginPath();
+  if (n < 2) { ctx.rect(0, 0, 0, 0); ctx.clip(); return; }
+  const left = [], right = [];
+  for (let i = 0; i < n; i++) {
+    const a = cut[Math.max(0, i - 1)], b = cut[Math.min(n - 1, i + 1)];
+    let dx = b[0] - a[0], dy = b[1] - a[1];
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    let x = cut[i][0], y = cut[i][1];
+    if (i === n - 1) { x += dx * half * 0.4; y += dy * half * 0.4; }   // the tip runs a little ahead
+    left.push([x - dy * half, y + dx * half]); right.push([x + dy * half, y - dx * half]);
+  }
+  ctx.moveTo(left[0][0], left[0][1]);
+  for (let i = 1; i < n; i++) ctx.lineTo(left[i][0], left[i][1]);
+  for (let i = n - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
+  ctx.closePath();
+  ctx.clip();
+}
+
+/** A mark of a textured brush (see texture.js): known layers are blitted, the first time the brush paints it. */
+function drawTextured(ctx, e, brush, env, share, view) {
+  const id = e.realize.brush, p = resolveParams(id, e.realize.params);
+  const alpha = (e.opacity ?? 1) * TIME_ALPHA, blend = e.blend && e.blend !== 'normal' ? e.blend : null;
+  const clipped = share < 1 && p.width > 0 && e.role === 'line';
+  const fk = `${txHash(id, e.points, p, e.seed)}|${e.color}|${txPpu(env.scale)}`;
+  const known = txKnown(fk);
+  if (known) {
+    const l = known.layer;
+    if (view && (l.x > view[2] || l.y > view[3] || l.x + l.w < view[0] || l.y + l.h < view[1])) return;
+    if (!clipped && !blend) { txBlit(ctx, known, alpha); return; }
+    ctx.save();
+    if (blend) ctx.globalCompositeOperation = blend;
+    if (clipped) revealClip(ctx, e.points, share, p.width * 0.8);
+    txBlit(ctx, known, alpha);
+    ctx.restore();
+    return;
+  }
+  if (view && !reaches(e.points, (p.width || 30) * 1.2, view)) return;
+  env.rng = mulberry32(e.seed || 1);
+  env.straight = e.path === 'straight';
+  env.board = env.boards?.get(e.board || MAIN) || env.boards?.get(MAIN);
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  if (blend) ctx.globalCompositeOperation = blend;
+  if (clipped) revealClip(ctx, e.points, share, p.width * 0.8);
+  if (known === null) txArm(fk);
+  try { brush.draw(ctx, e, p, env); } finally { if (known === null) txDisarm(); }
   ctx.restore();
 }
 

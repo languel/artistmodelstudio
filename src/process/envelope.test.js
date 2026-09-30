@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { envelope, reveal, lifeOf, expired, changing, cutPath, normalizeTime } from './envelope.js';
+import { envelope, reveal, lifeOf, expired, changing, nextChange, cutPath, normalizeTime } from './envelope.js';
 
 describe('time envelopes', () => {
   it('fades in, holds and fades out', () => {
@@ -55,5 +55,18 @@ describe('time envelopes', () => {
     expect(changing({ out: 2 }, 3)).toBe(false);
     expect(changing({ in: 1 }, 5)).toBe(false);
     expect(changing(null, 0)).toBe(false);
+  });
+
+  it('says when the next change is due: now while it moves, later while it stays, never when nothing changes', () => {
+    const t = { in: 1, hold: 4, out: 2, draw: 3 };   // life 7
+    expect(nextChange(t, 0.5)).toBe(0);          // fading in
+    expect(nextChange(t, 2)).toBe(0);            // drawing on
+    expect(nextChange(t, 4)).toBeCloseTo(1);     // it stays until 5, then fades out
+    expect(nextChange(t, 6)).toBe(0);            // fading out
+    expect(nextChange(t, 8)).toBe(Infinity);     // gone
+    expect(nextChange({ life: 3 }, 1)).toBeCloseTo(2);   // it stays, then is gone at once
+    expect(nextChange({ in: 1 }, 5)).toBe(Infinity);     // forever
+    expect(nextChange({ in: 1, loop: true, out: 1 }, 5)).toBe(0);
+    expect(changing({ life: 3 }, 1)).toBe(false);
   });
 });

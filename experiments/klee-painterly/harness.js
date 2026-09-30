@@ -61,24 +61,25 @@ E.baseline = name => {
   return out;
 };
 
-E.run = async ({ tag, name, brush = 'oil', tolerance = 1, seconds = 60, snaps = [5, 10, 20, 30, 45, 60], seed = 1, hz = 12, W = 600, replace = [], label }) => {
-  const code = await E.code(name, { brush, tolerance, W, replace }), H = Math.round(W * E.imgs[name].aspect);
+E.run = async ({ tag, name, brush = 'oil', tolerance = 1, seconds = 60, snaps = [5, 10, 20, 30, 45, 60], seed = 1, hz = 12, W = 600, replace = [], label, keepDoc = false, onFrame = null, codeHook = null }) => {
+  let code = await E.code(name, { brush, tolerance, W, replace }); if (codeHook) code = codeHook(code); const H = Math.round(W * E.imgs[name].aspect);
   const by = { kind: 'code', name: `exp-${tag}` };
   clearStreamState(`state:exp-${tag}`);
   const realNow = Date.now, realRandom = Math.random, rnd = mulberry(seed);
   let T = 1_800_000_000_000; const t0 = T;
   const res = { tag, name, brush, tolerance, seconds, seed, label: label || tag, snaps: [], runMs: [] };
   Date.now = () => T; Math.random = rnd;
-  let doc = null;
+  let doc = null; const recent = [];
   try {
     const n = Math.round(seconds * hz);
     for (let i = 0; i < n; i++) {
       T = t0 + Math.round(i * 1000 / hz);
       const t1 = performance.now();
       const r = runScript(code, { seed: seed * 1000 + i, by, fresh: true });
-      res.runMs.push(performance.now() - t1);
+      res.runMs.push(performance.now() - t1); recent.push(res.runMs[res.runMs.length - 1]); if (recent.length > 60) recent.shift();
       if (r.error) throw new Error(r.error);
       doc = r.doc;
+      if (onFrame) onFrame(doc, T, i, res.runMs[res.runMs.length - 1]);
       const sec = (i + 1) / hz;
       const due = snaps.find(s => Math.abs(s - sec) < 0.5 / hz);
       if (due !== undefined && !res.snaps.some(s => s.t === due)) {
@@ -97,8 +98,9 @@ E.run = async ({ tag, name, brush = 'oil', tolerance = 1, seconds = 60, snaps = 
   res.meanRunMs = +(res.runMs.reduce((a, b) => a + b, 0) / res.runMs.length).toFixed(1);
   res.maxRunMs = +Math.max(...res.runMs).toFixed(1);
   delete res.runMs;
+  if (keepDoc) { res.doc = doc; res.T = T; res.recent = recent; return res; }
   E.results[tag] = res;
-  await save('results.json', JSON.stringify({ results: E.results, baselines: E.baselines }, null, 1));
+  await save(E.outFile || `${tag.split('/')[0] === tag ? '' : tag.split('/')[0] + '/'}results.json`, JSON.stringify({ results: E.results, baselines: E.baselines }, null, 1));   // (a tag with a folder, 'perf/castle', saves beside its folder)
   return res;
 };
 

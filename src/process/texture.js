@@ -15,11 +15,89 @@
  *   txPaint(ctx, spec)                      the whole thing: cache, draw, grain, tint, put on the picture
  */
 const TX_CAP = 2048;                 // largest layer side in pixels
-const TX_BUDGET = 96 * 1024 * 1024;  // bytes of layers kept
-const txLayers = new Map();          // key → layer, least recently used first
+const TX_AREA = 250000;              // largest layer area in pixels (about 1 MB)
+let TX_BUDGET = 128 * 1024 * 1024;   // bytes of layers kept
+const txLayers = new Map();          // key → layer ({ …, used: when it was last drawn (ms), dead: given back })
 let txBytes = 0;
+let txClock = 0;                     // the moment of the frame being drawn (txBeginFrame)
+let txQuality = 1;                   // 0.3..1: layers are painted at this share of the screen's pixels while the cache is short of room
+let txCalm = 0;                      // frames since the cache last ran short of room
+let txSweptAt = 0;
+let txWait = 150;                    // calm frames before quality grows back (doubles each time the cache runs short again)
 
 let txLost = false;                  // a canvas lost its context: what we kept is blank (see txReady)
+const txStat = { hits: 0, misses: 0, paintMs: 0, evicted: 0, thrash: 0, swept: 0 };   // what the cache did (txStats)
+
+/** What the layer cache holds and has done since txResetStats: layers, bytes, hits, misses (marks painted), ms spent painting. */
+export function txStats(detail = false) {
+  const out = { ...txStat, paintMs: +txStat.paintMs.toFixed(2), layers: txLayers.size, bytes: txBytes, budget: TX_BUDGET, quality: +txQuality.toFixed(2), fast: txFast.size };
+  if (detail) { let inUse = 0, n = 0, px = 0; for (const l of txLayers.values()) if (txClock - l.used < 100) { inUse += l.bytes; n++; px += l.canvas.width * l.canvas.height; } out.inUseMB = +(inUse / 1048576).toFixed(1); out.inUse = n; out.avgPx = Math.round(px / Math.max(1, n)); }
+  return out;
+}
+/** Give every kept layer back (and forget what was known about marks). */
+export function txClear() {
+  for (const l of txLayers.values()) { l.dead = true; txRelease(l.canvas); }
+  txLayers.clear(); txFast.clear(); txBytes = 0;
+}
+/** Room for layers, in megabytes (default 128). */
+export function txBudget(mb) { if (mb > 0) TX_BUDGET = mb * 1024 * 1024; return TX_BUDGET / 1048576; }
+
+/**
+ * A frame begins (the renderer calls this): layers drawn from now on count as in use. If the last frames ran short
+ * of room (a layer that was in use had to go), layers are painted smaller, so that what is on screen fits; when
+ * there has been room for a while, they grow back.
+ */
+export function txBeginFrame() {
+  txClock = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (txStat.thrash > 0) { txQuality = Math.max(0.3, txQuality * 0.75); txStat.thrash = 0; txCalm = 0; txWait = Math.min(4800, txWait * 2); }
+  else if (txQuality < 1 && ++txCalm > txWait) { txQuality = Math.min(1, txQuality * 1.25); txCalm = 0; if (txQuality >= 1) txWait = 150; }
+  // Layers of marks that are long gone (their life is over) are given back every couple of seconds.
+  if (txClock - txSweptAt > 2000) {
+    txSweptAt = txClock;
+    for (const [k, l] of txLayers) if (txClock - l.used > 20000) { txLayers.delete(k); txBytes -= l.bytes; l.dead = true; txRelease(l.canvas); txStat.swept = (txStat.swept || 0) + 1; }
+  }
+}
+
+/** Make room: the layers used least recently go first (those used in the last quarter second count as thrash). */
+function txEvict(target) {
+  const list = [...txLayers.entries()].sort((a, b) => a[1].used - b[1].used);
+  for (const [k, l] of list) {
+    if (txBytes <= target) break;
+    if (txClock - l.used < 250) txStat.thrash = (txStat.thrash || 0) + 1;
+    txLayers.delete(k); txBytes -= l.bytes; l.dead = true; txRelease(l.canvas); txStat.evicted++;
+  }
+}
+
+// ---- marks whose layer is known: a mark that has been painted once is put on the picture without asking its brush ----
+const txFast = new Map();   // a mark's key → { layer, alpha }, or false (its brush paints more than one layer: ask it)
+let txArmed = null;
+
+/** The renderer is about to draw a mark with its brush: remember the layer it paints, under `fk`. */
+export function txArm(fk) { txArmed = { fk, n: 0, entry: null }; }
+export function txDisarm() {
+  const a = txArmed; txArmed = null;
+  if (!a) return;
+  if (txFast.size > 30000) txFast.clear();
+  txFast.set(a.fk, a.n === 1 ? a.entry : false);
+}
+/** The known layer of a mark: { layer, alpha } (ready to blit), false (ask the brush), or null (not seen yet). */
+export function txKnown(fk) {
+  const e = txFast.get(fk);
+  if (e === undefined) return null;
+  if (e === false) return false;
+  if (e.layer.dead) { txFast.delete(fk); return null; }
+  e.layer.used = txClock;
+  return e;
+}
+/** Put a known layer on the picture (alpha: on top of the brush's own). */
+export function txBlit(ctx, e, alpha = 1) {
+  const l = e.layer, g = ctx.globalAlpha;
+  ctx.globalAlpha = g * e.alpha * alpha;
+  ctx.drawImage(l.canvas, l.x, l.y, l.w, l.h);
+  ctx.globalAlpha = g;
+}
+
+export function txResetStats() { for (const k in txStat) txStat[k] = 0; }
 
 function txCanvas(w, h) {
   const c = typeof document !== 'undefined' ? document.createElement('canvas') : typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1) : null;
@@ -41,16 +119,21 @@ function txReady() {
   if (!txLost) return true;
   const probe = txCanvas(2, 2), x = probe?.getContext('2d');
   if (!x || x.isContextLost?.()) return false;
-  for (const l of txLayers.values()) txRelease(l.canvas);
-  txLayers.clear(); txBytes = 0; txSprites.clear(); txGrainTiles.clear();
+  for (const l of txLayers.values()) { l.dead = true; txRelease(l.canvas); }
+  txLayers.clear(); txFast.clear(); txBytes = 0; txSprites.clear(); txGrainTiles.clear();
   txLost = false;
   return true;
 }
 
 /** Pixels per unit for a view scale: about what the screen needs, in half-octave steps so zooming reuses layers. */
+let txPpuFor = { scale: 0, q: 0, dpr: 0, ppu: 1 };
 export function txPpu(scale) {
-  const ppu = Math.max(0.25, Math.min(4, (scale || 1) * (globalThis.devicePixelRatio || 1)));
-  return Math.pow(2, Math.round(Math.log2(ppu) * 2) / 2);
+  const dpr = globalThis.devicePixelRatio || 1;
+  if (txPpuFor.scale === scale && txPpuFor.q === txQuality && txPpuFor.dpr === dpr) return txPpuFor.ppu;
+  const raw = Math.max(0.25, Math.min(4, (scale || 1) * dpr * txQuality));
+  const ppu = Math.pow(2, Math.round(Math.log2(raw) * 2) / 2);
+  txPpuFor = { scale, q: txQuality, dpr, ppu };
+  return ppu;
 }
 
 /** A small stable key for numbers (points, parameters) that does not care about float dust. */
@@ -58,7 +141,12 @@ export function txHash(...parts) {
   let s = '';
   for (const p of parts) {
     if (Array.isArray(p)) { for (const q of p) s += Array.isArray(q) ? `${Math.round(q[0] * 4)},${Math.round(q[1] * 4)}${q.length > 3 ? `,${Math.round(q[3] * 20)}` : ''};` : `${q};`; }
-    else if (p && typeof p === 'object') s += JSON.stringify(p);
+    else if (p && typeof p === 'object') {
+      // (plain parameters, the usual case, without JSON)
+      let t = '{', plain = true;
+      for (const k in p) { const v = p[k]; if (v !== null && typeof v === 'object') { plain = false; break; } t += `${k}:${v},`; }
+      s += plain ? `${t}}` : JSON.stringify(p);
+    }
     else s += `${p}|`;
   }
   return s;
@@ -68,7 +156,8 @@ export function txHash(...parts) {
 export function txLayer(bounds, ppu) {
   let [x0, y0, x1, y1] = bounds;
   let w = Math.ceil((x1 - x0) * ppu), h = Math.ceil((y1 - y0) * ppu);
-  const k = Math.min(1, TX_CAP / Math.max(w, h));
+  // Not larger than a side of TX_CAP pixels or an area of TX_AREA: a broad soft stroke does not need every pixel of the screen.
+  const k = Math.min(1, TX_CAP / Math.max(w, h), Math.sqrt(TX_AREA / Math.max(1, w * h)));
   if (k < 1) { ppu *= k; w = Math.ceil((x1 - x0) * ppu); h = Math.ceil((y1 - y0) * ppu); }
   const canvas = txCanvas(w, h), lctx = canvas?.getContext('2d');
   if (!lctx) return null;
@@ -313,8 +402,10 @@ export function txPaint(ctx, { key, bounds, draw, grain = null, color = '#1d1b19
   if (!txReady()) return;
   const ppu = txPpu(scale), full = `${key}|${color}|${ppu}|${txHash(grain)}`;
   let layer = txLayers.get(full);
-  if (layer) { txLayers.delete(full); txLayers.set(full, layer); }
+  if (layer) txStat.hits++;
   else {
+    const t0 = typeof performance !== 'undefined' ? performance.now() : 0;
+    txStat.misses++;
     layer = txLayer(bounds, ppu);
     if (!layer) return;
     layer.lctx.save(); draw(layer.lctx, layer); layer.lctx.restore();
@@ -328,13 +419,13 @@ export function txPaint(ctx, { key, bounds, draw, grain = null, color = '#1d1b19
     layer.lctx.restore();
     layer.bytes = layer.canvas.width * layer.canvas.height * 4;
     txLayers.set(full, layer); txBytes += layer.bytes;
-    while (txBytes > TX_BUDGET && txLayers.size > 1) {
-      const [oldKey, old] = txLayers.entries().next().value;
-      txLayers.delete(oldKey); txBytes -= old.bytes; txRelease(old.canvas);
-    }
+    if (txBytes > TX_BUDGET) txEvict(TX_BUDGET * 0.8);
+    if (t0) txStat.paintMs += performance.now() - t0;
   }
-  ctx.save();
-  ctx.globalAlpha *= alpha;
+  layer.used = txClock;
+  if (txArmed) { txArmed.n++; txArmed.entry = { layer, alpha }; }
+  const g = ctx.globalAlpha;
+  ctx.globalAlpha = g * alpha;
   ctx.drawImage(layer.canvas, layer.x, layer.y, layer.w, layer.h);
-  ctx.restore();
+  ctx.globalAlpha = g;
 }

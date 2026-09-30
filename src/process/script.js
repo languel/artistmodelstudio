@@ -289,7 +289,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
     if (!doc.stages.length) api.stage('Marks', 'marks');
     doc.meta = { ...(doc.meta || {}), script: source, seed, by, ran: new Date().toISOString() };
     doc.meta.units = units;
-    return { doc: normalizeDocument(doc), error: null, logs, maxRaw, units, underlay: underlayReq };
+    return { doc: normalizeDocument(doc, { own: true }), error: null, logs, maxRaw, units, underlay: underlayReq };
   } catch (err) {
     // The score's own line: V8 counts the Function header (2 lines) and our wrapper (2 lines).
     const m = String(err.stack || '').match(/<anonymous>:(\d+):(\d+)/);

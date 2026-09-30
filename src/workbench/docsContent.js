@@ -195,7 +195,10 @@ brush({ id: 'sponge', roles: ['line'], params: { size: [4, 60, 20] },
 Grain kinds: \`paper\`, \`canvas\`, \`fibre\`, \`noise\`. Tips: \`soft\`, \`flat\`, \`square\`.
 
 ## Time
-A mark can carry a **time envelope**: \`line(pts, { brush: 'charcoal', time: { in: 0.4, hold: 2, out: 1.5, draw: 1 } })\`. Seconds: \`in\` fades it in, \`hold\` keeps it, \`out\` fades it out, \`life\` ends it (it is then dropped), \`draw\` draws the stroke on along its length, \`curve\` is \`smooth\`, \`linear\`, \`ease-in\` or \`ease-out\`, and \`loop\` repeats it. A plain number is a fade out over that many seconds. The mark's age (\`k.age\`) counts from its birth (\`born\`), and the canvas keeps redrawing while any mark still changes. Every brush fades this way, textured or not.`)))
+A mark can carry a **time envelope**: \`line(pts, { brush: 'charcoal', time: { in: 0.4, hold: 2, out: 1.5, draw: 1 } })\`. Seconds: \`in\` fades it in, \`hold\` keeps it, \`out\` fades it out, \`life\` ends it (it is then dropped), \`draw\` draws the stroke on along its length, \`curve\` is \`smooth\`, \`linear\`, \`ease-in\` or \`ease-out\`, and \`loop\` repeats it. A plain number is a fade out over that many seconds. The mark's age (\`k.age\`) counts from its birth (\`born\`), and the canvas keeps redrawing while any mark still changes. Every brush fades this way, textured or not.
+
+## Cost
+A textured mark is painted once and then put on the picture as a bitmap, so a mark that fades or draws itself on costs a blit, not a repaint. What costs is the number of marks: about the same for each, drawn each frame. Marks that fade or draw on redraw at most 15 times a second; marks that only stay do not animate at all. The board's performance line (View → performance under boards) shows runs a second, the code's time, the draw's time (d), the marks and the layer cache (MB). In the painterly demo, \`fade: 0\` and \`drawOn: 0\` (nothing moves) halve the cost, \`density\`, \`detail\` and \`size\` set how many marks there are.`)))
 ,
 
     T('draw-lines', 'Drawing', 'Line forms and your own lines', 'After William Ngan: whose line is it? Line forms from the walk\'s speed, and defineLine.', () => h('div', {},

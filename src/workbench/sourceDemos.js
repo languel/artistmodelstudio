@@ -96,7 +96,7 @@ for (const i of range(n)) {
 `
   },
   {
-    id: 'paint', label: 'Painterly, fading strokes', rate: 12, hint: 'A continuous reconstruction: layers of brush strokes, big to small, painted where the picture so far differs from the source (seen as blurred as the brush is broad); they follow the forms, draw themselves on, and fade as new ones arrive',
+    id: 'paint', label: 'Painterly, fading strokes', rate: 12, hint: 'A continuous reconstruction: layers of brush strokes, big to small, painted where the picture so far differs from the source (seen as blurred as the brush is broad); they follow the forms, draw themselves on, and fade as new ones arrive. Sliders for how many strokes, how many layers, how big, how they fade',
     code: name => `// “${name}” repainted, continuously (after Hertzmann's painterly rendering). Layers of strokes, big to small.
 // Each layer looks at the source blurred as much as its brush is broad, and the code keeps a coarse model of what
 // its live strokes show: a layer paints where the model differs from what it sees. A stroke follows the forms (a
@@ -106,32 +106,38 @@ for (const i of range(n)) {
 const s = source('${name}')
 const brushId = 'oil'              // oil | bristles | charcoal | chalk | pencil | marker | ink | any brush of yours
 const look = { hair: 1.6, streaks: 0.3, taper: 0.25, trim: 0.15 }   // the brush's own parameters
+// How much is painted, and how much it costs (fewer strokes, fewer layers, no fading: faster):
+const density = 1 /* 0.1..2 */      // how many strokes are alive at once (of the most each layer may have)
+const detail = 4 /* 1..5 */         // how many layers, big to small (the fifth is the finest)
+const size = 1 /* 0.5..2 */         // how big the brushes are (bigger: fewer strokes cover the picture)
+const fade = 1 /* 0..3 */           // how long strokes fade in and out (times; 0: at once)
+const drawOn = 1 /* 0..3 */         // how long a stroke takes to draw itself on (times; 0: it is there at once)
+const linger = 1 /* 0.3..3 */       // how long they live (times)
 const tolerance = 1 /* 0.3..3 */    // how different the picture may be before it is painted over (small: faithful)
 const speed = 1 /* 0.2..3 */        // how many strokes are painted at once
-const linger = 1 /* 0.3..3 */       // how long they live (times)
 const stop = 50 /* 10..150 */       // how far the color may turn before a stroke stops
 // A layer: brush width (of the board's width), steps a stroke takes, most alive, seconds they live,
 // difference that calls for it (the first layer always paints: it is the underpainting), births a run,
 // and how blurred it sees the source (cells)
 const layers = [
   { w: 0.14, steps: 6, n: 120, life: 24, err: 0, cap: 3, blur: 3 },
-  { w: 0.075, steps: 8, n: 300, life: 18, err: 34, cap: 6, blur: 2 },
-  { w: 0.038, steps: 10, n: 600, life: 14, err: 26, cap: 12, blur: 1 },
-  { w: 0.018, steps: 12, n: 900, life: 10, err: 20, cap: 20, blur: 0 }
+  { w: 0.075, steps: 8, n: 300, life: 18, err: 44, cap: 5, blur: 2 },
+  { w: 0.038, steps: 10, n: 600, life: 14, err: 32, cap: 9, blur: 1 },
+  { w: 0.018, steps: 12, n: 900, life: 10, err: 24, cap: 16, blur: 0 },
+  { w: 0.009, steps: 10, n: 1200, life: 8, err: 16, cap: 30, blur: 0 }
 ]
 
 const memo = state('paint')
 const now = Date.now()
-const alive = (memo.strokes || []).filter(k => now - k.born < k.life * 1000)
-const G = 64, GH = Math.max(8, Math.round(G * height / width))       // the grid the source and the model live on
+const used = Math.max(1, Math.min(layers.length, Math.round(detail)))
+const by = memo.by = (memo.by || []).slice(0, used)                  // the live strokes, layer by layer, oldest first
+for (const li of range(used)) by[li] = (by[li] || []).filter(k => now - k.born < k.life * 1000)
+const G = 64, GH = Math.max(8, Math.round(G * height / width)), NC = G * GH   // the grid the source and the model live on
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
 const hex = c => '#' + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')
-const rgbOf = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))
 
-// The source on the grid, and as each layer sees it (a box blur), with its light for the forms.
-const src = s.pixels(G, GH)
-memo.ground ||= [0, 1, 2].map(c => { let t = 0; for (let i = 0; i < G * GH; i++) t += src[i * 3 + c]; return t / (G * GH) })   // the paper is toned to the source's mean, from the first run
-const paper = memo.ground
+// The source on the grid, and as each layer sees it (a box blur), with its light for the forms. Kept while the
+// source's picture is the same (a still: for good; a movie: for a frame).
 const blur = (a, k) => {
   if (k <= 0) return a
   const tmp = new Float32Array(a.length), out = new Float32Array(a.length)
@@ -145,16 +151,23 @@ const blur = (a, k) => {
   }
   return out
 }
-const refs = layers.map(L => blur(src, L.blur))
-const lums = refs.map(r => Float32Array.from({ length: G * GH }, (_, i) => (0.2126 * r[i * 3] + 0.7152 * r[i * 3 + 1] + 0.0722 * r[i * 3 + 2]) / 255))
+const seen = G + ':' + GH + ':' + s.frame
+if (memo.seen !== seen) {
+  const src = s.pixels(G, GH)
+  memo.ground ||= [0, 1, 2].map(c => { let t = 0; for (let i = 0; i < NC; i++) t += src[i * 3 + c]; return t / NC })   // the paper is toned to the source's mean, from the first run
+  memo.refs = layers.map(L => blur(src, L.blur))
+  memo.lums = memo.refs.map(r => Float32Array.from({ length: NC }, (_, i) => (0.2126 * r[i * 3] + 0.7152 * r[i * 3 + 1] + 0.0722 * r[i * 3 + 2]) / 255))
+  memo.seen = seen
+}
+const { refs, lums, ground: paper } = memo
 const cellOf = (x, y) => Math.max(0, Math.min(GH - 1, Math.floor(y))) * G + Math.max(0, Math.min(G - 1, Math.floor(x)))
 const colorAt = (r, x, y) => { const i = cellOf(x, y) * 3; return [r[i], r[i + 1], r[i + 2]] }
 const lightAt = (l, x, y) => l[cellOf(x, y)]
 
-// The model: the color each cell shows so far, and how much is painted there.
-const col = range(G * GH).map(() => paper.slice()), cov = new Float32Array(G * GH), own = layers.map(() => new Float32Array(G * GH))   // (own: what each layer itself has painted)
-const splat = (k, a) => {
-  const r = layers[k.li].w * G * 0.45, c = rgbOf(k.color)
+// The model: the color each cell shows so far, how much is painted there, and what each layer itself has painted.
+// New strokes go into it at once; it is made again from the live strokes twice a second (as some fade).
+const splat = (m, k, a) => {
+  const r = layers[k.li].w * size * G * 0.45, c = k.rgb
   for (let q = 0; q + 1 < k.pts.length; q++) {
     const x0 = k.pts[q][0] * G, y0 = k.pts[q][1] * GH, x1 = k.pts[q + 1][0] * G, y1 = k.pts[q + 1][1] * GH, n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2))
     for (let t = 0; t <= n; t++) {
@@ -163,26 +176,31 @@ const splat = (k, a) => {
         for (let cx = Math.max(0, Math.floor(px - r)); cx <= Math.min(G - 1, Math.floor(px + r)); cx++) {
           if ((cx + 0.5 - px) ** 2 + (cy + 0.5 - py) ** 2 > r * r + 0.5) continue
           const i = cy * G + cx
-          for (let j = 0; j < 3; j++) col[i][j] += (c[j] - col[i][j]) * a
-          cov[i] += (1 - cov[i]) * a
-          own[k.li][i] += (1 - own[k.li][i]) * a
+          for (let j = 0; j < 3; j++) m.col[i * 3 + j] += (c[j] - m.col[i * 3 + j]) * a
+          m.cov[i] += (1 - m.cov[i]) * a
+          m.own[k.li][i] += (1 - m.own[k.li][i]) * a
         }
     }
   }
 }
 const weight = k => { const age = (now - k.born) / 1000; return Math.min(1, age / 0.6) * Math.min(1, (k.life - age) / k.out) }
-for (const k of alive.slice().sort((a, b) => a.li - b.li || a.born - b.born)) splat(k, Math.max(0, weight(k)))
+let m = memo.model
+if (!m || now - m.at > 500 || m.size !== size || m.used !== used) {
+  m = memo.model = { col: new Float32Array(NC * 3), cov: new Float32Array(NC), own: layers.map(() => new Float32Array(NC)), at: now, size, used }
+  for (let i = 0; i < NC; i++) { m.col[i * 3] = paper[0]; m.col[i * 3 + 1] = paper[1]; m.col[i * 3 + 2] = paper[2] }
+  for (const li of range(used)) for (const k of by[li]) splat(m, k, Math.max(0, weight(k)))
+}
 
 // One stroke of a layer, starting in a cell, or null when the place is too small to paint.
 const make = (li, cell) => {
-  const L = layers[li], ref = refs[li], lum = lums[li], d = Math.max(0.6, L.w * G * 0.55)
+  const L = layers[li], ref = refs[li], lum = lums[li], d = Math.max(0.6, L.w * size * G * 0.55)
   let x = (cell % G) + Math.random(), y = Math.floor(cell / G) + Math.random()
   const c0 = colorAt(ref, x, y), pts = [[x, y]], cols = [c0]
   let vx = 0, vy = 0
   for (const i of range(L.steps)) {
-    const gx = lightAt(lum, x + 0.75, y) - lightAt(lum, x - 0.75, y), gy = lightAt(lum, x, y + 0.75) - lightAt(lum, x, y - 0.75), m = Math.hypot(gx, gy)
+    const gx = lightAt(lum, x + 0.75, y) - lightAt(lum, x - 0.75, y), gy = lightAt(lum, x, y + 0.75) - lightAt(lum, x, y - 0.75), mag = Math.hypot(gx, gy)
     let nx = -gy, ny = gx                                         // along the form
-    if (m > 0.004) { nx /= m; ny /= m } else if (i === 0) { const a = Math.random() * TAU; nx = cos(a); ny = sin(a) } else { nx = vx; ny = vy }
+    if (mag > 0.004) { nx /= mag; ny /= mag } else if (i === 0) { const a = Math.random() * TAU; nx = cos(a); ny = sin(a) } else { nx = vx; ny = vy }
     if (nx * vx + ny * vy < 0) { nx = -nx; ny = -ny }            // keep going the same way
     vx = i ? vx * 0.5 + nx * 0.5 : nx; vy = i ? vy * 0.5 + ny * 0.5 : ny
     const l = Math.hypot(vx, vy) || 1; vx /= l; vy /= l
@@ -193,43 +211,42 @@ const make = (li, cell) => {
     pts.push([x, y]); cols.push(c)
   }
   if (pts.length < 2) return null
-  const mean = [0, 1, 2].map(k => cols.reduce((t, c) => t + c[k], 0) / cols.length + (Math.random() - 0.5) * 8)
+  const rgb = [0, 1, 2].map(k => cols.reduce((t, c) => t + c[k], 0) / cols.length + (Math.random() - 0.5) * 8)
   const life = L.life * linger * (0.6 + Math.random() * 0.8)
-  return { li, pts: pts.map(([px, py]) => [px / G, py / GH]), color: hex(mean), seed: Math.floor(Math.random() * 1e9), born: now, life, out: Math.min(3, life * 0.35) }
+  return { li, pts: pts.map(([px, py]) => [px / G, py / GH]), rgb, color: hex(rgb), seed: Math.floor(Math.random() * 1e9), born: now, life, out: Math.min(3, life * 0.35) }
 }
 
 // Births: each layer looks at the picture in blocks the size of its brush; in the blocks that differ from what it
 // sees by more than it tolerates (the worst first), and that it has not painted itself, a stroke starts at the
 // worst place. The finer layers only where the coarser ones have already painted.
-for (const [li, L] of layers.entries()) {
-  const B = Math.max(1, Math.round(L.w * G)), ref = refs[li], blocks = []
-  for (let by = 0; by < GH; by += B) for (let bx = 0; bx < G; bx += B) {
-    let sum = 0, seen = 0, mine = 0, n = 0, worst = -1, worstErr = 0
-    for (let y = by; y < Math.min(GH, by + B); y++) for (let x = bx; x < Math.min(G, bx + B); x++) {
-      const i = y * G + x, e = Math.hypot(ref[i * 3] - col[i][0], ref[i * 3 + 1] - col[i][1], ref[i * 3 + 2] - col[i][2])
-      sum += e; seen += cov[i]; mine += own[li][i]; n++
+for (const li of range(used)) {
+  const L = layers[li], B = Math.max(1, Math.round(L.w * size * G)), ref = refs[li], blocks = [], most = Math.round(L.n * density)
+  if (by[li].length >= most) continue
+  for (let by0 = 0; by0 < GH; by0 += B) for (let bx = 0; bx < G; bx += B) {
+    let sum = 0, cover = 0, mine = 0, n = 0, worst = -1, worstErr = 0
+    for (let y = by0; y < Math.min(GH, by0 + B); y++) for (let x = bx; x < Math.min(G, bx + B); x++) {
+      const i = y * G + x, e = Math.hypot(ref[i * 3] - m.col[i * 3], ref[i * 3 + 1] - m.col[i * 3 + 1], ref[i * 3 + 2] - m.col[i * 3 + 2])
+      sum += e; cover += m.cov[i]; mine += m.own[li][i]; n++
       if (e > worstErr) { worstErr = e; worst = i }
     }
-    if (worst >= 0 && sum / n > L.err * tolerance && mine / n < 0.5 && (li === 0 || seen / n > 0.5)) blocks.push({ cell: worst, score: (sum / n) * (0.7 + 0.6 * Math.random()) })
+    if (worst >= 0 && sum / n > L.err * tolerance && mine / n < 0.5 && (li === 0 || cover / n > 0.5)) blocks.push({ cell: worst, score: (sum / n) * (0.7 + 0.6 * Math.random()) })
   }
   blocks.sort((a, b) => b.score - a.score)
-  let have = alive.filter(k => k.li === li).length
   for (const blk of blocks.slice(0, Math.max(1, Math.round(L.cap * speed)))) {
-    if (have >= L.n) break
+    if (by[li].length >= most) break
     const k = make(li, blk.cell)
     if (!k) continue
-    alive.push(k); have++; splat(k, 1)                           // painted at once in the model
+    by[li].push(k); splat(m, k, 1)                               // painted at once in the model
   }
 }
-memo.strokes = alive
 
 // Drawn: the toned paper, then big layers first so small strokes lie on top; each stroke on its own time envelope.
 plane([[0, 0], [1, 0], [1, 1], [0, 1]], { color: hex(paper), path: 'straight' })
-for (const k of alive.slice().sort((a, b) => a.li - b.li || a.born - b.born)) {
-  const L = layers[k.li]
-  line(k.pts, { brush: brushId, ...look, width: L.w * width * 0.9, color: k.color, seed: k.seed, born: k.born,
-    pressures: t => 0.5 + 0.5 * Math.sin(Math.PI * t) ** 0.6,
-    time: { in: 0.4, out: k.out, life: k.life, draw: 0.5 + L.w * 5 } })
+const press = t => 0.5 + 0.5 * Math.sin(Math.PI * t) ** 0.6
+for (const li of range(used)) for (const k of by[li]) {
+  const time = { in: 0.4 * fade, out: Math.min(k.out * fade, k.life * 0.9), life: k.life }
+  if (drawOn > 0) time.draw = (0.5 + layers[li].w * 5) * drawOn
+  line(k.pts, { brush: brushId, ...look, width: layers[li].w * size * width * 0.9, color: k.color, seed: k.seed, born: k.born, pressures: press, time })
 }
 `
   },

@@ -53,6 +53,7 @@ import { openPalette } from './palette.js';
 import { showMenu } from './menu.js';
 import { askText } from './dialog.js';
 import { brushesForRole, KIT, BRUSHES } from '../process/brushes.js';
+import { txStats } from '../process/texture.js';
 import { Shortcuts } from './shortcuts.js';
 import { eyedropToTarget, openPicker, parseColor, formatColor } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
@@ -274,11 +275,15 @@ export class Workbench {
     const names = [...String(b.code).matchAll(/(?:source|fit)\(\s*['"`]([^'"`]+)['"`]/g)].map(m => m[1]);
     const src = [...new Set(names)].map(nm => `${nm}:${n(this.sources.fps(nm))}FPS`);
     const fit = /(?<![.\w$])fit\s*\(/.test(b.code) && fitTimes.has(b.id) ? `fit${Math.round(fitTimes.get(b.id))}ms` : null;
+    // Also: how long the canvas takes to draw (d), and what the textured marks' layers take (MB; q: painted smaller to fit).
+    const tx = txStats();
     return [
       live ? `${n(recent.length / 3)}r/s` : 'paused',
       s ? `${n(s.ms)}ms` : null,
+      live && this.canvas.stats?.avg ? `d${n(this.canvas.stats.avg)}ms` : null,
       fit, ...src,
-      `${this.perfMarks?.get(b.id) ?? '…'}mk`
+      `${this.perfMarks?.get(b.id) ?? '…'}mk`,
+      live && tx.layers ? `${Math.round(tx.bytes / 1048576)}MB${tx.quality < 1 ? `·q${tx.quality}` : ''}` : null
     ].filter(Boolean).join('·');
   }
 

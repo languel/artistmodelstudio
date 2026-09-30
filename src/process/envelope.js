@@ -28,6 +28,8 @@ const num = (v, d = 0) => (Number.isFinite(Number(v)) && v !== null && v !== '' 
 /** A time spec in its full form (numbers, seconds), or null when there is none. */
 export function normalizeTime(spec) {
   if (spec == null || spec === false) return null;
+  // Already in full form (a mark in a document has been through here): as it is, without a copy (this is called for every mark of every frame).
+  if (typeof spec === 'object' && typeof spec.in === 'number' && CURVES[spec.curve] && spec.in >= 0) return spec;
   if (typeof spec === 'number') return spec > 0 ? { in: 0, out: spec, curve: 'smooth' } : null;
   if (typeof spec !== 'object') return null;
   const t = { in: Math.max(0, num(spec.in)), curve: CURVES[spec.curve] ? spec.curve : 'smooth' };
@@ -75,16 +77,24 @@ export function reveal(spec, age) {
 /** Is the mark gone at this age (past its life, and not looping)? */
 export const expired = (spec, age) => { const t = normalizeTime(spec); return Boolean(t) && !t.loop && age >= lifeOf(t); };
 
-/** Does anything about this mark still change at this age (fading, drawing, or looping)? */
-export function changing(spec, age) {
+/**
+ * Seconds until something about this mark changes again: 0 while it fades in or out, draws itself or loops; the wait while it
+ * simply stays (until it starts to fade out, or is gone); Infinity when nothing more will change.
+ */
+export function nextChange(spec, age) {
   const t = normalizeTime(spec);
-  if (!t) return false;
-  if (t.loop) return true;
-  if (age < t.in) return true;
-  if (t.draw && age < t.draw) return true;
+  if (!t) return Infinity;
+  if (t.loop) return 0;
+  if (age < t.in) return 0;
+  if (t.draw && age < t.draw) return 0;
   const life = lifeOf(t);
-  return Number.isFinite(life) && age < life;
+  if (!Number.isFinite(life) || age >= life) return Infinity;
+  const outStart = t.out > 0 ? life - t.out : life;
+  return age < outStart ? outStart - age : 0;
 }
+
+/** Is the mark moving at this age (fading, drawing or looping)? */
+export const changing = (spec, age) => nextChange(spec, age) === 0;
 
 /** The first `share` of a polyline by length (a stroke being drawn). */
 export function cutPath(points, share) {

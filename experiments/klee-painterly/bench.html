@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><title>bench</title><body style="background:#222;color:#ddd;font:12px monospace">
+<pre id="s">running…</pre>
+<script type="module">
+import { runBench } from './bench.js';
+const out = await runBench(new URLSearchParams(location.search));
+window.BENCH = out;
+document.getElementById('s').textContent = JSON.stringify(out, null, 1);
+</script>
