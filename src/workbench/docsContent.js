@@ -5,6 +5,7 @@
  */
 import { h, esc } from './ui.js';
 import { BRUSHES } from '../process/brushes.js';
+import { FX } from '../process/fx.js';
 import { SCRIPT_REFERENCE } from '../process/script.js';
 import { EXERCISES } from '../process/exercises.js';
 import { HARDWARE_PRESETS, MODEL_SPECS, estimateTrainingResources } from '../training/trainingEstimates.js';
@@ -200,6 +201,14 @@ A mark can carry a **time envelope**: \`line(pts, { brush: 'charcoal', time: { i
 ## Cost
 A textured mark is painted once and then put on the picture as a bitmap, so a mark that fades or draws itself on costs a blit, not a repaint. What costs is the number of marks: about the same for each, drawn each frame. Marks that fade or draw on redraw at most 15 times a second; marks that only stay do not animate at all. The board's performance line (View → performance under boards) shows runs a second, the code's time, the draw's time (d), the marks and the layer cache (MB). In the painterly demo, \`fade: 0\` and \`drawOn: 0\` (nothing moves) halve the cost, \`density\`, \`detail\` and \`size\` set how many marks there are.`)))
 ,
+
+    T('draw-masks', 'Drawing', 'Masks and effects', 'Show a board through any source, or through marks; a stack of post effects for sources, boards and masks. Opt-in.', () => h('div', {},
+      prose(`
+A board can be shown **through** something: Properties → *Mask*, the board's menu → *Mask*, or \`mask({ source: 'cam', mode: 'luma' })\` in its code. Any source can be a mask (a camera, a picture or clip, a stream, a board made a source), or a board of marks. *Light* shows the board where the mask is light, *Alpha* where it is opaque. Select marks and choose **Make mask**: they move to a board of their own and the board they were on is masked by it.
+
+**Effects** are a stack of image operations on a board's picture (\`fx([…])\`), on the source under it (\`underlay({ source, fx })\`) or on a mask. Nothing is paid without a mask or effects; a mask that moves over a board that does not costs only the mask.`),
+      h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Effect'), h('th', {}, 'Parameters'), h('th', {}, 'What it does'))),
+        h('tbody', {}, ...Object.entries(FX).map(([id, d]) => h('tr', {}, h('td', {}, h('code', {}, id)), h('td', {}, d.params.length ? d.params.map(p => `${p.key} ${p.min}–${p.max}`).join(', ') : d.stops ? 'stops' : ''), h('td', {}, d.doc))))))),
 
     T('draw-lines', 'Drawing', 'Line forms and your own lines', 'After William Ngan: whose line is it? Line forms from the walk\'s speed, and defineLine.', () => h('div', {},
       prose(`

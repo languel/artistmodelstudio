@@ -93,6 +93,12 @@ export function normalizeDocument(doc, { own = false } = {}) {
   return d;
 }
 
+/** A board's mask and effects from a patch: set from an object or a list, taken away with null or an empty list. */
+function patchFx(b, patch) {
+  if ('maskWith' in patch) { const m = patch.maskWith; if (m && typeof m === 'object' && (m.source || m.board)) b.maskWith = JSON.parse(JSON.stringify(m)); else delete b.maskWith; }
+  for (const k of ['fx', 'sourceFx']) if (k in patch) { const l = patch[k]; if (Array.isArray(l) && l.length) b[k] = JSON.parse(JSON.stringify(l)); else delete b[k]; }
+}
+
 export function normalizeElement(e, stage) {
   const role = ROLES[e.role] ? e.role : 'line';
   return {
@@ -170,7 +176,7 @@ export class ProcessStore {
   }
 
   subscribe(fn, { live = false } = {}) { fn.live = live; this.listeners.add(fn); return () => this.listeners.delete(fn); }
-  emit(reason, transient = false) { for (const fn of this.listeners) if (!transient || fn.live) fn(this.doc, reason); }
+  emit(reason, transient = false) { this.rev = (this.rev || 0) + 1; for (const fn of this.listeners) if (!transient || fn.live) fn(this.doc, reason); }   // (rev: a count of changes, for caches)
 
   /** Apply a mutation as one undoable step. */
   change(label, fn, { by = 'user', record = true, transient = false } = {}) {
@@ -435,6 +441,7 @@ export class ProcessStore {
         for (const k of ['width', 'height', 'ground', 'text', 'code', 'pseudo', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete d.artboard[k]; else d.artboard[k] = patch[k]; }
         for (const k of BOARD_FLAGS) if (k in patch) { if (patch[k]) d.artboard[k] = true; else delete d.artboard[k]; }
         if ('rate' in patch) { if (rateOf(patch)) d.artboard.rate = rateOf(patch); else delete d.artboard.rate; }
+        patchFx(d.artboard, patch);
         return;
       }
       const b = d.boards.find(x => x.id === id);
@@ -446,6 +453,7 @@ export class ProcessStore {
       for (const k of ['title', 'ground', 'width', 'height', 'x', 'y']) if (k in patch) b[k] = patch[k];
       for (const k of BOARD_FLAGS) if (k in patch) { if (patch[k]) b[k] = true; else delete b[k]; }
       if ('rate' in patch) { if (rateOf(patch)) b.rate = rateOf(patch); else delete b.rate; }
+      patchFx(b, patch);
       for (const k of ['text', 'code', 'pseudo', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete b[k]; else b[k] = String(patch[k]); }
       // A p5 board is its sketch's canvas: resized, the sketch's createCanvas(w, h) follows.
       if (b.kind === 'p5' && b.code && ('width' in patch || 'height' in patch)) b.code = b.code.replace(/createCanvas\(\s*\d+\s*,\s*\d+/, `createCanvas(${Math.round(b.width)}, ${Math.round(b.height)}`);
@@ -516,7 +524,13 @@ export class ProcessStore {
       if (id === MAIN) d.artboard.code = source; else d.boards.find(x => x.id === id).code = source;
       // underlay(…) in the code sets the board's source underneath (a reference, not part of the picture); mask(…) its mask.
       const u = res.underlay, t = id === MAIN ? d.artboard : d.boards.find(x => x.id === id);
-      if (t && res.mask !== undefined) { if (res.mask) t.mask = true; else delete t.mask; }
+      if (t && res.mask !== undefined) {
+        if (res.mask && typeof res.mask === 'object') patchFx(t, { maskWith: res.mask });
+        else if (res.mask) t.mask = true;
+        else { delete t.mask; delete t.maskWith; }
+      }
+      if (t && res.fx !== undefined) patchFx(t, { fx: res.fx });
+      if (t && u && Array.isArray(u.fx)) patchFx(t, { sourceFx: u.fx });
       if (u && t) {
         if (u.source === null) { delete t.source; delete t.sourceOpacity; delete t.sourceFit; delete t.sourceBlend; }
         else {

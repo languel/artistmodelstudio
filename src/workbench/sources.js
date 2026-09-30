@@ -141,6 +141,9 @@ export class Sources {
     this.start(d).catch(err => { this.app.log(`Source “${d.name}”: ${err.message}`, 'error'); this.entries.delete(d.name); d.lazy = 'failed'; }).finally(() => { this.waking.delete(d.name); this.emit(null); });
   }
 
+  /** A short text that changes when a source's picture does (a new frame; for caches). */
+  stamp(name) { const e = this.entries.get(name); return e ? `${name}.${e.version}.${e.live?.version ?? 0}${e.still ? 's' : ''}` : `${name}.-`; }
+
   /** The current full-size frame (for underlays and previews). */
   view(name) { const e = this.entries.get(name); return e?.live?.canvas || e?.still || null; }
 

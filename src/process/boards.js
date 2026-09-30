@@ -49,13 +49,23 @@ export function slidesOf(doc) {
 export const BOARD_FLAGS = ['locked', 'hidden', 'hideLabel', 'perf', 'controls', 'mask'];
 /** Redraw rate: runs a second for a board that follows a source (none: once per new source frame). */
 export const rateOf = b => { const r = Number(b?.rate); return Number.isFinite(r) && r > 0 ? Math.min(60, r) : 0; };
+/**
+ * Masks and effects (all opt-in, absent unless used): maskWith { source | board, mode: 'luma' | 'alpha', invert, feather, fx, fit },
+ * fx (a stack of post effects on the board's picture), sourceFx (on the source under it). Cleaned up where they are used (fx.js).
+ */
+const copy = v => JSON.parse(JSON.stringify(v));
+const fxFields = b => ({
+  ...(b?.maskWith && typeof b.maskWith === 'object' && (b.maskWith.source || b.maskWith.board) ? { maskWith: copy(b.maskWith) } : {}),
+  ...(Array.isArray(b?.fx) && b.fx.length ? { fx: copy(b.fx) } : {}),
+  ...(Array.isArray(b?.sourceFx) && b.sourceFx.length ? { sourceFx: copy(b.sourceFx) } : {})
+});
 const flagsOf = b => ({ ...Object.fromEntries(BOARD_FLAGS.filter(k => b?.[k]).map(k => [k, true])), ...(rateOf(b) ? { rate: rateOf(b) } : {}) });
 
 /** All boards, the main one first, each with its place: { id, title, x, y, width, height, ground, main }. */
 export function boardsOf(doc) {
   const a = doc.artboard || { width: 1000, height: 1000, ground: '#f3efe6' };
   return [
-    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.pseudo ? { pseudo: a.pseudo } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.paused ? { paused: true } : {}), ...(a.kind ? { kind: a.kind } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity, ...(a.sourceFit ? { sourceFit: a.sourceFit } : {}), ...(a.sourceBlend ? { sourceBlend: a.sourceBlend } : {}) } : {}), ...flagsOf(a), main: true },
+    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.pseudo ? { pseudo: a.pseudo } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.paused ? { paused: true } : {}), ...(a.kind ? { kind: a.kind } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity, ...(a.sourceFit ? { sourceFit: a.sourceFit } : {}), ...(a.sourceBlend ? { sourceBlend: a.sourceBlend } : {}) } : {}), ...fxFields(a), ...flagsOf(a), main: true },
     ...(doc.boards || []).map(b => ({ ...b, main: false }))
   ];
 }
@@ -138,7 +148,7 @@ export function migrateBoards(d) {
       id: String(b.id), title: String(b.title || b.id), x: Number(b.x) || 0, y: Number(b.y) || 0,
       width: Math.max(10, Number(b.width) || 1000), height: Math.max(10, Number(b.height) || 1000), ground: b.ground || d.artboard.ground,
       ...(b.text ? { text: String(b.text) } : {}), ...(b.code ? { code: String(b.code) } : {}), ...(b.pseudo ? { pseudo: String(b.pseudo) } : {}),
-      ...(b.follow ? { follow: true } : {}), ...(b.live ? { live: true } : {}), ...(b.paused ? { paused: true } : {}), ...(b.kind ? { kind: String(b.kind) } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5), ...(b.sourceFit ? { sourceFit: String(b.sourceFit) } : {}), ...(b.sourceBlend ? { sourceBlend: String(b.sourceBlend) } : {}) } : {}), ...flagsOf(b)
+      ...(b.follow ? { follow: true } : {}), ...(b.live ? { live: true } : {}), ...(b.paused ? { paused: true } : {}), ...(b.kind ? { kind: String(b.kind) } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5), ...(b.sourceFit ? { sourceFit: String(b.sourceFit) } : {}), ...(b.sourceBlend ? { sourceBlend: String(b.sourceBlend) } : {}) } : {}), ...fxFields(b), ...flagsOf(b)
     }));
     const ids = new Set([MAIN, BLACKBOARD, ...d.boards.map(b => b.id)]);
     for (const e of d.elements) if (e.board && !ids.has(e.board)) e.board = BLACKBOARD;

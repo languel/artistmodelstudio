@@ -30,6 +30,15 @@ export function boardLive(app, boardId) {
       if (b.sourceBlend && b.sourceBlend !== 'normal') ctx.globalCompositeOperation = b.sourceBlend;
       ctx.drawImage(under, (w - dw) / 2, (h - dh) / 2, dw, dh); ctx.restore();
     }
+    // A board with a mask or effects is seen through them (its output stream).
+    if (app.composer?.needs(b)) {
+      const now = Date.now();
+      app.composer.begin(doc, now);
+      const c = app.composer.compose(b, { doc, scale: k, now, mode: 'picture', chain: [] });
+      ctx.clearRect(0, 0, w, h); ctx.drawImage(c, 0, 0, w, h);
+      live.version++;
+      return;
+    }
     const els = doc.elements.filter(e => (e.board || 'main') === boardId);
     if (els.length) renderDocument(ctx, { ...doc, elements: els }, { mode: 'picture', transform: { x: -b.x * k, y: -b.y * k, scale: k }, ground: false, screenNotes: true, frozen: true, now: Date.now() });
     live.version++;

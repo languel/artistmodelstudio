@@ -11,7 +11,7 @@
 import { boardsOf, boardById, boardDoc, boardAt, markBoard, newBoardId, nextBoardPlace, MAIN, BLACKBOARD } from './boards.js';
 import { normalizeDocument, newId } from './document.js';
 
-const BOARD_KEYS = ['rate', 'locked', 'hidden', 'hideLabel', 'perf', 'mask', 'code', 'pseudo', 'text', 'follow', 'source', 'sourceOpacity', 'sourceFit', 'sourceBlend', 'kind'];
+const BOARD_KEYS = ['rate', 'locked', 'hidden', 'hideLabel', 'perf', 'mask', 'maskWith', 'fx', 'sourceFx', 'code', 'pseudo', 'text', 'follow', 'source', 'sourceOpacity', 'sourceFit', 'sourceBlend', 'kind'];
 
 export function scenePart(doc) {
   return { ...structuredClone(doc), meta: { ...(doc.meta || {}), part: 'scene' } };

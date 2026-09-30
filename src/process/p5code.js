@@ -43,6 +43,8 @@ export function toP5Code(source, { board, sources = {}, loop = false, seed = 1, 
   code = code.replace(/^\s*units\([^)]*\)\s*;?\s*$/gm, '').replace(/^\s*artboard\([^)]*\)\s*;?\s*$/gm, '');
   const uses = word => new RegExp(`(?<![.\\w$])${word}\\s*\\(`).test(code);
   const missing = ['board', 'decide', 'sculpt', 'guide', 'gesture'].filter(uses);
+  if (uses('fx')) missing.push('fx');                                        // (masks and effects are studio-side: see masks.js)
+  if (/(?<![.\w$])mask\s*\(\s*\{/.test(code)) missing.push('mask');
   if (/\.face\b|\.track\(\s*['"]face/.test(code)) missing.push('source.face');   // (the face model is studio-only; ml5's faceMesh has no expression scores)
   // What the code asks the sources for (ml5.js models, one per kind).
   const kinds = [/\.pose\b/.test(code) && 'pose', /\.hands\b/.test(code) && 'hands', /\.mask\s*\(/.test(code) && 'mask'].filter(Boolean);
@@ -180,6 +182,8 @@ function state(name = '') {
   if (/(?<![.\w$])range\s*\(/.test(code) || defs.some(d => d.includes('range('))) defs.push(`function range(n) {
   return Array.from({ length: n }, (_, i) => i);
 }`);
+  if (uses('fx')) defs.push(`// Post effects are studio-side.
+function fx() {}`);
   if (uses('mask')) defs.push(`// A board's mask (crop its marks to the board): a p5 canvas crops at its edge already.
 function mask() {}`);
   if (uses('underlay')) defs.push(`// The studio shows a source under a board; in p5 the picture is the source itself (loadImage), so nothing to do.

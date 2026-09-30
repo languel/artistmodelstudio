@@ -9,7 +9,8 @@ import { rangeInput, paintRange } from '../codeParams.js';
 import { colorField } from '../colorPicker.js';
 import { BRUSHES, brushesForRole, resolveParams } from '../../process/brushes.js';
 import { ROLES, BLENDS } from '../../process/document.js';
-import { boardById, marksOf, trainBoard, rateOf } from '../../process/boards.js';
+import { boardById, boardsOf, marksOf, trainBoard, rateOf } from '../../process/boards.js';
+import { fxEditor } from './fxEditor.js';
 import { SCULPTS, sculptParams } from '../../process/sculpt.js';
 import { NOTE_STYLES, NOTE_FONTS, noteProps } from '../../process/notes.js';
 
@@ -218,6 +219,7 @@ export function mountProperties(el, app) {
         volRow, ...look));
       media.update();
     }
+    el.append(...boardFxSections(app, b));
     const text = h('textarea', { class: 'wb-why', rows: 6, placeholder: 'What this board says (Markdown): on the exported page, under the picture' });
     text.value = b.text || '';
     text.addEventListener('keydown', e => e.stopPropagation());
@@ -336,4 +338,35 @@ function noteText(e, onChange) {
   ta.addEventListener('change', () => onChange(ta.value));
   ta.addEventListener('keydown', ev => ev.stopPropagation());
   return ta;
+}
+
+
+/** A board's mask and effects (opt-in): what shows through what, and the effects stacks (its picture's, its mask's, its source's). */
+function boardFxSections(app, b) {
+  if (b.kind && b.kind !== 'drawing') return [];   // (documents, sketches and players are not composed: see masks.js)
+  const doc = app.store.doc, m = b.maskWith;
+  const from = h('select', { class: 'wb-select', title: 'What the board shows through: a source (a camera, a picture or clip, a board seen as a stream), or a board of marks' },
+    h('option', { value: '' }, '— none —'),
+    ...app.sources.list.map(s => h('option', { value: `source:${s.name}`, selected: m?.source === s.name }, s.name)),
+    ...boardsOf(doc).filter(x => x.id !== b.id && (!x.kind || x.kind === 'drawing')).map(x => h('option', { value: `board:${x.id}`, selected: m?.board === x.id }, `${x.title} · board`)));
+  from.addEventListener('change', () => {
+    const v = from.value; from.blur();
+    if (!v) return app.setBoardMask(b.id, null);
+    const [kind, ref] = [v.slice(0, v.indexOf(':')), v.slice(v.indexOf(':') + 1)];
+    app.setBoardMask(b.id, { ...(m || {}), source: kind === 'source' ? ref : undefined, board: kind === 'board' ? ref : undefined, mode: m?.mode || (kind === 'board' ? 'alpha' : 'luma') });
+  });
+  const patch = (p, opts) => app.setBoardMask(b.id, { ...m, ...p }, opts);
+  const maskRows = m ? [
+    row('Mode', selectField([['luma', 'Light'], ['alpha', 'Alpha']], m.mode === 'alpha' ? 'alpha' : 'luma', v => patch({ mode: v }), 'Light: where the mask is light, the board shows. Alpha: where the mask is opaque.')),
+    row('Invert', h('button', { class: `wb-icon-btn${m.invert ? ' on' : ''}`, title: m.invert ? 'Inverted: click to show where it hid' : 'Show where the mask hides', html: icon('mask'), onclick: () => patch({ invert: !m.invert }) })),
+    row('Feather', numberField({ value: m.feather || 0, min: 0, max: 80, step: 1, def: 0, title: 'Soften the mask\'s edge (pixels of the mask)', onChange: (v, { final }) => patch({ feather: v || undefined }, final ? undefined : { transient: true }) })),
+    m.source ? row('Fit', selectField([['cover', 'Cover'], ['contain', 'Contain']], m.fit === 'contain' ? 'contain' : 'cover', v => patch({ fit: v === 'contain' ? 'contain' : undefined }), 'How the mask\'s picture fits the board')) : null,
+    h('div', { class: 'wb-muted wb-small' }, 'Mask effects'),
+    fxEditor({ list: m.fx, app, onChange: (list, { final }) => patch({ fx: list.length ? list : undefined }, final ? undefined : { transient: true }) })
+  ] : [];
+  return [
+    section('Mask', Boolean(m), row('From', from), ...maskRows),
+    section('Effects', Boolean(b.fx?.length), fxEditor({ list: b.fx, app, onChange: (list, { final }) => app.setBoardFx(b.id, 'fx', list, final ? undefined : { transient: true }) })),
+    b.source ? section('Source effects', Boolean(b.sourceFx?.length), fxEditor({ list: b.sourceFx, app, onChange: (list, { final }) => app.setBoardFx(b.id, 'sourceFx', list, final ? undefined : { transient: true }) })) : null
+  ].filter(Boolean);
 }

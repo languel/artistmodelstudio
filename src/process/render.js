@@ -104,20 +104,24 @@ export function renderDocument(ctx, doc, {
       withLook(ctx, e, () => BRUSHES[brushId].draw(ctx, e, resolveParams(brushId, e.realize.params), env));
     }
   }
-  // Selection and hover outlines.
-  for (const e of doc.elements) {
+  drawOutlines(ctx, doc.elements, selected, hovered, selectColor, transform.scale);
+  ctx.restore();
+}
+
+/** Selection and hover outlines, in the units of the current transform (scale: screen pixels per unit). */
+export function drawOutlines(ctx, elements, selected, hovered, selectColor, scale) {
+  for (const e of elements) {
     if (!selected.has(e.id) && hovered !== e.id) continue;
     ctx.save();
     ctx.strokeStyle = selectColor; ctx.globalAlpha = selected.has(e.id) ? 1 : 0.5;
-    ctx.lineWidth = 1.5 / transform.scale;
-    ctx.setLineDash([4 / transform.scale, 3 / transform.scale]);
+    ctx.lineWidth = 1.5 / scale;
+    ctx.setLineDash([4 / scale, 3 / scale]);
     const pts = e.role === 'note' ? noteCorners(e) : e.points;
     const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
-    const pad = 6 / transform.scale;
+    const pad = 6 / scale;
     if (xs.length) ctx.strokeRect(Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) - Math.min(...xs) + pad * 2, Math.max(...ys) - Math.min(...ys) + pad * 2);
     ctx.restore();
   }
-  ctx.restore();
 }
 
 /** A mark that is not textured: its fill, its stroke, its brush (see the loop above). */

@@ -771,3 +771,11 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-gesture-list:empty { display: none; }
 .wb-rec.on { color: #c8664f; }
 .wb-gesture-code { margin-top: 8px; border: 1px solid var(--wb-line); border-radius: 4px; min-height: 160px; max-height: 360px; overflow: auto; }
+
+/* Effects stacks (masks, effects, source effects) */
+.wb-fx { display: flex; flex-direction: column; gap: 2px; }
+.wb-fx-item { border-top: 1px solid var(--wb-line, #353535); padding: 4px 0; }
+.wb-fx-item.off { opacity: 0.55; }
+.wb-fx-name { font-size: 12px; font-weight: 600; cursor: help; }
+.wb-fx-stops { flex-wrap: wrap; gap: 4px; }
+.wb-fx-add { width: 100%; margin-top: 4px; }

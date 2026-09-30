@@ -4,7 +4,8 @@
  * command (see mcp.js), so agents drive the same surface.
  */
 import { openToolParams, openGridParams, openToolDefaults } from './toolParams.js';
-import { boardAt, boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard, rateOf } from '../process/boards.js';
+import { boardAt, boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard, rateOf, newBoardId, nextBoardPlace } from '../process/boards.js';
+import { FX, normalizeFx } from '../process/fx.js';
 import { linksOf } from '../process/markdown.js';
 import { sceneHtml, docFromPage, pageBoards, sourcesOf } from '../process/page.js';
 import { Scenes } from './scenes.js';
@@ -54,6 +55,7 @@ import { showMenu } from './menu.js';
 import { askText } from './dialog.js';
 import { brushesForRole, KIT, BRUSHES } from '../process/brushes.js';
 import { txStats } from '../process/texture.js';
+import { Composer } from './masks.js';
 import { Shortcuts } from './shortcuts.js';
 import { eyedropToTarget, openPicker, parseColor, formatColor } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
@@ -127,6 +129,7 @@ export class Workbench {
     // Whatever is waiting to be saved is saved when the page goes away.
     window.addEventListener('pagehide', () => { if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = 0; this.saveDoc(); } if (this.persistTimer) { clearTimeout(this.persistTimer); this.persistTimer = 0; this.scenes?.persist().catch(() => {}); } });
     this.sources = new Sources(this);
+    this.composer = new Composer(this);
     this.gestures = new Gestures(this);
     this.playlists = new Playlists(this);
     this.artists = new ArtistRegistry();
@@ -557,6 +560,16 @@ export class Workbench {
       ] },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
       this.sources.list.length ? { label: 'Source underneath', hint: 'A source shown under the board: a reference, not part of its picture', items: [{ label: 'None', active: !b.source, run: () => this.setBoardSource(id, null) }, ...this.sources.list.map(s => ({ label: s.name, active: b.source === s.name, run: () => this.setBoardSource(id, s.name, b.source ? b.sourceOpacity : 1) }))] } : null,
+      boardKind(b) === 'drawing' ? { label: 'Mask', hint: 'Show the board through a source or another board (opt-in): the mask\'s light or alpha decides what shows', items: [
+        { label: 'None', active: !b.maskWith, run: () => this.setBoardMask(id, null) },
+        ...this.sources.list.map(s => ({ label: s.name, active: b.maskWith?.source === s.name, run: () => this.setBoardMask(id, { ...(b.maskWith || {}), source: s.name, board: undefined, mode: b.maskWith?.mode || 'luma' }) })),
+        ...(boardsOf(this.store.doc).filter(x => x.id !== id && boardKind(x) === 'drawing').length ? ['-'] : []),
+        ...boardsOf(this.store.doc).filter(x => x.id !== id && boardKind(x) === 'drawing').map(x => ({ label: `${x.title} · board`, active: b.maskWith?.board === x.id, run: () => this.setBoardMask(id, { ...(b.maskWith || {}), board: x.id, source: undefined, mode: b.maskWith?.mode || 'alpha' }) }))
+      ] } : null,
+      boardKind(b) === 'drawing' ? { label: 'Effects', hint: 'Post effects on the board\'s picture (opt-in): threshold, levels, gradient map…', items: [
+        ...Object.entries(FX).map(([type, d]) => ({ label: d.label, hint: d.doc, run: () => this.setBoardFx(id, 'fx', [...(b.fx || []), normalizeFx([type])[0]]) })),
+        ...(b.fx?.length ? ['-', { label: 'Remove effects', run: () => this.setBoardFx(id, 'fx', []) }] : [])
+      ] } : null,
       this.sources.list.length && boardKind(b) === 'drawing' ? { label: 'Draw from a source', hint: 'A demo: code that reads a source, which the board follows. Its code is yours to change', items: SOURCE_DEMOS.map(d => {
         const names = this.sources.list.map(s => s.name), pick = b.source && names.includes(b.source) ? b.source : null;
         return names.length === 1 || pick ? { label: d.label, hint: d.hint, run: () => this.sourceDemo(id, d.id, pick || names[0]) } : { label: d.label, hint: d.hint, items: names.map(n => ({ label: n, run: () => this.sourceDemo(id, d.id, n) })) };
@@ -740,6 +753,7 @@ export class Workbench {
     this.canvas.onDropSource = (name, at) => this.placeSource(name, at);
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));
     KIT.onImageLoad = () => { this.canvas.baked?.clear(); this.canvas.invalidate(); };
+    this.canvas.composer = this.composer;
     this.canvas.isBoardLive = id => this.isBoardLive(id);
     this.canvas.boardPerf = b => this.boardPerfText(b);
     // Each board's code runs, timed (for the performance line under boards).
@@ -1115,13 +1129,13 @@ export class Workbench {
     // A source samples only while something live needs it: a live board on screen that follows it or
     // shows it, or a live mark's brush that read it a moment ago. Paused, it keeps its last frame.
     // A lazy stream wakes when a board showing it is live, on screen and big (not in a zoomed-out overview).
-    this.sources.lazyWanted = name => boardsOf(this.store.doc).some(b => b.source === name && this.isBoardActive(b.id, b) && b.width * this.canvas.cam.z >= 240);
-    this.sources.wanted = name => readRecently(name, 1500) || boardsOf(this.store.doc).some(b => (b.source === name || (b.follow && reads(b.code, name))) && this.isBoardActive(b.id, b));
+    this.sources.lazyWanted = name => boardsOf(this.store.doc).some(b => (b.source === name || b.maskWith?.source === name) && this.isBoardActive(b.id, b) && b.width * this.canvas.cam.z >= 240);
+    this.sources.wanted = name => readRecently(name, 1500) || boardsOf(this.store.doc).some(b => (b.source === name || b.maskWith?.source === name || (b.follow && reads(b.code, name))) && this.isBoardActive(b.id, b));
     const reads = (code, name) => new RegExp(`\\b(source|fit)\\(\\s*['"\`]${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`).test(code || '');
     this.sources.on(name => {
       if (!name) { this.renderChrome(); return; }
       const doc = this.store.doc;
-      if (boardsOf(doc).some(b => b.source === name) || readRecently(name)) this.canvas?.invalidate();
+      if (boardsOf(doc).some(b => b.source === name || b.maskWith?.source === name) || readRecently(name)) this.canvas?.invalidate();
       for (const b of boardsOf(doc)) {
         if (!b.follow || rateOf(b) || !reads(b.code, name) || !this.isBoardActive(b.id, b)) continue;   // (a board with a redraw rate runs on its own clock)
         rerun(b);
@@ -1324,7 +1338,7 @@ export class Workbench {
     const b = boardById(this.store.doc, id);
     if (!b) return;
     try {
-      if (kind === 'png') { const blob = await canvasBlob(renderToCanvas(this.store.doc, { board: b.id, scale: 2, mode: 'picture' })); await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); }
+      if (kind === 'png') { const blob = await canvasBlob(this.boardPicture(b, 2, 'picture')); await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); }
       else {
         const text = kind === 'svg' ? toSVG(boardDoc(this.store.doc, b.id), { mode: 'picture' })
           : kind === 'json' ? JSON.stringify(boardPart(this.store.doc, b.id))
@@ -1455,6 +1469,38 @@ export class Workbench {
     this.openCode?.('board', id);
   }
 
+  /** A board's mask ({ source | board, mode, invert, feather, fit, fx } or null) and its effects (key: 'fx' on its picture, 'sourceFx' on its source). Opt-in: a board without either is drawn as before. */
+  setBoardMask(id, spec, opts) {
+    const clean = spec && { ...spec }; if (clean) for (const k of Object.keys(clean)) if (clean[k] === undefined) delete clean[k];
+    this.store.updateBoard(id, { maskWith: clean }, opts); this.canvas.invalidate(); this.renderChrome?.();
+  }
+  setBoardFx(id, key, list, opts) { this.store.updateBoard(id, { [key]: list }, opts); this.canvas.invalidate(); this.renderChrome?.(); }
+
+  /**
+   * The selected marks become the mask of the board they are on: they move to a new board of the same size (a mask board,
+   * placed after the others, its marks at the same places), and the board is masked by it (alpha: where the marks are). One undo step.
+   */
+  makeMask(ids) {
+    const doc = this.store.doc, sel = doc.elements.filter(e => ids.includes(e.id));
+    if (!sel.length) return null;
+    const targetId = sel[0].board && sel[0].board !== BLACKBOARD ? sel[0].board : MAIN, target = boardById(doc, targetId);
+    if (!target) return null;
+    let made = null;
+    this.store.change('make mask', d => {
+      const id = newBoardId(d), place = nextBoardPlace(d, target.width, target.height);
+      const board = { id, title: `${target.title} · mask`, ...place, ground: target.ground };
+      d.boards.push(board);
+      const dx = board.x - target.x, dy = board.y - target.y;
+      for (const e of d.elements) if (ids.includes(e.id)) { e.board = id; e.points = e.points.map(([x, y, t, p]) => [x + dx, y + dy, t, p]); }
+      const t = targetId === MAIN ? d.artboard : d.boards.find(x => x.id === targetId);
+      t.maskWith = { board: id, mode: 'alpha' };
+      made = board;
+    });
+    this.canvas.select([]);
+    this.log(`“${target.title}” is masked by ${sel.length} mark${sel.length === 1 ? '' : 's'}, now on the board “${made.title}”.`);
+    return made;
+  }
+
   /** A board's source underneath: its opacity, blend and fit (the source itself: setBoardSource). */
   setBoardSourceLook(id, patch) {
     this.store.change('board source look', d => {
@@ -1478,7 +1524,8 @@ export class Workbench {
 
   drawReference(ctx) {
     for (const b of boardsOf(this.store.doc)) {
-      const img = b.source && (b.sourceOpacity ?? 0.5) > 0 && this.sources?.view(b.source);
+      if (this.canvas.composedIds?.has(b.id)) continue;   // composed apart (masks.js)
+      const img = b.source && (b.sourceOpacity ?? 0.5) > 0 && (this.composer.underlay(b));
       if (!img?.width) continue;
       const k = (b.sourceFit === 'contain' ? Math.min : Math.max)(b.width / img.width, b.height / img.height), w = img.width * k, hh = img.height * k;
       ctx.save();
@@ -1723,6 +1770,7 @@ export class Workbench {
       '-',
       { label: 'Duplicate', run: () => { const out = this.store.duplicate(ids, 20 / z, 20 / z); this.canvas.select(out); } },
       { label: 'Create board from selection', hint: 'A board around the selected marks, which move into it', run: () => this.boardFromSelection(ids) },
+      { label: 'Make mask', hint: 'The selected marks become the mask of the board they are on: they move to a board of their own (a mask board), and the board shows only where they are', run: () => this.makeMask(ids) },
       { label: 'Snap', hint: 'To the grid (its finest lines); one undo step', items: (() => {
         const q = this.canvas.grid.spacing / Math.max(1, this.canvas.grid.subdivisions);
         const snap = (mode, k = 1) => { const n = this.store.snapMarks(ids, mode, q * k); this.log(`Snapped ${n} mark${n === 1 ? '' : 's'} (${mode}${k > 1 ? `, ${k}× grid` : ''}).`); };
@@ -1846,6 +1894,18 @@ export class Workbench {
     this.log(`Added “${a.title}” to Assets (${kind.toUpperCase()}).`);
   }
 
+  /** A board's picture as a canvas (scale: pixels per unit): with its mask and effects when it has them (they are opt-in), else its marks alone. */
+  boardPicture(b, scale, mode, doc = null) {
+    if (this.composer.needs(b)) {
+      const now = Date.now();
+      this.composer.begin(this.store.doc, now);
+      const src = this.composer.compose(b, { doc: this.store.doc, scale, now, mode, chain: [] });
+      const c = document.createElement('canvas'); c.width = src.width; c.height = src.height; c.getContext('2d').drawImage(src, 0, 0);   // (a copy: the composed one is kept and reused)
+      return c;
+    }
+    return renderToCanvas(doc || this.store.doc, doc ? { scale, mode } : { board: b.id, scale, mode });
+  }
+
   /** Export a board (the main one unless given) as png, sheet, svg, json, excalidraw or p5. */
   /**
    * A board's own code as a p5 sketch, with the media of the sources it reads:
@@ -1911,7 +1971,7 @@ export class Workbench {
     // A board's sketch carries the board's own score (its code), or, for the main board, the drawing's.
     if (kind === 'p5') doc = { ...doc, meta: { ...(doc.meta || {}), script: b.code || (b.main ? doc.meta?.script : undefined) || undefined } };
     const s = b.main ? this.slug() : `${this.slug()}-${String(b.title).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-    if (kind === 'png') renderToCanvas(doc, { scale: 2, mode: this.view.mode }).toBlob(b => download(b, `${s}.png`, 'image/png'));
+    if (kind === 'png') this.boardPicture(b, 2, this.view.mode, doc).toBlob(blob => download(blob, `${s}.png`, 'image/png'));
     else if (kind === 'sheet') processSheet(doc).toBlob(b => download(b, `${s}-process.png`, 'image/png'));
     else if (kind === 'svg') download(toSVG(doc, { mode: this.view.mode }), `${s}.svg`, 'image/svg+xml');
     else if (kind === 'json') download(JSON.stringify(boardPart(this.store.doc, b.id), null, 2), `${s}.ams.json`, 'application/json');

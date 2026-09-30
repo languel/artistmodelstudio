@@ -207,7 +207,7 @@ The *Painterly, fading strokes* demo (board menu → Draw from a source) repaint
 
 **Performance.** A textured mark is painted once (its layer is kept); after that drawing it is a lookup and a blit. Fading changes its opacity and drawing on is a clip along the stroke, so neither paints again. The canvas draws only what is in view, redraws marks that fade or draw on at most 15 times a second (about a fifth of the main thread), and does not animate marks that only stay. Layers are painted smaller while the cache is short of room. The board's performance line (View → performance under boards) reads `runs a second · code ms · d(raw draw ms) · marks · layer MB`. The painterly demo has sliders for what it costs: `density` (strokes alive), `detail` (layers), `size` (brush), `fade` and `drawOn` (0: nothing animates, the biggest single saving). Numbers and method: `docs/notes/painterly-performance.md`.
 
-**Masks.** Marks are free objects on the page, and a brush's width reaches past its points, so a mark near a board's edge spills over it: marks from you, from agents and from code all may. A board can be **masked** (the mask glyph in its Properties, *Mask to board* in its menu, or `mask()` in its code): its marks are cropped to the board, the default mask being the board's own rectangle. Only the marks that reach over the edge pay for a clip, and an unmasked board pays nothing. (Masks of other shapes, and of assets and sources, are the next step.)
+**Masks.** Marks are free objects on the page, and a brush's width reaches past its points, so a mark near a board's edge spills over it: marks from you, from agents and from code all may. A board can be **masked** (the mask glyph in its Properties, *Mask to board* in its menu, or `mask()` in its code): its marks are cropped to the board, the default mask being the board's own rectangle. Only the marks that reach over the edge pay for a clip, and an unmasked board pays nothing.
 
 **Time envelopes**: any mark can carry `time: { in, hold, out, life, draw, curve, loop }` (seconds) and a `born` time (epoch ms, set when it is made). The renderer fades it by its age at the view's clock, draws its stroke on along its length (`draw`), and drops it when `life` is over; a number is a fade out. The canvas keeps redrawing while any mark still changes, then stops. In code: `line(pts, { time: { in: 0.3, out: 2 } })`, and a brush reads `k.age`. Exports and the p5 sketch carry the same code (`envelope.js`, `texture.js` are embedded).
 
@@ -411,6 +411,30 @@ Agents use `ams_get` with `format: 'p5code'` for a board's code as p5, and `ams_
 A tracker reads a source's picture and gives back what it sees: `pose` (33 points per person), `hands` (21 per hand), `face` (478 points and 52 expression scores per face) and `mask` (where a person is). Any source can be tracked from board code, and only while code asks: `source('cam').face`, or by name, `source('cam').track('face')`. A face is `{ points, blend, box }`, in fractions of the board; `blend` has the model's scores (`jawOpen`, `mouthSmileLeft`, `eyeBlinkRight`…) and blends of them: `smile`, `frown`, `blink`, `browUp`, `browDown`, `squint`. Trackers are a registry in `src/perception/mediapipe.js` (`registerTracker(kind, { create, image, video, read })`): a new one is one entry.
 
 To see and test a tracker: board menu → *Draw from a source* → **Face and expressions** (the face as lines, its expressions as bars) or **Pose lines** or **Fingertips**. In the Gestures panel, `expr: ['smile', 0.5]` is a condition on an expression, and `chin`, `lip.top`, `lip.bottom`, `mouth.left`, `mouth.right` are points. Face tracking is studio-only: a p5 export says so. The demo's code has `/* 0..1 */` sliders for the source under the board (`underlay({ source, opacity, blend, fit })`, a call any board's code can make), the tracker's markers (points and bars) and the abstract faces; 0 hides each. An early result, "accidental art", is kept in `notes/accidental-art-unicursal-faces.md`.
+
+### Masks and effects
+
+Two opt-in features for drawing boards, and a board that has neither is drawn exactly as before.
+
+**Effects** are a stack of small image operations, and can sit in three places: on a board's picture (Properties → *Effects*, `fx([…])` in its code), on the source under it (*Source effects*, `underlay({ source, fx: […] })`), and on a mask (below). The stack is a list, in order, and each may be switched off:
+
+| effect | does |
+|---|---|
+| Threshold `level, soft` | light above the level white, below it black (soft: a ramp) |
+| Levels `black, white, gamma, outBlack, outWhite` | black point, white point, gamma, output range |
+| Contrast, Brightness `amount` | more or less difference; lighter or darker |
+| Invert | light becomes dark |
+| Posterize `steps` | fewer steps of light |
+| Gradient map `stops` | color by light: dark takes the first color of the gradient, light the last (stops are colors, or `[position, color]`; `#rrggbbaa` has alpha) |
+| Blur `radius`, Pixelate `size` | soften; blocks |
+
+A run of the first kind (everything but blur and pixelate) is compiled into a few lookup tables and applied in one pass over the pixels.
+
+**Masks.** A board can be shown *through* something: Properties → *Mask*, or the board's menu → *Mask*, or `mask({ source: 'cam', mode: 'luma', invert: true, feather: 4, fx: […] })` in its code. What can be a mask: **any source** (a camera, a picture or clip from Assets, a stream, a board made a source with *Use as a source*: its output), or **a board of marks** (`{ board: 'Shape' }`). *Light* mode shows the board where the mask is light; *Alpha* mode where it is opaque; *Invert* flips it; *Feather* softens its edge; *Fit* is cover or contain; `res` (128 to 1024, default 512) is how many pixels across it is worked at. The mask has effects of its own (a threshold makes it hard-edged; a gradient map recolors it before its light is read), and they run before its light or alpha is taken.
+
+**Make mask** (right-click marks): the selected marks move to a board of their own, `<board> · mask`, the same size, with the marks at the same places, and the board they were on is masked by it (alpha). Edit that board and the mask follows. A mask that cannot be had (its source is gone) lets the board show as it is. Marks of a board can also simply be cropped to its rectangle: the *Mask* glyph in Properties, or `mask(true)`: the default mask, the board's own shape.
+
+**Cost.** Nothing is paid without a mask or effects. A composed board (its paper, its source, its marks, its effects) is kept until its marks, its source's frame or its effects change, and the picture before the mask is kept apart from the masked one, so a moving mask over a still board costs the mask and a copy: about 4 ms a frame for a live clip as a mask with a threshold, a blur and a gradient map on a board 1000 pixels across (a still mask, nothing per frame). Effects and masks are worked at about 900 and 512 pixels across and drawn up. PNG export and the clipboard honor masks and effects; SVG, p5 and the page's pictures do not yet, and neither do document, sketch and player boards.
 
 ### Boards as sources, and playlists
 

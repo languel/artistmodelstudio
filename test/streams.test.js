@@ -250,3 +250,12 @@ for (const i of range(cols)) for (const j of range(rows)) {
     expect(p5Size('createCanvas(640, 360)')).toEqual({ width: 640, height: 360 });
   });
 });
+
+describe('p5 export: masks and effects are studio-side', () => {
+  it('says so, and the calls do nothing in the sketch', () => {
+    const out = toP5Code(`fx(['invert'])\nmask({ source: 'cam' })\npoint(0.5, 0.5)`, { board: { width: 300, height: 200 } });
+    expect(out).toContain('Not in this sketch: fx(), mask()');
+    expect(out).toContain('function fx() {}');
+    expect(() => new Function(out)).not.toThrow();
+  });
+});

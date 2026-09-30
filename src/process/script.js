@@ -72,7 +72,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
   let tgt = home ? { id: home.id, x: home.x, y: home.y, w: W, h: H } : { id: null, x: 0, y: 0, w: W, h: H };
   if (home && abm) { const b = doc.boards.find(x => x.id === home.id); b.width = W; b.height = H; }
   const aspect = () => tgt.w / tgt.h;
-  let maxRaw = 0, fitCount = 0, underlayReq = null, maskReq;
+  let maxRaw = 0, fitCount = 0, underlayReq = null, maskReq, fxReq;
   // Score coordinates → world units: fractions of the current board (or its own units), at its place.
   const toAb = pts => pts.map(q => {
     const x = +q[0], y = +q[1];
@@ -279,8 +279,13 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
      * paper. Sliders on the numbers in the code control it live. underlay(null) takes it away.
      */
     underlay(o = {}) { underlayReq = o === null ? { source: null } : { ...(underlayReq || {}), ...o }; },
-    /** mask(true): crop this board's marks to the board (the default mask: its own rectangle); mask(false) lets them spill again. */
-    mask(on = true) { maskReq = Boolean(on); },
+    /**
+     * mask(true): crop this board's marks to the board (the default mask: its own rectangle); mask(false) takes every mask away.
+     * mask({ source: 'cam', mode: 'luma', invert, feather, fx: [...] }): show the board through a source (or { board: 'Shape' }, a board of marks).
+     */
+    mask(on = true) { maskReq = on && typeof on === 'object' ? { ...on } : Boolean(on); },
+    /** fx([{ type: 'threshold', level: 0.5 }, 'invert', …]): post effects on this board's picture (fx([]) takes them away). */
+    fx(list = []) { fxReq = Array.isArray(list) ? list.map(x => (typeof x === 'string' ? { type: x } : { ...x })) : []; },
     print: (...a) => logs.push(a.map(x => (typeof x === 'string' ? x : JSON.stringify(x))).join(' '))
   };
 
@@ -291,7 +296,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
     if (!doc.stages.length) api.stage('Marks', 'marks');
     doc.meta = { ...(doc.meta || {}), script: source, seed, by, ran: new Date().toISOString() };
     doc.meta.units = units;
-    return { doc: normalizeDocument(doc, { own: true }), error: null, logs, maxRaw, units, underlay: underlayReq, mask: maskReq };
+    return { doc: normalizeDocument(doc, { own: true }), error: null, logs, maxRaw, units, underlay: underlayReq, mask: maskReq, fx: fxReq };
   } catch (err) {
     // The score's own line: V8 counts the Function header (2 lines) and our wrapper (2 lines).
     const m = String(err.stack || '').match(/<anonymous>:(\d+):(\d+)/);
@@ -362,7 +367,8 @@ export const SCRIPT_VOCAB = [
   ['lerp', 'lerp(a, b, t)', 'Linear interpolation.'],
   ['map', 'map(v, a, b, c, d)', 'Map v from a..b to c..d.'],
   ['range', 'range(n)', '[0, 1, …, n-1]'],
-  ['mask', "mask(on)", 'Crop the marks of this board to the board (a mask the size of the board); mask(false) lets them spill over its edge again. By default marks are free to go past the paper.'],
+  ['mask', "mask(true | false | { source | board, mode, invert, feather, fx })", 'mask(true) crops this board\'s marks to the board (its own rectangle; by default marks may go past the paper); mask({ source: \'cam\', mode: \'luma\' | \'alpha\', invert, feather, fx }) shows the board through a source, or through a board of marks ({ board: \'Shape\' }); mask(false) takes masks away.'],
+  ['fx', "fx([{ type: 'threshold', level: 0.5 }, 'invert', …])", 'Post effects on this board\'s picture, opt-in: threshold, levels, contrast, brightness, invert, posterize, gradient (stops), blur, pixelate. fx([]) takes them away.'],
   ['underlay', "underlay({ source, opacity, blend, fit })", 'The source shown under this board (a reference, not part of the picture): which, opacity 0..1 (0 hides it), blend (multiply, screen…), fit (cover | contain). underlay(null) takes it away. Put the numbers in code with /* 0..1 */ and they get sliders.'],
   ['print', 'print(...values)', 'Write to the output under the editor.'],
   ['sin', 'sin(a)', ''], ['cos', 'cos(a)', ''], ['abs', 'abs(v)', ''], ['min', 'min(...v)', ''], ['max', 'max(...v)', ''],

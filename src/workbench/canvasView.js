@@ -12,7 +12,7 @@ import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
 import { boardsOf, boardDoc, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD } from '../process/boards.js';
 import { closeLasso, lazyStep } from '../process/strokes.js';
 import { rdp } from '../process/sculpt.js';
-import { renderDocument, nextTimed } from '../process/render.js';
+import { renderDocument, nextTimed, drawOutlines } from '../process/render.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
 import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
 import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
@@ -177,6 +177,24 @@ export class CanvasView {
     }
   }
 
+  /** Boards with a mask or effects: each composed into a picture (kept while nothing it depends on changes) and put where the board is. */
+  drawComposed(ctx, doc, composed, css) {
+    const z = this.cam.z, scale = z * this.dpr, mode = this.viewMode();
+    for (const b of composed) {
+      if (!this.boardOnScreen(b)) continue;
+      const c = this.composer.compose(b, { doc, scale, now: this.frameNow, mode, chain: [] });
+      const [sx, sy] = this.toScreen(b.x, b.y);
+      ctx.drawImage(c, sx, sy, b.width * z, b.height * z);
+    }
+    // Their marks' outlines (selected, hovered), which the marks' own drawing would have made.
+    if (!this.previewDoc && (this.selected.size || this.hovered)) {
+      const marks = doc.elements.filter(e => this.composedIds.has(e.board || MAIN));
+      ctx.save(); ctx.translate(this.cam.x, this.cam.y); ctx.scale(z, z);
+      drawOutlines(ctx, marks, this.selected, this.hovered, css.getPropertyValue('--wb-select').trim() || '#8a8a8a', z);
+      ctx.restore();
+    }
+  }
+
   drawFrame_() {
     const { ctx } = this;
     const css = getComputedStyle(document.documentElement);
@@ -188,11 +206,16 @@ export class CanvasView {
     this.drawGrid(false);
     const doc = this.previewDoc || this.store.doc;   // a take being played shows its own document
     const boards = boardsOf(doc);
+    // Boards with a mask or effects (opt-in) are composed apart, and drawn on top of the rest (see masks.js).
+    const composed = this.composer ? boards.filter(b => b.kind !== 'frame' && !b.hidden && this.composer.needs(b)) : [];
+    this.composedIds = composed.length ? new Set(composed.map(b => b.id)) : null;
+    if (composed.length) this.composer.begin(doc, this.frameNow);
+    else if (this.composer && (this.composer.pictures.size || this.composer.masks.size || this.composer.views.size) && !(this.sweptAt > this.frameNow - 3000)) { this.composer.sweep(doc); this.sweptAt = this.frameNow; }   // (masks taken away: give back what was kept)
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 18;
     for (const b of boards) {
-      if (b.kind === 'frame' || b.hidden) continue;
+      if (b.kind === 'frame' || b.hidden || this.composedIds?.has(b.id)) continue;
       const [bx, by] = this.toScreen(b.x, b.y);
       ctx.fillStyle = b.ground;
       ctx.fillRect(bx, by, b.width * this.cam.z, b.height * this.cam.z);
@@ -230,12 +253,13 @@ export class CanvasView {
       ctx.restore();
     }
     const skip = this.drawBaked(ctx, doc);
-    for (const b of boards) if (b.hidden) skip.add(b.id);
+    for (const b of boards) if (b.hidden || this.composedIds?.has(b.id)) skip.add(b.id);
     renderDocument(ctx, skip.size ? { ...doc, elements: doc.elements.filter(e => !skip.has(e.board || MAIN)) } : doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
       selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, now: this.frameNow, view: this.viewRect(),
       selectColor: css.getPropertyValue('--wb-select').trim() || '#8a8a8a'
     });
+    if (composed.length) this.drawComposed(ctx, doc, composed, css);
     if (this.drawOverlay) {
       ctx.save(); ctx.translate(this.cam.x, this.cam.y); ctx.scale(this.cam.z, this.cam.z);
       this.drawOverlay(ctx);
@@ -797,7 +821,7 @@ export class CanvasView {
     const zb = Math.pow(2, Math.round(Math.log2(z) * 2) / 2);
     let marks = null;
     for (const b of boards) {
-      if (b.hidden) { this.baked.delete(b.id); done.add(b.id); continue; }   // not drawn at all
+      if (b.hidden || this.composedIds?.has(b.id)) { this.baked.delete(b.id); done.add(b.id); continue; }   // not drawn at all, or composed (masks.js)
       if (this.isBoardLive(b.id)) { this.baked.delete(b.id); continue; }
       if (busy.has(b.id)) continue;   // its picture is kept: edits end in a store change, which drops it
       // Off screen: not drawn, and its picture is let go (memory stays with what you see).

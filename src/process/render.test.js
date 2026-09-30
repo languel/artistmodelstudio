@@ -86,6 +86,34 @@ describe('mask() in board code', () => {
   });
 });
 
+describe('masks and effects on a board, from code and from patches', () => {
+  it('mask({ source }) and fx([...]) in board code set the board\'s mask and effects, and take them away', async () => {
+    const { ProcessStore } = await import('./document.js');
+    const { boardsOf } = await import('./boards.js');
+    const store = new ProcessStore();
+    store.runBoardCode('main', "mask({ source: 'cam', mode: 'alpha', invert: true })\nfx(['invert', { type: 'threshold', level: 0.4 }])\nunderlay({ source: 'cam', fx: ['blur'] })\npoint(0.5, 0.5)", runScript, { transient: true });
+    const main = boardsOf(store.doc)[0];
+    expect(main.maskWith).toMatchObject({ source: 'cam', mode: 'alpha', invert: true });
+    expect(main.fx.map(e => e.type)).toEqual(['invert', 'threshold']);
+    expect(main.sourceFx.map(e => (typeof e === 'string' ? e : e.type))).toEqual(['blur']);
+    store.runBoardCode('main', "mask(false)\nfx([])\npoint(0.5, 0.5)", runScript, { transient: true });
+    const after = boardsOf(store.doc)[0];
+    expect(after.maskWith).toBeUndefined(); expect(after.fx).toBeUndefined();
+  });
+  it('patches: set from an object or a list, remove with null; nothing stored for an empty mask spec', async () => {
+    const { ProcessStore } = await import('./document.js');
+    const { boardsOf } = await import('./boards.js');
+    const store = new ProcessStore();
+    const b = store.addBoard({ title: 'B', width: 100, height: 100 });
+    store.updateBoard(b.id, { maskWith: { board: 'M', mode: 'alpha' }, fx: ['invert'], sourceFx: [{ type: 'blur', radius: 2 }] });
+    let got = boardsOf(store.doc).find(x => x.id === b.id);
+    expect(got.maskWith).toEqual({ board: 'M', mode: 'alpha' }); expect(got.fx).toEqual(['invert']); expect(got.sourceFx).toHaveLength(1);
+    store.updateBoard(b.id, { maskWith: {}, fx: [], sourceFx: null });
+    got = boardsOf(store.doc).find(x => x.id === b.id);
+    expect(got.maskWith).toBeUndefined(); expect(got.fx).toBeUndefined(); expect(got.sourceFx).toBeUndefined();
+  });
+});
+
 describe('the layer cache running short of room', () => {
   beforeEach(() => { globalThis.document = { createElement: () => { const c = fakeCanvas(); return c; } }; globalThis.DOMMatrix = class { translate() { return this; } scale() { return this; } }; });
   afterEach(() => { delete globalThis.document; delete globalThis.DOMMatrix; txBudget(128); });
