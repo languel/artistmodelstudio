@@ -140,6 +140,8 @@ Then (27 Sep), **sources** (streams), bringing back the classic reference work a
 
 **Round 2, next:** (1) **Dirty rectangles** for a live board (redraw only what changed; the z-order of small over big strokes is the hard part); a mark's key is still hashed each frame. (2) **Fidelity**: longer, edge-following strokes, color variety inside a stroke, seeding detail from the face tracker or from *Fit* shapes. (3) Takes and recordings should render timed marks with the frame's own clock (`now`), as should the p5 export's static sketches. (4) A p5.brush option is not built (we chose our own brushes). (5) Documentation of the kit in the Brush tab hover docs.
 
+**Masks and effects, next:** masks on single marks and on assets placed on a board (today: put them on a board and mask the board); masks and effects on document, sketch and player boards (CSS `mask-image` from the composed mask is one route); SVG, p5 and page pictures that honor them; a GPU path for effects (a shader for the compiled stack) if live video stacks need it; more effects (edge, dither, color balance); the Boards panel showing which boards are masked.
+
 ## How the model fits
 
 ```

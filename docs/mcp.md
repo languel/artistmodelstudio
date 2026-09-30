@@ -55,7 +55,7 @@ Image results (data URLs) come back as MCP image content, so an agent can see wh
 
 **Workbench: scenes, boards and pages** (the workbench at `/`)
 - `ams_scene`: list, new (empty, or from a process document), open, duplicate, delete, move, and get (another scene's document without opening it).
-- `ams_board`: list, add, update (title, size, place, paper, text), move in the sequence, delete (marks go to the blackboard unless deleted too), go, train (the board models learn from), assign marks to a board, and code (run the board's own score into it).
+- `ams_board`: list, add, update (title, size, place, paper, text, and the opt-in `mask` (crop to the board), `maskWith` (`{ source | board, mode: luma | alpha, invert, feather, res, fx }`), `fx` (post effects on its picture) and `sourceFx` (on the source under it); `ams_vocabulary` lists the effects and their parameters), move in the sequence, delete (marks go to the blackboard unless deleted too), go, train (the board models learn from), assign marks to a board, and code (run the board's own score into it).
 - `ams_add` takes `board`: points are then relative to that board. `ams_get`, `ams_snapshot` and `ams_process_sheet` take `board` too.
 - `ams_page`: the drawing as a self-contained HTML page (every board with its picture, process view, replay, text and live code), with an intro.
 - `ams_active_brush`: the Brush tool's active brush and its slots, for drawing or performing alongside a person.

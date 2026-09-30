@@ -488,12 +488,15 @@ Cmd (or Ctrl) + click anywhere in a board, not only on its title, selects it and
 
 ### Board switches
 
-Properties → Board has four switches as glyphs beside its title (and the board's menu → Board):
+Properties → Board has switches as glyphs beside its title (and the board's menu → Board):
 
 - **Lock:** its marks cannot be selected, changed or drawn over, and the board cannot be moved or resized.
 - **Hide:** not drawn and not run; a dashed outline marks where it is. Hidden boards are left out of the exported page.
 - **Title:** hides the title above it (it shows while the board is selected, so it can still be moved).
+- **Crop to board (mask):** its marks are cropped to the board (a mask the size of the board; see *Masks and effects*). Off by default: marks from you, from agents and from code may go past the paper.
 - **Performance:** a line under it (see below). Only boards that show it are measured.
+
+A board's menu also has **Mask** (show it through a source, or through a board of marks) and **Effects** (a stack of post effects on its picture); Properties has *Mask*, *Effects* and *Source effects* sections.
 
 ### Performance
 
