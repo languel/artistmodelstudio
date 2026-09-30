@@ -77,8 +77,10 @@ export function renderDocument(ctx, doc, {
     const brush = BRUSHES[e.realize?.brush] || BRUSHES.ink;
     // A textured mark is painted once (its layer is kept): fading is a change of opacity, drawing on a clip, and a
     // mark whose layer is known is put on the picture without asking its brush.
+    // A board's code draws on the board as its whole canvas: what its marks reach beyond the edge is cropped (as a p5 canvas does).
+    const rect = e.by?.kind === 'code' ? boardRects.get(e.board || MAIN) : null;
     if (brush.texture && !e.fill && e.color !== 'none' && e.role !== 'guide' && e.role !== 'gesture' && e.role !== 'note') {
-      drawTextured(ctx, e, brush, env, share, view);
+      drawTextured(ctx, e, brush, env, share, view, rect);
       continue;
     }
     if (share < 1) e = { ...e, points: cutPath(e.points, share) };
@@ -87,19 +89,10 @@ export function renderDocument(ctx, doc, {
     env.rng = mulberry32(e.seed || 1);
     env.straight = e.path === 'straight';
     env.board = boardRects.get(e.board || MAIN) || boardRects.get(MAIN);
-    if (e.color === 'none') {
-      // No stroke: only the fill (a plane's brush paints it).
-      if (e.fill && e.role === 'plane') withLook(ctx, e, () => brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env));
-      else if (e.fill && e.points.length > 2 && e.closed) withLook(ctx, e, () => fillShape(ctx, e));
-      continue;
-    }
-    if (e.fill && e.role === 'plane') {
-      // A plane's brush is its fill; the stroke outlines it.
-      withLook(ctx, e, () => { brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env); if (e.color) strokeShape(ctx, e, env.scale); });
-      continue;
-    }
-    if (e.fill && e.points.length > 2 && e.closed) withLook(ctx, e, () => fillShape(ctx, e));
-    withLook(ctx, e, () => brush.draw(ctx, e, resolveParams(e.realize.brush, e.realize.params), env));
+    const cropped = rect && spills(e.points, (Number(e.realize?.params?.width) || 20) * 1.5, rect);
+    if (cropped) cropTo(ctx, rect);
+    drawGeneric(ctx, e, brush, env);
+    if (cropped) ctx.restore();
   }
   TIME_ALPHA = 1;
   if (mode === 'process') {
@@ -126,6 +119,31 @@ export function renderDocument(ctx, doc, {
   }
   ctx.restore();
 }
+
+/** A mark that is not textured: its fill, its stroke, its brush (see the loop above). */
+function drawGeneric(ctx, e, brush, env) {
+  if (e.color === 'none') {
+    // No stroke: only the fill (a plane's brush paints it).
+    if (e.fill && e.role === 'plane') withLook(ctx, e, () => brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env));
+    else if (e.fill && e.points.length > 2 && e.closed) withLook(ctx, e, () => fillShape(ctx, e));
+    return;
+  }
+  if (e.fill && e.role === 'plane') {
+    // A plane's brush is its fill; the stroke outlines it.
+    withLook(ctx, e, () => { brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env); if (e.color) strokeShape(ctx, e, env.scale); });
+    return;
+  }
+  if (e.fill && e.points.length > 2 && e.closed) withLook(ctx, e, () => fillShape(ctx, e));
+  withLook(ctx, e, () => brush.draw(ctx, e, resolveParams(e.realize.brush, e.realize.params), env));
+}
+
+/** Does a mark (its points grown by `pad`) reach over the edge of a board rect { x, y, width, height }? */
+function spills(points, pad, r) {
+  for (const q of points) if (q[0] - pad < r.x || q[0] + pad > r.x + r.width || q[1] - pad < r.y || q[1] + pad > r.y + r.height) return true;
+  return false;
+}
+/** Draw what follows only inside the rect (the caller restores). */
+function cropTo(ctx, r) { ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.width, r.height); ctx.clip(); }
 
 /** Can the mark reach into the view (world units, [x0, y0, x1, y1])? Its points, grown by its brush's width. */
 function reaches(points, pad, view) {
@@ -156,7 +174,7 @@ function revealClip(ctx, points, share, half) {
 }
 
 /** A mark of a textured brush (see texture.js): known layers are blitted, the first time the brush paints it. */
-function drawTextured(ctx, e, brush, env, share, view) {
+function drawTextured(ctx, e, brush, env, share, view, rect) {
   const id = e.realize.brush, p = resolveParams(id, e.realize.params);
   const alpha = (e.opacity ?? 1) * TIME_ALPHA, blend = e.blend && e.blend !== 'normal' ? e.blend : null;
   const clipped = share < 1 && p.width > 0 && e.role === 'line';
@@ -165,8 +183,10 @@ function drawTextured(ctx, e, brush, env, share, view) {
   if (known) {
     const l = known.layer;
     if (view && (l.x > view[2] || l.y > view[3] || l.x + l.w < view[0] || l.y + l.h < view[1])) return;
-    if (!clipped && !blend) { txBlit(ctx, known, alpha); return; }
+    const cropped = rect && (l.x < rect.x || l.y < rect.y || l.x + l.w > rect.x + rect.width || l.y + l.h > rect.y + rect.height);
+    if (!clipped && !blend && !cropped) { txBlit(ctx, known, alpha); return; }
     ctx.save();
+    if (cropped) { ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.width, rect.height); ctx.clip(); }
     if (blend) ctx.globalCompositeOperation = blend;
     if (clipped) revealClip(ctx, e.points, share, p.width * 0.8);
     txBlit(ctx, known, alpha);
@@ -179,6 +199,7 @@ function drawTextured(ctx, e, brush, env, share, view) {
   env.board = env.boards?.get(e.board || MAIN) || env.boards?.get(MAIN);
   ctx.save();
   ctx.globalAlpha *= alpha;
+  if (rect && spills(e.points, (p.width || 30) * 1.2, rect)) { ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.width, rect.height); ctx.clip(); }
   if (blend) ctx.globalCompositeOperation = blend;
   if (clipped) revealClip(ctx, e.points, share, p.width * 0.8);
   if (known === null) txArm(fk);

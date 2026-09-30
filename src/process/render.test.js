@@ -58,6 +58,23 @@ line([[0.1, 0.5], [0.5, 0.4], [0.9, 0.5]], { brush: 'oil', width: 30, color: '#a
   });
 });
 
+describe('a board\'s code draws on the board as its canvas', () => {
+  beforeEach(() => { txClear(); globalThis.document = { createElement: () => fakeCanvas() }; globalThis.DOMMatrix = class { translate() { return this; } scale() { return this; } }; });
+  afterEach(() => { delete globalThis.document; delete globalThis.DOMMatrix; });
+  const draw = (by, x) => {
+    const d = runScript(`artboard(400, 300)\nline([[${x}, 0.5], [${x + 0.05}, 0.45]], { brush: 'oil', width: 40, color: '#a03020', seed: ${Math.round(x * 100)} })`, { by }).doc;
+    const target = fakeContext();
+    renderDocument(target, d, { mode: 'final', ground: false });
+    return target;
+  };
+  it('crops what a mark made by code reaches beyond the board, and only when it does', () => {
+    const code = { kind: 'code', name: 'main' };
+    expect(count(draw(code, 0.97), 'clip')).toBe(1);   // near the edge: cropped
+    expect(count(draw(code, 0.5), 'clip')).toBe(0);    // inside: not
+    expect(count(draw({ kind: 'user', name: 'you' }, 0.97), 'clip')).toBe(0);   // made by hand: free to go over
+  });
+});
+
 describe('the layer cache running short of room', () => {
   beforeEach(() => { globalThis.document = { createElement: () => { const c = fakeCanvas(); return c; } }; globalThis.DOMMatrix = class { translate() { return this; } scale() { return this; } }; });
   afterEach(() => { delete globalThis.document; delete globalThis.DOMMatrix; txBudget(128); });
