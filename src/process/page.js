@@ -106,9 +106,10 @@ export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.me
     const tabs = [['pseudo', 'Pseudocode'], ['studio', 'Studio'], ['p5', 'p5.js']].filter(([k]) => c[k]);
     if (!tabs.length) return '';
     const first = boardKind(b) === 'p5' && !c.pseudo ? 'p5' : tabs[0][0];
-    return `<div class="codebox">
-    <div class="tabs" role="tablist">${tabs.map(([k, t]) => `<button role="tab" data-tab="${k}" aria-selected="${k === first}">${t}</button>`).join('')}<button class="copy" type="button" aria-label="Copy" title="Copy">${COPY_ICON}</button></div>
-    ${tabs.map(([k]) => `<pre data-pane="${k}"${k === first ? '' : ' hidden'}><code${k === 'studio' && boardKind(b) === 'drawing' ? ` data-code-for="${esc(b.id)}"` : ''}>${esc(c[k])}</code></pre>`).join('\n    ')}
+    const min = Boolean(b.codeMin);   // a bar of tabs only, until one is clicked
+    return `<div class="codebox${min ? ' min' : ''}">
+    <div class="tabs" role="tablist">${tabs.map(([k, t]) => `<button role="tab" data-tab="${k}" aria-selected="${!min && k === first}" title="Click the open tab to minimize">${t}</button>`).join('')}<button class="copy" type="button" aria-label="Copy" title="Copy">${COPY_ICON}</button></div>
+    ${tabs.map(([k]) => `<pre data-pane="${k}"${!min && k === first ? '' : ' hidden'}><code${k === 'studio' && boardKind(b) === 'drawing' ? ` data-code-for="${esc(b.id)}"` : ''}>${esc(c[k])}</code></pre>`).join('\n    ')}
   </div>`;
   };
   // Notes' folded code callouts (pseudocode, the other language) are the code box's tabs on the page.
@@ -258,7 +259,10 @@ figure.fig canvas, .stage iframe { display: block; width: 100%; height: 100%; bo
 .codebox { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .codebox .tabs { display: flex; gap: 2px; padding: 4px 6px 0; border-bottom: 1px solid var(--line); }
 .codebox .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); font: 0.78rem var(--mono); padding: 6px 10px; cursor: pointer; }
-.codebox .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.codebox .tabs button:hover, .codebox .tabs button[aria-selected="true"] { color: var(--text); }
+.codebox .tabs button[aria-selected="true"] { border-bottom-color: var(--accent); }
+.codebox.min .tabs { border-bottom: 0; padding-bottom: 2px; }
+.codebox.min .tabs .copy { visibility: hidden; }
 .codebox .tabs .copy { margin-left: auto; display: grid; place-items: center; }
 .codebox .tabs .copy:hover, .codebox .tabs .copy.done { color: var(--text); }
 .codebox pre { margin: 0; border: 0; border-radius: 0; max-height: 420px; overflow: auto; }
@@ -465,16 +469,20 @@ const PAGE_UI = String.raw`
     });
   }
 
-  // Code boxes: a tab per way of writing the code; Copy copies the tab showing.
+  // Code boxes: a tab per way of writing the code (a click opens it; a click on the open one minimizes the box
+  // to its bar of tabs); Copy copies the tab showing.
   for (const box of document.querySelectorAll('.codebox')) {
     const tabs = box.querySelectorAll('[data-tab]');
-    for (const t of tabs) t.addEventListener('click', () => {
+    const show = t => {
+      box.classList.toggle('min', !t);
       for (const x of tabs) x.setAttribute('aria-selected', String(x === t));
-      for (const p of box.querySelectorAll('[data-pane]')) p.hidden = p.dataset.pane !== t.dataset.tab;
-    });
+      for (const p of box.querySelectorAll('[data-pane]')) p.hidden = !t || p.dataset.pane !== t.dataset.tab;
+    };
+    for (const t of tabs) t.addEventListener('click', () => show(t.getAttribute('aria-selected') === 'true' ? null : t));
     const copy = box.querySelector('.copy');
     copy.addEventListener('click', () => {
       const pane = box.querySelector('[data-pane]:not([hidden])');
+      if (!pane) return;
       navigator.clipboard?.writeText(pane.textContent).then(() => { copy.classList.add('done'); setTimeout(() => copy.classList.remove('done'), 900); });
     });
   }

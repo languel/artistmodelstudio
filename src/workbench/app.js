@@ -256,7 +256,7 @@ export class Workbench {
     this.boardPerfTimer = setInterval(tick, 1000);
   }
 
-  /** Set one of a board's switches (locked, hidden, hideLabel, perf). */
+  /** Set one of a board's switches (locked, hidden, hideLabel, perf, mask, codeMin). */
   setBoardFlag(id, flag, on) {
     this.store.updateBoard(id, { [flag]: Boolean(on) });
     if (flag === 'perf') this.perfTick();
@@ -552,6 +552,7 @@ export class Workbench {
         { label: b.locked ? 'Unlock' : 'Lock', hint: 'Locked: its marks cannot be selected or changed, and it cannot be moved or resized', run: () => this.setBoardFlag(id, 'locked', !b.locked) },
         { label: b.hidden ? 'Show' : 'Hide', hint: 'Hidden: not drawn and not run (a dashed outline marks where it is)', run: () => this.setBoardFlag(id, 'hidden', !b.hidden) },
         { label: b.hideLabel ? 'Show title' : 'Hide title', run: () => this.setBoardFlag(id, 'hideLabel', !b.hideLabel) },
+        b.code || b.pseudo ? { label: b.codeMin ? 'Open its code on pages' : 'Minimize its code on pages', hint: 'On an exported page its code is a bar of tabs (Pseudocode, Studio, p5.js) and opens on a click', run: () => this.setBoardFlag(id, 'codeMin', !b.codeMin) } : null,
         { label: b.mask ? 'Unmask' : 'Mask to board', hint: 'Its marks are cropped to the board (a mask the size of the board); off, they may spill over its edge', run: () => this.setBoardFlag(id, 'mask', !b.mask) },
         { label: 'Add to playlist', hint: 'This board (or the selected boards): the media they show, or the boards themselves', run: () => { const ids = this.canvas.boardSet.has(id) && this.canvas.boardSet.size > 1 ? [...this.canvas.boardSet] : [id]; this.playlistMenu(ids.map(i => this.playlistItemForBoard(boardById(this.store.doc, i))), x, y, b); } },
         this.playableSource(b) ? { label: this.playerShown(b) ? 'Hide media controls' : 'Show media controls', hint: 'The player under the board: play, step, scrub, speed', run: () => this.togglePlayer(b) } : null,

@@ -834,7 +834,7 @@ export class CanvasView {
       done.add(b.id);
       const key = `${s.toFixed(4)}|${mode}|${this.upTo}`;
       let c = this.baked.get(b.id);
-      if (!c || c.key !== key) {
+      if (!c || c.key !== key || !c.canvas.width || !c.canvas.height) {   // (a canvas the browser has emptied is baked again)
         if (!marks) { marks = new Map(); for (const e of doc.elements) { const k = e.board || MAIN; (marks.get(k) || marks.set(k, []).get(k)).push(e); } }
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(W * s)); canvas.height = Math.max(1, Math.round(H * s));
@@ -866,13 +866,14 @@ export class CanvasView {
       // Its performance, under it (the board's own switch, or View → Performance under boards).
       const perf = this.boardPerf?.(b);
       if (perf) { ctx.save(); ctx.fillStyle = muted; ctx.font = '11px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'top'; ctx.fillText(perf, bx, by + h + 6, Math.max(120, w * 1.6)); ctx.restore(); }
-      if (b.hideLabel && !on) return;   // no title (selected, it shows, so it can be moved)
+      const noTitle = b.hideLabel && !on;   // no title (selected, it shows, so it can be moved); a board that runs keeps its play button
       if (b.kind === 'player' && b.hidden) return;
       const label = `${i + 1}  ${b.title}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
       // Boards with processes (code, following sources, a source under them) get a play / pause button
       // after the title. Like a player's, it shows what a click does: pause while running, play when paused.
       const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));   // documents (markdown, html) and frames have nothing to play
       // The play / pause button comes first, then the title, then icons for what is switched on.
+      if (noTitle && !runs) return;
       const lead = runs ? 14 : 0, marks = (b.locked ? 1 : 0) + (b.hidden ? 1 : 0);
       const room = Math.max(40, w - lead - marks * 16);
       const tw = Math.min(ctx.measureText(label).width, room);
@@ -888,6 +889,7 @@ export class CanvasView {
         ctx.restore();
         this.runButtons.push({ id: b.id, x: gx - 4, y: cy - 10, w: 18, h: 20 });
       }
+      if (noTitle) return;
       ctx.fillStyle = on ? text : muted;
       ctx.fillText(label, bx + lead, by - 5, room);
       this.boardLabels.push({ id: b.id, x: bx + lead - 2, y: by - 20, w: tw + 4, h: 18 });

@@ -45,6 +45,22 @@ async function typeInto(editor, text, g, { append = false } = {}) {
   editor.view.dispatch({ selection: { anchor: editor.view.state.doc.length }, scrollIntoView: true });
 }
 
+/** Go to a board (a frame, or any board) by its title, with a camera move. */
+function goTo(app, title) {
+  const bs = [{ ...app.store.doc.artboard, id: 'main', kind: undefined }, ...app.store.doc.boards];
+  const b = bs.find(x => x.title === title && x.kind === 'frame') || bs.find(x => x.title === title);
+  if (b) app.goToBoard(b.id, { animate: true });
+}
+
+/** A lesson (lessons.js) as the open scene: built the first time, opened after that. */
+async function openLesson(app, id, language = 'studio') {
+  const { LESSONS, buildLesson } = await import('./lessons.js');
+  const L = LESSONS.find(l => l.id === id);
+  const title = `Lesson: ${L.title}${language === 'p5' ? ' (p5.js)' : ''}`;
+  const have = app.scenes.all.find(s => s.title === title);
+  if (have) await app.scenes.switchTo(have.id); else await buildLesson(app, id, { language });
+}
+
 export const WALKTHROUGHS = [
   {
     id: 'senecio-study',
@@ -153,6 +169,89 @@ export const WALKTHROUGHS = [
       { say: 'Picture shows the result; Process shows construction and notes, and can replay the stages.', target: 'view:process', click: false },
       { say: 'Decide: a drawing as a sequence of typed decisions that a small local model can learn from you.', target: 'panel:decide', click: false },
       { say: 'Cmd+K opens the command palette; the Docs panel explains everything. Ask the Assistant “how did you do that?” to replay what it did.' }
+    ]
+  },
+  {
+    id: 'lesson-sampling',
+    title: 'Lesson: sampling Seurat and Munch',
+    summary: 'Builds the lesson (Pointillism and Expressionism, by sampling) as a scene of slides and walks through it: how we see, Seurat\'s dot, Munch\'s stroke, a walking figure, a brush that samples.',
+    steps: [
+      { say: 'A picture is a function from a place to a color. Ask it, then decide what to draw there. This builds the lesson as a scene of 16:9 slides (a few seconds); your drawing is kept in Assets.',
+        run: async ({ app, save }) => { await save(); await openLesson(app, 'sampling'); goTo(app, 'Pointillism and Expressionism, by sampling'); }, hold: 1500 },
+      { say: 'The cover. Each slide is a frame: step through them with the arrow keys, or present them. Every drawing is a board with its own code (Code → Board); the notes beside it hold the idea, the pseudocode and the other language.',
+        run: ({ app }) => goTo(app, '§ How we see') },
+      { say: 'First, how we see: five diagrams drawn by code. On a page their code starts as a bar of tabs, since it is not the point of the section.',
+        run: ({ app }) => goTo(app, '0.2 · The retina is pointillist'), hold: 1500 },
+      { say: 'The retina samples too: separate receptors, each answering for one small spot. Seurat\'s dots are not far from that.',
+        run: ({ app }) => goTo(app, '§ Seurat: the dot') },
+      { say: 'Seurat: the dot. The painting is a source, and code asks it one question: what color is it here?',
+        run: ({ app }) => goTo(app, '2 · Dots on a grid') },
+      { say: 'A dot of the painting\'s color at the center of each cell of a grid. Open Code → Board: the sliders are ranges written in the code.',
+        run: ({ app }) => { const b = app.store.doc.boards.find(x => x.title === '2 · Dots on a grid' && x.kind !== 'frame'); if (b) { app.canvas.selectBoard?.(b.id); app.openCode?.('board', b.id); } } },
+      { say: 'Munch: the stroke. The same question, a different decision: a stroke that follows the form, and a color pushed toward feeling.',
+        run: ({ app }) => goTo(app, '5 · Strokes along the forms') },
+      { say: 'Muybridge: the picture moves. A board that follows a moving source runs again on every new frame. Press the play glyph above the board.',
+        run: ({ app }) => goTo(app, '7 · A pointillist walk'), hold: 2000 },
+      { say: 'Last: a custom brush that samples. It stamps Seurat\'s colors along a walking body found by a pose model. The same lesson exports to p5.js (/lesson sampling p5) and as HTML pages.',
+        run: ({ app }) => goTo(app, '10 · A brush that samples: Seurat on the body') },
+      { say: 'The bibliography has the pictures\' Commons pages and the papers behind the history of color. Your turn: change one number in an example, or write the sampler that decides differently.',
+        run: ({ app }) => goTo(app, 'Bibliography') }
+    ]
+  },
+  {
+    id: 'lesson-diffusion',
+    title: 'Lesson: diffusion models',
+    summary: 'Builds the diffusion lecture and walks through it: six diagrams (noise forward, learned reverse, schedule, training, sampling, latent space, the score) and five p5.js simulations.',
+    steps: [
+      { say: 'Destroying a picture is easy and needs no learning: add noise. Undoing one small step of it is what a network learns. Do that from pure noise, many times, and a picture appears. This builds the lecture as a scene.',
+        run: async ({ app, save }) => { await save(); await openLesson(app, 'diffusion'); goTo(app, 'Diffusion models: from noise to picture'); }, hold: 1500 },
+      { say: 'Two directions. Forward adds a little Gaussian noise at each step, with no learning; reverse is the learned part.',
+        run: ({ app }) => goTo(app, '0.1 · Two directions') },
+      { say: 'The noise schedule: x_t = √ᾱ·x₀ + √(1−ᾱ)·ε, one jump from the picture to any step. The linear schedule has lost most of the picture by step 500; the cosine one loses it more evenly.',
+        run: ({ app }) => goTo(app, '0.2 · The noise schedule') },
+      { say: 'Training is a game of guessing the noise. The network sees only the noisy picture and the step, so to answer it must learn what pictures look like.',
+        run: ({ app }) => goTo(app, '0.3 · Training: guess the noise') },
+      { say: 'Sampling loops: predict the noise, guess the clean picture, step to a slightly less noisy one. DDIM adds no fresh noise and can skip steps.',
+        run: ({ app }) => goTo(app, '0.4 · Sampling: from noise to picture') },
+      { say: 'Stable Diffusion runs this in a small latent space, with a prompt and classifier-free guidance. And the score: the same thing as a field pointing toward the data.',
+        run: ({ app }) => goTo(app, '0.5 · Latent space, a prompt, guidance'), hold: 1500 },
+      { say: 'Now the simulations, in p5.js. First, noising a picture: move t and watch the coarse shapes outlast the fine detail. The sliders are in Code → Board.',
+        run: ({ app }) => { goTo(app, '1.1 · Noising a picture'); const b = app.store.doc.boards.find(x => x.title === '1.1 · Noising a picture' && x.kind === 'p5'); if (b) app.openCode?.('board', b.id); } },
+      { say: 'The forward process on 1200 points: a spiral becomes a round Gaussian cloud, whatever the data was.',
+        run: ({ app }) => goTo(app, '1.2 · The forward process on points'), hold: 2500 },
+      { say: 'The reverse process with an exact score (six blobs, so the ideal network is a formula). Blue arrows are the score field. Try η = 1 for DDPM, and fewer steps.',
+        run: ({ app }) => goTo(app, '1.3 · The reverse process, with an exact score'), hold: 3500 },
+      { say: 'Sampling a picture with a denoiser that knows three pictures. Watch the weights: at some noise level they snap to one, and the picture commits. Which one depends only on the seed.',
+        run: ({ app }) => goTo(app, '1.4 · Sampling a picture'), hold: 3500 },
+      { say: 'Guidance: w = 1 is the plain conditional model, larger w crowds the samples into one blob. More typical, less varied: the same trade real models make.',
+        run: ({ app }) => goTo(app, '1.5 · Guidance'), hold: 3000 },
+      { say: 'Two frames of bibliography: score matching, DDPM, DDIM, the SDE view, latent diffusion, guidance, transformers. Flow matching is the next lecture.',
+        run: ({ app }) => goTo(app, 'Bibliography') }
+    ]
+  },
+  {
+    id: 'painterly-klee',
+    title: 'Painterly, fading strokes (Klee)',
+    summary: 'A source repainted continuously with textured brushes: layers of strokes that follow the forms, draw themselves on and fade. Sliders, effects, p5.js.',
+    steps: [
+      { say: 'Classic AMS repainted pictures with a continuous stream of fading brush strokes. Here it is plain board code with our own brushes. A new scene, with Klee\'s Senecio as a source (it stays in Assets).',
+        run: async ({ app, save }) => {
+          await save();
+          if (!app.sources.def('senecio')) await app.sources.add({ kind: 'asset', assetId: 'klee:klee-1922-senecio', name: 'senecio' });
+          await app.scenes.create({ title: 'Painterly: Senecio' });
+          await app.sources.whenReady(['senecio']);
+          app.store.updateBoard('main', { title: 'Senecio · painterly', width: 640, height: 640 });
+        } },
+      { say: 'Board menu → Draw from a source → Painterly, fading strokes. Four layers, big to small: each sees the source blurred as much as its brush is broad, and paints where the picture so far differs from it.',
+        run: ({ app }) => { app.sourceDemo('main', 'paint', 'senecio'); app.goToBoard('main', { animate: true }); }, hold: 6000 },
+      { say: 'The code is yours. Its sliders: density (how many strokes), detail, size, fade, draw-on. Fewer strokes and a longer fade are the cheap, live settings.',
+        run: ({ app }) => app.openCode?.('board', 'main'), hold: 2000 },
+      { say: 'The strokes are textured: painted once with the grain of the paper, then blitted, so a mark that fades or draws on costs a blit, not a repaint. Show the board\'s performance line (Properties → Board → gauge).',
+        run: ({ app }) => app.setBoardFlag('main', 'perf', true), hold: 3000 },
+      { say: 'Effects are a stack on the board\'s picture, opt-in. A gradient map turns the painting into a two-color print, live.',
+        run: ({ app }) => app.setBoardFx('main', 'fx', [{ type: 'gradient', stops: ['#10143a', '#f0a050', '#fff2d0'] }]), hold: 5000 },
+      { say: 'And off again. A board can also be masked by another source or by marks (select marks → Make mask). Then Convert to p5.js on the board\'s menu: the same brushes, in a sketch you can take away.',
+        run: ({ app }) => { app.setBoardFx('main', 'fx', []); app.setBoardFlag('main', 'perf', false); } }
     ]
   },
   {

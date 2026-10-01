@@ -102,6 +102,26 @@ describe('the page', () => {
     expect(html).toContain('data-code-for="' + b.id + '"');
     expect(docFromPage(html).boards[0].title).toBe('Points');
   });
+  it('a board\'s code is a box of tabs: open on the first, or minimized to the bar (codeMin), and the flag survives a round trip', () => {
+    const s = new ProcessStore();
+    const b = s.addBoard({ title: 'Dots', width: 400, height: 200 });
+    s.runBoardCode(b.id, `point(0.5, 0.5)`, runScript);
+    s.updateBoard(b.id, { pseudo: 'draw a point' });
+    const codes = { [b.id]: { pseudo: 'draw a point', studio: 'point(0.5, 0.5)', p5: '' } };
+    const open = sceneHtml(s.doc, { codes });
+    expect(open).toContain('<div class="codebox">');
+    expect(open).toContain('data-tab="pseudo" aria-selected="true"');
+    expect(open).not.toContain('data-pane="pseudo" hidden');
+    s.updateBoard(b.id, { codeMin: true });
+    const min = sceneHtml(s.doc, { codes });
+    expect(min).toContain('<div class="codebox min">');
+    expect(min).not.toContain('aria-selected="true" title="Click the open tab');
+    expect(min).toContain('data-pane="pseudo" hidden');
+    expect(min).toContain('data-pane="studio" hidden');
+    expect(docFromPage(min).boards[0].codeMin).toBe(true);
+    s.updateBoard(b.id, { codeMin: false });
+    expect('codeMin' in boardsOf(s.doc).find(x => x.id === b.id)).toBe(false);
+  });
 });
 
 import { runScoreInto } from '../src/process/script.js';

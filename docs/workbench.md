@@ -28,7 +28,7 @@ and collapse, as in underscores:
 | Generate | Engines and models write scores. Candidates can be opened, saved, or read as scores. |
 | Assistant | Chat with any engine (Ollama, WebGPU, OpenRouter…). It acts through the same tools as an agent, visibly. *How did you do that?* replays its last session. |
 | Decide | The drawing as a sequence of typed decisions, answered by a policy you can train (see below). |
-| Docs | The documentation, with search and collapsible contents. Parts are generated from the code: brushes, vocabulary, exercises, tools. It also holds the walkthroughs and the training estimator. |
+| Docs | The documentation, with search and collapsible contents. Parts are generated from the code: brushes, vocabulary, exercises, tools. It also holds the walkthroughs, the Lessons (each with Build the scene and Take the tour) and the training estimator. |
 | Settings | Artboard size (presets, rotate) and paper, theme, accent color (record, playhead, points), grid (on the paper or everywhere, lines or dots, spacing, subdivisions, color, snap), reference opacity, the guide. Cmd+, |
 | Shortcuts | Every command and its keys, searchable. Click a key to reassign it; a key taken from another command moves. Shift+Cmd+/ |
 | Timeline | Record, review and edit takes (bottom dock): transport, tracks of clips, summary, walkthrough, export (playable HTML, project zip, video, JSON). |
@@ -41,6 +41,7 @@ and collapse, as in underscores:
 - *Tour of the workbench*.
 - *Teaching a decision policy*.
 - *Study: Senecio*: study a painting, write its methods as brushes and a score (typed live), reproduce it, then draw a new subject in its manner.
+- *Lesson: sampling Seurat and Munch*, *Lesson: diffusion models* and *Painterly, fading strokes (Klee)*: build the lesson as a scene (or open it, when it is already there) and walk through its slides; the painterly one builds a scene with Senecio as a source and shows the painter, its sliders, performance and an effect.
 
 Walkthroughs set the layout they need (through `ams_layout`) and put yours back when they end.
 
@@ -164,7 +165,7 @@ A **project** holds **scenes**, and a scene holds **boards**. It is enough to wr
 - **Page** (Export → Page): the drawing as one HTML file.
   - The page uses the studio's dark theme, and follows reading order (as the boards are laid out: rows top to bottom, each left to right).
   - Each board is a section, depending on its kind:
-    - **Drawing:** its picture, then ▶ (for a board that follows a moving source), Picture / Process / Replay, and its sliders, all below the picture. Under them, its code in one box with tabs: **Pseudocode** (a board's `pseudo`, when it has one), **Studio** and **p5.js**, with Copy. On the page, a notes board's folded pseudocode and code callouts give way to that box.
+    - **Drawing:** its picture, then ▶ (for a board that follows a moving source), Picture / Process / Replay, and its sliders, all below the picture. Under them, its code in one box with tabs: **Pseudocode** (a board's `pseudo`, when it has one), **Studio** and **p5.js**, with Copy. A click on a tab opens it; a click on the open tab minimizes the box to its bar of tabs. A board opens with its code minimized when its **Code** switch is on (below). On the page, a notes board's folded pseudocode and code callouts give way to that box.
     - **Markdown:** the document itself. `[[links]]` jump to boards on the page, and `![[embeds]]` show their pictures. A Markdown board titled "*Board* · notes" joins that board's section.
     - **HTML:** its page, in a sandboxed frame.
     - **p5:** ▶ below the sketch starts it in a sandboxed frame; its code box has p5.js (and Studio, when the sketch came from studio code).
@@ -492,7 +493,8 @@ Properties → Board has switches as glyphs beside its title (and the board's me
 
 - **Lock:** its marks cannot be selected, changed or drawn over, and the board cannot be moved or resized.
 - **Hide:** not drawn and not run; a dashed outline marks where it is. Hidden boards are left out of the exported page.
-- **Title:** hides the title above it (it shows while the board is selected, so it can still be moved).
+- **Title:** hides the title above it (it shows while the board is selected, so it can still be moved). A board that runs keeps its ▶ / ⏸ there.
+- **Code (minimize):** shown for a board with code. On an exported page its code box starts as a bar of tabs (Pseudocode, Studio, p5.js) and opens on a click; off, it starts open on the first tab (the pseudocode, when there is some).
 - **Crop to board (mask):** its marks are cropped to the board (a mask the size of the board; see *Masks and effects*). Off by default: marks from you, from agents and from code may go past the paper.
 - **Performance:** a line under it (see below). Only boards that show it are measured.
 
@@ -619,12 +621,15 @@ The first word is the tool (`ams_` optional), and a bare word after it is the ac
 
 ## Lessons
 
+The Docs have a **Lessons** section: how lessons work, then one topic for each of *Pointillism and Expressionism, by sampling*, *Diffusion models*, *Painterly, fading strokes* and *Taking a line for a walk*. A topic has **Build the scene** (and **As p5.js**) and **Take the tour**. `src/workbench/lessons.js` lists the lessons and builds them (`buildLesson(app, id, { language })`); `/lesson` in the palette uses it too.
+
 `examples/lessons/sampling/lesson.js` is a lesson as data: *Pointillism and Expressionism, by sampling*.
 - **Sections:** *How we see* (five diagrams drawn by code: the eye, the retina as a mosaic, the cone curves, a pixel, then and now), then Seurat, Munch and Muybridge, each a public-domain source (`media/`, with `RIGHTS.md`), and *The body as a source* (pose, and a custom brush; ml5.js in the p5 versions).
 - **Examples:** each is a board with an idea, pseudocode and code.
 - **Scripts:**
   - `scripts/lesson-sampling-p5.mjs` writes each example as a p5 sketch (`exports/lesson-sampling/p5/`).
-  - `scripts/lesson-sampling-report.mjs` writes the lesson as one HTML page. It uses the board pictures saved from the studio.
+  - `scripts/lesson-sampling-report.mjs` writes the lesson as HTML pages: `report.html` (studio and p5.js in tabs), `report-studio.html` and `report-p5.html` (one language each; the p5.js page runs its sketches). Each example's code opens on its pseudocode; the *How we see* diagrams start minimized to the bar of tabs. It uses the board pictures saved from the studio.
+- **As files:** `exports/scenes/` holds the lesson in both languages, the source demos and the Klee scenes as `.ams.json` scenes, with `sources.json` and `media/` (see its `README.md`; the folder is git-ignored).
 
 Examples for teaching favor few, simple, smooth curves over dense point lists.
 
@@ -634,7 +639,16 @@ Examples for teaching favor few, simple, smooth curves over dense point lists.
 - a frame per example: the 800×600 drawing beside its notes (the idea, and folded callouts with the pseudocode and the other language's code);
 - the bibliography: the pictures' Commons pages, and the papers and books behind the history, with checked DOIs.
 
-The boards are linked by `[[title]]`.
+The boards are linked by `[[title]]`. The boards inside a frame have their titles hidden (the frame carries it), and the diagrams' code is minimized on a page.
+
+### Diffusion models
+
+`/lesson diffusion` builds *Diffusion models: from noise to picture* (`examples/lessons/diffusion/lesson.js`) with the same builder (`buildLessonScene(app, { lesson })`). A lesson is data: sections of boards, each with `code` (studio code) or `p5` (a p5.js sketch written by hand), `idea` and `pseudo`, and a bibliography in columns (a column may say its `page` and `width`). The lecture has:
+- **Diagrams** (studio code, code minimized on a page): the two directions (forward noise, learned reverse), the noise schedule (linear and cosine), training (guess the noise), sampling (DDPM and DDIM), latent diffusion with a prompt and guidance, and the score field.
+- **Simulations** (p5.js, sliders from the ranges in the code): noising a picture (t, schedule, seed); the forward process on a cloud of points; the reverse process with the exact score of six Gaussian blobs (steps, η from DDIM to DDPM, the score field, trails); sampling a picture with an ideal denoiser that knows three pictures (its weights snap to one as the noise falls); and classifier-free guidance (w = 0 ignores the class, w = 1 is the conditional model, larger w crowds the samples into one blob).
+- **Bibliography** on two frames: origins (score matching), the diffusion papers (DDPM, DDIM, SDEs, improved DDPM, EDM), images, text and architecture (U-Net, VAE, guidance, CLIP, latent diffusion, DiT), and reading.
+
+The simulations use the real DDPM / DDIM updates. The networks are replaced by the ideal denoiser, which is a formula for these toy data (a mixture of Gaussians; three pictures). A trained network only approximates it. `test/lessonDiffusion.test.js` runs them without p5 and checks that the samplers land on the data. Flow matching is the next lecture.
 
 ## Agents
 

@@ -10,12 +10,18 @@ import { SCRIPT_REFERENCE } from '../process/script.js';
 import { EXERCISES } from '../process/exercises.js';
 import { HARDWARE_PRESETS, MODEL_SPECS, estimateTrainingResources } from '../training/trainingEstimates.js';
 
-export const DOC_SECTIONS = ['Getting started', 'Drawing', 'Scores', 'Seeing and deciding', 'Models', 'Agents', 'Files and data'];
+export const DOC_SECTIONS = ['Getting started', 'Lessons', 'Drawing', 'Scores', 'Seeing and deciding', 'Models', 'Agents', 'Files and data'];
 
 export { md } from '../process/markdown.js';
 import { md } from '../process/markdown.js';
 
 const prose = text => h('div', { html: md(text) });
+
+/** Buttons for a lesson: build it as a scene (and p5 version), and take its guided tour. */
+const lessonButtons = (app, id, { p5 = false, tour = null } = {}) => h('div', { class: 'wb-row wb-row-actions' },
+  h('button', { class: 'wb-btn primary', title: 'Build the lesson as a new scene of slides', onclick: () => import('./lessons.js').then(m => m.buildLesson(app, id)).then(n => app.log(`The lesson is a scene: ${n} boards.`)).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }, 'Build the scene'),
+  p5 ? h('button', { class: 'wb-btn', title: 'The same lesson with every drawing as a p5.js sketch', onclick: () => import('./lessons.js').then(m => m.buildLesson(app, id, { language: 'p5' })).then(n => app.log(`The lesson is a scene: ${n} boards.`)).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }, 'As p5.js') : null,
+  tour ? h('button', { class: 'wb-btn', title: 'A guided walkthrough, played with the real controls', onclick: () => app.walkthroughs.start(tour) }, 'Take the tour') : null);
 
 const brushTable = ids => h('div', {}, ...ids.filter(id => BRUSHES[id]).map(id => {
   const b = BRUSHES[id];
@@ -209,6 +215,66 @@ A board can be shown **through** something: Properties → *Mask*, the board's m
 **Effects** are a stack of image operations on a board's picture (\`fx([…])\`), on the source under it (\`underlay({ source, fx })\`) or on a mask. Nothing is paid without a mask or effects; a mask that moves over a board that does not costs only the mask.`),
       h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Effect'), h('th', {}, 'Parameters'), h('th', {}, 'What it does'))),
         h('tbody', {}, ...Object.entries(FX).map(([id, d]) => h('tr', {}, h('td', {}, h('code', {}, id)), h('td', {}, d.params.length ? d.params.map(p => `${p.key} ${p.min}–${p.max}`).join(', ') : d.stops ? 'stops' : ''), h('td', {}, d.doc))))))),
+
+    T('lessons-how', 'Lessons', 'Lessons as scenes', 'A lecture is a scene of slides: diagrams and examples as boards with code, notes, links, a bibliography.', () => h('div', {},
+      prose(`
+A **lesson** is a scene of 16:9 **frames** (slides). Each frame holds boards: a cover, an intro per section, then one frame per example with the **drawing** beside its **notes** (the idea, and folded pseudocode and code), and a bibliography. Boards link with \`[[titles]]\`; present the frames in order, or step with the arrow keys. The titles of the boards inside a frame are hidden (the frame carries it); a board that runs keeps its ▶.
+
+- **Studio code or p5.js.** A drawing is a board with studio code (fractions of the board; marks you can select and export), or a board with a **p5.js** sketch. Any studio board converts to p5.js (board menu → Convert) and back. Sliders come from the ranges written in the code: \`const n = 40 /* 5..200 */\`.
+- **Built from data.** \`examples/lessons/<name>/lesson.js\` is sections of boards (\`code\` or \`p5\`, \`idea\`, \`pseudo\`) and a bibliography; one builder (\`buildLessonScene\`) makes the scene. \`/lesson <name>\` in the palette builds it.
+- **Code view.** On an exported page each board's code is one box with tabs (Pseudocode, Studio, p5.js); a click opens a tab, a click on the open tab minimizes it to the bar. A board's **Code** switch (Properties → Board) starts it minimized; the diagrams of a lesson do.
+- **Pages and files.** Export → Page makes the lesson one HTML file whose sketches run; Export → Scene (JSON) writes it as an \`.ams.json\` to import again. Sources the scene reads (pictures, clips) are added by name first.`),
+      prose('The lessons in this app, each with a guided tour (Getting started → Walkthroughs):'),
+      ...[['lesson-sampling', 'Pointillism and Expressionism, by sampling'], ['lesson-diffusion', 'Diffusion models: from noise to picture'], ['lesson-painterly', 'Painterly, fading strokes (Klee)'], ['lesson-line-walk', 'Taking a line for a walk']]
+        .map(([id, t]) => h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, t)), h('button', { class: 'wb-btn', onclick: () => app.openDocs(id) }, 'Read'))))),
+
+    T('lesson-sampling', 'Lessons', 'Pointillism and Expressionism, by sampling', 'Seurat, Munch and Muybridge as sources: sample a picture, decide what to draw there.', () => h('div', {},
+      prose(`
+One idea throughout: **a picture is a function from a place to a color.** Sample it, and decide what to draw there. Seurat decides *a dot of pure color*. Munch decides *a stroke that follows the form, in the color of the feeling*. Muybridge's walk makes the picture move, and the same code follows it.
+
+1. **How we see** (five diagrams drawn by code): light into the eye, the retina as a mosaic of receptors, three kinds of cones, three numbers to a pixel, then and now.
+2. **Seurat: the dot:** sample a color at a place; dots on a grid; scattered dots; divisionism, pure colors only.
+3. **Munch: the stroke:** strokes along the forms (a quarter turn from the change of light); color pushed toward feeling.
+4. **Muybridge: the picture moves:** a pointillist walk and an expressionist walk, redrawn on every frame of the clip.
+5. **The body as a source:** a gesture drawing from a pose model, and a custom brush that stamps Seurat's colors along the walking figure.
+
+The pictures are public domain from Wikimedia Commons (rights recorded in \`examples/lessons/sampling/media/RIGHTS.md\`). Each example has pseudocode, studio code and p5.js, and the bibliography checks its references. The report script writes it as pages: one with both languages in tabs, one for the studio, one for p5.js (\`scripts/lesson-sampling-report.mjs\`).`),
+      lessonButtons(app, 'sampling', { p5: true, tour: 'lesson-sampling' }))),
+
+    T('lesson-diffusion', 'Lessons', 'Diffusion models: from noise to picture', 'Diagrams, then p5.js simulations with the real DDPM and DDIM updates, then the key papers.', () => h('div', {},
+      prose(`
+A diffusion model is trained to undo a simple process: adding noise to a picture a little at a time. From pure noise, run the undoing many times, and a picture appears.
+
+**Diagrams** (studio code): the two directions; the noise schedule (linear and cosine); training as *guess the noise*; sampling (DDPM, DDIM); latent diffusion with a prompt and classifier-free guidance; the score as a field pointing to the data.
+
+**Simulations** (p5.js; sliders in the code):
+- *Noising a picture:* t, schedule, seed.
+- *The forward process on points:* a spiral becomes a Gaussian cloud.
+- *The reverse process, with an exact score:* six blobs, so the ideal network is a formula. Steps, η from DDIM to DDPM, the score field, trails.
+- *Sampling a picture:* an ideal denoiser that knows three pictures; its weights snap to one as the noise falls.
+- *Guidance:* w = 0 ignores the class, w = 1 is the conditional model, larger w crowds the samples into one blob.
+
+The networks are replaced by the ideal denoiser, a formula for these toy data. A trained network only approximates it, and the difference is where real models go wrong. The bibliography (two frames, ids checked) runs from Sohl-Dickstein 2015 and score matching through DDPM, DDIM, the SDE view, latent diffusion, guidance and transformers. **Flow matching is the next lecture.**`),
+      lessonButtons(app, 'diffusion', { tour: 'lesson-diffusion' }))),
+
+    T('lesson-painterly', 'Lessons', 'Painterly, fading strokes', 'Klee repainted continuously: textured brushes, time envelopes, a layered painter, sliders, effects, p5.js.', () => h('div', {},
+      prose(`
+Classic AMS drew continuous, fading brush-stroke reconstructions of pictures. Here the same thing is **plain board code** with our own brushes, which you can open, change and export. Board menu → *Draw from a source* → *Painterly, fading strokes*.
+
+- **Brushes.** Charcoal, chalk, pencil, bristles, oil, marker and wash paint each mark into a small layer with the grain of the paper, then blit it. See Drawing → Textured brushes and time.
+- **The painter** (after Hertzmann). Four layers, big to small. Each sees the source blurred as much as its brush is broad, looks at the picture in blocks, and starts a stroke where the picture so far differs from it. The first layer always paints, and the paper takes the source's mean color, so quality does not decay as strokes fade. Strokes follow the forms, take the color across their width, and stop where it turns.
+- **Time.** Strokes draw themselves on and fade out on an envelope, so the picture is always repainting.
+- **Sliders:** density, detail, size, fade, draw-on, linger, tolerance, speed, stop. Fewer strokes and a longer fade are the cheap, live settings.
+- **p5.js.** *Convert to p5.js* writes the same sketch with the same brushes. Live, the p5 and studio boards match in look and in number.
+- **Effects and masks** are opt-in: a gradient map on the picture, a luma mask from another source (Drawing → Masks and effects).
+
+The experiment behind it (three Klee paintings, five variants, error and SSIM against the source) is in \`experiments/klee-painterly/\`, with notes on performance in \`docs/notes/painterly-performance.md\`. Findings: stable for a minute; about a 24 × 24 mosaic in fidelity; chalk and bristles are more faithful than oil and charcoal; a fifth layer adds a little for double the marks.`),
+      h('div', { class: 'wb-row wb-row-actions' }, h('button', { class: 'wb-btn primary', onclick: () => app.walkthroughs.start('painterly-klee') }, 'Take the tour')))),
+
+    T('lesson-line-walk', 'Lessons', 'Taking a line for a walk', 'After Klee and William Ngan: whose line is it? Make your own line before you draw it.', () => h('div', {},
+      prose(`
+Klee: *an active line on a walk, moving freely, without goal.* Ngan asks: when a line is drawn by software, whose line is it? The lesson draws a walk with a changing pace (every point keeps its time), realizes it with brushes that read the pace (speed lines, restated, inner lines, dotted), then **defines a line of your own** with \`defineLine\` and asks you to trace a master's wire. The idea carries, not the mechanics: the walk never changed, only the function that turns it into marks. See Drawing → Line forms and your own lines.`),
+      h('div', { class: 'wb-row wb-row-actions' }, h('button', { class: 'wb-btn primary', onclick: () => app.walkthroughs.start('line-walk') }, 'Take the tour')))),
 
     T('draw-lines', 'Drawing', 'Line forms and your own lines', 'After William Ngan: whose line is it? Line forms from the walk\'s speed, and defineLine.', () => h('div', {},
       prose(`
