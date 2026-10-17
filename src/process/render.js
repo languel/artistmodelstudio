@@ -132,6 +132,11 @@ function drawGeneric(ctx, e, brush, env) {
     else if (e.fill && e.points.length > 2 && e.closed) withLook(ctx, e, () => fillShape(ctx, e));
     return;
   }
+  if (e.role === 'plane' && !e.fill) {
+    // No fill: a plane is its outline alone (closed, straight or smooth), in the stroke color.
+    withLook(ctx, e, () => strokeShape(ctx, { ...e, color: e.color || '#1d1b19' }));
+    return;
+  }
   if (e.fill && e.role === 'plane') {
     // A plane's brush is its fill; the stroke outlines it.
     withLook(ctx, e, () => { brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env); if (e.color) strokeShape(ctx, e, env.scale); });

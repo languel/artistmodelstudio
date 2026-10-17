@@ -301,7 +301,7 @@ export const BRUSHES = {
     ],
     draw(ctx, e, p, k) {
       if (e.points.length < 3) return;
-      const pts = (e.points.length > 12 ? k.smoothPath(e.points, true, 4) : e.points);
+      const pts = k.smoothPath(e.points, true);   // the outline's own path (smooth, or straight), so the fill meets its stroke
       ctx.save();
       ctx.globalAlpha *= p.opacity;
       ctx.fillStyle = e.color || '#8a8175';
@@ -324,7 +324,7 @@ export const BRUSHES = {
     ],
     draw(ctx, e, p, k) {
       if (e.points.length < 3) return;
-      const poly = (e.points.length > 12 ? k.smoothPath(e.points, true, 3) : e.points);
+      const poly = k.smoothPath(e.points, true);   // the outline's own path (smooth, or straight), so the fill meets its stroke
       const cx = poly.reduce((a, q) => a + q[0], 0) / poly.length, cy = poly.reduce((a, q) => a + q[1], 0) / poly.length;
       ctx.save();
       ctx.globalAlpha *= p.opacity;
@@ -363,7 +363,7 @@ export const BRUSHES = {
     ],
     draw(ctx, e, p, k) {
       if (e.points.length < 3) return;
-      const poly = (e.points.length > 12 ? k.smoothPath(e.points, true, 3) : e.points);
+      const poly = k.smoothPath(e.points, true);   // the outline's own path (smooth, or straight), so the fill meets its stroke
       const xs = poly.map(q => q[0]), ys = poly.map(q => q[1]);
       const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
       const n = Math.min(40000, Math.round((x1 - x0) * (y1 - y0) * p.density));
@@ -530,7 +530,7 @@ export const BRUSHES = {
     ],
     draw(ctx, e, p, k) {
       if (e.points.length < 3) return;
-      const poly = e.points.length > 12 ? k.smoothPath(e.points, true, 4) : e.points;
+      const poly = k.smoothPath(e.points, true);   // the outline's own path (smooth, or straight), so the fill meets its stroke
       const xs = poly.map(q => q[0]), ys = poly.map(q => q[1]), pad = p.rough * 2 + p.rim * 2 + 4;
       k.paint(ctx, {
         key: k.hash('wash', e.points, p, e.seed), bounds: [Math.floor(Math.min(...xs) - pad), Math.floor(Math.min(...ys) - pad), Math.ceil(Math.max(...xs) + pad), Math.ceil(Math.max(...ys) + pad)],

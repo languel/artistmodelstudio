@@ -22,6 +22,8 @@ export const TOOL_KEYS = { v: 'select', h: 'hand', p: 'line', e: 'gesture', a: '
 
 /** Tools where Shift+drag over a mark sculpts it (Guide keeps Shift for angle snapping). */
 const SHIFT_SCULPT = new Set(['select', 'line', 'plane', 'gesture', 'brush']);
+/** Tools that draw: Ctrl there is snap, not Properties. */
+const DRAW_TOOLS = new Set(['point', 'note', 'line', 'plane', 'gesture', 'guide', 'brush']);
 
 export class CanvasView {
   constructor(host, store, { getTool, getStage, getDefaults, getSculpt, getLazy, onSelect, onTool, onNoteStyled, viewMode }) {
@@ -274,7 +276,16 @@ export class CanvasView {
       if (!this.clickPath && simp > 0 && d.points.length > 3 && !this.draftStraight) d = { ...d, points: rdp(d.points, simp / this.cam.z) };
       if (!this.clickPath && d.role === 'plane' && d.points.length > 5) d = { ...d, points: closeLasso(d.points, 6 / this.cam.z) };
       this.draftShown = d;
-      renderDocument(ctx, { ...doc, stages: [{ id: 'draft', visible: true }], elements: [d] }, {
+      if (d.role === 'plane' && d.points.length < 3) {
+        // A plane has no area until it has three points: until then its outline so far (rubber band included) is drawn.
+        const ink = d.color || '#1d1b19';
+        ctx.save(); ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.beginPath();
+        d.points.forEach(([x, y], i) => { const [sx, sy] = this.toScreen(x, y); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); });
+        ctx.stroke();
+        for (const [x, y] of d.points) { const [sx, sy] = this.toScreen(x, y); ctx.beginPath(); ctx.arc(sx, sy, 2.5, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+      } else renderDocument(ctx, { ...doc, stages: [{ id: 'draft', visible: true }], elements: [d] }, {
         mode: 'process', transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, ground: false
       });
     }
@@ -460,8 +471,7 @@ export class CanvasView {
     const b = this.selectionBounds();
     if (!b) return null;
     let [l, t] = this.toScreen(b.x0, b.y0), [r, btm] = this.toScreen(b.x1, b.y1);
-    const pad = 8;
-    l -= pad; t -= pad; r += pad; btm += pad;
+    // No pad: the frame passes through the points' centers, so a snapped selection's edges sit on grid lines.
     if (r - l < 24) { const c = (l + r) / 2; l = c - 12; r = c + 12; }
     if (btm - t < 24) { const c = (t + btm) / 2; t = c - 12; btm = c + 12; }
     return { l, t, r, b: btm, world: b };
@@ -538,10 +548,9 @@ export class CanvasView {
       if (ev.ctrlKey && tb) {
         const tax = ev.altKey ? (tb.x0 + tb.x1) / 2 : hd.hx < 0 ? tb.x1 : tb.x0, tay = ev.altKey ? (tb.y0 + tb.y1) / 2 : hd.hy < 0 ? tb.y1 : tb.y0;
         const tex = hd.hx < 0 ? tb.x0 : tb.x1, tey = hd.hy < 0 ? tb.y0 : tb.y1;
-        const q = this.grid.spacing / Math.max(1, this.grid.subdivisions);
-        const [gx, gy] = this.grid.snapMode === 'increments'
-          ? [tex + Math.round((x - wx0) / q) * q, tey + Math.round((y - wy0) / q) * q]
-          : this.snapPt(tex + (x - wx0), tey + (y - wy0), true);   // (objects: edges still go to grid lines)
+        // Edges land on grid lines in every snap mode. (Steps counts from where the edge started, so an edge
+        // that is off the grid would stay off it.)
+        const [gx, gy] = this.snapPt(tex + (x - wx0), tey + (y - wy0), true);
         if (hd.hx && tex !== tax) sx = (gx - tax) / (tex - tax);
         if (hd.hy && tey !== tay) sy = (gy - tay) / (tey - tay);
         if (!ev.altKey) { apply((px, py) => [tax + (px - tax) * sx, tay + (py - tay) * sy]); this.transformLabel = `${Math.round(sx * 100)}% × ${Math.round(sy * 100)}%`; return; }
@@ -724,7 +733,9 @@ export class CanvasView {
     });
     c.addEventListener('contextmenu', e => {
       e.preventDefault();
-      if (this.pointer || this.draft) return;   // Ctrl held while drawing (snap) is not a right-click
+      // Ctrl held while drawing (snap) is not a right-click. (On macOS Ctrl+click fires this event too, and a
+      // click that closes a path has already cleared the draft by then, so the tool decides.)
+      if (this.pointer || this.draft || (e.ctrlKey && DRAW_TOOLS.has(this.getTool()))) return;
       const bh = this.boardHandleAt(...this.local(e));
       if (bh) { this.selectBoard(bh.id); this.onBoardContext?.(bh.id, e); return; }
       const [wx, wy] = this.toWorld(...this.local(e));
@@ -740,6 +751,10 @@ export class CanvasView {
     // the canvas (documents, sketches, players) are reached through the layer that holds them.
     const properties = (e, target) => {
       if ((!e.metaKey && !e.ctrlKey) || e.button !== 0 || this.previewDoc || this.space) return false;
+      // While drawing (or part-way through a path made point by point), Ctrl snaps the click to the grid.
+      if (this.clickPath || this.draft || DRAW_TOOLS.has(this.getTool())) return false;
+      // A transform handle is grabbed with Ctrl too (the frame is padded past the marks, so it can sit on empty board).
+      if (target === c && this.getTool() === 'select' && this.handleAt(...this.local(e))) return false;
       const [wx, wy] = this.toWorld(...this.local(e));
       const hit = target === c ? this.hitTest(wx, wy) : null;
       if (hit) { queueMicrotask(() => this.onOpenProperties?.()); return false; }   // the mark's selection goes on as before
