@@ -5,12 +5,17 @@ export const ICONS = {
   select: svg('<path d="M5 3l14 8-6 1.5L10 19z" fill="currentColor"/>'),
   direct: svg('<path d="M5 3l14 8-6 1.5L10 19z"/><rect x="15.5" y="15.5" width="4" height="4" fill="currentColor" stroke="none"/>'),
   hand: svg('<path d="M8 13V5.5a1.5 1.5 0 013 0V12m0-1V4.5a1.5 1.5 0 013 0V12m0-1.5a1.5 1.5 0 013 0V15a6 6 0 01-6 6h-1a6 6 0 01-5-2.7L3.6 15a1.6 1.6 0 012.6-1.9L8 15"/>'),
+  laser: svg('<path d="M4 19.5l3.6-2.6" opacity=".25"/><path d="M7.6 16.9l3.8-3" opacity=".5"/><path d="M11.4 13.9l3.2-3.9" opacity=".8"/><circle cx="17.5" cy="7" r="3" fill="currentColor" stroke="none"/>'),
   point: svg('<circle cx="12" cy="12" r="4" fill="currentColor"/>'),
   points: svg('<path d="M4 17c4-8 8-10 16-9" opacity=".45"/><circle cx="4" cy="17" r="1.6" fill="currentColor"/><circle cx="9" cy="11" r="1.6" fill="currentColor"/><circle cx="14.5" cy="8.4" r="1.6" fill="currentColor"/><circle cx="20" cy="8" r="1.6" fill="currentColor"/>'),
   sculpt: svg('<path d="M3 17c4-1 6-5 9-5s4 3 9 2"/><circle cx="12" cy="12" r="5.5" stroke-dasharray="2 2.2" opacity=".7"/>'),
   line: svg('<path d="M4 18c3-6 5-9 8-9s3 5 8-4"/>'),
   plane: svg('<path d="M5 7l9-3 5 7-4 8-10-2z" fill="currentColor" fill-opacity=".25"/>'),
   circle: svg('<circle cx="12" cy="12" r="7.5" fill="currentColor" fill-opacity=".25"/>'),
+  // The same tools when their path is the other one (smooth ⇄ straight): the toolbar shows the tool's state.
+  lineStraight: svg('<path d="M4 18l5-7 4 3 7-9"/>'),
+  planeSmooth: svg('<path d="M5 9c2-4 8-6 12-3s3 6 1 9-8 4-12 1-3-4-1-7z" fill="currentColor" fill-opacity=".25"/>'),
+  circleStraight: svg('<path d="M12 4.5l6.5 3.75v7.5L12 19.5l-6.5-3.75v-7.5z" fill="currentColor" fill-opacity=".25"/>'),
   rect: svg('<rect x="4.5" y="6" width="15" height="12" rx="0.5" fill="currentColor" fill-opacity=".25"/>'),
   guide: svg('<path d="M3 17L21 7" stroke-dasharray="3 3"/>'),
   gesture: svg('<path d="M4 16c4-9 7 4 10-3s4-6 6-4" stroke-dasharray="1.5 3"/>'),
@@ -116,6 +121,7 @@ const SCULPT_ICONS = {
   pinch: '<path d="M4 12h5M20 12h-5M6.5 9.5 9 12l-2.5 2.5M17.5 9.5 15 12l2.5 2.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',
   twist: '<path d="M12 12a2 2 0 1 1 2 2 4 4 0 1 1-4-4 6 6 0 1 1 6 6"/>',
   jitter: '<path d="M3 12l2-2 1.5 3.5L9 9l1.5 5L13 9.5l1.5 4L17 10l1.5 3 2.5-2"/>',
+  resample: '<path d="M3 16l18-9" opacity=".4"/><g fill="currentColor" stroke="none"><circle cx="3.0" cy="16.0" r="1.3"/><circle cx="6.0" cy="14.5" r="1.3"/><circle cx="9.0" cy="13.0" r="1.3"/><circle cx="12.0" cy="11.5" r="1.3"/><circle cx="15.0" cy="10.0" r="1.3"/><circle cx="18.0" cy="8.5" r="1.3"/><circle cx="21.0" cy="7.0" r="1.3"/></g>',
   simplify: '<path d="M3 16l3-2 2 1 3-4 2 1 3-3 2 1 3-3" opacity=".4"/><path d="M3 16l8-5 10-4"/><g fill="currentColor" stroke="none"><circle cx="3" cy="16" r="1.3"/><circle cx="11" cy="11" r="1.3"/><circle cx="21" cy="7" r="1.3"/></g>',
   thicken: `<path ${F} d="M3 13.5c4-.5 6-3 9-3s5 2.5 9 3v.8c-4 .8-5 3.7-9 3.7s-5-3-9-3.7z"/>`
 };

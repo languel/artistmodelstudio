@@ -94,11 +94,14 @@ export async function eyedropToTarget(app) {
   return c;
 }
 
-export function openPicker(anchor, start, onChange, app, { allowNone = false } = {}) {
-  open?.close();
+/**
+ * One picker's body: the field, sliders, hex, palettes. start: { hex, alpha, none }. dismiss: what "none" does when the
+ * picker is alone (closes it); with keepOpen the body just dims, for pickers that sit side by side.
+ */
+function buildPicker(start, onChange, app, { allowNone = false, dismiss = () => {}, keepOpen = false, compact = false } = {}) {
   let hsv = hexHsv(start.hex), alpha = start.alpha, dirty = false;
   const hex = () => hsvHex(hsv);
-  const sv = h('canvas', { class: 'wb-cp-sv', width: 200, height: 130 });
+  const sv = h('canvas', { class: 'wb-cp-sv', width: compact ? 100 : 200, height: compact ? 96 : 130 });
   const hue = h('input', { type: 'range', class: 'wb-cp-hue', min: 0, max: 360, step: 1, value: hsv.h, title: 'Hue' });
   const alp = h('input', { type: 'range', class: 'wb-cp-alpha', min: 0, max: 100, step: 1, value: Math.round(alpha * 100), title: 'Opacity' });
   const hexIn = h('input', { class: 'wb-inline wb-cp-hex', spellcheck: 'false', title: 'Hex (#rrggbb or #rrggbbaa), or a name: burnt sienna, crimson…' });
@@ -123,6 +126,7 @@ export function openPicker(anchor, start, onChange, app, { allowNone = false } =
     ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.stroke();
   };
   const sync = (final = false) => {
+    body.classList.remove('wb-cp-off');
     drawSV();
     hue.value = hsv.h;
     alp.value = Math.round(alpha * 100);
@@ -134,6 +138,7 @@ export function openPicker(anchor, start, onChange, app, { allowNone = false } =
     dirty = true;
     onChange({ hex: hex(), alpha }, final);
   };
+  const none = () => { if (keepOpen) body.classList.add('wb-cp-off'); else dismiss(); };
   const choose = c => { const p = parseColor(c); hsv = hexHsv(p.hex); alpha = p.alpha; sync(true); };
   const chipBtn = (c, extra = {}) => {
     const hexv = typeof c === 'string' ? c : c.hex, name = typeof c === 'string' ? nameOf(c) : c.name || nameOf(c.hex);
@@ -162,19 +167,38 @@ export function openPicker(anchor, start, onChange, app, { allowNone = false } =
   alp.addEventListener('input', () => { alpha = Number(alp.value) / 100; sync(); });
   alp.addEventListener('change', () => sync(true));
   // Hex, or a name: "burnt sienna", "payne's gray", "crimson", or a palette color's name.
-  hexIn.addEventListener('change', () => { const raw = hexIn.value.trim(); if (allowNone && /^(none|no|transparent|-|)$/i.test(raw)) { onChange(null, true); close(); return; } const v = toHex(/^[0-9a-f]{3,8}$/i.test(raw) ? `#${raw}` : raw); if (v) choose(v); else hexIn.value = formatColor(hex(), alpha).slice(1); });
+  hexIn.addEventListener('change', () => { const raw = hexIn.value.trim(); if (allowNone && /^(none|no|transparent|-|)$/i.test(raw)) { onChange(null, true); none(); return; } const v = toHex(/^[0-9a-f]{3,8}$/i.test(raw) ? `#${raw}` : raw); if (v) choose(v); else hexIn.value = formatColor(hex(), alpha).slice(1); });
   pctIn.addEventListener('input', () => { if (document.activeElement === pctIn) return; alpha = Math.max(0, Math.min(100, Number(pctIn.value) || 0)) / 100; sync(); });
   pctIn.addEventListener('change', () => { alpha = Math.max(0, Math.min(100, Number(pctIn.value) || 0)) / 100; sync(true); });
   for (const i of [hexIn, pctIn]) i.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') i.blur(); });
 
-  const pop = h('div', { class: 'wb-cp-pop' },
-    sv, hue, alp,
-    h('div', { class: 'wb-cp-row wb-cp-inputs' }, h('span', { class: 'wb-cp-checker wb-cp-big' }, preview),
-      app ? h('button', { class: 'wb-cp-drop', type: 'button', title: 'Pick a color from the screen (I)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5l4 4M4 20l1-4 9.5-9.5 3 3L8 19z"/><path d="M16 4l4 4"/></svg>', onclick: () => eyedrop(app).then(c => c && choose(c)) }) : null, h('span', { class: 'wb-muted' }, '#'), hexIn, pctIn, h('span', { class: 'wb-muted' }, '%'),
-      allowNone ? h('button', { class: 'wb-cp-none', type: 'button', title: 'None (or type none)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 17L17 7"/></svg>', onclick: () => { onChange(null, true); close(); } }) : null),
-    h('div', { class: 'wb-cp-row wb-cp-inputs' }, paletteSel, fromRef), presets,
-    h('div', { class: 'wb-cp-head' }, 'Recent'), recents,
-    h('div', { class: 'wb-cp-head' }, 'Mine'), mine);
+  const noneBtn = allowNone ? h('button', { class: 'wb-cp-none', type: 'button', title: 'None (or type none)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 17L17 7"/></svg>', onclick: () => { onChange(null, true); none(); } }) : null;
+  const dropBtn = app ? h('button', { class: 'wb-cp-drop', type: 'button', title: 'Pick a color from the screen (I)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5l4 4M4 20l1-4 9.5-9.5 3 3L8 19z"/><path d="M16 4l4 4"/></svg>', onclick: () => eyedrop(app).then(c => c && choose(c)) }) : null;
+  // Compact (side by side): the field, hue, opacity, hex and none; the palette is shared, so it is not here.
+  const body = compact
+    ? h('div', { class: 'wb-cp-body' }, sv, hue, alp, h('div', { class: 'wb-cp-row wb-cp-inputs' }, h('span', { class: 'wb-cp-checker wb-cp-big' }, preview), h('span', { class: 'wb-muted' }, '#'), hexIn, noneBtn))
+    : h('div', { class: 'wb-cp-body' },
+      sv, hue, alp,
+      h('div', { class: 'wb-cp-row wb-cp-inputs' }, h('span', { class: 'wb-cp-checker wb-cp-big' }, preview), dropBtn, h('span', { class: 'wb-muted' }, '#'), hexIn, pctIn, h('span', { class: 'wb-muted' }, '%'), noneBtn),
+      h('div', { class: 'wb-cp-row wb-cp-inputs' }, paletteSel, fromRef), presets,
+      h('div', { class: 'wb-cp-head' }, 'Recent'), recents,
+      h('div', { class: 'wb-cp-head' }, 'Mine'), mine);
+
+  renderRows();
+  sync(false);
+  dirty = false;
+  if (start.none) body.classList.add('wb-cp-off');
+  return {
+    el: body, choose, drop: () => app && eyedrop(app).then(c => c && choose(c)),
+    get: () => formatColor(hex(), alpha),
+    finish: () => { if (dirty) store(RECENT_KEY, [formatColor(hex(), alpha), ...load(RECENT_KEY, []).filter(c => c !== formatColor(hex(), alpha))].slice(0, 10)); },
+  };
+}
+
+export function openPicker(anchor, start, onChange, app, { allowNone = false } = {}) {
+  open?.close();
+  const b = buildPicker(start, onChange, app, { allowNone, dismiss: () => close() });
+  const pop = h('div', { class: 'wb-cp-pop' }, b.el);
   document.body.append(pop);
   const r = anchor.getBoundingClientRect();
   const pw = 224, ph = pop.offsetHeight || 400;
@@ -185,14 +209,63 @@ export function openPicker(anchor, start, onChange, app, { allowNone = false } =
     pop.remove();
     window.removeEventListener('pointerdown', outside, true);
     window.removeEventListener('keydown', esc, true);
-    if (dirty) store(RECENT_KEY, [formatColor(hex(), alpha), ...load(RECENT_KEY, []).filter(c => c !== formatColor(hex(), alpha))].slice(0, 10));
+    b.finish();
     open = null;
   };
   const outside = e => { if (!pop.contains(e.target) && !anchor.contains(e.target)) close(); };
   const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
   setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
-  open = { close, accept: c => choose(c) };
-  renderRows();
-  sync(false);
-  dirty = false;
+  open = { close, accept: c => b.choose(c) };
+}
+
+/**
+ * Stroke and fill side by side, at (x, y): pick both at once. values: { stroke, fill } as set ('none' or null = none);
+ * set(which, color|null) is called for each pick; swap() swaps them.
+ */
+export function openPaintPicker(app, x, y, { stroke, fill, set }) {
+  open?.close();
+  const none = v => !v || v === 'none';
+  const side = (which, label, v, fallback) => {
+    const b = buildPicker({ ...parseColor(none(v) ? fallback : v, fallback), none: none(v) }, (c, final) => { if (final) set(which, c ? formatColor(c.hex, c.alpha) : null); }, app, { allowNone: true, keepOpen: true, compact: true });
+    const col = h('div', { class: 'wb-cp-col', 'data-paint': which }, h('div', { class: 'wb-cp-head wb-cp-title' }, label), b.el);
+    return { b, col };
+  };
+  const F = side('fill', 'Fill', fill, '#ffffff'), S = side('stroke', 'Stroke', stroke, '#1d1b19');
+  const swap = h('button', { class: 'wb-cp-swap', type: 'button', title: 'Swap stroke and fill', onclick: () => {
+    const f = F.b.get(), s = S.b.get(), fo = F.b.el.classList.contains('wb-cp-off'), so = S.b.el.classList.contains('wb-cp-off');
+    if (so) { set('fill', null); F.b.el.classList.add('wb-cp-off'); } else F.b.choose(s);
+    if (fo) { set('stroke', null); S.b.el.classList.add('wb-cp-off'); } else S.b.choose(f);
+  } }, '⇄');
+  // One palette for both: a chip goes to the side last touched.
+  let last = F;
+  const sel = h('select', { class: 'wb-select wb-cp-palette' });
+  sel.replaceChildren(...Object.keys(allPalettes()).map(k => h('option', { value: k }, k)));
+  sel.value = allPalettes()[load(PALETTE_KEY, '')] ? load(PALETTE_KEY, '') : 'Klee · Senecio';
+  const chips = h('div', { class: 'wb-cp-row' });
+  const fillChips = () => chips.replaceChildren(...(allPalettes()[sel.value] || []).map(c => {
+    const hexv = typeof c === 'string' ? c : c.hex, name = typeof c === 'string' ? nameOf(c) : c.name || nameOf(c.hex);
+    return h('button', { class: 'wb-cp-preset', type: 'button', title: `${name} · ${hexv}`, onclick: () => last.b.choose(hexv) }, h('span', { class: 'wb-cp-chip', style: { background: hexv } }));
+  }));
+  sel.addEventListener('change', () => { store(PALETTE_KEY, sel.value); fillChips(); });
+  fillChips();
+  const drop = app ? h('button', { class: 'wb-cp-drop', type: 'button', title: 'Pick a color from the screen for the side you last touched', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5l4 4M4 20l1-4 9.5-9.5 3 3L8 19z"/><path d="M16 4l4 4"/></svg>', onclick: () => last.b.drop() }) : null;
+  const pair = h('div', { class: 'wb-cp-sides' }, F.col, swap, S.col);
+  const pop = h('div', { class: 'wb-cp-pop wb-cp-pair' }, pair, h('div', { class: 'wb-cp-row wb-cp-inputs' }, drop, sel), chips);
+  document.body.append(pop);
+  const pw = pop.offsetWidth || 260, ph = pop.offsetHeight || 300;
+  pop.style.left = `${Math.max(8, Math.min(window.innerWidth - pw - 8, x - pw / 2))}px`;
+  pop.style.top = `${Math.max(8, Math.min(window.innerHeight - ph - 8, y - 24))}px`;
+  for (const t of [F, S]) t.col.addEventListener('pointerdown', () => { last = t; });
+  const close = () => {
+    pop.remove();
+    window.removeEventListener('pointerdown', outside, true);
+    window.removeEventListener('keydown', esc, true);
+    F.b.finish(); S.b.finish();
+    open = null;
+  };
+  const outside = e => { if (!pop.contains(e.target)) close(); };
+  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
+  open = { close, accept: c => last.b.choose(c) };
+  return { close };
 }

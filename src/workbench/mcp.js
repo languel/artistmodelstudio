@@ -101,7 +101,7 @@ export function workbenchTools(app) {
       const st = doc().stages.find(s => s.id === a.stage || s.name === a.stage) || app.activeStage;
       return app.store.addDecision({ question: a.question, options: a.options || [], chosen: a.chosen, why: a.why || '', stage: st.id, by: { kind: 'model', name: 'agent' } }, { by: 'agent' });
     } },
-    { name: 'ams_view', description: 'View: mode picture|process, upTo stage index (null = all), fit, tool (select | direct | hand | board | point | line | gesture | guide | plane | circle | rect | note | brush | sculpt), cycle (select | line | plane | brush | sculpt: step through that stack, like Shift+V, Shift+1, Shift+2, Shift+B, Shift+S), select ids.', inputSchema: S({ mode: str('picture | process'), upTo: { type: ['number', 'null'] }, fit: { type: 'boolean' }, tool: str(''), cycle: str('select | line | plane | brush | sculpt'), select: { type: 'array', items: { type: 'string' } } }), run: (a) => {
+    { name: 'ams_view', description: 'View: mode picture|process, upTo stage index (null = all), fit, tool (select | direct | hand | laser | board | point | line | gesture | guide | plane | circle | rect | note | brush | sculpt), cycle (select | line | plane | brush | sculpt: step through that stack, like Shift+V, Shift+1, Shift+2, Shift+B, Shift+S), select ids.', inputSchema: S({ mode: str('picture | process'), upTo: { type: ['number', 'null'] }, fit: { type: 'boolean' }, tool: str(''), cycle: str('select | line | plane | brush | sculpt'), select: { type: 'array', items: { type: 'string' } } }), run: (a) => {
       if (a.mode) app.setViewMode(a.mode);
       if ('upTo' in a) app.setUpTo(a.upTo === null ? Infinity : a.upTo);
       if (a.fit) app.canvas.fit(60, app.activeBoard);

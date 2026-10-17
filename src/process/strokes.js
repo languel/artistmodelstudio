@@ -48,3 +48,36 @@ export function lazyStep(pen, cursor, radius, smoothing = 0) {
   const s = Math.max(0, Math.min(0.95, smoothing));
   return [pen[0] + (px - pen[0]) * (1 - s), pen[1] + (py - pen[1]) * (1 - s)];
 }
+
+/**
+ * Shift on a straight stroke (a guide, a click-path guide): the end moves to the nearest 15-degree direction from
+ * the start, keeping its distance.
+ */
+export function straightEnd(from, to, step = Math.PI / 12) {
+  const a = Math.round(Math.atan2(to[1] - from[1], to[0] - from[0]) / step) * step;
+  const r = Math.hypot(to[0] - from[0], to[1] - from[1]);
+  return [from[0] + Math.cos(a) * r, from[1] + Math.sin(a) * r];
+}
+
+/**
+ * The lazy pen following the cursor from `from` to `to` (world units). A pointer event can jump far, so the
+ * jump is split into steps of about `step`, and the string pulls the pen at each step: the pen follows the path
+ * the cursor took (no snap to the edge of the string). Smoothing then eases the pen once toward where it ended.
+ */
+export function lazyFollow(pen, from, to, radius, smoothing = 0, step = 2) {
+  const n = Math.max(1, Math.ceil(Math.hypot(to[0] - from[0], to[1] - from[1]) / Math.max(step, 1e-9)));
+  let target = pen;
+  for (let k = 1; k <= n; k++) target = lazyStep(target, [from[0] + (to[0] - from[0]) * k / n, from[1] + (to[1] - from[1]) * k / n], radius, 0);
+  const s = Math.max(0, Math.min(0.95, smoothing));
+  return [pen[0] + (target[0] - pen[0]) * (1 - s), pen[1] + (target[1] - pen[1]) * (1 - s)];
+}
+
+/**
+ * The lazy pen catching up to a still cursor: it closes the gap by a share that grows with the time dt (ms) since
+ * the last step (exponential, half the gap in tau·ln 2 ms). A pen already at the cursor does not move.
+ */
+export function lazyCatchUp(pen, cursor, dt, tau = 120) {
+  const k = 1 - Math.exp(-Math.max(0, dt) / Math.max(tau, 1e-9));
+  return [pen[0] + (cursor[0] - pen[0]) * k, pen[1] + (cursor[1] - pen[1]) * k];
+}
+

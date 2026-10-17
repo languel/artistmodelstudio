@@ -37,7 +37,11 @@ export function openToolParams(app, x, y) {
     const vals = sculptParams(s.tool, s.params[s.tool]);
     title = `Sculpt · ${t.label}`;
     code = () => app.openCode?.('sculpt', s.tool);
+    const pick = h('select', { class: 'wb-select', title: 'The sculpt tool' }, ...Object.entries(SCULPTS).map(([id, st]) => h('option', { value: id, selected: id === s.tool }, st.label)));
+    pick.addEventListener('change', () => { app.setSculpt({ tool: pick.value }); openToolParams(app, x, y); });
+    pick.addEventListener('keydown', e => e.stopPropagation());
     rows.push(
+      h('label', { class: 'wb-tp-row wb-tp-row2' }, h('span', { class: 'wb-tp-label' }, 'Tool'), pick),
       slider({ label: 'Radius', min: 4, max: 400, step: 1, value: Math.round(s.radius), doc: 'Brush radius in screen pixels ([ and ])', onInput: v => app.setSculpt({ radius: v }) }),
       slider({ label: 'Strength', min: 0.02, max: 1, step: 0.01, value: s.strength, doc: 'Shift+[ and Shift+]', onInput: v => app.setSculpt({ strength: v }) }),
       ...t.params.map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => app.setSculpt({ params: { [p.key]: v } }) })));
@@ -145,6 +149,15 @@ export function openToolDefaults(app, tool, x, y, shape = null) {
     if (shape === 'rect') return [slider({ label: 'Rounded', min: 0, max: 1, step: 0.01, value: s.round, doc: 'Corner roundness: 0 is square corners, 1 is a pill (the corners take half the shorter side)', onInput: v => app.setShape('rect', { round: v }) })];
     return [];
   };
+  // The pen: Lazy makes a stroke trail the cursor on a string; its length is the laziness, adjustable here.
+  const lazyRows = d => {
+    if (!['line', 'plane', 'gesture', 'brush'].includes(tool)) return [];
+    const lz = d.lazy || {}, on = Boolean(lz.on), radius = lz.radius ?? 40, catchUp = lz.catch !== false;
+    const pen = seg([['off', 'Off'], ['lazy', 'Lazy']], on ? 'lazy' : 'off', v => { app.setDefaults(tool, { lazy: { on: v === 'lazy', radius, catch: catchUp } }); render(); });
+    return [line('Pen', pen, 'Off: the pen follows the cursor. Lazy: it trails the cursor on a string, so strokes come out smoother'),
+      ...(on ? [slider({ label: 'Laziness', min: 0, max: 120, step: 1, value: radius, doc: 'Length of the string (screen px): the pen waits until the cursor is this far away. Smoothing and Simplify (Opt+right-click) still apply.', onInput: v => app.setDefaults(tool, { lazy: { on: true, radius: Math.round(v), catch: catchUp } }) }),
+        line('Catch up', seg([['off', 'Off'], ['on', 'On']], catchUp ? 'on' : 'off', v => { app.setDefaults(tool, { lazy: { on: true, radius, catch: v === 'on' } }); render(); }), 'On: when the pointer stops, the pen catches up to it, so the line reaches the cursor. Off: the line stops where the string leaves it')] : [])];
+  };
   const render = () => {
     const d = app.defaults(tool), id = d.realize.brush, b = BRUSHES[id];
     const vals = resolveParams(id, d.realize.params);
@@ -154,6 +167,7 @@ export function openToolDefaults(app, tool, x, y, shape = null) {
     pop.replaceChildren(
       h('div', { class: 'wb-tp-head' }, h('span', { class: 'wb-tp-title' }, h('span', { html: brushIcon(id) }), `New ${shape || tool}`), h('button', { class: 'wb-icon-btn', title: 'The brush in code', html: icon('script'), onclick: () => { close(); app.openCode?.('brush', id); } })),
       ...shapeRows(),
+      ...lazyRows(d),
       line('Brush', brushSel),
       ...(b?.params || []).map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => app.setDefaults(tool, { realize: { params: { [p.key]: v } } }) })),
       h('div', { class: 'wb-tp-sub' }, 'Look'),

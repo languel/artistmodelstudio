@@ -18,6 +18,9 @@ export function defaultCommands(app) {
     cmd('tool.cycle.brush', 'Tools', 'Cycle brushes', ['shift+b'], () => app.cycleStack('brush')),
     cmd('tool.cycle.sculpt', 'Tools', 'Cycle sculpt tools', ['shift+s'], () => app.cycleStack('sculpt')),
     cmd('tool.hand', 'Tools', 'Pan', ['h'], () => app.setTool('hand')),
+    cmd('paint.pick', 'Tools', 'Stroke and fill together at the pointer (also Ctrl+right-click)', [], () => app.openPaintPicker()),
+    cmd('tool.radial', 'Tools', 'Radial menu of the current tools at the pointer (hold, move toward a tool, release)', ['shift+space'], () => app.openRadial()),
+    cmd('tool.laser', 'Tools', 'Laser pointer (a fading trail, no mark)', ['k'], () => app.setTool('laser')),
     cmd('tool.point', 'Tools', 'Point (dimension 0)', ['0'], () => app.setTool('point')),
     cmd('tool.line', 'Tools', 'Line (dimension 1)', ['1'], () => app.setTool('line')),
     cmd('tool.plane', 'Tools', 'Plane (dimension 2)', ['2'], () => app.setTool('plane')),
@@ -94,7 +97,7 @@ export function comboOf(e) {
   if (e.shiftKey && e.code?.startsWith('Digit')) key = e.code.slice(5);   // Shift+2 arrives as '@'; the digit is what is meant
   const withMod = mods.includes('mod') || mods.includes('ctrl');
   if (e.code === 'Slash' && withMod) key = '/';                       // ⌘? arrives as '/' on some layouts
-  if (e.shiftKey && (/^[a-z0-9/]$/.test(key) && (withMod || /^[a-z0-9]$/.test(key)) || k.length > 1)) mods.push('shift');
+  if (e.shiftKey && (/^[a-z0-9/]$/.test(key) && (withMod || /^[a-z0-9]$/.test(key)) || k.length > 1 || key === ' ')) mods.push('shift');
   if (key === ' ') key = 'space';
   if (key === 'del') key = 'delete';
   return [...mods, key].join('+');

@@ -10,11 +10,11 @@
  *
  * step runs for each mark under the brush, every time the pointer moves. It gets:
  *   pts  the mark's points [x, y, t, pressure] (artboard units), to change or replace
- *   s    the stroke: { x, y, dx, dy, radius, strength, pressure, invert, boost (Cmd held), closed, first,
+ *   s    the stroke: { x, y, dx, dy, radius, strength, pressure, invert, boost (Cmd held), closed, smooth (the mark is a curve, not segments), first,
  *        start: [x, y], orig (this mark's points when the stroke began), state (kept for the stroke) }
  *   p    the tool's params
  *   k    the kit: w(pt) (falloff × strength at the cursor), falloff(d, r), mean(pts, i, closed),
- *        rdp(pts, eps), refine(pts, maxSeg, near(a, b)), nearMark(pts, x, y, r), rng(),
+ *        rdp(pts, eps), refine(pts, maxSeg, near(a, b), closed, curve), curve(pts, i, u, closed), nearMark(pts, x, y, r), rng(),
  *        source(name): a source fitted to the mark's board (.colorAt(x, y), .valueAt(x, y) in world units)
  * Alt inverts (pinch → inflate, thicken → thin). A tool with refine: true gets extra points near
  * the cursor first, so few-point marks can bend.
@@ -25,6 +25,8 @@
 import { getSource } from './streams.js';
 
 const param = (key, label, min, max, step, def, doc) => ({ key, label, min, max, step, default: def, doc });
+/** The setting of the tools that add points where they stretch the line: 0 adds none, so only the points that exist move. */
+const detail = def => param('detail', 'Detail', 0, 2, 0.05, def, 'Points the brush may add where it stretches the line, as a share of the usual: 0 adds none (only the points that exist move), 1 is the usual, 2 is twice as many.');
 
 // ---- kit -----------------------------------------------------------------------------------
 export function falloff(d, r) {
@@ -55,8 +57,25 @@ export function rdp(pts, eps) {
   return [...rdp(pts.slice(0, at + 1), eps).slice(0, -1), ...rdp(pts.slice(at), eps)];
 }
 
-/** Split segments longer than maxSeg (only where near(a, b) is true for the segment), interpolating time and pressure. */
-function refine(pts, maxSeg, near = () => true, closed = false) {
+/**
+ * A point on the mark's curve between pts[i] and pts[i + 1], at u (0..1): the Catmull-Rom curve through its points,
+ * as a smooth mark is drawn. Time and pressure interpolate.
+ */
+function onCurve(pts, i, u, closed = false) {
+  const n = pts.length;
+  const get = j => (closed ? pts[((j % n) + n) % n] : pts[Math.max(0, Math.min(n - 1, j))]);
+  const p0 = get(i - 1), p1 = get(i), p2 = get(i + 1), p3 = get(i + 2);
+  const t2 = u * u, t3 = t2 * u;
+  const f = (a, b, c, d) => 0.5 * ((2 * b) + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+  const lerp = c => { const a = p1[c] ?? (c === 3 ? 0.5 : 0), b = p2[c] ?? (c === 3 ? 0.5 : 0); return a + (b - a) * u; };
+  return [f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1]), lerp(2), lerp(3)];
+}
+
+/**
+ * Split segments longer than maxSeg (only where near(a, b) is true for the segment), interpolating time and
+ * pressure. New points go on the mark's curve when `curve` (a smooth mark), on the straight chord otherwise.
+ */
+function refine(pts, maxSeg, near = () => true, closed = false, curve = false) {
   const out = [];
   const n = pts.length;
   for (let i = 0; i < n; i++) {
@@ -67,26 +86,26 @@ function refine(pts, maxSeg, near = () => true, closed = false) {
     const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (d <= maxSeg || !near(a, b)) continue;
     const m = Math.min(24, Math.ceil(d / maxSeg));
-    for (let j = 1; j < m; j++) { const u = j / m; out.push(a.map((v, c) => v + ((b[c] ?? v) - v) * u)); }
+    for (let j = 1; j < m; j++) { const u = j / m; out.push(curve ? onCurve(pts, i, u, closed) : a.map((v, c) => v + ((b[c] ?? v) - v) * u)); }
   }
   return out;
 }
 
-const KIT = { falloff, mean, rdp, refine, nearMark: (...a) => nearMark(...a) };
+const KIT = { falloff, mean, rdp, refine, curve: onCurve, nearMark: (...a) => nearMark(...a) };
 
 // ---- built-in tools --------------------------------------------------------------------------
 export const SCULPTS = {
   push: {
     label: 'Push', refine: true, doc: 'Points under the brush follow the cursor.',
-    params: [param('amount', 'Amount', 0, 2, 0.05, 1, 'How far points follow the cursor.')],
+    params: [param('amount', 'Amount', 0, 2, 0.05, 1, 'How far points follow the cursor.'), detail(1)],
     step(pts, s, p, k) {
       return pts.map(q => { const w = k.w(q) * p.amount; return w ? [q[0] + s.dx * w, q[1] + s.dy * w, q[2], q[3]] : q; });
     }
   },
 
   grab: {
-    label: 'Grab', refine: true, doc: 'Pick up the points under the brush where the stroke began and move them with the cursor.',
-    params: [],
+    label: 'Grab', refine: true, doc: 'Pick up the points under the brush where the stroke began and move them with the cursor. Detail 0 (the start) moves only the points that exist; raise it to let the lifted part gain points.',
+    params: [detail(0)],
     step(pts, s, p, k) {
       // s.state lasts the whole stroke (one per mark): what the brush picked up at the start.
       if (!s.state.held) s.state.held = s.orig.map(q => k.falloff(Math.hypot(q[0] - s.start[0], q[1] - s.start[1]), s.radius) * s.strength);
@@ -98,7 +117,7 @@ export const SCULPTS = {
   },
 
   smooth: {
-    label: 'Smooth', doc: 'Points move toward their neighbours: wiggles relax, corners round, and pressure (thickness) evens out.',
+    label: 'Smooth', doc: 'Points move toward their neighbours: wiggles relax, corners round, and pressure (thickness) evens out. Cmd: Jitter, its opposite.',
     params: [param('amount', 'Amount', 0, 1, 0.05, 0.5, 'How far each pass moves a point toward its neighbours.')],
     step(pts, s, p, k) {
       return pts.map((q, i) => {
@@ -113,7 +132,7 @@ export const SCULPTS = {
   },
 
   relax: {
-    label: 'Relax', doc: 'Evens out the spacing along the mark without changing its shape (Smooth that only slides points along).',
+    label: 'Relax', doc: 'Evens out the spacing along the mark without changing its shape (Smooth that only slides points along). Cmd: Pinch, its opposite.',
     params: [param('amount', 'Amount', 0, 1, 0.05, 0.6, 'How far each pass slides a point.')],
     step(pts, s, p, k) {
       const n = pts.length;
@@ -131,8 +150,8 @@ export const SCULPTS = {
   },
 
   pinch: {
-    label: 'Pinch', refine: true, doc: 'Points gather toward the cursor (Alt: inflate, away from it).',
-    params: [param('amount', 'Amount', 0, 1, 0.02, 0.15, 'How much of the way to the cursor each pass goes.')],
+    label: 'Pinch', refine: true, doc: 'Points gather toward the cursor (Alt: inflate, away from it). Cmd: Relax, its opposite.',
+    params: [param('amount', 'Amount', 0, 1, 0.02, 0.15, 'How much of the way to the cursor each pass goes.'), detail(1)],
     step(pts, s, p, k) {
       const dir = s.invert ? -1 : 1;
       return pts.map(q => { const w = k.w(q) * p.amount * dir; return w ? [q[0] + (s.x - q[0]) * w, q[1] + (s.y - q[1]) * w, q[2], q[3]] : q; });
@@ -141,7 +160,7 @@ export const SCULPTS = {
 
   twist: {
     label: 'Twist', refine: true, doc: 'Points turn around the cursor as you move (Alt: the other way).',
-    params: [param('speed', 'Speed', 0, 0.2, 0.005, 0.04, 'Radians per pass at full strength.')],
+    params: [param('speed', 'Speed', 0, 0.2, 0.005, 0.04, 'Radians per pass at full strength.'), detail(1)],
     step(pts, s, p, k) {
       const turn = (s.invert ? -1 : 1) * p.speed * (1 + Math.hypot(s.dx, s.dy) / Math.max(1, s.radius) * 4);
       return pts.map(q => {
@@ -154,7 +173,7 @@ export const SCULPTS = {
   },
 
   jitter: {
-    label: 'Jitter', doc: 'Seeded tremor: points shake a little under the brush.',
+    label: 'Jitter', doc: 'Seeded tremor: points shake a little under the brush. Cmd: Smooth, its opposite.',
     params: [param('amount', 'Amount', 0, 0.2, 0.005, 0.03, 'Shake, as a fraction of the brush radius.')],
     step(pts, s, p, k) {
       const a = s.radius * p.amount;
@@ -163,32 +182,12 @@ export const SCULPTS = {
   },
 
   simplify: {
-    label: 'Simplify', doc: 'Fewer points under the brush, same shape (Ramer–Douglas–Peucker on the part you brush). Alt: resample, more points, evenly spaced.',
+    label: 'Simplify', doc: 'Fewer points under the brush, same shape (Ramer–Douglas–Peucker on the part you brush). Cmd: Resample, its opposite.',
     params: [
-      param('tolerance', 'Tolerance', 0, 0.2, 0.005, 0.03, 'How far the shape may move, as a fraction of the brush radius.'),
-      param('density', 'Density', 1, 50, 1, 8, 'Alt (resample): points per brush radius at the center (more = denser); it eases back to the mark’s own spacing toward the edge.')
+      param('tolerance', 'Tolerance', 0, 0.2, 0.005, 0.06, 'How far the shape may move, as a fraction of the brush radius (at strength 0.5; the brush strength scales it).')
     ],
     step(pts, s, p, k) {
-      if (s.invert) {
-        // Resample: split what the brush covers into even steps (the finer, the stronger).
-        // Spacing follows the brush falloff: p.density × radius at the center, easing to the
-        // segment's own length at the edge, so the new points blend into the old spacing.
-        const out = [], n = pts.length, segs = s.closed ? n : n - 1;
-        for (let i = 0; i < n; i++) {
-          out.push(pts[i]);
-          if (i >= segs) break;
-          const a = pts[i], b = pts[(i + 1) % n];
-          const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
-          const w = k.w([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
-          if (w <= 0) continue;
-          const t = Math.min(1, w * 2);   // strength 0.5 reaches the full density at the center
-          const target = d + (s.radius / Math.max(1, p.density) - d) * t;
-          const m = Math.min(24, Math.ceil(d / Math.max(0.5, target) - 0.2));
-          for (let j = 1; j < m; j++) { const u = j / m; out.push(a.map((v, c) => v + ((b[c] ?? v) - v) * u)); }
-        }
-        return out;
-      }
-      const eps = s.radius * p.tolerance * s.strength;
+      const eps = s.radius * p.tolerance * 2 * s.strength;   // strength 0.5 is the tolerance as set
       const out = [];
       let run = [];
       const flush = () => { if (run.length) out.push(...(run.length > 2 ? k.rdp(run, eps) : run)); run = []; };
@@ -203,12 +202,37 @@ export const SCULPTS = {
     }
   },
 
+  resample: {
+    label: 'Resample', doc: 'More, evenly spaced points under the brush, same shape: what the brush covers is split into even steps along the curve (along the segments, for a straight mark); the finer, the stronger. Useful before pushing or twisting a sparse mark. Cmd: Simplify, its opposite.',
+    params: [
+      param('density', 'Density', 1, 50, 1, 8, 'Points per brush radius at the center (more = denser); it eases back to the mark’s own spacing toward the edge.')
+    ],
+    step(pts, s, p, k) {
+      // Spacing follows the brush falloff: p.density × radius at the center, easing to the
+      // segment's own length at the edge, so the new points blend into the old spacing.
+      const out = [], n = pts.length, segs = s.closed ? n : n - 1;
+      for (let i = 0; i < n; i++) {
+        out.push(pts[i]);
+        if (i >= segs) break;
+        const a = pts[i], b = pts[(i + 1) % n];
+        const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const w = k.w([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+        if (w <= 0) continue;
+        const t = Math.min(1, w * 2);   // strength 0.5 reaches the full density at the center
+        const target = d + (s.radius / Math.max(1, p.density) - d) * t;
+        const m = Math.min(24, Math.ceil(d / Math.max(0.5, target) - 0.2));
+        for (let j = 1; j < m; j++) { const u = j / m; out.push(s.smooth ? k.curve(pts, i, u, s.closed) : a.map((v, c) => v + ((b[c] ?? v) - v) * u)); }
+      }
+      return out;
+    }
+  },
+
   thicken: {
-    label: 'Thicken', refine: true, doc: 'Raises the pressure under the brush, so pressure-aware brushes (Ink) draw wider (Alt: thinner). Pressure can go past 1 (a mouse line is already near 1): up to 2, or up to 10 with Cmd held.',
+    label: 'Thicken', doc: 'Raises the pressure under the brush, so pressure-aware brushes (Ink) draw wider (Alt or Cmd: thinner). Pressure can go up to 2 (a mouse line is already near 1).',
     params: [param('amount', 'Amount', 0, 0.5, 0.01, 0.12, 'Pressure added per pass.')],
     step(pts, s, p, k) {
-      const dir = s.invert ? -1 : 1;
-      return pts.map(q => { const w = k.w(q); return w ? [q[0], q[1], q[2], Math.max(0.02, Math.min(s.boost ? 10 : 2, (q[3] ?? 0.5) + dir * w * p.amount * (s.boost ? 3 : 1)))] : q; });
+      const dir = s.invert || s.boost ? -1 : 1;
+      return pts.map(q => { const w = k.w(q); return w ? [q[0], q[1], q[2], Math.max(0.02, Math.min(2, (q[3] ?? 0.5) + dir * w * p.amount))] : q; });
     }
   }
 };
@@ -304,6 +328,13 @@ export function nearMark(pts, x, y, r, closed = false) {
   return false;
 }
 
+/**
+ * What Cmd does to a sculpt tool: it switches to the tool's opposite (a pair of existing tools). Thicken thins
+ * with Cmd (or Alt) on its own; tools without a pair (Push, Grab, Twist) are unchanged.
+ */
+export const SCULPT_OPPOSITE = { simplify: 'resample', resample: 'simplify', smooth: 'jitter', jitter: 'smooth', pinch: 'relax', relax: 'pinch' };
+export const effectiveSculpt = (id, boost) => (boost && SCULPT_OPPOSITE[id]) || id;
+
 export const SCULPTABLE = e => !['point', 'note', 'image'].includes(e.role) && e.points.length >= 2;
 
 /**
@@ -316,11 +347,18 @@ export function sculptMark(id, e, s, values, rng = Math.random, mark = { orig: e
   const near = (a, b) => nearMark([a, b], s.x, s.y, s.radius);
   let pts = e.points;
   if (id !== 'grab' && !nearMark(pts, s.x, s.y, s.radius, e.closed)) return null;
-  if (t.refine && id !== 'grab') pts = refine(pts, s.radius / 6, near, e.closed);
-  else if (id === 'grab' && s.first) mark.orig = refine(mark.orig, s.radius / 6, (a, b) => nearMark([a, b], s.start[0], s.start[1], s.radius * 2), e.closed);
+  const smooth = e.path !== 'straight';   // a smooth mark is a curve through its points; a straight one, segments
+  const params = sculptParams(id, values);
+  // Detail: how many points a stretch may gain (0: only the points that exist move; a tool without the setting keeps the usual).
+  const share = params.detail === undefined ? 1 : params.detail;
+  const maxSeg = s.radius / (6 * Math.max(share, 1e-6));
+  if (t.refine && share > 0) {
+    if (id !== 'grab') pts = refine(pts, maxSeg, near, e.closed, smooth);
+    else if (s.first) mark.orig = refine(mark.orig, maxSeg, (a, b) => nearMark([a, b], s.start[0], s.start[1], s.radius * 2), e.closed, smooth);
+  }
   const k = { ...KIT, rng, source: (name, rect) => getSource(name, rect || s.board), w: q => falloff(Math.hypot(q[0] - s.x, q[1] - s.y), s.radius) * s.strength * (s.pressure ?? 1) };
   try {
-    const out = t.step(pts.map(q => q.slice()), { ...s, closed: Boolean(e.closed), orig: mark.orig, state: mark.state }, sculptParams(id, values), k);
+    const out = t.step(pts.map(q => q.slice()), { ...s, closed: Boolean(e.closed), smooth, orig: mark.orig, state: mark.state }, params, k);
     return Array.isArray(out) && out.length >= 2 && out.every(q => Number.isFinite(q[0]) && Number.isFinite(q[1])) ? out : null;
   } catch (err) {
     if (!t.warned) { t.warned = true; console.warn(`sculpt "${id}" failed: ${err.message}`); }

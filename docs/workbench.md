@@ -103,8 +103,8 @@ It is kept minimal.
 - **Icons:** every built-in brush and sculpt tool has an icon; the toolbar shows the active one. Custom tools take theirs from their preview (the camera button in Code → Brush / Sculpt). In menus the active item has a soft background.
 - **Names:** Shift+double-click renames anything with a name, in place: boards, scenes, stages, tracks, asset titles and folders, and marks, groups and stages in the Outliner. Enter keeps it, Esc puts it back. In the Outliner and the Boards panel a plain double-click frames the item.
 - **Framing:** Home frames the active board, Shift+Home the selection.
-- **Drawing:** Settings → Drawing (or right-click the grid button) has Lazy and Smoothing.
-  - **Lazy** (screen pixels) is a string between the cursor and the pen. Wobbles shorter than it never reach the line, and corners get rounded.
+- **Drawing:** Settings → Drawing (or right-click the grid button) has Smoothing and Simplify.
+  - **Lazy** is a toggle per tool: right-click Line, Plane, Gesture or Brush, set Pen to Lazy, and adjust Laziness (screen pixels, 0 to 120, 40 by default). It is a string between the cursor and the pen. Catch up (On by default) eases the pen to a still pointer, so the line reaches the cursor; Off leaves it where the string left it. Wobbles shorter than it never reach the line, and corners get rounded.
   - **Smoothing** (0 to 0.95) is how much the pen holds back each step: 0.5 covers half the distance, so higher is smoother and lags more.
   - **Simplify** (screen pixels, 0 = off) keeps only the points the line needs, live while drawing: how far the shape may move from what your hand did. With Points on, the stroke being drawn shows its kept points.
   - Planes close smoothly: overshooting ends are cut and the seam relaxed.
@@ -116,9 +116,11 @@ It is kept minimal.
 - **Point by point:** with a drawing tool, click without dragging; each click adds a point. Double-click or Enter finishes, clicking the first point closes, Backspace removes the last point, Esc finishes.
 - **Closing:** a line drawn back to its start closes itself.
 - **Smooth or straight:** ` makes the path straight and ~ makes it smooth (double-tap CapsLock flips it; it ends as it was). With a drawing tool the choice is the tool's state: the stroke being drawn takes it now and the next strokes keep it. With Select or Direct it is the selected marks'. Properties → Look → Path sets it too. Starting a new stroke lets go of the mark selected before it.
+- **Laser pointer** (K, next to Pan): press and drag; a dot in the current stroke color (red when there is none) leaves a trail that fades out in about a second. It adds nothing to the drawing, the undo history or a take, and works anywhere, over locked stages and boards and while presenting. (The trail has its own overlay canvas, so the drawing is not redrawn for it.)
 - **Gesture and guide** (under Line, on the same button; Shift+1 cycles line, gesture, guide): construction, shown in the process view and not in the picture. A gesture is the movement behind a form, drawn freehand. A guide is a straight segment when you drag (Shift snaps its angle); click without dragging to place one point by point, straight by default and smooth (a curved construction line) with ~.
 - **Circle and rectangle** (under Plane, on the same button; Shift+2 cycles plane, circle, rectangle): drag a box. Shift keeps the sides equal (a circle, a square), Alt draws from the center, Ctrl snaps to the grid. Both make plane marks with the plane's brush, color and fill. A rectangle is four corners, or rounded ones (Rounded, 0 to 1, a pill at 1) baked into its points; a circle is Sides points (12 by default, 3 to 48) on the ellipse, round when its path is smooth and a polygon when straight. Right-click the Plane button while the circle or rectangle is in use to set Sides or Rounded; they stay for the next shapes.
-- **Tool settings:** right-click Point, Line or Plane (gesture and guide share the Line button; circle and rectangle the Plane button) for the brush, its settings, opacity, blend and path of new marks. They stay until changed.
+- **At the pointer:** Shift+Space shows a radial menu of the current tools in a circle (a stack's members, all the brushes, all the sculpt tools, or the top-level tools from Pan or Laser). Hold the keys, move toward a tool and release to pick it; a click picks too, Esc or releasing in the middle cancels. Shift+right-click shows the current tool's settings at the pointer, for every tool. Ctrl+right-click opens stroke and fill side by side at the pointer: pick both at once, in the size of the single picker: a field, hue, opacity and hex for each, one shared palette (a swatch goes to the side you touched last), ⇄ swaps them, the slash button on either side makes it none. Recent and Mine stay in the toolbar's picker.- **Tool settings:** right-click Point, Line or Plane (gesture and guide share the Line button; circle and rectangle the Plane button) for the brush, its settings, opacity, blend and path of new marks. They stay until changed.
+- **Sculpt preview:** while Direct is active, or with Option held in any tool, the sculpt brush's ring, the curve it would act on (highlighted) and its control points show under the pointer; the points within the ring are larger and stronger.
 - **Direct selection** (Shift+V, sharing the Select slot):
   - Click a mark to see its points, and drag points to move them.
   - Shift-click or a marquee selects several.
@@ -230,17 +232,20 @@ Curves are the points themselves. The renderer passes a Catmull-Rom spline throu
 
 Sculpt tools come from threegrease's sculpt brushes. A smooth falloff across the brush circle weights every change. `[` and `]` set the radius, Shift+`[` and Shift+`]` the strength. With a selection, only the selected marks change. Each drag is one undo step.
 
-| Tool | Does | Alt | Cmd |
+Right-click the Sculpt button (Ctrl-click on a Mac) for the brush's settings: a Tool picker, Radius, Strength and the tool's own settings. Push, Grab, Pinch and Twist have a **Detail** setting, how many points a stretch may add: 0 moves only the points that exist (Grab starts there), 1 is the usual, 2 twice as many. Click the button again, or Option+right-click it, for the list of tools.
+
+| Tool | Does | Alt | Cmd (the opposite tool) |
 |---|---|---|---|
 | Push | points follow the cursor | | |
 | Grab | picks up the points under the brush and moves them | | |
-| Smooth | points move toward their neighbours; pressure evens out too | | |
-| Relax | evens out spacing without changing the shape | | |
-| Pinch | points gather toward the cursor | inflate | |
+| Smooth | points move toward their neighbours; pressure evens out too | | Jitter |
+| Relax | evens out spacing without changing the shape | | Pinch |
+| Pinch | points gather toward the cursor | inflate | Relax |
 | Twist | points turn around the cursor | other way | |
-| Jitter | a seeded tremor | | |
-| Simplify | fewer points, same shape (tolerance) | resample: more points, graded by the falloff (density) | |
-| Thicken | raises pressure, so pressure-aware brushes draw wider | thinner | past the usual limit (up to 10) |
+| Jitter | a seeded tremor | | Smooth |
+| Simplify | fewer points, same shape (tolerance) | | Resample |
+| Resample | more, evenly spaced points along the curve (along the segments, for a straight mark), graded by the falloff (density) | | Simplify |
+| Thicken | raises pressure, so pressure-aware brushes draw wider | thinner | thinner |
 
 Tools that bend lines add points under the brush first, so a mark with few points can still bend and swell smoothly.
 

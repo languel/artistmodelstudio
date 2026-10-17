@@ -4,6 +4,7 @@
  * command (see mcp.js), so agents drive the same surface.
  */
 import { openToolParams, openGridParams, openToolDefaults } from './toolParams.js';
+import { openRadial } from './radial.js';
 import { boardAt, boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard, rateOf, newBoardId, nextBoardPlace } from '../process/boards.js';
 import { FX, normalizeFx } from '../process/fx.js';
 import { linksOf } from '../process/markdown.js';
@@ -57,7 +58,7 @@ import { brushesForRole, KIT, BRUSHES } from '../process/brushes.js';
 import { txStats } from '../process/texture.js';
 import { Composer } from './masks.js';
 import { Shortcuts } from './shortcuts.js';
-import { eyedropToTarget, openPicker, parseColor, formatColor } from './colorPicker.js';
+import { eyedropToTarget, openPicker, openPaintPicker, parseColor, formatColor } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 import { Sources } from './sources.js';
@@ -83,7 +84,7 @@ import { Guide } from './guide.js';
 const DOC_KEY = 'ams_process_doc_v1';
 const DEFAULTS_KEY = 'ams_tool_defaults_v1';
 const TOOLS = [
-  ['select', 'Select and move', 'V'], ['hand', 'Pan', 'H'], ['board', 'Board: drag out a new artboard (Shift keeps it square)', ';'], null,
+  ['select', 'Select and move', 'V'], ['hand', 'Pan', 'H'], ['laser', 'Laser pointer: a trail in the stroke color that fades out and leaves no mark', 'K'], ['board', 'Board: drag out a new artboard (Shift keeps it square)', ';'], null,
   ['point', 'Point: a mark at a place (dimension 0)', '0'], ['line', 'Line: a point that moved (dimension 1)', '1'], ['plane', 'Plane: an enclosed area (dimension 2)', '2'], null,
 ];
 /** Select and direct selection (points) share a button. */
@@ -182,6 +183,36 @@ export class Workbench {
   /** The defaults a tool draws with: circle and rectangle make planes, so they use the plane's. */
   toolRole(tool = this.tool) { return tool === 'circle' || tool === 'rect' ? 'plane' : tool; }
 
+  /** The tools of the current toolset, for the radial menu: a stack's members, the brushes, the sculpt tools, or the top-level tools. */
+  radialItems() {
+    const t = this.tool;
+    const tipLabel = tip => tip.split(':')[0];
+    const stack = list => list.map(([id, tip]) => ({ id, label: tipLabel(tip), icon: this.pathIcon(id), active: id === t, run: () => this.setTool(id) }));
+    if (SELECTS.some(c => c[0] === t)) return stack(SELECTS);
+    if (LINES.some(c => c[0] === t)) return stack(LINES);
+    if (PLANES.some(c => c[0] === t)) return stack(PLANES);
+    if (t === 'brush') return this.brushIds().map(id => ({ id, label: BRUSHES[id].label, icon: brushIcon(id), active: id === this.brush.id, run: () => { this.pickBrush(id, { apply: false }); this.setTool('brush'); } }));
+    if (t === 'sculpt') return Object.entries(SCULPTS).map(([id, st]) => ({ id, label: st.label, icon: sculptIcon(id), active: id === this.sculpt.tool, run: () => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } }));
+    // Pan, laser, board, point, note: the top-level tools.
+    const top = [['select', 'Select'], ['hand', 'Pan'], ['laser', 'Laser'], ['board', 'Board'], ['point', 'Point'], ['line', 'Line'], ['plane', 'Plane'], ['brush', 'Brush'], ['sculpt', 'Sculpt'], ['note', 'Note']];
+    return top.map(([id, label]) => ({ id, label, icon: this.pathIcon(id), active: id === t, run: () => this.setTool(id) }));
+  }
+
+  /** Shift+Space: the radial menu of the current tools at the pointer (hold, move toward one, release). */
+  openRadial() {
+    if (this.radial) return;
+    const [x, y] = this.pointerAt || [window.innerWidth / 2, window.innerHeight / 2];
+    this.radial = openRadial({ items: this.radialItems(), x, y, onClose: () => { this.radial = null; } });
+  }
+
+  /** Shift+right-click: the current tool's settings at the pointer (the same popups as the toolbar's right-click). */
+  openToolDetails(x, y) {
+    const t = this.tool;
+    if (t === 'sculpt' || t === 'brush') return openToolParams(this, x, y);
+    if (['point', 'line', 'plane', 'gesture', 'guide', 'circle', 'rect'].includes(t)) return openToolDefaults(this, this.toolRole(t), x, y, t === 'circle' || t === 'rect' ? t : null);
+    if (this.selectedElements().length) return openToolParams(this, x, y);   // Select and Direct: the selected marks' brush settings
+  }
+
   /** The defaults a drawing tool keeps its path in (its state), or null (select, direct, pan, board, rect…). */
   pathTool() { return PATH_TOOLS[this.tool] || null; }
 
@@ -231,11 +262,20 @@ export class Workbench {
     const cur = list.find(c => c[0] === this.tool) || list.find(c => c[0] === remembered) || list[0];
     const inStack = () => list.some(c => c[0] === this.tool);
     const key = cur[2].replace('⇧', '');
-    const menu = (x, y) => showMenu([{ label }, ...list.map(([id, tip, k]) => ({ icon: icon(id), active: id === cur[0], label: tip.split(':')[0], hint: tip, keys: k, run: () => this.setTool(id) }))], x, y);
-    const btn = h('button', { class: `wb-tool wb-tool-stack${inStack() ? ' on' : ''}`, 'data-guide': `tool:${cur[0]}`, title: `${cur[1]} (${key}; ${cycle}). Click again for the list · right-click: brush and look for new marks`, html: `${icon(cur[0])}<kbd>${key}</kbd><span class="wb-tool-caret"></span>` });
+    const menu = (x, y) => showMenu([{ label }, ...list.map(([id, tip, k]) => ({ icon: this.pathIcon(id), active: id === cur[0], label: tip.split(':')[0], hint: tip, keys: k, run: () => this.setTool(id) }))], x, y);
+    const btn = h('button', { class: `wb-tool wb-tool-stack${inStack() ? ' on' : ''}`, 'data-guide': `tool:${cur[0]}`, title: `${cur[1]} (${key}; ${cycle}). Click again for the list · right-click: brush and look for new marks`, html: `${this.pathIcon(cur[0])}<kbd>${key}</kbd><span class="wb-tool-caret"></span>` });
     btn.addEventListener('click', () => { if (inStack()) { const r = btn.getBoundingClientRect(); menu(r.left, r.bottom + 4); } else this.setTool(cur[0]); });
     btn.addEventListener('contextmenu', ev => { ev.preventDefault(); const r = btn.getBoundingClientRect(); openToolDefaults(this, this.toolRole(cur[0]), r.left, r.bottom + 6, cur[0]); });
     return btn;
+  }
+
+  /** A tool's icon, drawn for its path: line, plane and circle look smooth or straight as the tool is set. */
+  pathIcon(id) {
+    const straight = this.defaults(this.toolRole(id)).path === 'straight';
+    if (id === 'line') return icon(straight ? 'lineStraight' : 'line');
+    if (id === 'plane') return icon(straight ? 'plane' : 'planeSmooth');   // (the plane icon is the polygon)
+    if (id === 'circle') return icon(straight ? 'circleStraight' : 'circle');
+    return icon(id);
   }
 
   planeStackButton() { return this.stackToolButton(PLANES, this.planeTool, 'Plane', 'Shift+2 cycles plane, circle and rectangle'); }
@@ -249,7 +289,7 @@ export class Workbench {
     if (PLANES.some(c => c[0] === t)) this.planeTool = t;
     if (t !== 'direct' && this.canvas) this.canvas.selPoints = [];
     this.canvas?.finishClickPath?.();
-    this.tool = t; this.canvas?.updateCursor(); this.emit('tool'); this.renderChrome();
+    this.tool = t; this.canvas?.updateCursor(); this.canvas?.paintAffected?.(); this.emit('tool'); this.renderChrome();
   }
   setViewMode(m) { this.view.mode = m; this.canvas.invalidate(); this.emit('view'); this.renderChrome(); }
   setUpTo(i) { this.view.upTo = i; this.canvas.upTo = i; this.canvas.invalidate(); this.emit('view'); }
@@ -451,15 +491,24 @@ export class Workbench {
     this.renderChrome();
   }
 
-  paintSwatches() {
-    const { stroke, fill } = this.paint;
+  /** The stroke and fill the swatches show: the selection's first mark, else the global paint. */
+  paintValues() {
     const sel = this.selectedElements?.() || [];
-    const s = sel.length ? (sel[0].color ?? null) : stroke;
-    const f = sel.length ? (sel[0].fill ?? null) : fill;
+    return { stroke: sel.length ? (sel[0].color ?? null) : this.paint.stroke, fill: sel.length ? (sel[0].fill ?? null) : this.paint.fill };
+  }
+
+  /** Stroke and fill side by side at the pointer (Ctrl+right-click): pick both at once. */
+  openPaintPicker(x = this.pointerAt?.[0] ?? 200, y = this.pointerAt?.[1] ?? 200) {
+    const { stroke, fill } = this.paintValues();
+    return openPaintPicker(this, x, y, { stroke, fill, set: (which, c) => this.setPaint(which, c || (which === 'stroke' ? 'none' : null)) });
+  }
+
+  paintSwatches() {
+    const { stroke: s, fill: f } = this.paintValues();
     const chip = (which, v, tip) => {
       const b = h('button', { class: `wb-paint-${which}${v && v !== 'none' ? '' : ' none'}${which === 'stroke' && !v ? ' ink' : ''}`, title: tip, type: 'button' }, h('span', { style: which === 'stroke' ? { boxShadow: `inset 0 0 0 5px ${v && v !== 'none' ? v : !v ? 'var(--wb-text)' : 'transparent'}` } : { background: v || 'transparent' } }));
       b.addEventListener('click', ev => { ev.stopPropagation(); openPicker(b, parseColor((v !== 'none' && v) || (which === 'fill' ? '#ffffff' : '#1d1b19')), (c, final) => { if (final) this.setPaint(which, c ? formatColor(c.hex, c.alpha) : (which === 'stroke' ? 'none' : null)); }, this, { allowNone: true }); });
-      b.addEventListener('contextmenu', ev => { ev.preventDefault(); showMenu([{ label: which === 'fill' ? 'No fill' : 'No stroke', run: () => this.setPaint(which, which === 'stroke' ? 'none' : null) }, ...(which === 'stroke' ? [{ label: 'Brush ink (default)', run: () => this.setPaint('stroke', null) }] : []), { label: 'Swap stroke and fill', run: () => this.swapPaint() }], ev.clientX, ev.clientY); });
+      b.addEventListener('contextmenu', ev => { ev.preventDefault(); showMenu([{ label: which === 'fill' ? 'No fill' : 'No stroke', run: () => this.setPaint(which, which === 'stroke' ? 'none' : null) }, ...(which === 'stroke' ? [{ label: 'Brush ink (default)', run: () => this.setPaint('stroke', null) }] : []), { label: 'Swap stroke and fill', run: () => this.swapPaint() }, { label: 'Stroke and fill together…', run: () => this.openPaintPicker(ev.clientX, ev.clientY) }], ev.clientX, ev.clientY); });
       return b;
     };
     return h('div', { class: 'wb-paint', 'data-guide': 'tool:paint' },
@@ -480,7 +529,7 @@ export class Workbench {
       return { ...this.defaults(r), role: r, realize: { brush: b, params: { ...(this.brush.params[b] || {}) } } };
     }
     const d = this.toolDefaults[role] || {};
-    return { color: (role !== 'note' && this.paint?.stroke) || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...((d.path ?? (role === 'guide' ? 'straight' : null)) === 'straight' ? { path: 'straight' } : {}), ...(role === 'note' ? { note: d.note || {} } : {}) };
+    return { color: (role !== 'note' && this.paint?.stroke) || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...((d.path ?? (role === 'guide' ? 'straight' : null)) === 'straight' ? { path: 'straight' } : {}), ...(role === 'note' ? { note: d.note || {} } : {}), ...(d.lazy ? { lazy: d.lazy } : {}) };
   }
 
   // ---- boards ----------------------------------------------------------------------
@@ -776,11 +825,12 @@ export class Workbench {
     if (patch.realize) d.realize = { brush: patch.realize.brush || d.realize.brush, params: patch.realize.brush && patch.realize.brush !== d.realize.brush ? {} : { ...d.realize.params, ...(patch.realize.params || {}) } };
     if ('color' in patch) d.color = patch.color;
     if ('why' in patch) d.why = patch.why;
-    for (const k of ['opacity', 'blend', 'path']) if (k in patch) d[k] = patch[k];
+    for (const k of ['opacity', 'blend', 'path', 'lazy']) if (k in patch) d[k] = patch[k];
     if (patch.note) d.note = { ...(d.note || {}), ...patch.note };
     this.toolDefaults[role] = d;
     try { localStorage.setItem(DEFAULTS_KEY, JSON.stringify(this.toolDefaults)); } catch { /* ignore */ }
     this.emit('tool');
+    if ('path' in patch) this.renderChrome();   // the line, plane and circle icons show the path
   }
 
   /**
@@ -844,6 +894,9 @@ export class Workbench {
     this.canvas.onBoardSelect = id => { this.activeBoard = id; this.selectedAsset = null; this.emit('board'); };
     this.canvas.onOpenProperties = () => this.docks.open('properties');
     this.canvas.onFlipPath = () => this.flipPathChoice();
+    this.canvas.onPaintPicker = e => this.openPaintPicker(e.clientX, e.clientY);   // Ctrl+right-click
+    this.canvas.onToolDetails = e => this.openToolDetails(e.clientX, e.clientY);   // Shift+right-click
+    window.addEventListener('pointermove', e => { this.pointerAt = [e.clientX, e.clientY]; }, { capture: true, passive: true });   // where the radial menu opens
     this.canvas.onBoardRename = id => this.renameBoard(id);
     this.canvas.onBoardContext = (id, e) => this.boardMenu(id, e.clientX, e.clientY);
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
@@ -1674,9 +1727,16 @@ export class Workbench {
     brushBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.brushMenu(ev.clientX, ev.clientY); });
     // Sculpt: one button for the stack of sculpt tools (click again or right-click for the list).
     const st = SCULPTS[this.sculpt.tool];
-    const sculptBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'sculpt' ? ' on' : ''}`, 'data-guide': 'tool:sculpt', title: `Sculpt: ${st?.label} (S; Shift+drag over a mark with other tools). Click again or right-click for the sculpt tools`, html: `${sculptIcon(this.sculpt.tool)}<kbd>S</kbd><span class="wb-tool-caret"></span>` });
+    const sculptBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'sculpt' ? ' on' : ''}`, 'data-guide': 'tool:sculpt', title: `Sculpt: ${st?.label} (S; Shift+drag over a mark with other tools). Click again for the sculpt tools · right-click: this brush's settings (Option+right-click: the list)`, html: `${sculptIcon(this.sculpt.tool)}<kbd>S</kbd><span class="wb-tool-caret"></span>` });
     sculptBtn.addEventListener('click', ev => { if (this.tool === 'sculpt') { const r = sculptBtn.getBoundingClientRect(); this.sculptMenu(r.left, r.bottom + 4); } else this.setTool('sculpt'); });
-    sculptBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.sculptMenu(ev.clientX, ev.clientY); });
+    // Right-click (Ctrl-click on a Mac): this brush's settings, like Line's. Option+right-click: the list of sculpt tools.
+    sculptBtn.addEventListener('contextmenu', ev => {
+      ev.preventDefault();
+      if (ev.altKey) { this.sculptMenu(ev.clientX, ev.clientY); return; }
+      const r = sculptBtn.getBoundingClientRect();   // (before the tool change redraws the toolbar)
+      if (this.tool !== 'sculpt') this.setTool('sculpt');
+      openToolParams(this, r.left, r.bottom + 6);
+    });
     tools.append(h('div', { class: 'wb-sep' }), brushBtn, sculptBtn);
     // Snap to grid: on shows the grid at full strength; off, fainter.
     const snapKey = this.shortcuts?.label('view.snap') || '';

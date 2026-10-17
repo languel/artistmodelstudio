@@ -8,23 +8,28 @@
  * circle and rectangle), point (0), note (T). Freehand tools capture time and pressure
  * (mouse pressure is estimated from speed). Wheel pans; Ctrl/Cmd+wheel or pinch zooms.
  */
-import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
+import { sculptMark, SCULPTABLE, nearMark, falloff, effectiveSculpt } from '../process/sculpt.js';
 import { boardsOf, boardDoc, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD } from '../process/boards.js';
-import { closeLasso, lazyStep } from '../process/strokes.js';
+import { closeLasso, lazyFollow, lazyCatchUp, straightEnd } from '../process/strokes.js';
 import { rdp } from '../process/sculpt.js';
 import { renderDocument, nextTimed, drawOutlines } from '../process/render.js';
+import { smoothPath } from '../process/walk.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
 import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
 import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
 import { shapePoints } from './shapes.js';
+import { laserOutline, fillLaserOutline } from './laser.js';
 
 const CAMERA_KEY = 'ams_workbench_camera_v1';
 export const TOOL_KEYS = { v: 'select', h: 'hand', '1': 'line', '2': 'plane', '0': 'point', t: 'note' };
 
 /** Tools where Shift+drag over a mark sculpts it (Guide keeps Shift for angle snapping). */
 const SHIFT_SCULPT = new Set(['select', 'line', 'plane', 'gesture', 'brush']);
-/** Tools that draw: Ctrl there is snap, not Properties. */
-const DRAW_TOOLS = new Set(['point', 'note', 'line', 'plane', 'circle', 'rect', 'gesture', 'guide', 'brush']);
+/** Tools that draw (and the laser, and sculpt, where Cmd is a modifier): Ctrl/Cmd there is not Properties or a right-click. */
+const DRAW_TOOLS = new Set(['point', 'note', 'line', 'plane', 'circle', 'rect', 'gesture', 'guide', 'brush', 'laser', 'sculpt']);
+
+const LASER_LIFE = 1000;            // ms a laser trail takes to fade out
+const LASER_FALLBACK = '#e5484d';   // when there is no stroke color to use
 
 export class CanvasView {
   constructor(host, store, { getTool, getStage, getDefaults, getSculpt, getLazy, getShape, onSelect, onTool, onNoteStyled, viewMode }) {
@@ -357,6 +362,7 @@ export class CanvasView {
       ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(this.brushAt[0], this.brushAt[1], (sc?.radius || 40) * (sc?.strength ?? 0.5), 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
+    this.paintAffected();
     if (this.marquee) {
       const [x0, y0] = this.toScreen(this.marquee.x0, this.marquee.y0), [x1, y1] = this.toScreen(this.marquee.x1, this.marquee.y1);
       ctx.save();
@@ -663,9 +669,13 @@ export class CanvasView {
 
     window.addEventListener('keydown', e => {
       if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
-      if (e.code === 'Space') { this.space = true; c.style.cursor = 'grab'; e.preventDefault(); }
+      if (e.code === 'Space' && !e.shiftKey) { this.space = true; c.style.cursor = 'grab'; e.preventDefault(); }   // (Shift+Space: the radial menu)
     });
     window.addEventListener('keyup', e => { if (e.code === 'Space') { this.space = false; this.updateCursor(); } });
+    // Option (Alt) held: the sculpt brush shows the control points it would move, in any tool.
+    const altState = e => { const on = Boolean(e.altKey); if (on !== this.altHeld) { this.altHeld = on; this.paintAffected(); } };
+    window.addEventListener('keydown', altState);
+    window.addEventListener('keyup', altState);
     // While drawing, a point-by-point path takes
     // Enter or Esc (finish) and Backspace (remove the last point).
     // Double-tap CapsLock (it ends as it was, so typing is unchanged): flips the path between smooth
@@ -710,8 +720,10 @@ export class CanvasView {
       if (h !== this.hovered) { this.hovered = h; this.invalidate(); }
       const brush = tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length);
       if (brush || this.brushAt) { this.brushAt = brush ? [sx, sy] : null; this.invalidate(); }
+      this.lastLocal = [sx, sy];
+      if (this.affectedShown() || this.affectedCanvas?.width) this.paintAffected();
     });
-    c.addEventListener('pointerleave', () => { if (this.brushAt) { this.brushAt = null; this.invalidate(); } });
+    c.addEventListener('pointerleave', () => { this.lastLocal = null; this.paintAffected(); if (this.brushAt) { this.brushAt = null; this.invalidate(); } });
 
     // Drop an asset (from the Assets panel) or image files anywhere on the canvas: it becomes a layer.
     // Drop a source (from the Sources panel): a board previewing it.
@@ -745,7 +757,11 @@ export class CanvasView {
       e.preventDefault();
       // Ctrl held while drawing (snap) is not a right-click. (On macOS Ctrl+click fires this event too, and a
       // click that closes a path has already cleared the draft by then, so the tool decides.)
-      if (this.pointer || this.draft || (e.ctrlKey && DRAW_TOOLS.has(this.getTool()))) return;
+      if (this.pointer || this.draft) return;
+      // Ctrl+right-click (the button, not macOS's Ctrl+click) opens stroke and fill together at the pointer.
+      if (e.ctrlKey && e.button === 2 && this.onPaintPicker) { this.onPaintPicker(e); return; }
+      if (e.ctrlKey && DRAW_TOOLS.has(this.getTool())) return;
+      if (e.shiftKey && this.onToolDetails) { this.onToolDetails(e); return; }   // Shift+right-click: the tool's settings at the pointer
       const bh = this.boardHandleAt(...this.local(e));
       if (bh) { this.selectBoard(bh.id); this.onBoardContext?.(bh.id, e); return; }
       const [wx, wy] = this.toWorld(...this.local(e));
@@ -793,6 +809,8 @@ export class CanvasView {
       // A board's play / pause button works with any tool.
       const run = this.runButtonAt(sx, sy);
       if (run) { this.pointer = false; this.onToggleRun?.(run, e); return; }
+      // The laser pointer works anywhere: on locked stages and boards too, since it leaves no mark.
+      if (tool === 'laser') return this.startLaser(e, wx, wy);
       // Boards: their titles (and the selected board's corner) work with Select and the Board tool.
       if (tool === 'direct') return this.startDirect(e, sx, sy, wx, wy);
       if (tool === 'select' || tool === 'board') {
@@ -1190,6 +1208,7 @@ export class CanvasView {
       if (!this.clickPath || !this.draft) return;
       let [x, y] = this.toWorld(...this.local(ev));
       if (ev.ctrlKey) [x, y] = this.snapTarget(x, y);
+      if (ev.shiftKey && this.clickPath.role === 'guide') [x, y] = straightEnd(this.draft.points[this.draft.points.length - 2], [x, y]);
       this.draft.points[this.draft.points.length - 1] = [x, y, performance.now() - this.clickPath.t0, 0.5];
       this.invalidate();
     };
@@ -1202,6 +1221,7 @@ export class CanvasView {
     const cp = this.clickPath, pts = this.draft.points.slice(0, -1);
     let [x, y] = this.toWorld(...this.local(e));
     if (e.ctrlKey) [x, y] = this.snapTarget(x, y);
+    if (e.shiftKey && cp.role === 'guide' && pts.length) [x, y] = straightEnd(pts.at(-1), [x, y]);
     const now = performance.now(), near = (a, b, r) => Math.hypot(a[0] - b[0], a[1] - b[1]) < r / this.cam.z;
     if (pts.length >= 2 && near([x, y], pts[0], 8)) return this.finishClickPath({ close: true });
     if (now - cp.last.t < 350 && near([x, y], cp.last.p, 6)) return this.finishClickPath();
@@ -1255,6 +1275,69 @@ export class CanvasView {
   }
 
   /** Marks the brush can sculpt at a world point: the selection if any, else any mark near it. */
+  /** Direct is active, or Option is held: the sculpt brush's preview shows (not while dragging, pan or the laser). */
+  affectedShown() {
+    const t = this.getTool();
+    return Boolean(this.lastLocal) && (!this.pointer || Boolean(this.sculptDrag)) && !this.space && (t === 'direct' || Boolean(this.altHeld)) && !['hand', 'laser', 'note', 'point', 'board'].includes(t);
+  }
+
+  /**
+   * The sculpt preview on its own overlay canvas (above the marks, like the laser's): cleared and redrawn for the
+   * pointer's position, or cleared when the preview is off.
+   */
+  paintAffected() {
+    if (!this.affectedCanvas) {
+      const c = document.createElement('canvas');
+      c.className = 'wb-affected';
+      Object.assign(c.style, { position: 'absolute', left: '0', top: '0', pointerEvents: 'none', zIndex: '55' });
+      this.host.appendChild(c);
+      this.affectedCanvas = c;
+    }
+    const oc = this.affectedCanvas, W = this.canvas.width, H = this.canvas.height;
+    if (oc.width !== W || oc.height !== H) { oc.width = W; oc.height = H; }
+    oc.style.width = this.canvas.style.width; oc.style.height = this.canvas.style.height;
+    const ctx = oc.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (!this.affectedShown()) return;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.drawAffected(ctx, getComputedStyle(document.documentElement));
+  }
+
+  /** The brush's ring, the affected curve, and a dot on each control point it would move (bigger within the brush). */
+  drawAffected(ctx, css) {
+    const [bx, by] = this.lastLocal, R = this.getSculpt?.()?.radius || 40;
+    const [wx, wy] = this.toWorld(bx, by);
+    ctx.save();
+    ctx.strokeStyle = css.getPropertyValue('--wb-text').trim() || '#888'; ctx.globalAlpha = 0.6; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(bx, by, R, 0, Math.PI * 2); ctx.stroke();
+    const accent = css.getPropertyValue('--wb-accent-2').trim() || '#c8664f', panel = css.getPropertyValue('--wb-panel').trim() || '#f3efe6';
+    const targets = this.sculptTargets(wx, wy);
+    // The whole curve the brush would act on: the mark drawn as it is (smoothed, or straight), highlighted.
+    ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = accent;
+    for (const el of targets) {
+      const screen = el.points.map(q => { const [x, y] = this.toScreen(q[0], q[1]); return [x, y, 0, 0.5]; });
+      const path = el.path === 'straight' || screen.length < 3 ? screen : smoothPath(screen, Boolean(el.closed));
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath(); path.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      if (el.closed) ctx.closePath();
+      ctx.stroke();
+    }
+    // Its control points: those within the brush larger and stronger, the rest small.
+    for (const el of targets) {
+      for (const q of el.points) {
+        const [sx, sy] = this.toScreen(q[0], q[1]);
+        const d = Math.hypot(sx - bx, sy - by);
+        const inside = d < R, w = inside ? falloff(d, R) : 0;
+        ctx.globalAlpha = inside ? 0.5 + 0.5 * w : 0.7;
+        ctx.beginPath(); ctx.arc(sx, sy, inside ? 3 + 3 * w : 2, 0, Math.PI * 2);
+        ctx.fillStyle = accent; ctx.fill();
+        ctx.lineWidth = 1; ctx.strokeStyle = panel; ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   sculptTargets(wx, wy) {
     const r = (this.getSculpt?.().radius || 40) / this.cam.z;
     const doc = this.store.doc;
@@ -1277,10 +1360,12 @@ export class CanvasView {
     const rng = mulberry32((Date.now() & 0xffff) + 1);
     const sb = boardAt(this.store.doc, wx, wy) || boardsOf(this.store.doc)[0], sBoard = { x: sb.x, y: sb.y, width: sb.width, height: sb.height };
     this.pointer = true;
+    this.sculptDrag = true;   // the affected points stay visible while the sculpt drags
     const pass = ev => {
       const [sx, sy] = this.local(ev);
       const [x, y] = this.toWorld(sx, sy);
       this.brushAt = [sx, sy];
+      this.lastLocal = [sx, sy];
       const s = {
         x, y, dx: x - last[0], dy: y - last[1], radius: sc.radius / this.cam.z, strength: sc.strength,
         pressure: ev.pointerType === 'pen' ? (ev.pressure || 0.5) * 2 : 1, invert: ev.altKey, boost: ev.metaKey || ev.ctrlKey, first, start: [wx, wy], board: sBoard
@@ -1288,12 +1373,14 @@ export class CanvasView {
       const els = selIds.length ? this.store.doc.elements.filter(el => selIds.includes(el.id)) : this.store.doc.elements.filter(el => SCULPTABLE(el) && this.editable(el) && !el.hidden);
       for (const el of els) {
         if (!marks.has(el.id)) marks.set(el.id, { orig: el.points.map(q => q.slice()), state: {} });
-        const out = sculptMark(sc.tool, el, s, sc.params?.[sc.tool], rng, marks.get(el.id));
+        const tool = effectiveSculpt(sc.tool, s.boost);   // Cmd: the tool's opposite (with its own settings)
+        const out = sculptMark(tool, el, s, sc.params?.[tool], rng, marks.get(el.id));
         if (out) el.points = out;
       }
       first = false;
       last = [x, y];
       this.invalidate();
+      this.paintAffected();
     };
     const mv = ev => {
       if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
@@ -1302,7 +1389,7 @@ export class CanvasView {
     };
     const up = () => {
       window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
-      this.pointer = false;
+      this.pointer = false; this.sculptDrag = false;
       if (moved) this.store.commitFrom(before, `sculpt: ${sc.tool}`);
       else if (onClick) onClick();
       else { pass(e); this.store.commitFrom(before, `sculpt: ${sc.tool}`); }
@@ -1409,41 +1496,70 @@ export class CanvasView {
     const straight = tool === 'guide';
     this.draftStraight = straight;
     // Lazy drawing: the pen trails the cursor on a string (screen px), smoothed (an editor setting).
-    const lazy = this.getLazy?.() || { radius: 0, smoothing: 0 };
+    // The tool's Pen (right-click the tool): Lazy takes its laziness (the string's length) and the editor's Smoothing.
+    const lazyTool = d.lazy || {};
+    const lazy = { ...(this.getLazy?.() || { radius: 0, smoothing: 0 }), radius: lazyTool.on ? (lazyTool.radius ?? 40) : 0 };
+    if (!lazyTool.on) lazy.smoothing = 0;
     const lazyOn = !straight && (lazy.radius > 0 || lazy.smoothing > 0);   // (lazy.simplify applies on release)
-    let pen = [wx, wy], snapped = Boolean(e.ctrlKey);
+    const catchOn = lazyOn && lazyTool.catch !== false;   // the pen catches up to a still pointer (the tool's Catch up setting)
+    let pen = [wx, wy], cursor = [wx, wy], snapped = Boolean(e.ctrlKey);
+    // Where a point lands on the stroke (a freehand stroke's points; the lazy pen's as well).
+    const place = (x, y, ev) => {
+      // Ctrl held: every point lands on the grid (whether grid snap is on or not).
+      if (ev.ctrlKey) {
+        snapped = true;
+        [x, y] = this.snapTarget(x, y);
+        const prev = this.draft.points[this.draft.points.length - 1];
+        if (prev && prev[0] === x && prev[1] === y) return;
+      }
+      const dist = Math.hypot(x - last[0], y - last[1]);
+      if (dist < 1.5 / this.cam.z && !ev.ctrlKey) return;
+      const speed = dist * this.cam.z / Math.max(1, performance.now() - last[2]);
+      this.draft.points.push([x, y, performance.now() - t0, pressureOf(ev, speed)]);
+      last = [x, y, performance.now()];
+    };
+    // Lazy: the pen catches up to a cursor that has stopped (see catchUp), so the line reaches the pointer.
+    const CATCH_MS = 360, STILL_MS = 80;   // (a time constant: the gap closes by about two thirds in 360 ms)
+    let lastMove = performance.now(), catchAt = performance.now(), catchRaf = 0;
     const mv = ev => {
+      lastMove = performance.now();
       let [x, y] = this.toWorld(...this.local(ev));
       if (lazyOn) {
-        pen = lazyStep(pen, [x, y], lazy.radius / this.cam.z, lazy.smoothing);
+        // The pen follows the cursor's whole path since the last event, in ~2 px steps (no snap at a sharp turn).
+        pen = lazyFollow(pen, cursor, [x, y], lazy.radius / this.cam.z, lazy.smoothing, 2 / this.cam.z);
+        cursor = [x, y];
         this.rope = { pen: pen.slice(), cursor: [x, y], radius: lazy.radius };
         [x, y] = pen;
       }
-      const now = performance.now();
       if (straight) {
         let [x1, y1] = [x, y];
-        if (ev.shiftKey) { const a = Math.round(Math.atan2(y - wy, x - wx) / (Math.PI / 12)) * (Math.PI / 12), r = Math.hypot(x - wx, y - wy); x1 = wx + Math.cos(a) * r; y1 = wy + Math.sin(a) * r; }
+        if (ev.shiftKey) [x1, y1] = straightEnd([wx, wy], [x, y]);
         else [x1, y1] = this.snapPt(x1, y1);
-        this.draft.points = [this.draft.points[0], [x1, y1, now - t0, 0.5]];
-      } else {
-        // Ctrl held: every point lands on the grid (whether grid snap is on or not).
-        if (ev.ctrlKey) {
-          snapped = true;
-          [x, y] = this.snapTarget(x, y);
-          const prev = this.draft.points[this.draft.points.length - 1];
-          if (prev && prev[0] === x && prev[1] === y) { this.invalidate(); return; }
-        }
-        const dist = Math.hypot(x - last[0], y - last[1]);
-        if (dist < 1.5 / this.cam.z && !ev.ctrlKey) return;
-        const speed = dist * this.cam.z / Math.max(1, now - last[2]);
-        this.draft.points.push([x, y, now - t0, pressureOf(ev, speed)]);
-        last = [x, y, now];
-      }
+        this.draft.points = [this.draft.points[0], [x1, y1, performance.now() - t0, 0.5]];
+      } else place(x, y, ev);
       this.invalidate();
     };
+    // While the pointer is still, the lazy pen eases to it: the line catches up to the pointer, then stops there.
+    const catchUp = () => {
+      catchRaf = 0;
+      if (!this.draft) return;
+      const now = performance.now(), dt = now - catchAt;
+      catchAt = now;
+      if (now - lastMove >= STILL_MS && Math.hypot(cursor[0] - pen[0], cursor[1] - pen[1]) * this.cam.z > 0.5) {
+        pen = lazyCatchUp(pen, cursor, dt, CATCH_MS);
+        this.rope = { pen: pen.slice(), cursor: cursor.slice(), radius: lazy.radius };
+        place(pen[0], pen[1], { ctrlKey: false, pointerType: 'mouse' });
+        this.invalidate();
+      }
+      catchRaf = requestAnimationFrame(catchUp);
+    };
+    if (catchOn) catchRaf = requestAnimationFrame(catchUp);
     const up = () => {
       window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
       this.pointer = false;
+      cancelAnimationFrame(catchRaf); catchRaf = 0;
+      // A lazy stroke ends where the pointer is: the pen catches up on release.
+      if (catchOn && this.draft && this.draft.points.length > 1) { pen = cursor; place(cursor[0], cursor[1], { ctrlKey: false, pointerType: 'mouse' }); }
       // A click without a drag starts a path made point by point (click, click, … double-click or Enter).
       if (this.draft.points.length === 1 && tool !== 'point') { this.rope = null; this.startClickPath(role, dkey); return; }
       let pts = this.draft.points;
@@ -1503,6 +1619,81 @@ export class CanvasView {
     };
     window.addEventListener('pointermove', mv);
     window.addEventListener('pointerup', up);
+  }
+
+  // ---- laser pointer ---------------------------------------------------------------
+  /** The laser's color: the current stroke color (red when there is none). */
+  laserColor() {
+    const c = this.getDefaults?.('line')?.color;
+    return c && c !== 'none' ? c : LASER_FALLBACK;
+  }
+
+  /**
+   * Laser pointer (K): a pen that leaves a trail that fades out and no mark. A dot in the stroke color follows the
+   * pointer while it is down. The trails are world points with the time they were made, drawn on their own overlay
+   * canvas, so the drawing is not redrawn for them and nothing reaches the document or the undo history.
+   */
+  startLaser(e, wx, wy) {
+    const trail = { color: this.laserColor(), pts: [{ x: wx, y: wy, t: performance.now() }], head: { x: wx, y: wy }, down: true };
+    (this.laser ||= []).push(trail);
+    this.pointer = true;
+    const mv = ev => {
+      const list = ev.getCoalescedEvents?.();
+      for (const c of list && list.length ? list : [ev]) {
+        const [x, y] = this.toWorld(...this.local(c));
+        trail.pts.push({ x, y, t: performance.now() });
+        trail.head = { x, y };
+      }
+      this.tickLaser();
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+      trail.down = false; this.pointer = false;
+      this.tickLaser();
+    };
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+    this.tickLaser();
+  }
+
+  /** Keep the laser trails moving: one frame at a time, until every trail has faded out. */
+  tickLaser() {
+    if (this.laserRaf) return;
+    const step = () => {
+      this.laserRaf = 0;
+      const now = performance.now();
+      for (const tr of this.laser) tr.pts = tr.pts.filter(p => now - p.t < LASER_LIFE);
+      this.laser = this.laser.filter(tr => tr.down || tr.pts.length > 1);
+      this.drawLaser(now);
+      if (this.laser.length) this.laserRaf = requestAnimationFrame(step);
+    };
+    this.laserRaf = requestAnimationFrame(step);
+  }
+
+  /** Paint the laser trails on the overlay canvas: each stretch fades and thins with its age, a dot marks the pointer. */
+  drawLaser(now = performance.now()) {
+    if (!this.laserCanvas) {
+      const c = document.createElement('canvas');
+      c.className = 'wb-laser';
+      Object.assign(c.style, { position: 'absolute', left: '0', top: '0', pointerEvents: 'none', zIndex: '60' });
+      this.host.appendChild(c);
+      this.laserCanvas = c;
+    }
+    const lc = this.laserCanvas, W = this.canvas.width, H = this.canvas.height;
+    if (lc.width !== W || lc.height !== H) { lc.width = W; lc.height = H; }
+    lc.style.width = this.canvas.style.width; lc.style.height = this.canvas.style.height;
+    const ctx = lc.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.globalAlpha = 1;
+    for (const tr of this.laser || []) {
+      // One shape per trail, in screen px: smoothed, tapering with age, filled once (see laser.js).
+      const pts = tr.pts.map(p => { const [x, y] = this.toScreen(p.x, p.y); return { x, y, t: p.t }; });
+      const head = tr.down && tr.head ? (() => { const [x, y] = this.toScreen(tr.head.x, tr.head.y); return { x, y }; })() : null;
+      fillLaserOutline(ctx, laserOutline(pts, now, LASER_LIFE, { head }), tr.color);
+    }
   }
 
   startNote(sx, sy, wx, wy) {

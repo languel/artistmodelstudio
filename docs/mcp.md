@@ -62,7 +62,7 @@ Image results (data URLs) come back as MCP image content, so an agent can see wh
 - `ams_add` also takes `path` (`smooth` | `straight`) and, instead of points, a `shape` (`circle` | `rect`) with `box` `[x0, y0, x1, y1]`, `sides` (circle, 3–64, default 12) and `round` (rectangle, 0–1, 1 a pill): a plane mark made by the same geometry as the Circle and Rectangle tools. A smooth circle is round and a straight one is a polygon; a rectangle is always straight. `ams_update` takes `path` too (`straight`, or `null` for smooth).
 - `ams_shape`: the shape tools' settings (right-click Circle or Rectangle): get, or set `{tool: circle | rect, sides, round}`, for the next shapes drawn by hand.
 - `ams_path`: smooth or straight as the backtick (straight) and tilde (smooth) keys do: with a drawing tool it is the tool's state, kept for the next strokes (and the stroke being drawn takes it); with Select or Direct it changes the selected marks. `get` returns each tool's path.
-- `ams_view` takes `tool` (select, direct, hand, board, point, line, gesture, guide, plane, circle, rect, note, brush, sculpt) and `cycle` (select, line, plane, brush, sculpt: step through that stack, as Shift+V, Shift+1, Shift+2, Shift+B and Shift+S do). `ams_wb_state` includes `shapes` and each tool's `paths`.
+- `ams_view` takes `tool` (select, direct, hand, laser, board, point, line, gesture, guide, plane, circle, rect, note, brush, sculpt) and `cycle` (select, line, plane, brush, sculpt: step through that stack, as Shift+V, Shift+1, Shift+2, Shift+B and Shift+S do). `ams_wb_state` includes `shapes` and each tool's `paths`.
 - In scores, `board('Title')` makes a board (if new) and later marks land on it, in fractions of that board.
 
 ## The agent as engine
