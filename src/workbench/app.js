@@ -497,11 +497,14 @@ export class Workbench {
     return { stroke: sel.length ? (sel[0].color ?? null) : this.paint.stroke, fill: sel.length ? (sel[0].fill ?? null) : this.paint.fill };
   }
 
-  /** Stroke and fill side by side at the pointer (Ctrl+right-click): pick both at once. */
+  /** Stroke and fill at the pointer (Ctrl+right-click): pick both at once; Fields, Disc or Cube, as last used. */
   openPaintPicker(x = this.pointerAt?.[0] ?? 200, y = this.pointerAt?.[1] ?? 200) {
     const { stroke, fill } = this.paintValues();
     return openPaintPicker(this, x, y, { stroke, fill, set: (which, c) => this.setPaint(which, c || (which === 'stroke' ? 'none' : null)) });
   }
+
+  /** The grid settings at the pointer (Ctrl+Shift+right-click): grid, grid color, paper and workspace colors. */
+  openGridMenu(x = this.pointerAt?.[0] ?? 200, y = this.pointerAt?.[1] ?? 200) { return openGridParams(this, x, y); }
 
   paintSwatches() {
     const { stroke: s, fill: f } = this.paintValues();
@@ -895,6 +898,7 @@ export class Workbench {
     this.canvas.onOpenProperties = () => this.docks.open('properties');
     this.canvas.onFlipPath = () => this.flipPathChoice();
     this.canvas.onPaintPicker = e => this.openPaintPicker(e.clientX, e.clientY);   // Ctrl+right-click
+    this.canvas.onGridMenu = e => this.openGridMenu(e.clientX, e.clientY);   // Ctrl+Shift+right-click
     this.canvas.onToolDetails = e => this.openToolDetails(e.clientX, e.clientY);   // Shift+right-click
     window.addEventListener('pointermove', e => { this.pointerAt = [e.clientX, e.clientY]; }, { capture: true, passive: true });   // where the radial menu opens
     this.canvas.onBoardRename = id => this.renameBoard(id);

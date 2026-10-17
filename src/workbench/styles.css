@@ -388,12 +388,25 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-cp-pop { position: fixed; z-index: 95; width: 248px; box-sizing: border-box; padding: 10px; display: flex; flex-direction: column; gap: 7px;
   background: var(--wb-panel); border: 1px solid var(--wb-line); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.35); }
 .wb-cp-body, .wb-cp-col { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.wb-cp-pair { width: 248px; }
+.wb-cp-unified { width: 236px; padding: 7px 8px 8px; gap: 5px; }
+.wb-cp-unified .wb-cp-body, .wb-cp-unified .wb-cp-col { gap: 5px; }
+.wb-cp-unified .wb-cp-row { gap: 3px; }
+.wb-cp-modes { display: flex; gap: 0; align-self: flex-start; }
+.wb-cp-modebtn { width: 22px; height: 18px; padding: 0; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 5px; background: none; color: var(--wb-muted); cursor: pointer; }
+.wb-cp-modebtn:hover { color: var(--wb-text); }
+.wb-cp-modebtn.on { background: color-mix(in srgb, var(--wb-text) 16%, transparent); color: var(--wb-text); }
 .wb-cp-sides { display: flex; gap: 6px; align-items: stretch; }
 .wb-cp-sides .wb-cp-col { flex: 1 1 0; }
 .wb-cp-sides .wb-cp-sv { height: 96px; }
-.wb-cp-sides .wb-cp-hex { min-width: 0; flex: 1 1 auto; width: 100%; padding-left: 3px; padding-right: 3px; font-size: 11px; }
-.wb-cp-title { font-size: 11.5px; font-weight: 600; color: var(--wb-text); margin: 0; }
+.wb-cp-sides .wb-cp-hex { min-width: 0; flex: 1 1 auto; width: 100%; padding-left: 2px; padding-right: 2px; font-size: 10.5px; }
+.wb-cp-unified .wb-cp-none { width: 20px; }
+.wb-cp-unified .wb-cp-wrow .wb-cp-hex { padding-left: 2px; padding-right: 2px; font-size: 10.5px; }
+.wb-cp-wheelbox { display: flex; justify-content: center; }
+.wb-cp-wheelcv { touch-action: none; cursor: crosshair; }
+.wb-cp-pairrow { gap: 4px; }
+.wb-cp-wrow { flex: 1 1 0; min-width: 0; padding: 2px 3px; border-radius: 6px; }
+.wb-cp-wrow .wb-cp-hex { font-size: 11px; padding-left: 3px; padding-right: 3px; }
+.wb-cp-wrow.wb-cp-on { background: color-mix(in srgb, var(--wb-text) 12%, transparent); }
 .wb-cp-swap { align-self: center; flex: 0 0 auto; width: 22px; height: 22px; margin: 0 -4px; border-radius: 50%; border: 1px solid var(--wb-line); background: var(--wb-panel); color: var(--wb-text); cursor: pointer; font-size: 12px; padding: 0; z-index: 1; }
 .wb-cp-swap:hover { background: var(--wb-hover, rgba(128,128,128,0.18)); }
 .wb-cp-off { opacity: 0.45; }

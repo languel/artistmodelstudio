@@ -64,7 +64,7 @@ function gridSection(app) {
   return section('Grid', true,
     row('Show', selectField([['off', 'Off'], ['paper', 'On the paper'], ['everywhere', 'Everywhere']], g.show || 'paper', v => set({ show: v }))),
     row('Style', selectField([['lines', 'Lines'], ['dots', 'Dots']], g.style, v => set({ style: v }))),
-    row('Spacing', numberField({ value: g.spacing, min: 5, max: 1000, step: 5, def: 100, title: 'Between major lines, in artboard units', onChange: v => set({ spacing: v }) })),
+    row('Spacing', numberField({ value: g.spacing, min: 5, max: 1000, step: 1, def: 100, title: 'Between major lines, in artboard units', onChange: v => set({ spacing: v }) })),
     row('Subdivisions', numberField({ value: g.subdivisions, min: 1, max: 20, step: 1, def: 4, title: 'Minor divisions per major square (1 = none)', onChange: v => set({ subdivisions: Math.round(v) }) })),
     row('Color', colorField(g.color, v => set({ color: v }), { title: 'Grid color', fallback: '#8a837840', app })),
     row('Snap', check(g.snap, v => set({ snap: v }), 'Points, notes, guides and moved selections land on the grid (subdivisions)')));

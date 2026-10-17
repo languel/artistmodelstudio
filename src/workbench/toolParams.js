@@ -4,6 +4,7 @@
  * selection: the selected marks' brush params. A drawing tool: its brush params for new marks.
  */
 import { h } from './ui.js';
+import { colorField } from './colorPicker.js';
 import { icon } from './icons.js';
 import { rangeInput } from './codeParams.js';
 import { SCULPTS, sculptParams } from '../process/sculpt.js';
@@ -96,6 +97,7 @@ export function openGridParams(app, x, y) {
   open?.close();
   const pop = h('div', { class: 'wb-cp-pop wb-tp' });
   const g = app.canvas.grid;
+  const workspaceColor = () => (app.background && app.background !== 'default' && app.background !== 'transparent' ? app.background : getComputedStyle(document.documentElement).getPropertyValue('--wb-canvas').trim() || '#1b1b1b');
   const seg = (options, value, onPick) => {
     const wrap = h('div', { class: 'wb-seg wb-tp-seg' });
     const draw = v => wrap.replaceChildren(...options.map(([id, label]) => h('button', { class: id === v ? 'on' : '', onclick: () => { onPick(id); draw(id); } }, label)));
@@ -108,7 +110,10 @@ export function openGridParams(app, x, y) {
     h('div', { class: 'wb-tp-head' }, h('span', {}, 'Grid')),
     line('Show', seg([['off', 'Off'], ['paper', 'Paper'], ['everywhere', 'All']], g.show || 'paper', v => app.canvas.setGrid({ show: v }))),
     line('Style', seg([['lines', 'Lines'], ['dots', 'Dots']], g.style || 'lines', v => app.canvas.setGrid({ style: v }))),
-    slider({ label: 'Spacing', min: 5, max: 400, step: 5, value: g.spacing, doc: 'Distance between major lines, in artboard units', onInput: v => app.canvas.setGrid({ spacing: v }) }),
+    slider({ label: 'Spacing', min: 5, max: 400, step: 1, value: g.spacing, doc: 'Distance between major lines, in artboard units', onInput: v => app.canvas.setGrid({ spacing: v }) }),
+    line('Color', colorField(g.color, v => app.canvas.setGrid({ color: v }), { title: 'Grid color', fallback: '#8a837840', app })),
+    line('Paper', colorField(app.store.doc.artboard.ground, v => app.store.change('artboard', d => { d.artboard = { ...d.artboard, ground: v }; }), { title: 'Artboard color', fallback: '#f3efe6', app })),
+    line('Workspace', colorField(workspaceColor(), v => app.setBackground(v), { title: 'Workspace background (behind the boards)', fallback: '#1b1b1b', app })),
     slider({ label: 'Divisions', min: 1, max: 10, step: 1, value: g.subdivisions, doc: 'Minor lines between the major ones', onInput: v => app.canvas.setGrid({ subdivisions: v }) }),
     line('Snap', snap, 'Marks snap to the grid (Shift+Tab); Ctrl snaps while drawing, moving and scaling'),
     line('Snap to', seg([['points', 'Grid'], ['increments', 'Steps'], ['objects', 'Objects']], ['increments', 'objects'].includes(g.snapMode) ? g.snapMode : 'points', v => app.canvas.setGrid({ snapMode: v })), 'Grid: the grabbed point (or the dragged edge) lands on a grid point. Steps: moves in whole grid steps from where it started. Objects: the grabbed (or drawn) point lands on the nearest point of another mark'),
@@ -120,7 +125,7 @@ export function openGridParams(app, x, y) {
   const r = pop.getBoundingClientRect();
   pop.style.left = `${Math.max(8, Math.min(x, window.innerWidth - r.width - 8))}px`;
   pop.style.top = `${Math.max(8, Math.min(y, window.innerHeight - r.height - 8))}px`;
-  const outside = e => { if (!pop.contains(e.target)) close(); };
+  const outside = e => { if (!pop.contains(e.target) && !e.target.closest?.('.wb-cp-pop')) close(); };   // the color picker is its own popup
   const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
   const close = () => { pop.remove(); window.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', esc, true); open = null; };
   setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });

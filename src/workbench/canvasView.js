@@ -758,8 +758,8 @@ export class CanvasView {
       // Ctrl held while drawing (snap) is not a right-click. (On macOS Ctrl+click fires this event too, and a
       // click that closes a path has already cleared the draft by then, so the tool decides.)
       if (this.pointer || this.draft) return;
-      // Ctrl+right-click (the button, not macOS's Ctrl+click) opens stroke and fill together at the pointer.
-      if (e.ctrlKey && e.button === 2 && this.onPaintPicker) { this.onPaintPicker(e); return; }
+      // Ctrl+right-click (the button, not macOS's Ctrl+click) opens stroke and fill together at the pointer; with Shift, the grid.
+      if (e.ctrlKey && e.button === 2 && this.onPaintPicker) { (e.shiftKey && this.onGridMenu ? this.onGridMenu : this.onPaintPicker)(e); return; }
       if (e.ctrlKey && DRAW_TOOLS.has(this.getTool())) return;
       if (e.shiftKey && this.onToolDetails) { this.onToolDetails(e); return; }   // Shift+right-click: the tool's settings at the pointer
       const bh = this.boardHandleAt(...this.local(e));

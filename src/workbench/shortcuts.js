@@ -19,6 +19,7 @@ export function defaultCommands(app) {
     cmd('tool.cycle.sculpt', 'Tools', 'Cycle sculpt tools', ['shift+s'], () => app.cycleStack('sculpt')),
     cmd('tool.hand', 'Tools', 'Pan', ['h'], () => app.setTool('hand')),
     cmd('paint.pick', 'Tools', 'Stroke and fill together at the pointer (also Ctrl+right-click)', [], () => app.openPaintPicker()),
+    cmd('view.gridmenu', 'View', 'Grid settings at the pointer (also Ctrl+Shift+right-click)', [], () => app.openGridMenu?.()),
     cmd('tool.radial', 'Tools', 'Radial menu of the current tools at the pointer (hold, move toward a tool, release)', ['shift+space'], () => app.openRadial()),
     cmd('tool.laser', 'Tools', 'Laser pointer (a fading trail, no mark)', ['k'], () => app.setTool('laser')),
     cmd('tool.point', 'Tools', 'Point (dimension 0)', ['0'], () => app.setTool('point')),
