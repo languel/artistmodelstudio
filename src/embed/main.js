@@ -1,5 +1,6 @@
 import './isolate.js';   // first: it must be in place before any module reads localStorage
 import '../workbench/styles.css';
+import './embed.css';
 import { Workbench } from '../workbench/app.js';
 import { startBridge } from './bridge.js';
 

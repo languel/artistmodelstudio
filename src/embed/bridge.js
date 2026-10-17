@@ -40,7 +40,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
     if (!on) return;
     app.setBackground('transparent');
     app.canvas.setGrid({ show: 'off' });
-    app.setUI({ view: false, panels: false, zoom: false });
+    ui({ panels: false, zoom: false });
     for (const [id, d] of declared) declared.set(id, { ...d, ground: 'transparent', hideBorder: true, hideLabel: true });
     declare();
   };
@@ -53,8 +53,15 @@ export function startBridge(app, { origin = location.origin } = {}) {
     c.invalidate();
     applying = false;
   };
+  const ui = patch => {
+    // Only the keys that mean something (a message carries others), and the panels class the stylesheet keys on.
+    const p = Object.fromEntries(['all', 'tools', 'view', 'zoom', 'panels'].filter(k => patch && k in patch).map(k => [k, Boolean(patch[k])]));
+    if ('panels' in p || 'all' in p) document.documentElement.classList.toggle('ams-panels', Boolean('all' in p ? p.all : p.panels));
+    app.setUI(p);
+  };
   const configure = cfg => {
-    if (cfg.ui) app.setUI(cfg.ui);
+    if (cfg.dock) document.documentElement.classList.toggle('dock-left', cfg.dock === 'left');
+    if (cfg.ui) ui(cfg.ui);
     if (cfg.theme) theme(cfg.theme);
     if (cfg.background) app.setBackground(cfg.background);
     if (cfg.accent) app.setAccent?.(cfg.accent);
@@ -92,7 +99,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
     export: exportBoard,
     call: ({ name, args }) => window.ams.callTool(name, args || {}),
     'list-tools': () => window.ams.listTools(),
-    'set-ui': ui => { app.setUI(ui || {}); return {}; },
+    'set-ui': m => { ui(m); return {}; },
     theme: ({ theme: t }) => { theme(t); return {}; },
     tool: ({ tool }) => { app.setTool(tool); return {}; },
     camera: cam => { if (cam && 'z' in cam) setCamera(cam); const c = app.canvas; return { ...c.cam, w: c.w, h: c.h }; },

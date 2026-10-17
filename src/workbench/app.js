@@ -605,7 +605,7 @@ export class Workbench {
     if ('all' in patch) for (const k of ['tools', 'view', 'zoom', 'panels']) this.ui[k] = patch.all;
     delete this.ui.all;
     for (const k of ['tools', 'view', 'zoom', 'panels']) this.root.classList.toggle(`hide-${k}`, !this.ui[k]);
-    try { localStorage.setItem('ams_ui', JSON.stringify(this.ui)); } catch { /* ignore */ }
+    if (!this.embed) { try { localStorage.setItem('ams_ui', JSON.stringify(this.ui)); } catch { /* ignore */ } }
     requestAnimationFrame(() => this.canvas?.resize());
     this.emit('ui', this.ui);
   }
@@ -983,7 +983,7 @@ export class Workbench {
       if (t !== Infinity) this.scenes.restoreNewer(t).catch(() => {});
     }
     this.scenes.on(() => this.renderChrome());
-    try { const u = JSON.parse(localStorage.getItem('ams_ui') || 'null'); if (u) requestAnimationFrame(() => this.setUI(u)); } catch { /* ignore */ }
+    if (!this.embed) { try { const u = JSON.parse(localStorage.getItem('ams_ui') || 'null'); if (u) requestAnimationFrame(() => this.setUI(u)); } catch { /* ignore */ } }   // (an embedded editor is told its interface by the host)
     // Performing: Alt+1–9 go to a board (0, 1, 2 are tool keys, Shift+2 cycles the plane stack); Alt+Shift+1–9 pick a brush slot; Ctrl+Alt+Shift+1–9 keep the active brush there.
     try { this.slots = JSON.parse(localStorage.getItem('ams_brush_slots') || '{}'); } catch { this.slots = {}; }
     window.addEventListener('keydown', e => {

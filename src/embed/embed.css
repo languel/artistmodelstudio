@@ -1,0 +1,12 @@
+/* The editor as a component: nothing but the drawing, and the tools when they are asked for. */
+html.ams-embed:not(.ams-panels) .wb-dock,
+html.ams-embed:not(.ams-panels) .wb-dock-hint,
+html.ams-embed:not(.ams-panels) [data-floating] { display: none !important; }
+
+/* dock: 'left': the tool islands tucked into a strip down the left edge instead of floating across the top. */
+html.ams-embed.dock-left .wb-topbar { display: flex !important; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; justify-content: flex-start; right: auto; bottom: 6px; top: 6px; left: 6px; gap: 6px; overflow-y: auto; scrollbar-width: none; }
+html.ams-embed.dock-left .wb-topbar::-webkit-scrollbar { display: none; }
+html.ams-embed.dock-left .wb-topbar .wb-topbar-spacer { display: none; }
+html.ams-embed.dock-left .wb-topbar .wb-island { flex-direction: column; margin: 0; flex: none; }
+html.ams-embed.dock-left .wb-island > .wb-grip { display: none; }
+html.ams-embed.dock-left .wb-sep { width: 20px; height: 1px; margin: 3px 0; }
