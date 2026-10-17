@@ -60,7 +60,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
     // Only the keys that mean something (a message carries others), and the panels class the stylesheet keys on.
     const p = Object.fromEntries(['all', 'tools', 'view', 'zoom', 'panels'].filter(k => patch && k in patch).map(k => [k, Boolean(patch[k])]));
     if ('panels' in p || 'all' in p) document.documentElement.classList.toggle('ams-panels', Boolean('all' in p ? p.all : p.panels));
-    app.setUI(p);
+    app.hostSetUI(p);
   };
   const configure = cfg => {
     if (cfg.actions) app.hostActions = cfg.actions.filter(a => a?.id && a?.label);

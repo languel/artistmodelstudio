@@ -19,13 +19,17 @@ const FULL = typeof __AMS_EMBED_FULL__ !== 'undefined' && __AMS_EMBED_FULL__;
 const panels = FULL ? null : [...LEAN, ...(q.get('features') || '').split(',').filter(Boolean)];
 const app = new Workbench(document.querySelector('#app'), { embed: { persist: q.get('persist') === '1', panels } });
 app.mount();
+// The host owns the interface: zen (Alt+Z), the palette's show/hide commands and ams_ui cannot bring the studio's
+// islands and docks back. Only the host's `ui` / `set-ui` messages (and opening a panel, below) change what shows.
+app.hostSetUI = app.setUI.bind(app);
+app.setUI = () => {};
 // Panels are tucked away until wanted: opening one (a shortcut, the palette, the menu) brings the docks back.
 for (const m of ['open', 'toggleDock']) {
   const orig = app.docks[m].bind(app.docks);
-  app.docks[m] = (...a) => { if (app.ui?.panels === false) { document.documentElement.classList.add('ams-panels'); app.setUI({ panels: true }); } return orig(...a); };
+  app.docks[m] = (...a) => { if (app.ui?.panels === false) { document.documentElement.classList.add('ams-panels'); app.hostSetUI({ panels: true }); } return orig(...a); };
 }
 // A drawing surface: the tools and the zoom, nothing else, until the host asks for more.
 if (q.get('guide') !== '1') app.guide.enabled = false;   // no agent cursor or captions over the host's drawing, unless asked
-app.setUI({ view: false, panels: false, tools: q.get('tools') !== '0', zoom: q.get('zoom') !== '0' });
+app.hostSetUI({ view: false, panels: false, tools: q.get('tools') !== '0', zoom: q.get('zoom') !== '0' });
 startBridge(app, { origin: q.get('origin') || location.origin });
 if (import.meta.env?.DEV) window.__ams = app;
