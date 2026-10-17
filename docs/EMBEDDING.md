@@ -1,3 +1,7 @@
+# Poliplan: the drawing editor as a component
+
+**Poliplan** is the name of the lean embeddable build of the Artist Model Studio drawing editor: a drawing tool to drop into any page (780 KB, one iframe, the `ams-editor-v1` message protocol, a one-file client). `npm run build:embed` (alias `npm run build:poliplan`) builds it into `dist-embed/`; `npm run build:embed:full` is the chunky build with every studio panel, not Poliplan. Hosts so far: p5comp (`ams-editor-integration`), next Genereti. For now it lives in this repository, branch `embed-editor`, worktree `~/dev/artistmodelstudio-embed`; whether to spin it off into a repository of its own is open (it would take `src/embed/`, `vite.embed.config.js`, `scripts/sync-embed.sh` and the parts of `src/workbench`, `src/process` and `src/mcp` it uses, or stay a build target here, which keeps one editor to maintain). Names in the code (`embed`, `ams-editor`, `ams-editor-v1`) are unchanged.
+
 # Embedding the drawing editor
 
 Status: Phase 1, the client, and the p5comp spike (Phase 3) are built and working (branch `embed-editor`; p5comp on `ams-editor-integration`); phases 4 and 5 are next. Written 17 Oct 2026. First host: p5comp (`~/dev/arduino/p5comp`), second: Genereti (`~/dev/genereti`).

@@ -1,5 +1,5 @@
 /**
- * The drawing editor as a component (docs/EMBEDDING.md): dist-embed/embed.html plus hashed assets, with a relative
+ * Poliplan: the drawing editor as a component (docs/EMBEDDING.md): dist-embed/embed.html plus hashed assets, with a relative
  * base so the folder works under any path. Left out: the studio's lessons and samples, the model runtime, the dev relay.
  * Build: npm run build:embed (lean: the editor's panels only) or npm run build:embed:full (the chunky build: every studio panel). Serve the folder from the same origin as the host page.
  */
