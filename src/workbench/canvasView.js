@@ -4,8 +4,8 @@
  * World units are artboard units. Screen = world × zoom + offset (CSS px; the
  * backing store is scaled for devicePixelRatio).
  *
- * Tools: select (V), hand (H or hold Space), line (P), gesture (E), plane (A),
- * guide (G), point (O), note (T). Freehand tools capture time and pressure
+ * Tools: select (V), hand (H or hold Space), line (1), gesture (E), plane (2),
+ * guide (G), point (0), note (T). Freehand tools capture time and pressure
  * (mouse pressure is estimated from speed). Wheel pans; Ctrl/Cmd+wheel or pinch zooms.
  */
 import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
@@ -18,7 +18,7 @@ import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
 import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
 
 const CAMERA_KEY = 'ams_workbench_camera_v1';
-export const TOOL_KEYS = { v: 'select', h: 'hand', p: 'line', e: 'gesture', a: 'plane', g: 'guide', o: 'point', t: 'note' };
+export const TOOL_KEYS = { v: 'select', h: 'hand', '1': 'line', e: 'gesture', '2': 'plane', g: 'guide', '0': 'point', t: 'note' };
 
 /** Tools where Shift+drag over a mark sculpts it (Guide keeps Shift for angle snapping). */
 const SHIFT_SCULPT = new Set(['select', 'line', 'plane', 'gesture', 'brush']);
@@ -271,6 +271,14 @@ export class CanvasView {
       // A plane being drawn is closed the way it will be on release (no spikes where the ends meet).
       // Shown as it will be on release: a plane closed smoothly, and simplified live when Simplify is on.
       let d = this.draft;
+      // The rubber band sits on the point just clicked until the pointer moves, and a repeated point makes a
+      // smooth curve loop at that corner: it is left out of the picture (as is one on a plane's first point).
+      if (this.clickPath) {
+        const same = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-6;
+        let pts = d.points.filter((p, i, a) => !i || !same(p, a[i - 1]));
+        if (d.role === 'plane' && pts.length > 2 && same(pts[0], pts.at(-1))) pts = pts.slice(0, -1);
+        d = { ...d, points: pts };
+      }
       const simp = this.getLazy?.()?.simplify || 0;
       // (A path made point by point keeps its points as clicked.)
       if (!this.clickPath && simp > 0 && d.points.length > 3 && !this.draftStraight) d = { ...d, points: rdp(d.points, simp / this.cam.z) };
@@ -1021,19 +1029,27 @@ export class CanvasView {
   }
 
   /** Flip the path (smooth ↔ straight): the stroke being drawn, or else the selected marks (one undo step). */
-  flipPath() {
+  /** Smooth or straight: the stroke being drawn, or else the selected marks. False when neither applies. */
+  setPath(to) {
+    const straight = to === 'straight';
     if (this.draft) {
-      this.draft.path = this.draft.path === 'straight' ? undefined : 'straight';
-      this.flash(this.draft.path === 'straight' ? 'Straight' : 'Smooth');
+      this.draft.path = straight ? 'straight' : undefined;
+      this.flash(straight ? 'Straight' : 'Smooth');
       this.invalidate();
-      return;
+      return true;
     }
     const ids = [...this.selected].filter(id => { const e = this.store.doc.elements.find(x => x.id === id); return e && e.points.length > 2 && !['point', 'note', 'image'].includes(e.role); });
-    if (!ids.length) return;
-    const first = this.store.doc.elements.find(x => x.id === ids[0]);
-    const to = first.path === 'straight' ? undefined : 'straight';
-    this.store.change('path', d => { for (const e of d.elements) if (ids.includes(e.id)) { if (to) e.path = to; else delete e.path; } });
-    this.flash(to === 'straight' ? 'Straight' : 'Smooth');
+    if (!ids.length) return false;
+    this.store.change('path', d => { for (const e of d.elements) if (ids.includes(e.id)) { if (straight) e.path = 'straight'; else delete e.path; } });
+    this.flash(straight ? 'Straight' : 'Smooth');
+    return true;
+  }
+
+  /** Double-tap CapsLock: the other path (from the stroke being drawn, or the first selected mark). */
+  flipPath() {
+    if (this.draft) return this.setPath(this.draft.path === 'straight' ? 'smooth' : 'straight');
+    const first = [...this.selected].map(id => this.store.doc.elements.find(x => x.id === id)).find(e => e && e.points.length > 2 && !['point', 'note', 'image'].includes(e.role));
+    return this.setPath(first?.path === 'straight' ? 'smooth' : 'straight');
   }
 
   // ---- direct selection: editing points --------------------------------------------------

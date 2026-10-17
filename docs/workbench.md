@@ -146,14 +146,14 @@ It is kept minimal.
 A **project** holds **scenes**, and a scene holds **boards**. It is enough to write a lecture, a blog post or a report, or to prepare a performance.
 
 - **Scenes** (the Scenes panel) are separate drawings. Each has its own undo, History and Timeline; Assets, brushes and settings are shared by all. Opening a drawing from Assets, or a file, makes a new scene, so your drawing is never replaced. Alt+PageUp and Alt+PageDown step through scenes.
-- **Boards** (Shift+O, or the Boards panel) are artboards in one drawing, in order, like slides.
+- **Boards** (;, or the Boards panel) are artboards in one drawing, in order, like slides.
   - **The main board** is the old artboard at the origin, so every older drawing, score and training record is unchanged.
   - **Editing boards:** drag out more with the Board tool. A board's title selects it, moves it (with its marks) and renames it; its right-click menu exports it, trains on it, reorders or duplicates it.
   - **Which board a mark is on:** marks belong to the board they are drawn on. Outside the boards is the **blackboard**: kept, but in no board's picture.
   - **Training** uses the board marked with the dot in the Boards panel.
 - **Board code** (Code → Board): a board's own score, run with the board as its artboard. Each run replaces its last run's marks, so the board is live while you edit or move its sliders.
 - **Present** (Opt+Cmd+P): the boards full-window, with eased moves between them.
-  - Keys: →, Space, ←, 1–9, Esc.
+  - Keys: →, Space, ←, Alt+1–9, Esc.
   - Drawing still works.
   - While recording, the moves go onto the camera track, so replays and videos follow them.
 - **Frames** are slides: a board whose kind is *Frame* (Code → Board) holds the boards whose centres lie inside it.
@@ -173,7 +173,7 @@ A **project** holds **scenes**, and a scene holds **boards**. It is enough to wr
   - A page that opens with a document uses it as its header.
   - The studio's renderer is inside the page, and so is the drawing, so File → Open the page to keep working on it.
   - Two examples: `scripts/point-line-plane-demo.mjs` (a lecture after Kandinsky) and `scripts/senecio-report-scene.mjs` (the Senecio run report).
-- **Performing:** 1–9 go to a board; Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush in a slot.
+- **Performing:** Alt+1–9 go to a board (0, 1 and 2 are the point, line and plane tools); Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush in a slot.
 
 In a score:
 

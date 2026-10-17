@@ -83,8 +83,8 @@ import { Guide } from './guide.js';
 const DOC_KEY = 'ams_process_doc_v1';
 const DEFAULTS_KEY = 'ams_tool_defaults_v1';
 const TOOLS = [
-  ['select', 'Select and move', 'V'], ['hand', 'Pan', 'H'], ['board', 'Board: drag out a new artboard (Shift keeps it square)', '⇧O'], null,
-  ['point', 'Point: a mark at a place', 'O'], ['line', 'Line: a point that moved', 'P'], ['plane', 'Plane: an enclosed area', 'A'], null,
+  ['select', 'Select and move', 'V'], ['hand', 'Pan', 'H'], ['board', 'Board: drag out a new artboard (Shift keeps it square)', ';'], null,
+  ['point', 'Point: a mark at a place (dimension 0)', '0'], ['line', 'Line: a point that moved (dimension 1)', '1'], ['plane', 'Plane: an enclosed area (dimension 2)', '2'], null,
 ];
 /** Select and direct selection (points) share a button. */
 const SELECTS = [['select', 'Select and move', 'V'], ['direct', 'Direct: edit points (click a mark, drag its points; double-click a segment adds one; Ctrl snaps)', '⇧V']];
@@ -156,6 +156,35 @@ export class Workbench {
   // ---- state ---------------------------------------------------------------------
   get activeStage() { return this.store.doc.stages.find(s => s.id === this.activeStageId) || this.store.doc.stages[0]; }
   setActiveStage(id) { this.activeStageId = id; this.emit('stage'); this.renderChrome(); }
+  /** The brushes the brush stack offers (the Brush button's list). */
+  brushIds() { return Object.keys(BRUSHES).filter(id => !BRUSHES[id].construction && BRUSHES[id].roles?.some(r => ['line', 'plane', 'gesture'].includes(r))); }
+
+  /**
+   * ` makes straight, ~ makes smooth: the stroke being drawn or the selected marks, else the active
+   * drawing tool's default (for the next stroke).
+   */
+  setPathChoice(to) {
+    if (this.canvas.setPath(to)) return;
+    if (['line', 'plane', 'gesture', 'brush'].includes(this.tool)) this.setDefaults(this.tool, { path: to === 'straight' ? 'straight' : undefined });
+  }
+
+  /**
+   * Shift+key: step through a stack of tools. In the stack, the next one; outside it, the one its button
+   * shows (so entering keeps the brush or sculpt tool already in use).
+   */
+  cycleStack(kind) {
+    const stacks = {
+      select: { ids: SELECTS.map(c => c[0]), inside: () => SELECTS.some(c => c[0] === this.tool), current: () => this.tool, shown: () => this.selectTool || 'select', go: id => this.setTool(id) },
+      construction: { ids: CONSTRUCTION.map(c => c[0]), inside: () => CONSTRUCTION.some(c => c[0] === this.tool), current: () => this.tool, shown: () => this.constructTool || 'gesture', go: id => this.setTool(id) },
+      brush: { ids: this.brushIds(), inside: () => this.tool === 'brush', current: () => this.brush.id, shown: () => this.brush.id, go: id => { this.pickBrush(id, { apply: false }); this.setTool('brush'); } },
+      sculpt: { ids: Object.keys(SCULPTS), inside: () => this.tool === 'sculpt', current: () => this.sculpt.tool, shown: () => this.sculpt.tool, go: id => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } },
+    }[kind];
+    if (!stacks) return;
+    if (!stacks.inside()) return stacks.go(stacks.shown());
+    const i = stacks.ids.indexOf(stacks.current());
+    stacks.go(stacks.ids[(i + 1) % stacks.ids.length]);
+  }
+
   setTool(t) {
     // Choosing a tool means drawing again: leave a take being reviewed.
     if (this.player?.take) this.player.close();
@@ -478,7 +507,7 @@ export class Workbench {
   // ---- presenting ---------------------------------------------------------------------
   /**
    * Present: the boards full-window, in order, with eased moves between them. → / Space / PageDown
-   * next, ← / PageUp back, 1–9 a board by number, Home / End, Esc leaves. Drawing still works.
+   * next, ← / PageUp back, Alt+1–9 a board by number, Home / End, Esc leaves. Drawing still works.
    */
   present(on = !this.presenting) {
     this.presenting = on;
@@ -495,7 +524,7 @@ export class Workbench {
         else if (['ArrowLeft', 'PageUp'].includes(e.key) && !e.metaKey) go(cur - 1);
         else if (e.key === 'Home') go(0);
         else if (e.key === 'End') go(bs.length - 1);
-        else if (/^[1-9]$/.test(e.key) && !e.metaKey && !e.altKey) go(Number(e.key) - 1);
+        else if (e.altKey && !e.metaKey && /^Digit[1-9]$/.test(e.code || '')) go(Number(e.code.slice(-1)) - 1);
         else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.present(false); }
       };
       window.addEventListener('keydown', this.presentKeys, true);
@@ -655,7 +684,7 @@ export class Workbench {
 
   brushMenu(x, y) {
     const cur = this.brush.id;
-    const ids = Object.keys(BRUSHES).filter(id => !BRUSHES[id].construction && BRUSHES[id].roles?.some(r => ['line', 'plane', 'gesture'].includes(r)));
+    const ids = this.brushIds();
     showMenu([
       { label: 'Brush' },
       ...ids.map(id => ({ icon: brushIcon(id), active: id === cur, label: `${BRUSHES[id].label}`, hint: `${BRUSHES[id].doc}${this.canvas.selected.size ? ' · applies to the selection (Cmd-click: only pick it)' : ''}`, run: ev => this.pickBrush(id, { apply: !(ev?.metaKey || ev?.ctrlKey) }) })),
@@ -807,15 +836,15 @@ export class Workbench {
     }
     this.scenes.on(() => this.renderChrome());
     try { const u = JSON.parse(localStorage.getItem('ams_ui') || 'null'); if (u) requestAnimationFrame(() => this.setUI(u)); } catch { /* ignore */ }
-    // Performing: 1–9 go to a board; Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush there.
+    // Performing: Alt+1–9 go to a board (0, 1, 2 are tool keys); Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush there.
     try { this.slots = JSON.parse(localStorage.getItem('ams_brush_slots') || '{}'); } catch { this.slots = {}; }
     window.addEventListener('keydown', e => {
       const m = /^Digit([1-9])$/.exec(e.code || '');
-      if (!m || this.presenting || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select, [contenteditable], .cm-editor')) return;
+      if (!m || this.presenting || e.metaKey || e.target.closest?.('input, textarea, select, [contenteditable], .cm-editor')) return;
       const n = Number(m[1]);
       if (e.shiftKey && e.ctrlKey) { e.preventDefault(); this.keepSlot(n); }
-      else if (e.shiftKey) { e.preventDefault(); this.useSlot(n); }
-      else if (!e.ctrlKey) { const b = boardsOf(this.store.doc)[n - 1]; if (b) { e.preventDefault(); this.goToBoard(b.id, { animate: true }); } }
+      else if (e.shiftKey && !e.altKey) { e.preventDefault(); this.useSlot(n); }
+      else if (e.altKey && !e.ctrlKey) { const b = boardsOf(this.store.doc)[n - 1]; if (b) { e.preventDefault(); this.goToBoard(b.id, { animate: true }); } }
     }, true);
     this.recorder = new Recorder(this);
     this.player = new TakePlayer(this);
