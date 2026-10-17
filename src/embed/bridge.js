@@ -43,9 +43,21 @@ export function startBridge(app, { origin = location.origin } = {}) {
     ui({ panels: false, zoom: false, view: false });   // (the presentation menu is the studio's, not a layer's)
     // The host's canvas owns the view: no zoom control, and no zoom, fit or frame commands to fight it (in memory only).
     app.overlay = true;
-    for (const id of ['view.fit', 'view.frameBoard', 'view.frameSelection', 'view.zoomIn', 'view.zoomOut']) app.shortcuts.overrides[id] = [];
+    for (const id of VIEW_COMMANDS) app.shortcuts.overrides[id] = [];
     for (const [id, d] of declared) declared.set(id, { ...d, ground: 'transparent', hideBorder: true, hideLabel: true });
     declare();
+  };
+  const VIEW_COMMANDS = ['view.fit', 'view.frameBoard', 'view.frameSelection', 'view.zoomIn', 'view.zoomOut'];
+  /** overlay: a layer over the host's canvas, the host owns the view and the interface. standalone: the editor on its own, with the studio's own interface (zen, zoom, panels, ams_ui). */
+  const setMode = mode => {
+    if (mode === 'standalone') {
+      app.overlay = false;
+      app.uiLocked = false;
+      for (const id of VIEW_COMMANDS) delete app.shortcuts.overrides[id];
+    } else {
+      app.uiLocked = true;
+      overlay(true);
+    }
   };
   let applying = false;
   const setCamera = ({ x, y, z }) => {
@@ -111,6 +123,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
     'set-ui': m => { ui(m); return {}; },
     theme: ({ theme: t }) => { theme(t); return {}; },
     tool: ({ tool }) => { app.setTool(tool); return {}; },
+    mode: ({ mode }) => { setMode(mode); return {}; },
     camera: cam => { if (cam && 'z' in cam) setCamera(cam); const c = app.canvas; return { ...c.cam, w: c.w, h: c.h }; },
     focus: () => { app.canvas.canvas.focus?.(); window.focus(); return {}; },
     fit: ({ board, padding } = {}) => { app.canvas.fit(padding ?? 40, board ? boardOf(board).id : undefined); return {}; }

@@ -28,13 +28,17 @@ const STYLE_DEFAULTS = {
   plain: { font: 'sans', size: 15, bg: null, ink: '#2b2620' }
 };
 
+let defaultFont = null;
+/** A host (the embedded editor) can pick the lettering notes have when they name none: the hand fonts need webfonts it may not load. */
+export const setDefaultNoteFont = f => { defaultFont = NOTE_FONTS[f] ? f : null; };
+
 export function noteProps(e) {
   const n = e.note || {};
   const style = NOTE_STYLES[n.style] ? n.style : 'notebook';
   const d = STYLE_DEFAULTS[style];
   return {
     style,
-    font: NOTE_FONTS[n.font] ? n.font : d.font,
+    font: NOTE_FONTS[n.font] ? n.font : (defaultFont || d.font),
     size: Number(n.size) > 0 ? Number(n.size) : d.size,
     width: Number(n.width) > 0 ? Number(n.width) : 280,
     bg: n.bg === undefined ? d.bg : n.bg,

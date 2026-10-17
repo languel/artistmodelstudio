@@ -11,6 +11,7 @@ import { rangeInput } from './codeParams.js';
 import { SCULPTS, sculptParams } from '../process/sculpt.js';
 import { BRUSHES, resolveParams, brushesForRole } from '../process/brushes.js';
 import { BLENDS } from '../process/document.js';
+import { NOTE_FONTS, NOTE_STYLES, noteProps } from '../process/notes.js';
 import { brushIcon } from './icons.js';
 
 let open = null;
@@ -33,6 +34,7 @@ export function openToolParams(app, x, y) {
   const rows = [];
   let title = '', code = null;
   const sel = app.selectedElements().filter(e => BRUSHES[e.realize?.brush]);
+  const notes = app.selectedElements().filter(e => e.role === 'note');
 
   if (app.tool === 'sculpt') {
     const s = app.sculpt, t = SCULPTS[s.tool];
@@ -47,6 +49,24 @@ export function openToolParams(app, x, y) {
       slider({ label: 'Radius', min: 4, max: 400, step: 1, value: Math.round(s.radius), doc: 'Brush radius in screen pixels ([ and ])', onInput: v => app.setSculpt({ radius: v }) }),
       slider({ label: 'Strength', min: 0.02, max: 1, step: 0.01, value: s.strength, doc: 'Shift+[ and Shift+]', onInput: v => app.setSculpt({ strength: v }) }),
       ...t.params.map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => app.setSculpt({ params: { [p.key]: v } }) })));
+  } else if (notes.length || app.tool === 'note') {
+    // Notes: the lettering, size and style, for the selected notes (or for the next one).
+    const ids = notes.map(e => e.id);
+    const p = noteProps(notes[0] || { note: app.defaults('note').note, color: app.defaults('note').color, points: [] });
+    title = notes.length ? `Note${notes.length > 1 ? `s · ${notes.length}` : ''}` : 'New note';
+    const apply = patch => {
+      if (!ids.length) { app.setDefaults('note', { note: { ...(app.defaults('note').note || {}), ...patch } }); return; }
+      const before = JSON.stringify(app.store.doc);
+      for (const e of app.store.doc.elements) if (ids.includes(e.id)) e.note = { ...(e.note || {}), ...patch };
+      app.canvas.invalidate();
+      app.store.commitFrom(before, 'note style');
+      app.setDefaults('note', { note: { ...(app.store.doc.elements.find(e => e.id === ids[0])?.note || {}) } });
+    };
+    const pickOf = (options, value, onPick) => { const s = h('select', { class: 'wb-select' }, ...options.map(([k, l]) => h('option', { value: k, selected: k === value }, l))); s.addEventListener('change', () => onPick(s.value)); s.addEventListener('keydown', e => e.stopPropagation()); return s; };
+    rows.push(
+      h('label', { class: 'wb-tp-row wb-tp-row2' }, h('span', { class: 'wb-tp-label' }, 'Font'), pickOf(Object.entries(NOTE_FONTS).map(([k, [l]]) => [k, l]), p.font, v => apply({ font: v }))),
+      slider({ label: 'Size', min: 6, max: 120, step: 1, value: Math.round(p.size), doc: 'Letter size in artboard units', onInput: v => apply({ size: v }) }),
+      h('label', { class: 'wb-tp-row wb-tp-row2' }, h('span', { class: 'wb-tp-label' }, 'Style'), pickOf(Object.entries(NOTE_STYLES).map(([k, v]) => [k, v.split(':')[0]]), p.style, v => apply({ style: v, bg: undefined, font: undefined, size: undefined }))));
   } else if (sel.length) {
     const id = sel[0].realize.brush, b = BRUSHES[id];
     const ids = sel.filter(e => e.realize.brush === id).map(e => e.id);

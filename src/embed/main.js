@@ -2,9 +2,12 @@ import './isolate.js';   // first: it must be in place before any module reads l
 import '../workbench/styles.css';
 import './embed.css';
 import { Workbench } from '../workbench/app.js';
+import { setDefaultNoteFont } from '../process/notes.js';
 import { startBridge } from './bridge.js';
 
 const q = new URLSearchParams(location.search);
+// The hand fonts are webfonts the embed does not load (the system's script font stands in); notes start in sans.
+setDefaultNoteFont(q.get('noteFont') || 'sans');
 {
   let theme = q.get('theme');
   if (theme !== 'light' && theme !== 'dark') theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
@@ -22,7 +25,8 @@ app.mount();
 // The host owns the interface: zen (Alt+Z), the palette's show/hide commands and ams_ui cannot bring the studio's
 // islands and docks back. Only the host's `ui` / `set-ui` messages (and opening a panel, below) change what shows.
 app.hostSetUI = app.setUI.bind(app);
-app.setUI = () => {};
+app.uiLocked = true;   // until the host asks for the `standalone` mode, which gives the studio's own interface back
+app.setUI = (...a) => (app.uiLocked ? undefined : app.hostSetUI(...a));
 // Panels are tucked away until wanted: opening one (a shortcut, the palette, the menu) brings the docks back.
 for (const m of ['open', 'toggleDock']) {
   const orig = app.docks[m].bind(app.docks);
