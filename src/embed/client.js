@@ -20,10 +20,13 @@ const CHANNEL = 'ams-editor-v1';
  * The host page's theme, 'dark' or 'light': window.theme if the host sets one, else data-theme (or data-bs-theme) or a
  * dark / light class on <html>, else the system's preference.
  */
+/** A dark or light class (also dark-theme / light-theme, as ComfyUI has), or null. */
+const pickClass = el => (!el ? null : el.classList.contains('dark') || el.classList.contains('dark-theme') ? 'dark' : el.classList.contains('light') || el.classList.contains('light-theme') ? 'light' : null);
+
 export function hostTheme() {
   const pick = v => { v = String(v || '').toLowerCase(); return v === 'dark' || v === 'light' ? v : null; };
   const d = document.documentElement;
-  return pick(window.theme) || pick(d.dataset.theme) || pick(d.dataset.bsTheme) || (d.classList.contains('dark') ? 'dark' : d.classList.contains('light') ? 'light' : null)
+  return pick(window.theme) || pick(d.dataset.theme) || pick(d.dataset.bsTheme) || (pickClass(d) || pickClass(document.body))
     || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 }
 
