@@ -913,7 +913,7 @@ export class CanvasView {
       if (perf) { ctx.save(); ctx.fillStyle = muted; ctx.font = '11px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'top'; ctx.fillText(perf, bx, by + h + 6, Math.max(120, w * 1.6)); ctx.restore(); }
       const noTitle = b.hideLabel && !on;   // no title (selected, it shows, so it can be moved); a board that runs keeps its play button
       if (b.kind === 'player' && b.hidden) return;
-      const label = `${i + 1}  ${b.title}${doc.train === b.id || (!doc.train && b.main && boards.length > 1) ? '  ·  trains' : ''}`;
+      const label = `${i + 1}  ${b.title}${this.showTrain !== false && (doc.train === b.id || (!doc.train && b.main && boards.length > 1)) ? '  ·  trains' : ''}`;   // (an embedded editor has no model to train: the host sets showTrain false)
       // Boards with processes (code, following sources, a source under them) get a play / pause button
       // after the title. Like a player's, it shows what a click does: pause while running, play when paused.
       const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));   // documents (markdown, html) and frames have nothing to play

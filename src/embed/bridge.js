@@ -1,7 +1,7 @@
 /**
  * The host side of the embedded editor: the `ams-editor-v1` message protocol (docs/EMBEDDING.md).
  * Every message is { channel, type, id?, … }. Requests carry an id and get one `result` or `error` back; the editor
- * also sends `ready`, `change`, `selection` and `tool` on its own. Messages are accepted only from the parent window
+ * also sends `ready`, `change`, `draft`, `selection` and `tool` on its own. Messages are accepted only from the parent window
  * and only from the host's origin (the `origin` URL parameter, else this page's own).
  */
 import { fromExcalidraw, toExcalidraw, toSVG } from '../process/exports.js';
@@ -90,7 +90,16 @@ export function startBridge(app, { origin = location.origin } = {}) {
   };
 
   const toBlob = (canvas, type = 'image/png') => new Promise(r => canvas.toBlob(r, type));
-  const exportBoard = async ({ board, ids, format = 'png', scale = 1, transparent = false, mode = 'picture' }) => {
+  /**
+   * The stroke being drawn, as a mark of board `b` (board-relative points, on a `draft` stage), or null. It is only in the
+   * canvas until the pointer is released, so a live host asks for it: `export` with `draft: true`, after a `draft` event.
+   */
+  const draftOn = b => {
+    const c = app.canvas, d = c.draft && (c.draftShown || c.draft), p = d?.points?.[0];
+    if (!p || p[0] < b.x || p[0] > b.x + b.width || p[1] < b.y || p[1] > b.y + b.height) return null;
+    return { ...d, stage: 'draft', board: undefined, points: d.points.map(([x, y, t, pr]) => [x - b.x, y - b.y, t, pr]) };
+  };
+  const exportBoard = async ({ board, ids, format = 'png', scale = 1, transparent = false, mode = 'picture', draft = false }) => {
     if (ids?.length && (format === 'png' || format === 'svg')) {   // just those marks (a selection), on no paper
       const blob = await app.selectionBlob(format, ids);
       if (!blob) throw new Error('Nothing to export');
@@ -99,9 +108,11 @@ export function startBridge(app, { origin = location.origin } = {}) {
     const b = boardOf(board);
     if (format === 'png') {
       let out;
-      if (transparent) {   // the marks alone, no paper
+      const stroke = draft ? draftOn(b) : null;
+      if (transparent || stroke) {   // the marks alone, no paper (transparent); and the stroke being drawn (draft)
         const part = boardDoc(app.store.doc, b.id);
-        part.artboard = { ...part.artboard, ground: 'transparent' };
+        if (transparent) part.artboard = { ...part.artboard, ground: 'transparent' };
+        if (stroke) { part.stages = [...(part.stages || []), { id: 'draft', visible: true }]; part.elements = [...part.elements, stroke]; }
         out = app.boardPicture(b, scale, mode, part);
       } else out = app.boardPicture(b, scale, mode);
       return { format, board: b.id, width: out.width, height: out.height, blob: await toBlob(out) };
@@ -166,6 +177,18 @@ export function startBridge(app, { origin = location.origin } = {}) {
     onCamera?.();
     if (applying || camFrame) return;
     camFrame = requestAnimationFrame(() => { camFrame = 0; post({ type: 'camera', ...app.canvas.cam }); });
+  };
+  // `draft`: a stroke is being drawn, and it is not in the document until the pointer is released (`change` waits for that).
+  // Sent at most once per frame while it grows, and once more when it ends (`active: false`); it carries nothing, so a live
+  // host answers with `export { draft: true }`.
+  const invalidate = app.canvas.invalidate;
+  let draftFrame = 0, drafting = false;
+  app.canvas.invalidate = function (...args) {
+    const result = invalidate.apply(this, args);
+    const on = Boolean(app.canvas.draft);
+    if ((on || drafting) && !draftFrame) draftFrame = requestAnimationFrame(() => { draftFrame = 0; post({ type: 'draft', active: Boolean(app.canvas.draft) }); });
+    drafting = on;
+    return result;
   };
   // Right-click menu entries the host asked for (init `actions`): the choice goes to the host, with the selected ids.
   app.on('host-action', (id, ids) => post({ type: 'action', id, ids }));

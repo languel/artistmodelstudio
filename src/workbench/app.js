@@ -545,7 +545,9 @@ export class Workbench {
     const b = boardById(this.store.doc, id);
     if (!b) return;
     this.activeBoard = b.id;
-    if (!this.presenting) this.canvas.selectBoard(b.id);
+    // A board whose title or border is switched off keeps it so: selecting it would show both (and the title is only
+    // shown selected so a board can be moved), so going there (Alt+1–9) is just the camera move and clears the selection.
+    if (!this.presenting) this.canvas.selectBoard(b.hideLabel || b.hideBorder ? null : b.id);
     const pad = this.presenting ? 24 : 60;
     if (fit && animate) this.canvas.animateTo(this.canvas.camFor(b.id, pad)); else if (fit) this.canvas.fit(pad, b.id);
     // Recording: the camera goes into the take (the camera track), so a replay or video follows the boards.
@@ -755,7 +757,7 @@ export class Workbench {
         { label: 'To an SVG image', hint: 'Its marks become one vector image, crisp at any zoom (undo brings them back)', run: () => this.bakeBoard(id, 'svg') }
       ] },
       { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['json', 'JSON (to import again)'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)'], ...(b.code ? [['p5code', 'p5 (its code)']] : [])].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
-      { active: (doc.train || MAIN) === id, label: (doc.train || MAIN) === id ? 'Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
+      this.embed ? null : { active: (doc.train || MAIN) === id, label: (doc.train || MAIN) === id ? 'Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
       b.main ? null : { label: 'Earlier', run: () => this.store.moveBoard(id, -1) },
       b.main ? null : { label: 'Later', run: () => this.store.moveBoard(id, 1) },
       { label: 'Duplicate', run: () => this.duplicateBoard(id) },
@@ -918,6 +920,7 @@ export class Workbench {
     };
     this.activeBoard = MAIN;
     this.canvas.onBoardSelect = id => { this.activeBoard = id; this.selectedAsset = null; this.emit('board'); };
+    if (this.embed) this.canvas.showTrain = false;   // (no model to train in an embedded editor: no "trains" on the board, in the panels or in the menu)
     this.canvas.onOpenProperties = () => this.docks.open('properties');
     this.canvas.onFlipPath = () => this.flipPathChoice();
     this.canvas.onPaintPicker = e => this.openPaintPicker(e.clientX, e.clientY);   // Ctrl+right-click
