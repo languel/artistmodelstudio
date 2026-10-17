@@ -16,12 +16,25 @@
  */
 const CHANNEL = 'ams-editor-v1';
 
-export function createEditor(container, { src, ns = 'ams-embed', theme = 'auto', persist = false, timeout = 30000, ...config } = {}) {
+/**
+ * The host page's theme, 'dark' or 'light': window.theme if the host sets one, else data-theme (or data-bs-theme) or a
+ * dark / light class on <html>, else the system's preference.
+ */
+export function hostTheme() {
+  const pick = v => { v = String(v || '').toLowerCase(); return v === 'dark' || v === 'light' ? v : null; };
+  const d = document.documentElement;
+  return pick(window.theme) || pick(d.dataset.theme) || pick(d.dataset.bsTheme) || (d.classList.contains('dark') ? 'dark' : d.classList.contains('light') ? 'light' : null)
+    || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+}
+
+export function createEditor(container, { src, ns = 'ams-embed', theme = 'host', persist = false, timeout = 30000, ...config } = {}) {
   if (!src) throw new Error('createEditor needs src: the URL of the built editor (embed.html)');
   const url = new URL(src, location.href);
   url.searchParams.set('ns', ns);
   url.searchParams.set('origin', location.origin);
-  if (theme !== 'auto') url.searchParams.set('theme', theme);
+  let following = theme === 'host';   // 'host' (the default): the editor wears the host's theme and follows it
+  const first = following ? hostTheme() : theme;
+  if (first !== 'auto') url.searchParams.set('theme', first);
   if (persist) url.searchParams.set('persist', '1');
   const frame = document.createElement('iframe');
   Object.assign(frame.style, { border: '0', width: '100%', height: '100%', display: 'block' });
@@ -75,7 +88,8 @@ export function createEditor(container, { src, ns = 'ams-embed', theme = 'auto',
     callTool: (name, args) => request('call', { name, args }),
     listTools: () => request('list-tools'),
     setUI: ui => request('set-ui', ui),
-    setTheme: t => request('theme', { theme: t }),
+    /** 'dark' | 'light' | 'auto', or 'host' to follow the host page's theme again. */
+    setTheme: t => { following = t === 'host'; return request('theme', { theme: following ? hostTheme() : t }); },
     /** 'overlay' (a layer over the host's canvas: the host owns the view and the interface) or 'standalone' (the editor on its own, with the studio's zoom, zen, panels and menus). */
     setMode: mode => request('mode', { mode }),
     setTool: tool => request('tool', { tool }),
@@ -84,7 +98,14 @@ export function createEditor(container, { src, ns = 'ams-embed', theme = 'auto',
     fit: opts => request('fit', opts),
     focus: () => { frame.focus(); return request('focus'); },
     ready: () => readyPromise,
-    destroy() { window.removeEventListener('message', onMessage); frame.remove(); for (const p of pending.values()) p.reject(new Error('The editor was removed')); pending.clear(); }
+    destroy() { stopTheme(); window.removeEventListener('message', onMessage); frame.remove(); for (const p of pending.values()) p.reject(new Error('The editor was removed')); pending.clear(); }
   };
-  return readyPromise.then(async () => { await request('init', { ...config, theme }); return editor; });
+  // Following the host: its data-theme, class or window.theme changing, or the system's preference.
+  const sync = () => { if (following) request('theme', { theme: hostTheme() }).catch(() => {}); };
+  const watcher = new MutationObserver(sync);
+  watcher.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-bs-theme', 'class'] });
+  const media = matchMedia('(prefers-color-scheme: dark)');
+  media.addEventListener?.('change', sync);
+  const stopTheme = () => { watcher.disconnect(); media.removeEventListener?.('change', sync); };
+  return readyPromise.then(async () => { await request('init', { ...config, theme: following ? hostTheme() : theme }); return editor; });
 }

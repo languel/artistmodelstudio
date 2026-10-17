@@ -147,3 +147,11 @@ How: `vite.embed.config.js` lists the modules the lean build replaces with `src/
 Verified on the built folder served by a plain static server, and in p5comp: drawing with the pen, `ams_add`, Arrange from the context menu, Outliner and Properties opening, exports (including a selection), undo, 46 tools listed, the palette trimmed, no console errors. Not cut yet (about 70 KB more is possible): `p5code.js` and the `?raw` module copies that `exports.js` embeds for the p5 export, `mcp.js` tools that only the studio uses.
 
 Working copy: the embed branch is checked out as a git worktree, `~/dev/artistmodelstudio-embed`, so the studio's own checkout (`~/dev/artistmodelstudio`) stays on `main`. `node_modules` there is a copy-on-write clone of the studio's; run `npm install` in it if dependencies change.
+
+### One toolbar (embedded editor)
+
+The studio's two islands are one toolbar in the embed: the **menu** (≡) is first, and the view island's items (picture or process, reference, points, present, theme) are in its dropdown, with **Zoom controls** (zoom out, percentage, in, fit) as an optional group at the end of the toolbar, toggled from the same menu (kept per `ns`; off when the host owns the view, in overlay mode). In the lean build the menu is trimmed to the view items, Import, Export (PNG, SVG, Scene JSON, Excalidraw), the palette and the panels. **Layers (Outliner) and Properties** sit in the left sidebar, Properties after the Outliner. The studio itself keeps its two islands and the right-hand Properties.
+
+Theme: `createEditor` defaults to `theme: 'host'`: the editor wears the host page's theme and follows it. The host theme is `window.theme` if set, else `data-theme` or `data-bs-theme` on `<html>`, else a `dark` or `light` class, else the system's preference; changes (attribute, class, or the system's) are sent on. `editor.setTheme('dark' | 'light' | 'auto')` pins it, `setTheme('host')` follows again; `hostTheme()` is exported for hosts that want to read it.
+
+Alt+Z: in the Draw tab (standalone) it is the editor's zen; in overlay mode the editor passes it to the host as a `key` event, and p5comp uses it (also on the host page) to switch the drawing layer and its toolbar on and off.

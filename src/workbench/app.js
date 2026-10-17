@@ -953,7 +953,7 @@ export class Workbench {
     // The score runner, for code outside the app (lesson builders): the app's own, with its sources.
     this.runScript = runScript;
     this.canvas.onDrawn = () => this.frames.update();
-    this.canvas.onCamera = () => { const z = this.zoomIsland?.querySelector('span'); if (z) z.textContent = `${Math.round(this.canvas.cam.z * 100)}%`; };
+    this.canvas.onCamera = () => { const t = `${Math.round(this.canvas.cam.z * 100)}%`; const z = this.zoomIsland?.querySelector('span'); if (z) z.textContent = t; const b = this.topbar?.querySelector('.wb-zoom-pct'); if (b) b.textContent = t; };
     this.topbar = h('div', { class: 'wb-topbar' });
     this.zoomIsland = h('div', { class: 'wb-island wb-zoom' });
     this.stageArea.append(this.topbar, this.zoomIsland);
@@ -1039,10 +1039,11 @@ export class Workbench {
     reg('boards', 'Boards', 'board', 'left', mountBoards);
     reg('stages', 'Stages', 'stages', 'left', mountStages);
     reg('outliner', 'Outliner', 'layers', 'left', mountOutliner);
+    if (this.embed) reg('properties', 'Properties', 'properties', 'left', mountProperties);   // the embedded editor has one sidebar: layers, then properties
     reg('assets', 'Assets', 'assets', 'left', el => this.mountAssets(el));
     reg('sources', 'Sources', 'source', 'left', mountSources);
     reg('gestures', 'Gestures', 'hand', 'left', mountGestures);
-    reg('properties', 'Properties', 'properties', 'right', mountProperties);
+    if (!this.embed) reg('properties', 'Properties', 'properties', 'right', mountProperties);
     reg('script', 'Code', 'script', 'right', mountCode);
     reg('process', 'Process', 'process', 'right', mountProcess);
     reg('generate', 'Generate', 'sparkles', 'right', mountGenerate);
@@ -1774,8 +1775,23 @@ export class Workbench {
       h('button', { class: 'wb-tool', title: 'Theme', html: icon(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun'), onclick: () => this.toggleTheme() })
     );
     // The menu island starts top-left, the tools top-centre; both can be dragged by their grip.
-    this.topbar.replaceChildren(right, tools, h('div', { class: 'wb-topbar-spacer' }));
-    this.makeMovable(right, 'view'); this.makeMovable(tools, 'tools');
+    if (this.embed) {
+      // The embedded editor has one toolbar: the menu (the view island's items live in it) comes first, the zoom (optional) last.
+      if (this.zoomBarOn() && !this.overlay) {
+        const z = h('span', { class: 'wb-zoom-pct', title: 'Zoom: click for 100%', onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1 / this.canvas.cam.z) }, `${Math.round((this.canvas?.cam.z || 1) * 100)}%`);
+        tools.append(h('div', { class: 'wb-sep wb-zoom-bar' }),
+          h('button', { class: 'wb-tool wb-zoom-bar', title: 'Zoom out', html: icon('down'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1 / 1.2) }),
+          Object.assign(z, { className: 'wb-zoom-pct wb-zoom-bar' }),
+          h('button', { class: 'wb-tool wb-zoom-bar', title: 'Zoom in', html: icon('up'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1.2) }),
+          h('button', { class: 'wb-tool wb-zoom-bar', title: 'Fit the active board (F)', html: icon('fit'), onclick: () => { this.canvas.fit(60, this.activeBoard || MAIN); this.renderChrome(); } }));
+      }
+      tools.prepend(h('button', { class: 'wb-tool wb-menu-btn', 'data-guide': 'menu', title: 'Menu', html: icon('menu'), onclick: e => this.openMenu(e.currentTarget) }), h('div', { class: 'wb-sep wb-menu-sep' }));
+      this.topbar.replaceChildren(tools, h('div', { class: 'wb-topbar-spacer' }));
+      this.makeMovable(tools, 'tools');
+    } else {
+      this.topbar.replaceChildren(right, tools, h('div', { class: 'wb-topbar-spacer' }));
+      this.makeMovable(right, 'view'); this.makeMovable(tools, 'tools');
+    }
     this.zoomIsland.replaceChildren(
       h('button', { class: 'wb-tool', title: 'Zoom out', html: icon('down'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1 / 1.2) }),
       h('span', {}, `${Math.round((this.canvas?.cam.z || 1) * 100)}%`),
@@ -1786,6 +1802,10 @@ export class Workbench {
     this.zoomIsland.oncontextmenu = e => { e.preventDefault(); this.togglePerf(); };
     this.makeMovable(this.zoomIsland, 'zoom');
   }
+
+  /** The zoom controls in the toolbar (the embedded editor; the menu toggles them): on unless switched off. */
+  zoomBarOn() { try { return localStorage.getItem('ams_zoom_bar') !== '0'; } catch { return true; } }
+  setZoomBar(on) { try { localStorage.setItem('ams_zoom_bar', on ? '1' : '0'); } catch { /* ignore */ } this.renderChrome(); }
 
   toggleTheme() {
     const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
@@ -1991,7 +2011,18 @@ export class Workbench {
 
   openMenu(anchor) {
     const r = anchor.getBoundingClientRect();
-    showMenu([
+    const sc = id => this.shortcuts.label(id);
+    // What the view island held (picture or process, reference, points, present, theme), for the single toolbar.
+    const viewItems = this.embed ? [
+      { label: this.view.mode === 'process' ? 'Show the picture' : 'Show the process', keys: sc('view.toggle'), hint: 'The finished picture, or the process: guides, gestures and notes', run: () => this.setViewMode(this.view.mode === 'process' ? 'picture' : 'process') },
+      this.reference ? { label: this.reference.visible ? 'Hide the reference' : 'Show the reference', keys: sc('view.reference'), run: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } } : null,
+      { label: this.canvas.showPoints ? 'Hide points' : 'Show points', keys: sc('view.points'), hint: "The marks' points", run: () => this.togglePoints() },
+      { label: 'Present', keys: sc('view.present'), hint: 'The boards one by one: ← → to move, Esc to leave', run: () => this.present(true) },
+      this.overlay ? null : { label: this.zoomBarOn() ? 'Hide the zoom controls' : 'Show the zoom controls', hint: 'Zoom out, in and fit, at the end of the toolbar', run: () => this.setZoomBar(!this.zoomBarOn()) },
+      { label: document.documentElement.dataset.theme === 'light' ? 'Dark theme' : 'Light theme', run: () => this.toggleTheme() },
+      '-'
+    ].filter(Boolean) : [];
+    const items = [...viewItems,
       { label: 'New scene', keys: this.shortcuts.label('scene.new'), hint: 'An empty drawing in this project; the others stay', run: () => this.scenes.create() },
       { label: 'New project', hint: 'Start over with one empty scene', items: [
         { label: 'Keep this project in Assets, then start', run: () => this.newProject({ keep: true }) },
@@ -2022,7 +2053,23 @@ export class Workbench {
       { label: 'Reset layout', run: () => this.docks.reset() },
       '-',
       { label: 'Classic studio', hint: 'The earlier studio (generation, mediums, training)', run: () => { window.location.href = '/classic.html'; } }
-    ], r.left, r.bottom + 6);
+    ];
+    showMenu(this.embed && !this.embed.full ? this.leanMenu(items) : items, r.left, r.bottom + 6);
+  }
+
+  /** The menu of the lean embedded editor: no scenes, assets, docs, settings or presentation; the exports it has. */
+  leanMenu(items) {
+    const drop = /^(New scene|New project|Open file|Save to Assets|Settings|Shortcuts|Docs|Classic studio|Present)$/;
+    const keepExport = /^(PNG|SVG|Scene \(JSON\)|Excalidraw)$/;
+    const out = [];
+    for (const i of items) {
+      if (i !== '-' && drop.test(i.label)) continue;
+      const it = i !== '-' && i.label === 'Export' ? { ...i, items: i.items.filter(x => keepExport.test(x.label)) } : i;
+      if (it === '-' && (!out.length || out.at(-1) === '-')) continue;
+      out.push(it);
+    }
+    while (out.at(-1) === '-') out.pop();
+    return out;
   }
 
 

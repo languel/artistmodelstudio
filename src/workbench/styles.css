@@ -665,6 +665,7 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 
 /* The interface, part by part, hidden on request (Cmd+. hides all of it) */
 .hide-tools .wb-tools-island, .hide-view .wb-view-island, .hide-zoom .wb-zoom { display: none !important; }
+.hide-zoom .wb-zoom-bar { display: none !important; }
 .hide-panels .wb { grid-template-columns: 0 1fr 0; grid-template-rows: 1fr 0; }
 .hide-panels .wb-dock, .hide-panels [data-floating], .hide-panels .wb-dock-hint { display: none !important; }
 .wb-topbar-spacer { flex: 1 1 0; }

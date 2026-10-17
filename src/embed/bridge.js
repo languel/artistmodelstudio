@@ -43,7 +43,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
     ui({ panels: false, zoom: false, view: false });   // (the presentation menu is the studio's, not a layer's)
     // The host's canvas owns the view: no zoom control, and no zoom, fit or frame commands to fight it (in memory only).
     app.overlay = true;
-    for (const id of VIEW_COMMANDS) app.shortcuts.overrides[id] = [];
+    for (const id of [...VIEW_COMMANDS, 'ui.all']) app.shortcuts.overrides[id] = [];   // (zen's key, Alt+Z, goes to the host as a `key` event)
     for (const [id, d] of declared) declared.set(id, { ...d, ground: 'transparent', hideBorder: true, hideLabel: true });
     declare();
   };
@@ -53,11 +53,12 @@ export function startBridge(app, { origin = location.origin } = {}) {
     if (mode === 'standalone') {
       app.overlay = false;
       app.uiLocked = false;
-      for (const id of VIEW_COMMANDS) delete app.shortcuts.overrides[id];
+      for (const id of [...VIEW_COMMANDS, 'ui.all']) delete app.shortcuts.overrides[id];
     } else {
       app.uiLocked = true;
       overlay(true);
     }
+    app.renderChrome();   // (the toolbar differs: zoom controls only when the editor owns its view)
   };
   let applying = false;
   const setCamera = ({ x, y, z }) => {
