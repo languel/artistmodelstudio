@@ -1,18 +1,21 @@
 // Writes the sampling lesson's p5.js sketches: exports/lesson-sampling/p5/<example>/{index.html, sketch.js, media}.
-// Run: npx vite-node scripts/lesson-sampling-p5.mjs
+// Run: npx vite-node scripts/lesson-sampling-p5.mjs [--expl]
 import fs from 'node:fs';
 import path from 'node:path';
 import { LESSON } from '../examples/lessons/sampling/lesson.js';
 import { toP5Code, p5SketchHtml, usesMl5 } from '../src/process/p5code.js';
 
-const out = path.resolve('exports/lesson-sampling/p5');
+const expl = process.argv.includes('--expl');
+const out = path.resolve(expl ? 'exports/lesson-sampling/p5-expl' : 'exports/lesson-sampling/p5');
 const media = path.resolve('examples/lessons/sampling/media');
 for (const sec of LESSON.sections) for (const b of sec.boards) {
-  if (!b.code) continue;
+  if (!b.code && !b.p5expl) continue;
   // Every source the code reads (a brush may read a second one).
-  const names = Object.keys(LESSON.sources).filter(n => new RegExp(`source\\(\\s*'${n}'`).test(b.code));
+  const names = Object.keys(LESSON.sources).filter(n => new RegExp(`source\\(\\s*'${n}'`).test(b.code || ''));
   const sources = Object.fromEntries(names.map(n => [n, { file: LESSON.sources[n].file, kind: LESSON.sources[n].animated ? 'animated' : 'image' }]));
-  const code = toP5Code(b.code, { board: { title: b.title, width: b.w, height: b.h, ground: b.ground || '#f3efe6' }, sources, loop: Boolean(b.follow) });
+  const code = (expl && b.p5expl)
+    ? b.p5expl
+    : toP5Code(b.code, { board: { title: b.title, width: b.w, height: b.h, ground: b.ground || '#f3efe6' }, sources, loop: Boolean(b.follow) });
   const dir = path.join(out, b.id);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'sketch.js'), code);
@@ -20,3 +23,4 @@ for (const sec of LESSON.sections) for (const b of sec.boards) {
   for (const n of names) fs.copyFileSync(path.join(media, LESSON.sources[n].file), path.join(dir, LESSON.sources[n].file));
   console.log(b.id, code.split('\n').length, 'lines');
 }
+

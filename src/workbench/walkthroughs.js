@@ -55,10 +55,11 @@ function goTo(app, title) {
 /** A lesson (lessons.js) as the open scene: built the first time, opened after that. */
 async function openLesson(app, id, language = 'studio') {
   const { LESSONS, buildLesson } = await import('./lessons.js');
-  const L = LESSONS.find(l => l.id === id);
-  const title = `Lesson: ${L.title}${language === 'p5' ? ' (p5.js)' : ''}`;
+  const L = LESSONS.find(l => l.id === id) || LESSONS[0];
+  const isExpl = id === 'sampling-expl' || language === 'expl';
+  const title = `Lesson: ${L.title}${isExpl ? ' (p5.js expl)' : language === 'p5' ? ' (p5.js)' : ''}`;
   const have = app.scenes.all.find(s => s.title === title);
-  if (have) await app.scenes.switchTo(have.id); else await buildLesson(app, id, { language });
+  if (have) await app.scenes.switchTo(have.id); else await buildLesson(app, id, { language, expl: isExpl });
 }
 
 export const WALKTHROUGHS = [

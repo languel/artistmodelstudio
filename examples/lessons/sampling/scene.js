@@ -28,17 +28,20 @@ function p5For(b, LESSON) {
   return toP5Code(b.code, { board: { title: b.title, width: b.w, height: b.h, ground: b.ground || '#f3efe6' }, sources, loop: Boolean(b.follow) });
 }
 
-function notesFor(b, sec, language, lesson) {
+function notesFor(b, sec, language, lesson, expl = false) {
   const ref = sec.boards.find(x => x.reference);
   // A board written as a p5 sketch has one language; a drawing's code has the other one as a callout.
   const native = Boolean(b.p5);
-  const other = language === 'p5' ? fence(b.code, 'js') : fence(native ? b.p5 : p5For(b, lesson), 'js');
+  const useExpl = (expl || language === 'expl') && Boolean(b.p5expl);
+  const p5Code = useExpl ? b.p5expl : (native ? b.p5 : p5For(b, lesson));
+  const p5Label = useExpl ? 'p5.js (expl)' : (native ? 'p5.js' : language === 'p5' ? 'Studio code' : 'p5.js');
+  const other = language === 'p5' && !useExpl ? fence(b.code, 'js') : fence(p5Code, 'js');
   return [
     `## ${b.title}`,
     b.idea,
     b.pseudo ? quote(`[!abstract]- Pseudocode\n${fence(b.pseudo)}`) : '',
-    b.code || native ? quote(`[!example]- ${native ? 'p5.js' : language === 'p5' ? 'Studio code' : 'p5.js'}\n${other}`) : '',
-    `${native || language === 'p5' ? 'Its p5.js code' : 'Its studio code'}: Code → Board.${ref ? ` Source: [[${ref.title}]].` : ''} Back to [[${intro(sec)}]].`
+    b.code || native || b.p5expl ? quote(`[!example]- ${p5Label}\n${other}`) : '',
+    `${native || language === 'p5' || language === 'expl' ? 'Its p5.js code' : 'Its studio code'}: Code → Board.${ref ? ` Source: [[${ref.title}]].` : ''} Back to [[${intro(sec)}]].`
   ].filter(Boolean).join('\n\n');
 }
 
@@ -78,7 +81,7 @@ function heightFor(md, width) {
   return Math.ceil(h + 8);
 }
 
-export async function buildLessonScene(app, { language = 'studio', lesson: LESSON = SAMPLING, title = `Lesson: ${LESSON.title}${language === 'p5' ? ' (p5.js)' : ''}` } = {}) {
+export async function buildLessonScene(app, { language = 'studio', expl = false, lesson: LESSON = SAMPLING, title = `Lesson: ${LESSON.title}${expl || language === 'expl' ? ' (p5.js expl)' : language === 'p5' ? ' (p5.js)' : ''}` } = {}) {
   // Bibliography columns: the lesson's, or the sampling lesson's two (pictures, literature).
   const bibs = LESSON.bibliography || [{ title: 'Pictures', items: BIBLIOGRAPHY.pictures, width: 440 }, { title: 'Literature', items: BIBLIOGRAPHY.history }];
   const bibTitle = t => `Bibliography: ${t.toLowerCase()}`, bib1 = bibTitle(bibs[0].title);
@@ -105,10 +108,15 @@ export async function buildLessonScene(app, { language = 'studio', lesson: LESSO
     if (b.live) app.setBoardLive(id, true);
     if (b.p5) st.updateBoard(id, { kind: 'p5', code: b.p5 });   // written as a p5 sketch (a simulation)
     else if (b.code) {
-      if (language === 'p5') st.updateBoard(id, { kind: 'p5', code: p5For(b, LESSON) });
-      else st.runBoardCode(id, b.code, run);
+      if ((language === 'expl' || (language === 'p5' && expl)) && b.p5expl) {
+        st.updateBoard(id, { kind: 'p5', code: b.p5expl });
+      } else if (language === 'p5') {
+        st.updateBoard(id, { kind: 'p5', code: p5For(b, LESSON) });
+      } else {
+        st.runBoardCode(id, b.code, run);
+      }
     }
-    if (b.follow && language !== 'p5') app.setBoardFollow(id, true);
+    if (b.follow && language !== 'p5' && language !== 'expl') app.setBoardFollow(id, true);
     return id;
   };
   // Where a drawing sits in a frame: right half for intros, left for examples.
@@ -138,7 +146,7 @@ export async function buildLessonScene(app, { language = 'studio', lesson: LESSO
     for (const b of sec.boards.filter(x => !x.reference)) {
       frame(b.title, fx(k), y);
       drawing(b, ...left(fx(k), y), sec);
-      doc(`${b.title} · notes`, fx(k) + PAD + BW + PAD, y + PAD, notesFor(b, sec, language, LESSON));
+      doc(`${b.title} · notes`, fx(k) + PAD + BW + PAD, y + PAD, notesFor(b, sec, language, LESSON, expl));
       k++;
     }
   }

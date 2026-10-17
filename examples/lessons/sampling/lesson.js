@@ -163,6 +163,36 @@ now.forEach(([year, text], i) => { label(0.53, 0.33 + i * 0.078, String(year), {
           pseudo: `for each cell of a 6 × 4 grid
   c ← the painting's color at the cell's center
   draw a large dot of color c there`,
+          p5expl: `// 1 · Sample: a color at a place (p5.js)
+// For p5.js 2.x: upload seurat.jpg to your sketch files in editor.p5js.org
+let img;
+
+async function setup() {
+  img = await loadImage('seurat.jpg');
+  createCanvas(800, 600);
+  img.resize(width, height);
+  noLoop();
+}
+
+function draw() {
+  background('#f3efe6');
+  const cols = 6, rows = 4;
+  const cellW = width / cols;
+  const cellH = height / rows;
+
+  noStroke();
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const x = (i + 0.5) * cellW;
+      const y = (j + 0.5) * cellH;
+      const c = img.get(x, y);
+
+      fill(c);
+      circle(x, y, 90);
+    }
+  }
+}
+`,
           code: `// An image is a function: give it a place, it gives a color.
 const s = source('seurat')
 const cols = 6 /* 2..16 */, rows = 4 /* 2..12 */
@@ -177,6 +207,41 @@ for (const i of range(cols)) for (const j of range(rows)) {
   c ← color at the cell
   v ← lightness at the cell (0 dark … 1 light)
   draw a dot of color c, larger where v is small`,
+          p5expl: `// 2 · Dots on a grid (p5.js)
+// For p5.js 2.x: upload seurat.jpg to your sketch files in editor.p5js.org
+let img;
+
+async function setup() {
+  img = await loadImage('seurat.jpg');
+  createCanvas(800, 600);
+  img.resize(width, height);
+  noLoop();
+}
+
+function draw() {
+  background('#f3efe6');
+  const cols = 60;
+  const rows = Math.round(cols * height / width);
+  const cellW = width / cols;
+  const cellH = height / rows;
+
+  noStroke();
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const x = (i + 0.5) * cellW;
+      const y = (j + 0.5) * cellH;
+      const c = img.get(x, y);
+
+      // Lightness from 0 (dark) to 1 (light): darker places get larger dots
+      const lightness = (red(c) + green(c) + blue(c)) / (3 * 255);
+      const dotSize = cellW * (1.3 - lightness);
+
+      fill(c);
+      circle(x, y, dotSize);
+    }
+  }
+}
+`,
           code: `// A grid of dots: the color from the painting, the size from how dark it is.
 const s = source('seurat')
 const cols = 60 /* 10..120 */, rows = Math.round(cols * height / width)
@@ -191,6 +256,31 @@ for (const i of range(cols)) for (const j of range(rows)) {
           pseudo: `repeat n times
   (x, y) ← a random place
   draw a small dot of the painting's color at (x, y)`,
+          p5expl: `// 3 · Scattered dots (p5.js)
+// For p5.js 2.x: upload seurat.jpg to your sketch files in editor.p5js.org
+let img;
+
+async function setup() {
+  img = await loadImage('seurat.jpg');
+  createCanvas(800, 600);
+  img.resize(width, height);
+  noLoop();
+}
+
+function draw() {
+  background('#f3efe6');
+  noStroke();
+
+  for (let i = 0; i < 9000; i++) {
+    const x = random(width);
+    const y = random(height);
+    const c = img.get(x, y);
+
+    fill(c);
+    circle(x, y, 7);
+  }
+}
+`,
           code: `// Dots at random places: no grid, just density.
 const s = source('seurat')
 const n = 9000 /* 500..16000 */
@@ -207,6 +297,56 @@ repeat n times
   c ← color at (x, y), nudged a little at random
   p ← the pigment in the palette closest to c
   draw a dot of pigment p at (x, y)`,
+          p5expl: `// 4 · Divisionism: pure colors only (p5.js)
+// For p5.js 2.x: upload seurat.jpg to your sketch files in editor.p5js.org
+let img;
+
+// Eight pure pigments
+const palette = [
+  [246, 240, 220], [240, 200, 60], [228, 110, 40], [190, 45, 50],
+  [70, 130, 205],  [35, 60, 140],  [70, 140, 70],  [30, 40, 35]
+];
+
+async function setup() {
+  img = await loadImage('seurat.jpg');
+  createCanvas(800, 600);
+  img.resize(width, height);
+  noLoop();
+}
+
+function nearestPigment(r, g, b) {
+  let best = palette[0];
+  let minDiff = Infinity;
+  for (const p of palette) {
+    const diff = (p[0] - r) ** 2 + (p[1] - g) ** 2 + (p[2] - b) ** 2;
+    if (diff < minDiff) {
+      minDiff = diff;
+      best = p;
+    }
+  }
+  return best;
+}
+
+function draw() {
+  background('#f3efe6');
+  noStroke();
+
+  for (let i = 0; i < 9000; i++) {
+    const x = random(width);
+    const y = random(height);
+    const c = img.get(x, y);
+
+    // Nudge the sampled color with random jitter
+    const r = red(c) + random(-45, 45);
+    const g = green(c) + random(-45, 45);
+    const b = blue(c) + random(-45, 45);
+
+    const [pr, pg, pb] = nearestPigment(r, g, b);
+    fill(pr, pg, pb);
+    circle(x, y, 8);
+  }
+}
+`,
           code: `// Divisionism: only pure colors, side by side; the eye mixes them.
 const s = source('seurat')
 const palette = [[246, 240, 220], [240, 200, 60], [228, 110, 40], [190, 45, 50],
@@ -238,6 +378,53 @@ for (const i of range(n)) {
     a ← the direction of g, turned a quarter
     step from (x, y) a little in direction a
   draw a smooth curve through the steps, in the painting's color`,
+          p5expl: `// 5 · Strokes along the forms (p5.js)
+// For p5.js 2.x: upload munch.jpg to your sketch files in editor.p5js.org
+let img;
+
+async function setup() {
+  img = await loadImage('munch.jpg');
+  createCanvas(800, 600);
+  img.resize(width, height);
+  noLoop();
+}
+
+function lightnessAt(x, y) {
+  const c = img.get(x, y);
+  return (red(c) + green(c) + blue(c)) / (3 * 255);
+}
+
+// Direction perpendicular to the light change (along the contour)
+function angleAlong(x, y) {
+  const e = 8;
+  const gx = lightnessAt(x + e, y) - lightnessAt(x - e, y);
+  const gy = lightnessAt(x, y + e) - lightnessAt(x, y - e);
+  return Math.atan2(gy, gx) + HALF_PI;
+}
+
+function draw() {
+  background('#141414');
+  noFill();
+  strokeWeight(3);
+
+  for (let i = 0; i < 2600; i++) {
+    let x = random(width);
+    let y = random(height);
+    const c = img.get(x, y);
+    stroke(c);
+
+    beginShape();
+    vertex(x, y);
+    for (let step = 0; step < 4; step++) {
+      const a = angleAlong(x, y);
+      x += cos(a) * 12;
+      y += sin(a) * 12;
+      vertex(x, y);
+    }
+    endShape();
+  }
+}
+`,
           code: `// Strokes that follow the forms: along the contours, across the change of light.
 const s = source('munch')
 const n = 2600 /* 200..5000 */, len = 0.016, e = 0.015
@@ -266,6 +453,62 @@ for (const i of range(n)) {
   c ← grey + (c − grey) × saturation      (further from grey)
   c ← middle + (c − middle) × contrast     (further from the middle)
   draw the stroke wider, in color c`,
+          p5expl: `// 6 · Color pushed toward feeling (p5.js)
+// For p5.js 2.x: upload munch.jpg to your sketch files in editor.p5js.org
+let img;
+
+async function setup() {
+  img = await loadImage('munch.jpg');
+  createCanvas(800, 600);
+  img.resize(width, height);
+  noLoop();
+}
+
+function lightnessAt(x, y) {
+  const c = img.get(x, y);
+  return (red(c) + green(c) + blue(c)) / (3 * 255);
+}
+
+function angleAlong(x, y) {
+  const e = 8;
+  const gx = lightnessAt(x + e, y) - lightnessAt(x - e, y);
+  const gy = lightnessAt(x, y + e) - lightnessAt(x, y - e);
+  return Math.atan2(gy, gx) + HALF_PI;
+}
+
+// Push color: further from grey (saturation) and further from middle (contrast)
+function pushColor(c) {
+  const r = red(c), g = green(c), b = blue(c);
+  const grey = (r + g + b) / 3;
+  const saturation = 2.2;
+  const contrast = 1.4;
+  const pushChannel = v => 128 + (grey + (v - grey) * saturation - 128) * contrast;
+  return color(pushChannel(r), pushChannel(g), pushChannel(b));
+}
+
+function draw() {
+  background('#141414');
+  noFill();
+  strokeWeight(5);
+
+  for (let i = 0; i < 1800; i++) {
+    let x = random(width);
+    let y = random(height);
+    const c = pushColor(img.get(x, y));
+    stroke(c);
+
+    beginShape();
+    vertex(x, y);
+    for (let step = 0; step < 4; step++) {
+      const a = angleAlong(x, y);
+      x += cos(a) * 14;
+      y += sin(a) * 14;
+      vertex(x, y);
+    }
+    endShape();
+  }
+}
+`,
           code: `// Push the color: further from grey, further from the middle. The hues stay; the feeling grows.
 const s = source('munch')
 const saturation = 2.2 /* 1..4 */, contrast = 1.4 /* 1..3 */
@@ -307,6 +550,45 @@ for (const i of range(n)) {
     (x, y) ← a random place
     v ← lightness at (x, y)
     if v is light enough: draw a dot there, larger where lighter`,
+          p5expl: `// 7 · A pointillist walk (p5.js)
+// For p5.js 2.x: upload walk.gif to your sketch files in editor.p5js.org
+// (a GIF is read as its first frame here: the studio version follows the walk)
+let gif;
+
+async function setup() {
+  gif = await loadImage('walk.gif');
+  createCanvas(800, 600);
+}
+
+function draw() {
+  background('#f3efe6');
+  noStroke();
+  fill('#1d1b19');
+
+  // Center the walking figure on the canvas
+  const scale = min(width / gif.width, height / gif.height);
+  const ox = (width - gif.width * scale) / 2;
+  const oy = (height - gif.height * scale) / 2;
+
+  for (let i = 0; i < 8000; i++) {
+    const x = random(width);
+    const y = random(height);
+
+    // Map canvas coordinate to GIF pixel coordinate
+    const gx = (x - ox) / scale;
+    const gy = (y - oy) / scale;
+    if (gx < 0 || gy < 0 || gx >= gif.width || gy >= gif.height) continue;
+
+    const c = gif.get(gx, gy);
+    const lightness = (red(c) + green(c) + blue(c)) / (3 * 255);
+
+    if (lightness > 0.3) {
+      const dotSize = 2 + 8 * (lightness - 0.3);
+      circle(x, y, dotSize);
+    }
+  }
+}
+`,
           code: `// Dots where it is light: the figure is density alone. The board follows the walk.
 const s = source('walk', { fit: 'contain' })
 const n = 12000 /* 1000..20000 */, light = 0.3 /* 0.1..0.9 */
@@ -323,6 +605,63 @@ every frame of the walk:
     skip it where the photograph is dark (the ground stays cold blue)
     follow the form for a few steps
     color it by the lightness where it starts, on the ramp`,
+          p5expl: `// 8 · An expressionist walk (p5.js)
+// For p5.js 2.x: upload walk.gif to your sketch files in editor.p5js.org
+// (a GIF is read as its first frame here: the studio version follows the walk)
+let gif;
+
+async function setup() {
+  gif = await loadImage('walk.gif');
+  createCanvas(800, 600);
+}
+
+function draw() {
+  background('#1b2a6b'); // Cold blue ground
+  noFill();
+  strokeWeight(6);
+
+  const scale = min(width / gif.width, height / gif.height);
+  const ox = (width - gif.width * scale) / 2;
+  const oy = (height - gif.height * scale) / 2;
+
+  const hot = color(214, 68, 43);
+  const light = color(242, 213, 120);
+
+  for (let i = 0; i < 1800; i++) {
+    let x = random(width);
+    let y = random(height);
+
+    const gx = (x - ox) / scale;
+    const gy = (y - oy) / scale;
+    if (gx < 0 || gy < 0 || gx >= gif.width || gy >= gif.height) continue;
+
+    const c = gif.get(gx, gy);
+    const v = (red(c) + green(c) + blue(c)) / (3 * 255);
+    if (v < 0.25) continue; // Dark background remains cold blue
+
+    // Stroke color from hot red to light yellow
+    const strokeColor = lerpColor(hot, light, (v - 0.25) / 0.75);
+    stroke(strokeColor);
+
+    // Gradient direction from neighboring pixels
+    const eps = 4;
+    const cR = gif.get(gx + eps, gy), cL = gif.get(gx - eps, gy);
+    const cD = gif.get(gx, gy + eps), cU = gif.get(gx, gy - eps);
+    const gxVal = ((red(cR) + green(cR) + blue(cR)) - (red(cL) + green(cL) + blue(cL))) / (3 * 255);
+    const gyVal = ((red(cD) + green(cD) + blue(cD)) - (red(cU) + green(cU) + blue(cU))) / (3 * 255);
+    const angle = Math.atan2(gyVal, gxVal) + HALF_PI;
+
+    beginShape();
+    vertex(x, y);
+    for (let step = 0; step < 3; step++) {
+      x += cos(angle) * 16;
+      y += sin(angle) * 16;
+      vertex(x, y);
+    }
+    endShape();
+  }
+}
+`,
           code: `// Example 5 on a moving source: hot strokes on the figure, a cold ground. The board follows the walk.
 const s = source('walk', { fit: 'contain' })
 const hot = [214, 68, 43], light = [242, 213, 120]   // the paper is the cold blue

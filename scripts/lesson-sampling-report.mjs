@@ -16,7 +16,7 @@ const code = src => esc(src.trim()).replace(/(\/\/[^\n]*|\/\*.*?\*\/)/g, '<span 
 
 // The page's own script for running sketches (kept in its own file: it is copied in as it is).
 const RUNTIME = fs.readFileSync(path.resolve('scripts/lesson-report-run.js'), 'utf8');
-const variants = process.argv.slice(2).filter(a => ['both', 'studio', 'p5'].includes(a));
+const variants = process.argv.slice(2).filter(a => ['both', 'studio', 'p5', 'expl'].includes(a));
 
 function build(lang) {
 // Sketches that can run on the page: every example except those that need ml5.js (its models load
@@ -48,12 +48,19 @@ const sections = LESSON.sections.map(sec => {
       if (runs) runnable[b.id] = { w: b.w, h: b.h, code: p5.replace(/loadImage\("([^"]+)"\)/g, 'loadImage("media/$1")') };
       const id = `ex${n}`;
       // Its code, in tabs: pseudocode, the studio's, p5.js (as the page's language allows). The diagrams (how we see) are
-      // minimized to the bar of tabs; every other example opens on its pseudocode.
       const min = Boolean(sec.diagram);
+      const p5Expl = b.p5expl;
       const panes = [
         ...(b.pseudo ? [['Pseudocode', `<pre class="code pseudo">${esc(b.pseudo)}</pre>`, 'pseudo']] : []),
-        ...(lang !== 'p5' ? [['Studio', `<pre class="code">${code(b.code)}</pre>`, 'studio']] : []),
-        ...(lang !== 'studio' ? [['p5.js', `<pre class="code">${code(p5)}</pre>`, 'p5']] : [])
+        ...(lang !== 'p5' && lang !== 'expl' ? [['Studio', `<pre class="code">${code(b.code)}</pre>`, 'studio']] : []),
+        ...(lang === 'expl'
+          ? (p5Expl ? [['p5.js (expl)', `<pre class="code">${code(p5Expl)}</pre>`, 'expl']] : [['p5.js', `<pre class="code">${code(p5)}</pre>`, 'p5']])
+          : lang !== 'studio'
+            ? [
+                ['p5.js', `<pre class="code">${code(p5)}</pre>`, 'p5'],
+                ...(p5Expl ? [['p5.js (expl)', `<pre class="code">${code(p5Expl)}</pre>`, 'expl']] : [])
+              ]
+            : [])
       ];
       const open = min ? -1 : b.pseudo ? 0 : panes.findIndex(x => x[2] !== 'pseudo');
       return `
@@ -80,7 +87,7 @@ const sections = LESSON.sections.map(sec => {
 }).join('');
 
 const html = `<meta charset="utf-8">
-<title>Sampling Seurat and Munch${lang === 'studio' ? ' · Studio' : lang === 'p5' ? ' · p5.js' : ''}</title>
+<title>Sampling Seurat and Munch${lang === 'studio' ? ' · Studio' : lang === 'p5' ? ' · p5.js' : lang === 'expl' ? ' · p5.js (expl)' : ''}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">

@@ -17,10 +17,11 @@ import { md } from '../process/markdown.js';
 
 const prose = text => h('div', { html: md(text) });
 
-/** Buttons for a lesson: build it as a scene (and p5 version), and take its guided tour. */
-const lessonButtons = (app, id, { p5 = false, tour = null } = {}) => h('div', { class: 'wb-row wb-row-actions' },
+/** Buttons for a lesson: build it as a scene (and p5 or expl version), and take its guided tour. */
+const lessonButtons = (app, id, { p5 = false, expl = false, tour = null } = {}) => h('div', { class: 'wb-row wb-row-actions' },
   h('button', { class: 'wb-btn primary', title: 'Build the lesson as a new scene of slides', onclick: () => import('./lessons.js').then(m => m.buildLesson(app, id)).then(n => app.log(`The lesson is a scene: ${n} boards.`)).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }, 'Build the scene'),
   p5 ? h('button', { class: 'wb-btn', title: 'The same lesson with every drawing as a p5.js sketch', onclick: () => import('./lessons.js').then(m => m.buildLesson(app, id, { language: 'p5' })).then(n => app.log(`The lesson is a scene: ${n} boards.`)).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }, 'As p5.js') : null,
+  expl ? h('button', { class: 'wb-btn', title: 'The same lesson with barebones copy-pasteable p5.js code (p5.js expl)', onclick: () => import('./lessons.js').then(m => m.buildLesson(app, id, { language: 'expl', expl: true })).then(n => app.log(`The lesson is a scene: ${n} boards.`)).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }, 'As p5.js (expl)') : null,
   tour ? h('button', { class: 'wb-btn', title: 'A guided walkthrough, played with the real controls', onclick: () => app.walkthroughs.start(tour) }, 'Take the tour') : null);
 
 const brushTable = ids => h('div', {}, ...ids.filter(id => BRUSHES[id]).map(id => {
@@ -238,8 +239,10 @@ One idea throughout: **a picture is a function from a place to a color.** Sample
 4. **Muybridge: the picture moves:** a pointillist walk and an expressionist walk, redrawn on every frame of the clip.
 5. **The body as a source:** a gesture drawing from a pose model, and a custom brush that stamps Seurat's colors along the walking figure.
 
-The pictures are public domain from Wikimedia Commons (rights recorded in \`examples/lessons/sampling/media/RIGHTS.md\`). Each example has pseudocode, studio code and p5.js, and the bibliography checks its references. The report script writes it as pages: one with both languages in tabs, one for the studio, one for p5.js (\`scripts/lesson-sampling-report.mjs\`).`),
-      lessonButtons(app, 'sampling', { p5: true, tour: 'lesson-sampling' }))),
+The pictures are public domain from Wikimedia Commons (rights recorded in \`examples/lessons/sampling/media/RIGHTS.md\`). Each example has pseudocode, studio code and p5.js, and the bibliography checks its references. The report script writes it as pages: one with both languages in tabs, one for the studio, one for p5.js (\`scripts/lesson-sampling-report.mjs\`).
+
+- **p5.js (expl)**: Explicate mode for teaching. Barebones, copy-pasteable p5.js 2.x sketches (examples 1–8) without AMS wrappers, with hardcoded media sources ready to drop into [editor.p5js.org](https://editor.p5js.org/).`),
+      lessonButtons(app, 'sampling', { p5: true, expl: true, tour: 'lesson-sampling' }))),
 
     T('lesson-diffusion', 'Lessons', 'Diffusion models: from noise to picture', 'Diagrams, then p5.js simulations with the real DDPM and DDIM updates, then the key papers.', () => h('div', {},
       prose(`
