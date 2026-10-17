@@ -111,6 +111,39 @@ export async function eyedropToTarget(app) {
   return c;
 }
 
+/** The colors a palette dropdown offers: every palette, then the recent colors and your own (Mine). */
+const paletteSets = () => ({ ...allPalettes(), Recent: load(RECENT_KEY, []), Mine: load(MINE_KEY, []) });
+
+/**
+ * A palette dropdown with its swatches: pick(color) is called for a click; current() is the color "+" adds to Mine.
+ * Mine's swatches go with a right-click. tools: the row that makes palettes (add to Mine, one from the reference).
+ */
+function paletteBar(app, pick, current) {
+  const sel = h('select', { class: 'wb-select wb-cp-palette' });
+  const chips = h('div', { class: 'wb-cp-row' });
+  const fillSel = () => {
+    const keys = Object.keys(paletteSets()), want = load(PALETTE_KEY, '');
+    sel.replaceChildren(...keys.map(k => h('option', { value: k }, k)));
+    sel.value = keys.includes(want) ? want : 'Klee · Senecio';
+  };
+  const render = () => {
+    const name = sel.value, list = paletteSets()[name] || [];
+    const sw = list.map(c => {
+      const hexv = typeof c === 'string' ? c : c.hex, label = typeof c === 'string' ? nameOf(c) : c.name || nameOf(c.hex);
+      const b = h('button', { class: 'wb-cp-preset', type: 'button', title: `${label} · ${hexv}${name === 'Mine' ? ' (right-click removes)' : ''}`, onclick: () => pick(hexv) }, h('span', { class: 'wb-cp-chip', style: { background: hexv } }));
+      if (name === 'Mine') b.addEventListener('contextmenu', ev => { ev.preventDefault(); store(MINE_KEY, load(MINE_KEY, []).filter(x => x !== c)); render(); });
+      return b;
+    });
+    chips.replaceChildren(...(sw.length ? sw : [h('span', { class: 'wb-muted wb-small' }, name === 'Mine' ? 'Nothing yet: + adds the current color' : '—')]));
+  };
+  sel.addEventListener('change', () => { store(PALETTE_KEY, sel.value); render(); });
+  const add = h('button', { class: 'wb-cp-drop', type: 'button', title: 'Add the current color to Mine', onclick: () => { store(MINE_KEY, [...new Set([...load(MINE_KEY, []), current()])].slice(-24)); store(PALETTE_KEY, 'Mine'); fillSel(); render(); } }, '+');
+  const fromRef = app?.reference ? h('button', { class: 'wb-cp-drop wb-cp-fromref', type: 'button', title: 'Make a palette from the reference image', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg>',
+    onclick: () => { const cols = paletteFromImage(app.reference.img, 8); const name = `From ${app.reference.title}`.slice(0, 48); savePalette(name, cols); store(PALETTE_KEY, name); fillSel(); render(); } }) : null;
+  fillSel(); render();
+  return { sel, chips, tools: h('div', { class: 'wb-cp-row' }, add, fromRef) };
+}
+
 /**
  * One picker's body: the field, sliders, hex, palettes. start: { hex, alpha, none }. dismiss: what "none" does when the
  * picker is alone (closes it); with keepOpen the body just dims, for pickers that sit side by side.
@@ -125,15 +158,7 @@ function buildPicker(start, onChange, app, { allowNone = false, dismiss = () => 
   const hexIn = h('input', { class: 'wb-inline wb-cp-hex', spellcheck: 'false', title: 'Hex (#rrggbb or #rrggbbaa), or a name: burnt sienna, crimson…' });
   const pctIn = h('input', { type: 'number', class: 'wb-inline wb-cp-pct', min: 0, max: 100, title: 'Opacity %' });
   const preview = h('span', { class: 'wb-cp-chip' });
-  const paletteSel = h('select', { class: 'wb-select wb-cp-palette' });
-  const fillPalettes = () => { paletteSel.replaceChildren(...Object.keys(allPalettes()).map(k => h('option', { value: k }, k))); paletteSel.value = allPalettes()[load(PALETTE_KEY, '')] ? load(PALETTE_KEY, '') : 'Klee · Senecio'; };
-  fillPalettes();
-  const fromRef = app?.reference ? h('button', { class: 'wb-cp-drop wb-cp-fromref', type: 'button', title: 'Make a palette from the reference image', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg>',
-    onclick: () => { const cols = paletteFromImage(app.reference.img, 8); const name = `From ${app.reference.title}`.slice(0, 48); savePalette(name, cols); store(PALETTE_KEY, name); fillPalettes(); renderRows(); } }) : null;
-  const presets = h('div', { class: 'wb-cp-row' });
-  const recents = h('div', { class: 'wb-cp-row' });
-  const mine = h('div', { class: 'wb-cp-row' });
-
+  const bar = compact ? null : paletteBar(app, c => choose(c), () => formatColor(hex(), alpha));
   const drawSV = () => {
     const ctx = sv.getContext('2d'), W = sv.width, H = sv.height;
     ctx.fillStyle = hsvHex({ h: hsv.h, s: 1, v: 1 }); ctx.fillRect(0, 0, W, H);
@@ -161,20 +186,6 @@ function buildPicker(start, onChange, app, { allowNone = false, dismiss = () => 
   };
   const none = () => { if (keepOpen) body.classList.add('wb-cp-off'); else dismiss(); };
   const choose = c => { const p = parseColor(c); hsv = hexHsv(p.hex); alpha = p.alpha; sync(true); };
-  const chipBtn = (c, extra = {}) => {
-    const hexv = typeof c === 'string' ? c : c.hex, name = typeof c === 'string' ? nameOf(c) : c.name || nameOf(c.hex);
-    return h('button', { class: 'wb-cp-preset', type: 'button', title: `${name} · ${hexv}`, onclick: () => choose(hexv), ...extra }, h('span', { class: 'wb-cp-chip', style: { background: hexv } }));
-  };
-  const renderRows = () => {
-    presets.replaceChildren(...(allPalettes()[paletteSel.value] || []).map(c => chipBtn(c)));
-    const r = load(RECENT_KEY, []);
-    recents.replaceChildren(...(r.length ? r.map(c => chipBtn(c)) : [h('span', { class: 'wb-muted wb-small' }, '—')]));
-    const m = load(MINE_KEY, []);
-    mine.replaceChildren(...m.map(c => chipBtn(c, { oncontextmenu: ev => { ev.preventDefault(); store(MINE_KEY, load(MINE_KEY, []).filter(x => x !== c)); renderRows(); }, title: `${c} (right-click removes)` })),
-      h('button', { class: 'wb-cp-preset wb-cp-add', type: 'button', title: 'Add the current color to your palette', onclick: () => { const c = formatColor(hex(), alpha); store(MINE_KEY, [...new Set([...load(MINE_KEY, []), c])].slice(-24)); renderRows(); } }, '+'));
-  };
-  paletteSel.addEventListener('change', () => { store(PALETTE_KEY, paletteSel.value); renderRows(); });
-
   const dragSV = ev => {
     const r = sv.getBoundingClientRect();
     const set = e => { hsv.s = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); hsv.v = Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height)); sync(); };
@@ -188,7 +199,7 @@ function buildPicker(start, onChange, app, { allowNone = false, dismiss = () => 
   alp.addEventListener('input', () => { alpha = Number(alp.value) / 100; sync(); });
   alp.addEventListener('change', () => sync(true));
   // Hex, or a name: "burnt sienna", "payne's gray", "crimson", or a palette color's name.
-  hexIn.addEventListener('change', () => { const raw = hexIn.value.trim(); if (allowNone && /^(none|no|transparent|-|)$/i.test(raw)) { onChange(null, true); none(); return; } const v = toHex(/^[0-9a-f]{3,8}$/i.test(raw) ? `#${raw}` : raw); if (v) choose(v); else hexIn.value = formatColor(hex(), alpha).slice(1); });
+  hexIn.addEventListener('change', () => { const raw = hexIn.value.trim(); if (!allowNone && /^(transparent|none|clear)$/i.test(raw)) { alpha = 0; sync(true); return; } if (allowNone && /^(none|no|transparent|-|)$/i.test(raw)) { onChange(null, true); none(); return; } const v = toHex(/^[0-9a-f]{3,8}$/i.test(raw) ? `#${raw}` : raw); if (v) choose(v); else hexIn.value = formatColor(hex(), alpha).slice(1); });
   pctIn.addEventListener('input', () => { if (document.activeElement === pctIn) return; alpha = Math.max(0, Math.min(100, Number(pctIn.value) || 0)) / 100; sync(); });
   pctIn.addEventListener('change', () => { alpha = Math.max(0, Math.min(100, Number(pctIn.value) || 0)) / 100; sync(true); });
   for (const i of [hexIn, pctIn]) i.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') i.blur(); });
@@ -200,12 +211,9 @@ function buildPicker(start, onChange, app, { allowNone = false, dismiss = () => 
     ? h('div', { class: 'wb-cp-body' }, sv, hue, alp, h('div', { class: 'wb-cp-row wb-cp-inputs' }, h('span', { class: 'wb-cp-checker wb-cp-big' }, preview), hexIn, noneBtn))
     : h('div', { class: 'wb-cp-body' },
       sv, hue, alp,
-      h('div', { class: 'wb-cp-row wb-cp-inputs' }, h('span', { class: 'wb-cp-checker wb-cp-big' }, preview), dropBtn, h('span', { class: 'wb-muted' }, '#'), hexIn, pctIn, h('span', { class: 'wb-muted' }, '%'), noneBtn),
-      h('div', { class: 'wb-cp-row wb-cp-inputs' }, paletteSel, fromRef), presets,
-      h('div', { class: 'wb-cp-head' }, 'Recent'), recents,
-      h('div', { class: 'wb-cp-head' }, 'Mine'), mine);
+      h('div', { class: 'wb-cp-row wb-cp-inputs' }, h('span', { class: 'wb-cp-checker wb-cp-big' }, preview), dropBtn, hexIn, pctIn, h('span', { class: 'wb-muted' }, '%'), noneBtn),
+      bar.sel, bar.chips, bar.tools);
 
-  renderRows();
   sync(false);
   dirty = false;
   if (start.none) body.classList.add('wb-cp-off');
@@ -241,7 +249,7 @@ export function openPicker(anchor, start, onChange, app, { allowNone = false } =
 
 /** Stroke and fill side by side: a field, hue, opacity and hex for each, one palette. */
 const FIELD_H = 183;   // the field's height, so this mode is as tall as the canvas modes
-function fieldsBody(app, { stroke, fill, set }) {
+function fieldsBody(app, { stroke, fill, set, active: side0 }) {
   const none = v => !v || v === 'none';
   const side = (which, label, v, fallback) => {
     const b = buildPicker({ ...parseColor(none(v) ? fallback : v, fallback), none: none(v) }, (c, final) => { if (final) set(which, c ? formatColor(c.hex, c.alpha) : null); }, app, { allowNone: true, keepOpen: true, compact: true, cursor: which === 'fill' ? 'dot' : 'ring', svH: FIELD_H });
@@ -255,22 +263,13 @@ function fieldsBody(app, { stroke, fill, set }) {
     if (fo) { set('stroke', null); S.b.el.classList.add('wb-cp-off'); } else S.b.choose(f);
   } }, '⇄');
   // One palette for both: a chip goes to the side last touched.
-  let last = F;
-  const sel = h('select', { class: 'wb-select wb-cp-palette' });
-  sel.replaceChildren(...Object.keys(allPalettes()).map(k => h('option', { value: k }, k)));
-  sel.value = allPalettes()[load(PALETTE_KEY, '')] ? load(PALETTE_KEY, '') : 'Klee · Senecio';
-  const chips = h('div', { class: 'wb-cp-row' });
-  const fillChips = () => chips.replaceChildren(...(allPalettes()[sel.value] || []).map(c => {
-    const hexv = typeof c === 'string' ? c : c.hex, name = typeof c === 'string' ? nameOf(c) : c.name || nameOf(c.hex);
-    return h('button', { class: 'wb-cp-preset', type: 'button', title: `${name} · ${hexv}`, onclick: () => last.b.choose(hexv) }, h('span', { class: 'wb-cp-chip', style: { background: hexv } }));
-  }));
-  sel.addEventListener('change', () => { store(PALETTE_KEY, sel.value); fillChips(); });
-  fillChips();
+  let last = side0 === 'stroke' ? S : F;
+  const bar = paletteBar(app, c => last.b.choose(c), () => last.b.get());
   const drop = app ? h('button', { class: 'wb-cp-drop', type: 'button', title: 'Pick a color from the screen for the side you last touched', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5l4 4M4 20l1-4 9.5-9.5 3 3L8 19z"/><path d="M16 4l4 4"/></svg>', onclick: () => last.b.drop() }) : null;
   const pair = h('div', { class: 'wb-cp-sides' }, F.col, swap, S.col);
   for (const t of [F, S]) t.col.addEventListener('pointerdown', () => { last = t; });
-  const el = h('div', { class: 'wb-cp-body' }, pair, h('div', { class: 'wb-cp-row wb-cp-inputs' }, drop, sel), chips);
-  return { el, finish: () => { F.b.finish(); S.b.finish(); }, accept: c => last.b.choose(c) };
+  const el = h('div', { class: 'wb-cp-body' }, pair, h('div', { class: 'wb-cp-row wb-cp-inputs' }, drop, bar.sel), bar.chips);
+  return { el, finish: () => { F.b.finish(); S.b.finish(); }, accept: c => last.b.choose(c), active: () => (last === F ? 'fill' : 'stroke') };
 }
 
 /**
@@ -279,11 +278,11 @@ function fieldsBody(app, { stroke, fill, set }) {
  * colors on a canvas and edits them: widget(ctx) -> { el, render() }, where ctx is
  * { st, active(), setActive(w), hexOf(w), commit(w), refresh() } and st[w] = { hsv, alpha, off, dirty }.
  */
-function shellBody(app, { stroke, fill, set }, widget) {
+function shellBody(app, { stroke, fill, set, active: side0 }, widget) {
   const none = v => !v || v === 'none';
   const mk = (v, fb) => { const p = parseColor(none(v) ? fb : v, fb); return { hsv: hexHsv(p.hex), alpha: p.alpha, off: none(v), dirty: false }; };
   const st = { stroke: mk(stroke, '#1d1b19'), fill: mk(fill, '#ffffff') };
-  let active = 'stroke';
+  let active = side0 === 'fill' ? 'fill' : 'stroke';
   const hexOf = w => hsvHex(st[w].hsv), fmt = w => formatColor(hexOf(w), st[w].alpha);
   const sidesUI = {};
   const alp = h('input', { type: 'range', class: 'wb-cp-alpha', min: 0, max: 100, step: 1, title: 'Opacity of the side you last touched' });
@@ -325,16 +324,7 @@ function shellBody(app, { stroke, fill, set }, widget) {
   alp.addEventListener('input', () => { st[active].alpha = Number(alp.value) / 100; st[active].dirty = true; syncUI(); });
   alp.addEventListener('change', () => commit(active));
 
-  const sel = h('select', { class: 'wb-select wb-cp-palette' });
-  sel.replaceChildren(...Object.keys(allPalettes()).map(k => h('option', { value: k }, k)));
-  sel.value = allPalettes()[load(PALETTE_KEY, '')] ? load(PALETTE_KEY, '') : 'Klee · Senecio';
-  const chips = h('div', { class: 'wb-cp-row' });
-  const fillChips = () => chips.replaceChildren(...(allPalettes()[sel.value] || []).map(c => {
-    const hexv = typeof c === 'string' ? c : c.hex, name = typeof c === 'string' ? nameOf(c) : c.name || nameOf(c.hex);
-    return h('button', { class: 'wb-cp-preset', type: 'button', title: `${name} · ${hexv}`, onclick: () => choose(active, hexv) }, h('span', { class: 'wb-cp-chip', style: { background: hexv } }));
-  }));
-  sel.addEventListener('change', () => { store(PALETTE_KEY, sel.value); fillChips(); });
-  fillChips();
+  const bar = paletteBar(app, c => choose(active, c), () => fmt(active));
   const drop = app ? h('button', { class: 'wb-cp-drop', type: 'button', title: 'Pick a color from the screen for the side you last touched', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5l4 4M4 20l1-4 9.5-9.5 3 3L8 19z"/><path d="M16 4l4 4"/></svg>', onclick: () => eyedrop(app).then(c => c && choose(active, c)) }) : null;
   const swap = h('button', { class: 'wb-cp-drop', type: 'button', title: 'Swap stroke and fill', onclick: () => {
     const a = st.stroke; st.stroke = st.fill; st.fill = a;
@@ -345,10 +335,10 @@ function shellBody(app, { stroke, fill, set }, widget) {
   wid = widget({ st, active: () => active, setActive: w => { active = w; }, hexOf, commit, refresh: syncUI });
   const el = h('div', { class: 'wb-cp-body' }, h('div', { class: 'wb-cp-wheelbox' }, wid.el), alp,
     h('div', { class: 'wb-cp-row wb-cp-inputs wb-cp-pairrow' }, mkRow('fill', 'Fill'), mkRow('stroke', 'Stroke')),
-    h('div', { class: 'wb-cp-row wb-cp-inputs' }, drop, swap, sel), chips);
+    h('div', { class: 'wb-cp-row wb-cp-inputs' }, drop, swap, bar.sel), bar.chips);
   syncUI();
   return {
-    el, accept: c => choose(active, c), stop: () => wid.stop?.(),
+    el, accept: c => choose(active, c), stop: () => wid.stop?.(), active: () => active,
     finish: () => {
       const recent = ['stroke', 'fill'].filter(w => st[w].dirty && !st[w].off).map(fmt);
       if (recent.length) store(RECENT_KEY, [...recent, ...load(RECENT_KEY, []).filter(c => !recent.includes(c))].slice(0, 10));
@@ -591,12 +581,13 @@ export function openPaintPicker(app, x, y, io, mode = load(MODES_KEY, 'fields'))
   open?.close();
   const vals = { stroke: io.stroke, fill: io.fill };
   const set = (w, c) => { vals[w] = c; io.set(w, c); };
-  let body = null;
+  let body = null, side = io.active || null;
   const holder = h('div', { class: 'wb-cp-mode' });
   const bar = h('div', { class: 'wb-cp-modes', role: 'radiogroup', 'aria-label': 'Picker mode' });
   const mount = id => {
+    if (body) side = body.active();
     body?.finish(); body?.stop?.();
-    const args = { stroke: vals.stroke, fill: vals.fill, set };
+    const args = { stroke: vals.stroke, fill: vals.fill, set, active: side };
     body = id === 'disc' ? shellBody(app, args, discWidget) : id === 'cube' ? shellBody(app, args, cubeWidget) : fieldsBody(app, args);
     holder.replaceChildren(body.el);
     for (const b of bar.children) { const on = b.dataset.mode === id; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); }
@@ -607,8 +598,14 @@ export function openPaintPicker(app, x, y, io, mode = load(MODES_KEY, 'fields'))
   document.body.append(pop);
   mount(MODES.some(m => m.id === mode) ? mode : 'fields');
   const pw = pop.offsetWidth || 248, ph = pop.offsetHeight || 380;
-  pop.style.left = `${Math.max(8, Math.min(window.innerWidth - pw - 8, x - pw / 2))}px`;
-  pop.style.top = `${Math.max(8, Math.min(window.innerHeight - ph - 8, y - 24))}px`;
+  const ar = io.anchor?.getBoundingClientRect();
+  if (ar) {   // under the swatch that was clicked (above it when there is no room)
+    pop.style.left = `${Math.max(8, Math.min(window.innerWidth - pw - 8, ar.left))}px`;
+    pop.style.top = `${ar.bottom + ph + 8 < window.innerHeight ? ar.bottom + 6 : Math.max(8, ar.top - ph - 6)}px`;
+  } else {
+    pop.style.left = `${Math.max(8, Math.min(window.innerWidth - pw - 8, x - pw / 2))}px`;
+    pop.style.top = `${Math.max(8, Math.min(window.innerHeight - ph - 8, y - 24))}px`;
+  }
   const close = () => {
     pop.remove();
     window.removeEventListener('pointerdown', outside, true);
@@ -616,7 +613,7 @@ export function openPaintPicker(app, x, y, io, mode = load(MODES_KEY, 'fields'))
     body.finish(); body.stop?.();
     open = null;
   };
-  const outside = e => { if (!pop.contains(e.target)) close(); };
+  const outside = e => { if (!pop.contains(e.target) && !io.anchor?.contains(e.target)) close(); };
   const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
   setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
   open = { close, accept: c => body.accept(c) };

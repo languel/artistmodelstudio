@@ -20,7 +20,7 @@ In one session (26 Sep) these were added, in order:
 7. **Present** (Opt+Cmd+P) with eased camera moves; recording writes camera clips.
 8. **Scenes**: `src/workbench/scenes.js`, with each scene's document in IndexedDB `ams-scenes` and the list in localStorage `ams_scenes_v1`. There is a Scenes panel.
 9. **A minimal interface**:
-   - Movable islands (`app.makeMovable`), `app.setUI` / `ams_ui`, Cmd+. to hide everything.
+   - Movable islands (`app.makeMovable`), `app.setUI` / `ams_ui`, Alt+Z / Cmd+. (zen) to hide everything; one paint picker popup with Fields/Disc/Cube modes (`openPaintPicker`, Ctrl+right-click or the toolbar swatches); Ctrl+Shift+right-click = grid menu; board `hideLabel`/`hideBorder`; Opt+right-click on a board = `openBoardParams`.
    - Shift+double-click renames in place (`editable()` / `editInPlace()` in `src/workbench/ui.js`).
 10. **Lazy drawing and smooth plane closure**: `src/process/strokes.js`.
 11. **Scores run into the active board** (`runScoreInto` in `src/process/script.js`) instead of replacing the drawing.

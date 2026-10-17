@@ -3,7 +3,7 @@
  * and the process document at the center. Everything the user can do is also a
  * command (see mcp.js), so agents drive the same surface.
  */
-import { openToolParams, openGridParams, openToolDefaults } from './toolParams.js';
+import { openToolParams, openGridParams, openToolDefaults, openBoardParams } from './toolParams.js';
 import { openRadial } from './radial.js';
 import { boardAt, boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard, rateOf, newBoardId, nextBoardPlace } from '../process/boards.js';
 import { FX, normalizeFx } from '../process/fx.js';
@@ -58,7 +58,7 @@ import { brushesForRole, KIT, BRUSHES } from '../process/brushes.js';
 import { txStats } from '../process/texture.js';
 import { Composer } from './masks.js';
 import { Shortcuts } from './shortcuts.js';
-import { eyedropToTarget, openPicker, openPaintPicker, parseColor, formatColor } from './colorPicker.js';
+import { eyedropToTarget, openPaintPicker } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
 import { initWorkbenchMCP } from './mcp.js';
 import { Sources } from './sources.js';
@@ -459,6 +459,7 @@ export class Workbench {
   setBackground(v = 'default') {
     v = String(v || 'default').trim();
     if (/^(none|clear|see-?through)$/i.test(v)) v = 'transparent';
+    if (/^#[0-9a-f]{6}00$/i.test(v)) v = 'transparent';   // fully clear in the color picker
     const root = document.documentElement;
     if (v === 'default' || v === 'reset') { root.style.removeProperty('--wb-canvas'); v = 'default'; }
     else root.style.setProperty('--wb-canvas', v);
@@ -498,9 +499,9 @@ export class Workbench {
   }
 
   /** Stroke and fill at the pointer (Ctrl+right-click): pick both at once; Fields, Disc or Cube, as last used. */
-  openPaintPicker(x = this.pointerAt?.[0] ?? 200, y = this.pointerAt?.[1] ?? 200) {
+  openPaintPicker(x = this.pointerAt?.[0] ?? 200, y = this.pointerAt?.[1] ?? 200, { active = null, anchor = null } = {}) {
     const { stroke, fill } = this.paintValues();
-    return openPaintPicker(this, x, y, { stroke, fill, set: (which, c) => this.setPaint(which, c || (which === 'stroke' ? 'none' : null)) });
+    return openPaintPicker(this, x, y, { stroke, fill, active, anchor, set: (which, c) => this.setPaint(which, c || (which === 'stroke' ? 'none' : null)) });
   }
 
   /** The grid settings at the pointer (Ctrl+Shift+right-click): grid, grid color, paper and workspace colors. */
@@ -510,7 +511,7 @@ export class Workbench {
     const { stroke: s, fill: f } = this.paintValues();
     const chip = (which, v, tip) => {
       const b = h('button', { class: `wb-paint-${which}${v && v !== 'none' ? '' : ' none'}${which === 'stroke' && !v ? ' ink' : ''}`, title: tip, type: 'button' }, h('span', { style: which === 'stroke' ? { boxShadow: `inset 0 0 0 5px ${v && v !== 'none' ? v : !v ? 'var(--wb-text)' : 'transparent'}` } : { background: v || 'transparent' } }));
-      b.addEventListener('click', ev => { ev.stopPropagation(); openPicker(b, parseColor((v !== 'none' && v) || (which === 'fill' ? '#ffffff' : '#1d1b19')), (c, final) => { if (final) this.setPaint(which, c ? formatColor(c.hex, c.alpha) : (which === 'stroke' ? 'none' : null)); }, this, { allowNone: true }); });
+      b.addEventListener('click', ev => { ev.stopPropagation(); this.openPaintPicker(0, 0, { active: which, anchor: b }); });   // the picker in its last mode, this side selected
       b.addEventListener('contextmenu', ev => { ev.preventDefault(); showMenu([{ label: which === 'fill' ? 'No fill' : 'No stroke', run: () => this.setPaint(which, which === 'stroke' ? 'none' : null) }, ...(which === 'stroke' ? [{ label: 'Brush ink (default)', run: () => this.setPaint('stroke', null) }] : []), { label: 'Swap stroke and fill', run: () => this.swapPaint() }, { label: 'Stroke and fill together…', run: () => this.openPaintPicker(ev.clientX, ev.clientY) }], ev.clientX, ev.clientY); });
       return b;
     };
@@ -606,6 +607,19 @@ export class Workbench {
     this.emit('ui', this.ui);
   }
 
+  /** Zen mode: hide all of the interface, leaving only the drawing; again to bring it back. Everything stays reachable by shortcuts, the context menus, the radial menu (Shift+Space) and the command palette (Cmd+K). */
+  toggleZen() {
+    const u = this.ui || {}, shown = u.tools !== false || u.view !== false || u.zoom !== false || u.panels !== false;
+    this.setUI({ all: !shown });
+    this.log(shown ? 'Zen: Alt+Z brings the interface back. Cmd+K opens the command palette; Shift+Space the tools.' : 'Interface back.');
+  }
+
+  /** The board under a screen point (the topmost drawn there), or null. */
+  boardAtClient(x, y) {
+    const [wx, wy] = this.canvas.toWorld(...this.canvas.local({ clientX: x, clientY: y }));
+    return [...boardsOf(this.store.doc)].reverse().find(b => !b.hidden && wx >= b.x && wx <= b.x + b.width && wy >= b.y && wy <= b.y + b.height) || null;
+  }
+
   sceneMenu(x, y) {
     const S = this.scenes, cur = S.list.active;
     showMenu([
@@ -698,6 +712,7 @@ export class Workbench {
         { label: b.locked ? 'Unlock' : 'Lock', hint: 'Locked: its marks cannot be selected or changed, and it cannot be moved or resized', run: () => this.setBoardFlag(id, 'locked', !b.locked) },
         { label: b.hidden ? 'Show' : 'Hide', hint: 'Hidden: not drawn and not run (a dashed outline marks where it is)', run: () => this.setBoardFlag(id, 'hidden', !b.hidden) },
         { label: b.hideLabel ? 'Show title' : 'Hide title', run: () => this.setBoardFlag(id, 'hideLabel', !b.hideLabel) },
+        { label: b.hideBorder ? 'Show border' : 'Hide border', hint: 'No shadow or frame line: a board with no title and no border is only structure (selected, it still shows its outline so it can be moved)', run: () => this.setBoardFlag(id, 'hideBorder', !b.hideBorder) },
         b.code || b.pseudo ? { label: b.codeMin ? 'Open its code on pages' : 'Minimize its code on pages', hint: 'On an exported page its code is a bar of tabs (Pseudocode, Studio, p5.js) and opens on a click', run: () => this.setBoardFlag(id, 'codeMin', !b.codeMin) } : null,
         { label: b.mask ? 'Unmask' : 'Mask to board', hint: 'Its marks are cropped to the board (a mask the size of the board); off, they may spill over its edge', run: () => this.setBoardFlag(id, 'mask', !b.mask) },
         { label: 'Add to playlist', hint: 'This board (or the selected boards): the media they show, or the boards themselves', run: () => { const ids = this.canvas.boardSet.has(id) && this.canvas.boardSet.size > 1 ? [...this.canvas.boardSet] : [id]; this.playlistMenu(ids.map(i => this.playlistItemForBoard(boardById(this.store.doc, i))), x, y, b); } },
@@ -892,7 +907,12 @@ export class Workbench {
     try { this.canvas.showPoints = localStorage.getItem('ams_show_points') === '1'; } catch { /* ignore */ }
     try { if (localStorage.getItem('ams_perf') === '1') requestAnimationFrame(() => this.togglePerf(true)); } catch { /* ignore */ }
     try { const bg = localStorage.getItem('ams_workspace_bg'); if (bg && bg !== 'default') { const log = this.log; this.log = () => {}; this.setBackground(bg); this.log = log; } } catch { /* ignore */ }
-    this.canvas.onContext = (e, hit, at) => (e.altKey ? openToolParams(this, e.clientX, e.clientY) : showMenu(this.contextItems(hit, at), e.clientX, e.clientY));
+    this.canvas.onContext = (e, hit, at) => {
+      if (!e.altKey) return showMenu(this.contextItems(hit, at), e.clientX, e.clientY);
+      // Opt+right-click: a mark's or tool's parameters; on bare paper, the board's.
+      const b = !hit && !this.canvas.selected.size && this.boardAtClient(e.clientX, e.clientY);
+      return b ? openBoardParams(this, b.id, e.clientX, e.clientY) : openToolParams(this, e.clientX, e.clientY);
+    };
     this.activeBoard = MAIN;
     this.canvas.onBoardSelect = id => { this.activeBoard = id; this.selectedAsset = null; this.emit('board'); };
     this.canvas.onOpenProperties = () => this.docks.open('properties');
@@ -903,6 +923,7 @@ export class Workbench {
     window.addEventListener('pointermove', e => { this.pointerAt = [e.clientX, e.clientY]; }, { capture: true, passive: true });   // where the radial menu opens
     this.canvas.onBoardRename = id => this.renameBoard(id);
     this.canvas.onBoardContext = (id, e) => this.boardMenu(id, e.clientX, e.clientY);
+    this.canvas.onBoardParams = (id, e) => openBoardParams(this, id, e.clientX, e.clientY);   // Opt+right-click on a board's title or corner
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
     this.canvas.onDropSource = (name, at) => this.placeSource(name, at);
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));

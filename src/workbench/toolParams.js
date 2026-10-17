@@ -5,6 +5,7 @@
  */
 import { h } from './ui.js';
 import { colorField } from './colorPicker.js';
+import { boardsOf } from '../process/boards.js';
 import { icon } from './icons.js';
 import { rangeInput } from './codeParams.js';
 import { SCULPTS, sculptParams } from '../process/sculpt.js';
@@ -97,6 +98,10 @@ export function openGridParams(app, x, y) {
   open?.close();
   const pop = h('div', { class: 'wb-cp-pop wb-tp' });
   const g = app.canvas.grid;
+  // the board under the pointer, else the active one, else the main artboard
+  const [wx, wy] = app.canvas.toWorld(...app.canvas.local({ clientX: x, clientY: y }));
+  const boards = boardsOf(app.store.doc);
+  const board = boards.find(b => wx >= b.x && wx <= b.x + b.width && wy >= b.y && wy <= b.y + b.height) || boards.find(b => b.id === app.activeBoard) || boards[0];
   const workspaceColor = () => (app.background && app.background !== 'default' && app.background !== 'transparent' ? app.background : getComputedStyle(document.documentElement).getPropertyValue('--wb-canvas').trim() || '#1b1b1b');
   const seg = (options, value, onPick) => {
     const wrap = h('div', { class: 'wb-seg wb-tp-seg' });
@@ -112,7 +117,7 @@ export function openGridParams(app, x, y) {
     line('Style', seg([['lines', 'Lines'], ['dots', 'Dots']], g.style || 'lines', v => app.canvas.setGrid({ style: v }))),
     slider({ label: 'Spacing', min: 5, max: 400, step: 1, value: g.spacing, doc: 'Distance between major lines, in artboard units', onInput: v => app.canvas.setGrid({ spacing: v }) }),
     line('Color', colorField(g.color, v => app.canvas.setGrid({ color: v }), { title: 'Grid color', fallback: '#8a837840', app })),
-    line('Paper', colorField(app.store.doc.artboard.ground, v => app.store.change('artboard', d => { d.artboard = { ...d.artboard, ground: v }; }), { title: 'Artboard color', fallback: '#f3efe6', app })),
+    line(board.main ? 'Paper' : `Paper · ${board.title || 'board'}`, colorField(board.ground, v => app.store.updateBoard(board.id, { ground: v }), { title: 'The paper of the board under the pointer (else the active one)', fallback: '#f3efe6', app })),
     line('Workspace', colorField(workspaceColor(), v => app.setBackground(v), { title: 'Workspace background (behind the boards)', fallback: '#1b1b1b', app })),
     slider({ label: 'Divisions', min: 1, max: 10, step: 1, value: g.subdivisions, doc: 'Minor lines between the major ones', onInput: v => app.canvas.setGrid({ subdivisions: v }) }),
     line('Snap', snap, 'Marks snap to the grid (Shift+Tab); Ctrl snaps while drawing, moving and scaling'),
@@ -187,6 +192,41 @@ export function openToolDefaults(app, tool, x, y, shape = null) {
   pop.style.left = `${Math.max(8, Math.min(x, window.innerWidth - r.width - 8))}px`;
   pop.style.top = `${Math.max(8, Math.min(y, window.innerHeight - r.height - 8))}px`;
   const outside = e => { if (!pop.contains(e.target)) close(); };
+  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const close = () => { pop.remove(); window.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', esc, true); open = null; };
+  setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
+  open = { close };
+}
+
+/**
+ * Opt+right-click a board (its title or corner, or bare paper): its switches and paper, where the pointer is.
+ * Title and border off make a board purely structural: nothing visible, only where its marks live.
+ */
+export function openBoardParams(app, id, x, y) {
+  open?.close();
+  const b = boardsOf(app.store.doc).find(t => t.id === id);
+  if (!b) return;
+  const pop = h('div', { class: 'wb-cp-pop wb-tp' });
+  const row = (label, control, doc) => h('label', { class: 'wb-tp-row wb-tp-row2', title: doc || '' }, h('span', { class: 'wb-tp-label' }, label), control);
+  // A switch: on = shown. (Locked, hidden, mask and perf read the other way round: on = the flag is set.)
+  const flag = (key, label, doc, { shown = false } = {}) => {
+    const box = h('input', { type: 'checkbox', checked: shown ? !b[key] : Boolean(b[key]), onchange: e => app.setBoardFlag(id, key, shown ? !e.target.checked : e.target.checked) });
+    return row(label, box, doc);
+  };
+  pop.append(
+    h('div', { class: 'wb-tp-head' }, h('span', {}, b.title || 'Board')),
+    flag('hideLabel', 'Title', 'The title above the board (selected, it always shows, so the board can be moved)', { shown: true }),
+    flag('hideBorder', 'Border', 'The shadow and frame line. With title and border off a board is only structure', { shown: true }),
+    row('Paper', colorField(b.ground, v => app.store.updateBoard(id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app })),
+    flag('hidden', 'Hidden', 'Not drawn and not run (a dashed outline marks where it is)', { shown: true }),
+    flag('locked', 'Locked', 'Its marks cannot be selected or changed, and it cannot be moved or resized'),
+    flag('mask', 'Mask', 'Its marks are cropped to the board'),
+    flag('perf', 'Performance', 'A performance line under the board'));
+  document.body.append(pop);
+  const r = pop.getBoundingClientRect();
+  pop.style.left = `${Math.max(8, Math.min(x, window.innerWidth - r.width - 8))}px`;
+  pop.style.top = `${Math.max(8, Math.min(y, window.innerHeight - r.height - 8))}px`;
+  const outside = e => { if (!pop.contains(e.target) && !e.target.closest?.('.wb-cp-pop')) close(); };
   const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
   const close = () => { pop.remove(); window.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', esc, true); open = null; };
   setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });

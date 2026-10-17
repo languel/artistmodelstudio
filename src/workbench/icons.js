@@ -41,6 +41,8 @@ export const ICONS = {
   eye: svg('<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
   // The title (T) and the performance gauge, each with an "off" state (struck through, like the eye)
   label: svg('<path d="M5 5h14M12 5v14"/>'),
+  border: svg('<rect x="4" y="4" width="16" height="16" rx="1"/>'),
+  borderOff: svg('<rect x="4" y="4" width="16" height="16" rx="1" stroke-dasharray="1.5 3"/>'),
   labelOff: svg('<path d="M5 5h14M12 5v14"/><path d="M3 3l18 18"/>'),
   repeat: svg('<path d="M17 3l3 3-3 3M4 11V9a3 3 0 013-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 01-3 3H4"/>'),
   repeatOff: svg('<path d="M17 3l3 3-3 3M4 11V9a3 3 0 013-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 01-3 3H4"/><path d="M3 3l18 18"/>'),

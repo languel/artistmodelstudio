@@ -226,6 +226,7 @@ export class CanvasView {
     for (const b of boards) {
       if (b.kind === 'frame' || b.hidden || this.composedIds?.has(b.id)) continue;
       const [bx, by] = this.toScreen(b.x, b.y);
+      ctx.shadowColor = b.hideBorder ? 'transparent' : 'rgba(0,0,0,0.35)';   // no border: no shadow either
       ctx.fillStyle = b.ground;
       ctx.fillRect(bx, by, b.width * this.cam.z, b.height * this.cam.z);
     }
@@ -243,7 +244,7 @@ export class CanvasView {
     // Frames (slides): a quiet outline around the boards they hold, drawn under them.
     ctx.save();
     for (const b of boards) {
-      if (b.kind !== 'frame') continue;
+      if (b.kind !== 'frame' || b.hideBorder) continue;
       const [bx, by] = this.toScreen(b.x, b.y);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
       ctx.fillRect(bx, by, b.width * this.cam.z, b.height * this.cam.z);
@@ -763,7 +764,7 @@ export class CanvasView {
       if (e.ctrlKey && DRAW_TOOLS.has(this.getTool())) return;
       if (e.shiftKey && this.onToolDetails) { this.onToolDetails(e); return; }   // Shift+right-click: the tool's settings at the pointer
       const bh = this.boardHandleAt(...this.local(e));
-      if (bh) { this.selectBoard(bh.id); this.onBoardContext?.(bh.id, e); return; }
+      if (bh) { this.selectBoard(bh.id); (e.altKey && this.onBoardParams ? this.onBoardParams : this.onBoardContext)?.(bh.id, e); return; }
       const [wx, wy] = this.toWorld(...this.local(e));
       const hit = this.hitTest(wx, wy);
       if (hit && !this.selected.has(hit.id)) {
