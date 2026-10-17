@@ -15,13 +15,16 @@ setDefaultNoteFont(q.get('noteFont') || 'sans');
 }
 document.documentElement.classList.add('ams-embed');
 
-// The panels an editor needs; `features=a,b` (ids) adds more, if the build has them (AMS_EMBED_FULL=1 keeps them all).
-const LEAN = ['boards', 'outliner', 'properties', 'settings', 'shortcuts', 'history', 'log'];
+// The panels a drawing tool needs: layers (the outliner), properties and boards. `features=a,b` (ids) adds more, if
+// the build has them (the chunky build, AMS_EMBED_FULL=1, has them all).
+const LEAN = ['boards', 'outliner', 'properties'];
 // The chunky build (AMS_EMBED_FULL=1 npm run build:embed:full) carries every panel and registers them all.
 const FULL = typeof __AMS_EMBED_FULL__ !== 'undefined' && __AMS_EMBED_FULL__;
 const panels = FULL ? null : [...LEAN, ...(q.get('features') || '').split(',').filter(Boolean)];
-const app = new Workbench(document.querySelector('#app'), { embed: { persist: q.get('persist') === '1', panels } });
+const app = new Workbench(document.querySelector('#app'), { embed: { persist: q.get('persist') === '1', panels, full: FULL } });
 app.mount();
+// A drawing tool has no scenes, assets, docs or settings panel to open with these keys; they go to the host instead.
+if (!FULL) for (const id of ['file.save', 'file.open', 'scene.new', 'scene.next', 'scene.prev', 'view.present', 'view.reference', 'app.docs', 'app.settings', 'app.shortcuts', 'score.run']) app.shortcuts.overrides[id] = [];
 // The host owns the interface: zen (Alt+Z), the palette's show/hide commands and ams_ui cannot bring the studio's
 // islands and docks back. Only the host's `ui` / `set-ui` messages (and opening a panel, below) change what shows.
 app.hostSetUI = app.setUI.bind(app);

@@ -7,7 +7,7 @@ import { h } from './ui.js';
 import { colorField } from './colorPicker.js';
 import { boardsOf } from '../process/boards.js';
 import { icon } from './icons.js';
-import { rangeInput } from './codeParams.js';
+import { rangeInput } from './rangeInput.js';
 import { SCULPTS, sculptParams } from '../process/sculpt.js';
 import { BRUSHES, resolveParams, brushesForRole } from '../process/brushes.js';
 import { BLENDS } from '../process/document.js';

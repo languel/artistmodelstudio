@@ -16,22 +16,8 @@ import { ViewPlugin, EditorView, Decoration, WidgetType } from '@codemirror/view
 import { NUM, decimalsOf, fmt, stepFor, findControls } from '../process/controls.js';
 export { findControls };
 
-/** The shared slider look (code, canvas popovers): the filled part follows the value. */
-export function rangeInput({ min, max, step, value, title = '' }) {
-  const input = document.createElement('input');
-  input.type = 'range';
-  input.className = 'wb-range';
-  Object.assign(input, { min, max, step });
-  input.value = String(value);
-  input.title = title;
-  paintRange(input);
-  input.addEventListener('input', () => paintRange(input));
-  return input;
-}
-export function paintRange(input) {
-  const min = Number(input.min), max = Number(input.max);
-  input.style.setProperty('--p', `${((Number(input.value) - min) / ((max - min) || 1)) * 100}%`);
-}
+import { rangeInput, paintRange } from './rangeInput.js';
+export { rangeInput, paintRange };
 
 /**
  * One control: a slider bound to a code control `c`. With `live` it drives the value in use,
