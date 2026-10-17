@@ -125,6 +125,16 @@ export function startBridge(app, { origin = location.origin } = {}) {
     theme: ({ theme: t }) => { theme(t); return {}; },
     tool: ({ tool }) => { app.setTool(tool); return {}; },
     mode: ({ mode }) => { setMode(mode); return {}; },
+    // A picture under the main board, to draw over: not part of any export. { url | blob, opacity, title } shows it; no url or blob (or visible: false) hides it.
+    reference: async ({ url, blob, opacity, title, visible }) => {
+      if (!url && !blob) { if (app.reference) { app.reference.visible = false; app.canvas.invalidate(); app.renderChrome(); } return { visible: false }; }
+      const data = blob || await (await fetch(url)).blob();
+      await app.setReferenceFromBlob(data, title || 'reference');
+      if (opacity != null) app.reference.opacity = Number(opacity);
+      if (visible === false) app.reference.visible = false;
+      app.canvas.invalidate(); app.renderChrome();
+      return { visible: app.reference.visible, opacity: app.reference.opacity };
+    },
     camera: cam => { if (cam && 'z' in cam) setCamera(cam); const c = app.canvas; return { ...c.cam, w: c.w, h: c.h }; },
     focus: () => { app.canvas.canvas.focus?.(); window.focus(); return {}; },
     fit: ({ board, padding } = {}) => { app.canvas.fit(padding ?? 40, board ? boardOf(board).id : undefined); return {}; }

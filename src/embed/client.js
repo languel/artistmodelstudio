@@ -93,6 +93,8 @@ export function createEditor(container, { src, ns = 'ams-embed', theme = 'host',
     /** 'overlay' (a layer over the host's canvas: the host owns the view and the interface) or 'standalone' (the editor on its own, with the studio's zoom, zen, panels and menus). */
     setMode: mode => request('mode', { mode }),
     setTool: tool => request('tool', { tool }),
+    /** A picture under the main board to draw over (not exported): { url | blob, opacity, title }; call with nothing to hide it. */
+    reference: opts => request('reference', opts || {}),
     /** Read ({ x, y, z, w, h }) or set the view: screen = world × z + (x, y). The `camera` event reports the editor's own pans and zooms. */
     camera: cam => request('camera', cam || {}),
     fit: opts => request('fit', opts),
