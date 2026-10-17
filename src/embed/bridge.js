@@ -40,7 +40,10 @@ export function startBridge(app, { origin = location.origin } = {}) {
     if (!on) return;
     app.setBackground('transparent');
     app.canvas.setGrid({ show: 'off' });
-    ui({ panels: false, zoom: false });
+    ui({ panels: false, zoom: false, view: false });   // (the presentation menu is the studio's, not a layer's)
+    // The host's canvas owns the view: no zoom control, and no zoom, fit or frame commands to fight it (in memory only).
+    app.overlay = true;
+    for (const id of ['view.fit', 'view.frameBoard', 'view.frameSelection', 'view.zoomIn', 'view.zoomOut']) app.shortcuts.overrides[id] = [];
     for (const [id, d] of declared) declared.set(id, { ...d, ground: 'transparent', hideBorder: true, hideLabel: true });
     declare();
   };
@@ -60,6 +63,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
     app.setUI(p);
   };
   const configure = cfg => {
+    if (cfg.actions) app.hostActions = cfg.actions.filter(a => a?.id && a?.label);
     if (cfg.dock) document.documentElement.classList.toggle('dock-left', cfg.dock === 'left');
     if (cfg.ui) ui(cfg.ui);
     if (cfg.theme) theme(cfg.theme);
@@ -73,7 +77,12 @@ export function startBridge(app, { origin = location.origin } = {}) {
   };
 
   const toBlob = (canvas, type = 'image/png') => new Promise(r => canvas.toBlob(r, type));
-  const exportBoard = async ({ board, format = 'png', scale = 1, transparent = false, mode = 'picture' }) => {
+  const exportBoard = async ({ board, ids, format = 'png', scale = 1, transparent = false, mode = 'picture' }) => {
+    if (ids?.length && (format === 'png' || format === 'svg')) {   // just those marks (a selection), on no paper
+      const blob = await app.selectionBlob(format, ids);
+      if (!blob) throw new Error('Nothing to export');
+      return { format, ids, blob };
+    }
     const b = boardOf(board);
     if (format === 'png') {
       let out;
@@ -134,6 +143,8 @@ export function startBridge(app, { origin = location.origin } = {}) {
     if (applying || camFrame) return;
     camFrame = requestAnimationFrame(() => { camFrame = 0; post({ type: 'camera', ...app.canvas.cam }); });
   };
+  // Right-click menu entries the host asked for (init `actions`): the choice goes to the host, with the selected ids.
+  app.on('host-action', (id, ids) => post({ type: 'action', id, ids }));
   app.on('selection', () => post({ type: 'selection', ids: [...app.canvas.selected] }));
   app.on('tool', () => post({ type: 'tool', id: app.tool }));
   // Keys the editor did not use go to the host, so the host's own shortcuts keep working.

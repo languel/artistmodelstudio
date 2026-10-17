@@ -6,7 +6,8 @@
  *     src: './ams-editor/embed.html',          // where the built editor is served (same origin as the page)
  *     ns: 'my-app',                            // keeps its settings apart from other editors on this origin
  *     boards: [{ id: 'main', width: 512, height: 512, ground: '#ffffff' }],
- *     theme: 'auto'                            // dark | light | auto
+ *     theme: 'auto',                           // dark | light | auto
+ *     actions: [{ id: 'save', label: 'Save selection…' }]   // entries in the editor's right-click menu; editor.on('action', ({ id, ids }) => …)
  *   });
  *   editor.on('change', ({ rev }) => save(await editor.getDocument()));
  *   const { blob } = await editor.export({ board: 'main', format: 'png' });
@@ -68,7 +69,7 @@ export function createEditor(container, { src, ns = 'ams-embed', theme = 'auto',
     loadExcalidraw: scene => request('loadExcalidraw', { scene }),
     /** { rev, document }: the whole drawing as plain JSON. */
     getDocument: () => request('get-document'),
-    /** { format: png | svg | json | excalidraw, blob | text | document | scene, … } for one board. */
+    /** { format: png | svg | json | excalidraw, blob | text | document | scene, … } for one board, or with `ids` just those marks as png or svg (a blob, on no paper). */
     export: opts => request('export', opts),
     /** Any studio tool call (ams_add, ams_board, ams_view, …); editor.listTools() lists them. */
     callTool: (name, args) => request('call', { name, args }),

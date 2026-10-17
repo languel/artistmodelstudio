@@ -1032,7 +1032,9 @@ export class Workbench {
   }
 
   registerPanels() {
-    const reg = (id, title, iconName, natural, mount, extra = {}) => this.docks.register({ id, title, icon: iconName, natural, mount: el => mount(el, this), ...extra });
+    // An embedded editor carries only the panels an editor needs (embed.panels); the rest are never registered.
+    const only = this.embed?.panels;
+    const reg = (id, title, iconName, natural, mount, extra = {}) => { if (!only || only.includes(id)) this.docks.register({ id, title, icon: iconName, natural, mount: el => mount(el, this), ...extra }); };
     reg('scenes', 'Scenes', 'scenes', 'left', mountScenes);
     reg('boards', 'Boards', 'board', 'left', mountBoards);
     reg('stages', 'Stages', 'stages', 'left', mountStages);
@@ -1898,7 +1900,15 @@ export class Workbench {
   normalizeAfterPlace() { this.store.doc = normalizeDocument(this.store.doc); this.canvas.invalidate(); this.emit('document', 'place'); }
 
   /** Right-click: operations on the selection (or the canvas, when nothing is under the pointer). */
-  contextItems(hit, [wx, wy] = [0, 0]) {
+  /** The right-click menu, plus the host's own actions when the editor is embedded (init `actions`). */
+  contextItems(hit, at) {
+    const items = this.contextItemsBase(hit, at).filter(i => !(this.overlay && i?.label === 'Fit artboard'));
+    if (!this.hostActions?.length) return items;
+    const ids = [...this.canvas.selected];
+    return [...items.filter(Boolean), '-', ...this.hostActions.map(a => ({ label: a.label, hint: a.hint, run: () => this.emit('host-action', a.id, hit ? ids : []) }))];
+  }
+
+  contextItemsBase(hit, [wx, wy] = [0, 0]) {
     const sc = id => this.shortcuts.label(id);
     const ids = [...this.canvas.selected];
     if (!hit || !ids.length) {

@@ -15,3 +15,4 @@ dist-single/
 # Stock samples kept out of the repository (rights: see samples.json); they load into Assets when present
 examples/media/local/
 dist-embed/
+dist-embed-full/
