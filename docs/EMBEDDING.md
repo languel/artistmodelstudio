@@ -1,6 +1,6 @@
 # Embedding the drawing editor
 
-Status: Phase 1 and the client of Phase 2 are built and working (branch `embed-editor`); phases 3 to 5 are next. Written 17 Oct 2026. First host: p5comp (`~/dev/arduino/p5comp`), second: Genereti (`~/dev/genereti`).
+Status: Phase 1, the client, and the p5comp spike (Phase 3) are built and working (branch `embed-editor`; p5comp on `ams-editor-integration`); phases 4 and 5 are next. Written 17 Oct 2026. First host: p5comp (`~/dev/arduino/p5comp`), second: Genereti (`~/dev/genereti`).
 
 ## The goal
 
@@ -108,3 +108,15 @@ Known gaps (do before Phase 3 ships):
 - Keyboard focus: the host cannot yet forward its own keys into the editor; the client's `focus()` and clicking the iframe are the only ways in.
 - No automated test of the protocol yet (it needs a browser): the demo page is the manual check. A Playwright-style test of the demo page is the next addition.
 - The main chunk includes the lessons and walkthroughs; splitting them out would cut the 2.1 MB.
+
+## Phase 3 as built: p5comp (`~/dev/arduino/p5comp-ams`, branch `ams-editor-integration`)
+
+The first use turned out to be **drawing directly on the circuit canvas**, so the protocol gained:
+
+- `overlay: true` in `init`: the editor turns itself into a transparent layer (no workspace background, no grid, declared boards that draw nothing, no zoom control).
+- `camera` (get or set `{ x, y, z }`, plus `w`, `h` when read) and a `camera` event for the editor's own pans and zooms. One convention for both sides: `screen = world × z + (x, y)`, which is also p5comp's circuit camera, so the host keeps the two together with a few lines (`DrawingBoard.follow` and `lead`).
+- Pointer routing is the host's: the iframe has `pointer-events: none` until the host's Draw button switches the layer on.
+
+p5comp's side (all in its worktree): `sim/DrawingBoard.js` (the layer, camera sync, persistence, export), a Draw button in the canvas tools, a Draw tab for the same editor over the whole area, `drawing` in the project snapshot, a transparent PNG as the `drawing.png` asset, `npm run vendor:ams`, and `docs/drawing.md`. `scripts/sync-embed.sh <dir>` here copies the build into a host. Verified in the browser: layer exactly over the stage, camera follows a circuit zoom, marks saved in the project, tab and overlay switch cleanly.
+
+Notes for later hosts: the worktree was branched from p5comp's last commit, so it does not contain uncommitted work from the main checkout; the integration is one new file plus small edits to `Workbench.js`, `workbench.css`, `package.json` and `.gitignore`, so it ports as a patch. Vite's dev server will not `import()` a script from `/public`, so the client is read as text and imported from a blob in dev.

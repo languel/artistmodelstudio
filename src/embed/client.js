@@ -76,6 +76,8 @@ export function createEditor(container, { src, ns = 'ams-embed', theme = 'auto',
     setUI: ui => request('set-ui', ui),
     setTheme: t => request('theme', { theme: t }),
     setTool: tool => request('tool', { tool }),
+    /** Read ({ x, y, z, w, h }) or set the view: screen = world × z + (x, y). The `camera` event reports the editor's own pans and zooms. */
+    camera: cam => request('camera', cam || {}),
     fit: opts => request('fit', opts),
     focus: () => { frame.focus(); return request('focus'); },
     ready: () => readyPromise,

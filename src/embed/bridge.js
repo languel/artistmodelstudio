@@ -31,6 +31,28 @@ export function startBridge(app, { origin = location.origin } = {}) {
     const want = t === 'auto' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : t;
     if (want && document.documentElement.dataset.theme !== want) { document.documentElement.dataset.theme = want; app.canvas.invalidate(); app.renderChrome(); }
   };
+  /**
+   * Overlay: the editor as a transparent layer over the host's own canvas (a circuit, a diagram): no workspace
+   * background, no grid, and boards that draw nothing, so only the marks show. The host keeps the two cameras
+   * together with `camera` (and the `camera` event), which share one convention: screen = world × zoom + offset.
+   */
+  const overlay = on => {
+    if (!on) return;
+    app.setBackground('transparent');
+    app.canvas.setGrid({ show: 'off' });
+    app.setUI({ view: false, panels: false, zoom: false });
+    for (const [id, d] of declared) declared.set(id, { ...d, ground: 'transparent', hideBorder: true, hideLabel: true });
+    declare();
+  };
+  let applying = false;
+  const setCamera = ({ x, y, z }) => {
+    const c = app.canvas;
+    if (![x, y, z].every(Number.isFinite)) return;
+    applying = true;
+    c.cam = { x, y, z };
+    c.invalidate();
+    applying = false;
+  };
   const configure = cfg => {
     if (cfg.ui) app.setUI(cfg.ui);
     if (cfg.theme) theme(cfg.theme);
@@ -38,6 +60,8 @@ export function startBridge(app, { origin = location.origin } = {}) {
     if (cfg.accent) app.setAccent?.(cfg.accent);
     if (cfg.document) app.loadDocument(cfg.document, 'host');
     declare(cfg.boards);
+    overlay(cfg.overlay);
+    if (cfg.camera) setCamera(cfg.camera);
     if (cfg.fit) requestAnimationFrame(() => app.canvas.fit(cfg.fitPadding ?? 40, boardOf(cfg.fit === true ? null : cfg.fit)?.id));
   };
 
@@ -71,6 +95,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
     'set-ui': ui => { app.setUI(ui || {}); return {}; },
     theme: ({ theme: t }) => { theme(t); return {}; },
     tool: ({ tool }) => { app.setTool(tool); return {}; },
+    camera: cam => { if (cam && 'z' in cam) setCamera(cam); const c = app.canvas; return { ...c.cam, w: c.w, h: c.h }; },
     focus: () => { app.canvas.canvas.focus?.(); window.focus(); return {}; },
     fit: ({ board, padding } = {}) => { app.canvas.fit(padding ?? 40, board ? boardOf(board).id : undefined); return {}; }
   };
@@ -95,6 +120,13 @@ export function startBridge(app, { origin = location.origin } = {}) {
     rev++; lastReason = reason;
     if (!changeTimer) changeTimer = setTimeout(() => { changeTimer = 0; post({ type: 'change', rev, reason: lastReason }); }, 120);
   }, { live: true });
+  const onCamera = app.canvas.onCamera;
+  let camFrame = 0;
+  app.canvas.onCamera = () => {
+    onCamera?.();
+    if (applying || camFrame) return;
+    camFrame = requestAnimationFrame(() => { camFrame = 0; post({ type: 'camera', ...app.canvas.cam }); });
+  };
   app.on('selection', () => post({ type: 'selection', ids: [...app.canvas.selected] }));
   app.on('tool', () => post({ type: 'tool', id: app.tool }));
   // Keys the editor did not use go to the host, so the host's own shortcuts keep working.
