@@ -16,6 +16,7 @@ import { renderDocument, nextTimed, drawOutlines } from '../process/render.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
 import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
 import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
+import { shapePoints } from './shapes.js';
 
 const CAMERA_KEY = 'ams_workbench_camera_v1';
 export const TOOL_KEYS = { v: 'select', h: 'hand', '1': 'line', '2': 'plane', '0': 'point', t: 'note' };
@@ -25,22 +26,8 @@ const SHIFT_SCULPT = new Set(['select', 'line', 'plane', 'gesture', 'brush']);
 /** Tools that draw: Ctrl there is snap, not Properties. */
 const DRAW_TOOLS = new Set(['point', 'note', 'line', 'plane', 'circle', 'rect', 'gesture', 'guide', 'brush']);
 
-const CIRCLE_POINTS = 12;
-/**
- * The points of a rectangle (its corners) or a circle (an ellipse in the box): plane marks keep their points,
- * so a smooth circle is round and a straight one is a polygon with this many sides.
- */
-function shapePoints(tool, x0, y0, x1, y1) {
-  if (tool === 'rect') return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y], i) => [x, y, i * 60, 0.5]);
-  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, rx = (x1 - x0) / 2, ry = (y1 - y0) / 2;
-  return Array.from({ length: CIRCLE_POINTS }, (_, i) => {
-    const a = -Math.PI / 2 + (i * 2 * Math.PI) / CIRCLE_POINTS;
-    return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, i * 60, 0.5];
-  });
-}
-
 export class CanvasView {
-  constructor(host, store, { getTool, getStage, getDefaults, getSculpt, getLazy, onSelect, onTool, onNoteStyled, viewMode }) {
+  constructor(host, store, { getTool, getStage, getDefaults, getSculpt, getLazy, getShape, onSelect, onTool, onNoteStyled, viewMode }) {
     this.host = host;
     this.store = store;
     this.getTool = getTool;
@@ -48,6 +35,7 @@ export class CanvasView {
     this.getDefaults = getDefaults;
     this.getSculpt = getSculpt;
     this.getLazy = getLazy;
+    this.getShape = getShape;
     this.onSelect = onSelect;
     this.onNoteStyled = onNoteStyled;
     this.onTool = onTool;
@@ -1457,7 +1445,7 @@ export class CanvasView {
       window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
       this.pointer = false;
       // A click without a drag starts a path made point by point (click, click, … double-click or Enter).
-      if (!straight && this.draft.points.length === 1 && tool !== 'point') { this.rope = null; this.startClickPath(role, dkey); return; }
+      if (this.draft.points.length === 1 && tool !== 'point') { this.rope = null; this.startClickPath(role, dkey); return; }
       let pts = this.draft.points;
       const pathMode = this.draft.path;
       this.draft = null;
@@ -1501,7 +1489,7 @@ export class CanvasView {
       moved = true;
       if (ev.shiftKey) { const s = Math.max(Math.abs(dx), Math.abs(dy)); dx = Math.sign(dx || 1) * s; dy = Math.sign(dy || 1) * s; }
       const [ax, ay] = ev.altKey ? [x0 - dx, y0 - dy] : [x0, y0], [bx, by] = [x0 + dx, y0 + dy];
-      const points = shapePoints(tool, Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by));
+      const points = shapePoints(tool, Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by), this.getShape?.(tool));
       this.draft = normalizeElement({ role: 'plane', stage: 'draft', points, realize: d.realize, color: d.color, ...(d.fill ? { fill: d.fill } : {}), ...(path ? { path } : {}), seed: 1 }, 'draft');
       this.invalidate();
     };

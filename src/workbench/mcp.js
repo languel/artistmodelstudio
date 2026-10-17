@@ -8,6 +8,7 @@ import { runScript, runScoreInto, SCRIPT_REFERENCE } from '../process/script.js'
 import { EXERCISES } from '../process/exercises.js';
 import { ROLES, STAGE_KINDS, normalizeElement } from '../process/document.js';
 import { BRUSHES } from '../process/brushes.js';
+import { shapePoints } from './shapes.js';
 import { FX } from '../process/fx.js';
 import { toSVG, toExcalidraw, toP5, processSheet } from '../process/exports.js';
 import { toP5Min } from '../process/p5min.js';
@@ -28,17 +29,20 @@ const PRINCIPLES = `You are drawing in Artist Model Studio. The picture is a pro
 
 export function workbenchTools(app) {
   const doc = () => app.store.doc;
+  /** Each drawing tool's path (smooth or straight): the state ` and ~ set. */
+  const pathStates = () => Object.fromEntries(['line', 'plane', 'gesture', 'guide'].map(r => [r, app.defaults(r).path === 'straight' ? 'straight' : 'smooth']));
   const brushSchema = Object.fromEntries(Object.entries(BRUSHES).map(([id, b]) => [id, { roles: b.roles, doc: b.doc, params: b.params.map(p => ({ key: p.key, min: p.min, max: p.max, default: p.default, doc: p.doc })) }]));
   const png = c => c.toDataURL('image/png');
   return [
-    { name: 'ams_wb_state', description: 'Workbench state: title, artboard, stages (with element counts), active stage, tool, view, selection, reference underlay.', inputSchema: S(), run: () => ({
+    { name: 'ams_wb_state', description: 'Workbench state: title, artboard, stages (with element counts), active stage, tool, view, selection, reference underlay, shape settings, each tool\'s path.', inputSchema: S(), run: () => ({
       title: doc().title, artboard: doc().artboard,
       boards: boardsOf(doc()).map((b, i) => ({ index: i, id: b.id, title: b.title, x: b.x, y: b.y, width: b.width, height: b.height, marks: marksOf(doc(), b.id).length, main: b.main })),
       blackboard: marksOf(doc(), BLACKBOARD).length, activeBoard: app.activeBoard || MAIN, trainBoard: trainBoard(doc()),
       stages: doc().stages.map((s, i) => ({ index: i, ...s, elements: doc().elements.filter(e => e.stage === s.id).length })),
       elements: doc().elements.length, decisions: doc().decisions.length,
       activeStage: app.activeStage?.id, tool: app.tool, view: app.view.mode === 'process' ? { ...app.view, upTo: Number.isFinite(app.view.upTo) ? app.view.upTo : null } : { ...app.view, upTo: null },
-      selection: [...app.canvas.selected], reference: app.reference ? { title: app.reference.title, visible: app.reference.visible } : null
+      selection: [...app.canvas.selected], reference: app.reference ? { title: app.reference.title, visible: app.reference.visible } : null,
+      shapes: structuredClone(app.shapes), paths: pathStates()
     }) },
     { name: 'ams_vocabulary', description: 'How to write a score: principles, the point/line/plane vocabulary, brushes with parameter ranges, roles, stage kinds, and the exercises.', inputSchema: S(), run: () => ({
       principles: PRINCIPLES, vocabulary: SCRIPT_REFERENCE, roles: ROLES, stageKinds: STAGE_KINDS, brushes: brushSchema,
@@ -64,16 +68,24 @@ export function workbenchTools(app) {
       return f === 'svg' ? { svg: toSVG(one) } : f === 'excalidraw' ? toExcalidraw(one) : f === 'p5' ? { sketch: toP5(one) } : a.board ? one : doc();
     } },
     { name: 'ams_set', description: 'Replace the process document (JSON).', inputSchema: S({ doc: { type: 'object' } }, ['doc']), run: (a) => { app.loadDocument(a.doc, 'agent set'); return { ok: true }; } },
-    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color, why, text (notes). With board (id or title), points are relative to that board\'s top-left and the mark joins it; without, points are world units and the mark joins the board it lands on (the blackboard outside boards).', inputSchema: S({ role: str('Role'), board: str('Board id or title'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), by: { type: 'object' } }, ['role', 'points']), run: (a) => {
+    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color, why, text (notes), path (smooth: a curve through the points; straight: segments). Or a shape instead of points: shape circle | rect with box [x0, y0, x1, y1] (a plane mark; a circle has sides points, 3–64, default 12, round when smooth and a polygon when path is straight; a rectangle has round 0–1, 1 a pill, and is always straight). With board (id or title), points are relative to that board\'s top-left and the mark joins it; without, points are world units and the mark joins the board it lands on (the blackboard outside boards).', inputSchema: S({ role: str('Role'), board: str('Board id or title'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), path: str('smooth | straight'), shape: str('circle | rect'), box: { type: 'array' }, sides: num('Circle sides (default 12)'), round: num('Rectangle roundness 0–1 (default 0)'), by: { type: 'object' } }, ['role']), run: (a) => {
       const st = doc().stages.find(s => s.id === a.stage || s.name === a.stage) || app.activeStage;
+      if (a.shape) {
+        if (!['circle', 'rect'].includes(a.shape)) throw new Error('shape is circle or rect');
+        if (!Array.isArray(a.box) || a.box.length !== 4 || a.box.some(v => !Number.isFinite(+v))) throw new Error('A shape needs box [x0, y0, x1, y1]');
+        const [bx0, by0, bx1, by1] = a.box.map(Number);
+        a.role = 'plane';
+        a.points = shapePoints(a.shape, Math.min(bx0, bx1), Math.min(by0, by1), Math.max(bx0, bx1), Math.max(by0, by1), { sides: a.sides, round: a.round }).map(([x, y]) => [x, y]);
+        if (a.shape === 'rect') a.path = 'straight';
+      } else if (!Array.isArray(a.points)) throw new Error('ams_add needs points [[x, y], ...] (or a shape with a box)');
       a.points = normalizePoints(a.points);
       const bd = a.board ? findBoard(doc(), a.board) : null;
       if (a.board && !bd) throw new Error(`No board “${a.board}” (ams_board lists them)`);
       const ox = bd?.x || 0, oy = bd?.y || 0;
-      const el = app.store.addElement({ role: a.role, stage: st.id, ...(bd ? { board: bd.main ? undefined : bd.id } : {}), points: a.points.map((p, i) => [p[0] + ox, p[1] + oy, p[2] ?? i * 16, p[3] ?? 0.5]), realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, why: a.why, text: a.text, by: a.by || { kind: 'model', name: 'agent' } }, { by: 'agent' });
+      const el = app.store.addElement({ role: a.role, stage: st.id, ...(bd ? { board: bd.main ? undefined : bd.id } : {}), points: a.points.map((p, i) => [p[0] + ox, p[1] + oy, p[2] ?? i * 16, p[3] ?? 0.5]), realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, why: a.why, text: a.text, ...(a.path === 'straight' ? { path: 'straight' } : {}), by: a.by || { kind: 'model', name: 'agent' } }, { by: 'agent' });
       return { id: el.id, stage: st.name };
     } },
-    { name: 'ams_update', description: 'Change an element: any of stage, role, color, why, text, realize {brush, params}, points.', inputSchema: S({ id: str('Element id'), patch: { type: 'object' } }, ['id', 'patch']), run: (a) => ({ ok: Boolean(app.store.updateElement(a.id, a.patch, 'agent edit', { by: 'agent' })) }) },
+    { name: 'ams_update', description: 'Change an element: any of stage, role, color, why, text, path (straight, or null for smooth), realize {brush, params}, points.', inputSchema: S({ id: str('Element id'), patch: { type: 'object' } }, ['id', 'patch']), run: (a) => ({ ok: Boolean(app.store.updateElement(a.id, a.patch, 'agent edit', { by: 'agent' })) }) },
     { name: 'ams_delete', description: 'Delete elements.', inputSchema: S({ ids: { type: 'array', items: { type: 'string' } } }, ['ids']), run: (a) => { app.store.removeElements(a.ids, { by: 'agent' }); return { ok: true }; } },
     { name: 'ams_stage', description: 'Stages: add {name, kind}, update {id, patch}, move {id, delta}, delete {id}, activate {id}.', inputSchema: S({ action: { type: 'string', enum: ['add', 'update', 'move', 'delete', 'activate'] }, id: str('Stage id or name'), name: str(''), kind: str(STAGE_KINDS.join(' | ')), patch: { type: 'object' }, delta: num('±1') }, ['action']), run: (a) => {
       const st = doc().stages.find(s => s.id === a.id || s.name === a.id);
@@ -89,13 +101,14 @@ export function workbenchTools(app) {
       const st = doc().stages.find(s => s.id === a.stage || s.name === a.stage) || app.activeStage;
       return app.store.addDecision({ question: a.question, options: a.options || [], chosen: a.chosen, why: a.why || '', stage: st.id, by: { kind: 'model', name: 'agent' } }, { by: 'agent' });
     } },
-    { name: 'ams_view', description: 'View: mode picture|process, upTo stage index (null = all), fit, tool, select ids.', inputSchema: S({ mode: str('picture | process'), upTo: { type: ['number', 'null'] }, fit: { type: 'boolean' }, tool: str(''), select: { type: 'array', items: { type: 'string' } } }), run: (a) => {
+    { name: 'ams_view', description: 'View: mode picture|process, upTo stage index (null = all), fit, tool (select | direct | hand | board | point | line | gesture | guide | plane | circle | rect | note | brush | sculpt), cycle (select | line | plane | brush | sculpt: step through that stack, like Shift+V, Shift+1, Shift+2, Shift+B, Shift+S), select ids.', inputSchema: S({ mode: str('picture | process'), upTo: { type: ['number', 'null'] }, fit: { type: 'boolean' }, tool: str(''), cycle: str('select | line | plane | brush | sculpt'), select: { type: 'array', items: { type: 'string' } } }), run: (a) => {
       if (a.mode) app.setViewMode(a.mode);
       if ('upTo' in a) app.setUpTo(a.upTo === null ? Infinity : a.upTo);
       if (a.fit) app.canvas.fit(60, app.activeBoard);
       if (a.tool) app.setTool(a.tool);
+      if (a.cycle) { if (!['select', 'line', 'plane', 'brush', 'sculpt'].includes(a.cycle)) throw new Error('cycle is select, line, plane, brush or sculpt'); app.cycleStack(a.cycle); }
       if (a.select) app.selectIds(a.select);
-      return { ok: true };
+      return { ok: true, tool: app.tool };
     } },
     { name: 'ams_snapshot', description: 'PNG of a board (the main one unless board is given), picture or process view, optionally up to a stage.', inputSchema: S({ mode: str('picture | process'), scale: num('Scale (default 0.6)'), upTo: num('Stage index'), board: str('Board id or title') }), run: (a) => {
       const prev = app.canvas.upTo;
@@ -111,6 +124,18 @@ export function workbenchTools(app) {
       if (a.action === 'keep') app.keepSlot(a.n);
       if (a.action === 'tool') app.setTool('brush');
       return { active: app.brush.id, params: app.brush.params[app.brush.id] || {}, slots: app.slots, tool: app.tool };
+    } },
+    { name: 'ams_shape', description: 'Settings of the shape tools (Circle and Rectangle under Plane; right-click the tool): get; set {tool: circle | rect, sides (circle, 3–48), round (rect, 0 square to 1 a pill)}. They apply to the next shapes drawn by hand; ams_add shape takes its own.', inputSchema: S({ action: { type: 'string', enum: ['get', 'set'] }, tool: str('circle | rect'), sides: num('Circle sides'), round: num('Rectangle roundness 0–1') }, ['action']), run: (a) => {
+      if (a.action === 'set') {
+        if (!['circle', 'rect'].includes(a.tool)) throw new Error('tool is circle or rect');
+        if (a.tool === 'circle' && a.sides !== undefined) app.setShape('circle', { sides: Math.max(3, Math.min(48, Math.round(a.sides))) });
+        if (a.tool === 'rect' && a.round !== undefined) app.setShape('rect', { round: Math.max(0, Math.min(1, a.round)) });
+      }
+      return { shapes: structuredClone(app.shapes) };
+    } },
+    { name: 'ams_path', description: 'Smooth or straight, as the ` (straight) and ~ (smooth) keys do: with a drawing tool (line, plane, circle, gesture, guide, brush) it is the tool\'s state, kept for the next strokes (the stroke being drawn takes it too); with Select or Direct it changes the selected marks. get returns each tool\'s path.', inputSchema: S({ action: { type: 'string', enum: ['get', 'set'] }, to: str('smooth | straight') }, ['action']), run: (a) => {
+      if (a.action === 'set') { if (!['smooth', 'straight'].includes(a.to)) throw new Error('to is smooth or straight'); app.setPathChoice(a.to); }
+      return { tool: app.tool, paths: pathStates() };
     } },
     { name: 'ams_snap', description: 'Snap marks to the grid (one undo step). mode: points (every point to the nearest grid point), tidy (points, then repeated points merged and points on straight runs dropped), topleft or center (the whole mark moves so that corner or its center lands on the grid). step: grid multiples (1 = the finest grid lines; 2, 4… quantize coarser).', inputSchema: S({ ids: { type: 'array', items: { type: 'string' } }, mode: { type: 'string', enum: ['points', 'tidy', 'topleft', 'center'] }, step: num('Grid multiple (default 1)') }, ['ids', 'mode']), run: (a) => {
       const q = app.canvas.grid.spacing / Math.max(1, app.canvas.grid.subdivisions) * (a.step || 1);

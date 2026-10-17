@@ -104,9 +104,12 @@ const PLANES = [
   ['rect', 'Rectangle: drag a box (Shift: a square, Alt: from the center)', '⇧2']
 ];
 /** The drawing tools whose path (smooth or straight) is the tool's state, and the defaults they keep it in. */
-const PATH_TOOLS = { line: 'line', plane: 'plane', circle: 'plane', gesture: 'gesture', brush: 'brush' };
+const PATH_TOOLS = { line: 'line', plane: 'plane', circle: 'plane', gesture: 'gesture', guide: 'guide', brush: 'brush' };
 const NOTE_TOOL = ['note', 'Note: a written annotation', 'T'];
 const BRUSH_KEY = 'ams_brush_active';
+/** Settings of the shape tools (right-click the tool): a circle's sides, a rectangle's roundness (0 square, 1 a pill). */
+const SHAPES_KEY = 'ams_shapes_v1';
+const SHAPE_DEFAULTS = { circle: { sides: 12 }, rect: { round: 0 } };
 const SCULPT_KEY = 'ams_sculpt_v1';
 
 export class Workbench {
@@ -129,6 +132,8 @@ export class Workbench {
     // Lazy drawing: an editor setting (how the hand becomes points), not a property of marks.
     try { this.lazy = { radius: 0, smoothing: 0, ...JSON.parse(localStorage.getItem('ams_lazy') || '{}') }; } catch { this.lazy = { radius: 0, smoothing: 0 }; }
     // Sculpt: the current sculpt tool, brush radius (screen px), strength, and each tool's params.
+    this.shapes = structuredClone(SHAPE_DEFAULTS);
+    try { const s = JSON.parse(localStorage.getItem(SHAPES_KEY) || '{}'); for (const k of Object.keys(SHAPE_DEFAULTS)) Object.assign(this.shapes[k], s[k]); } catch { /* ignore */ }
     try { this.sculpt = { tool: 'push', radius: 40, strength: 0.5, params: {}, ...JSON.parse(localStorage.getItem(SCULPT_KEY) || '{}') }; } catch { this.sculpt = { tool: 'push', radius: 40, strength: 0.5, params: {} }; }
     loadSculptLibrary();
     // The active brush: the Brush tool draws with it; its params are kept per brush.
@@ -186,10 +191,10 @@ export class Workbench {
    * Select or Direct it is the selected marks'.
    */
   setPathChoice(to) {
-    if (this.tool === 'rect' || this.tool === 'guide') return;   // a rectangle keeps its corners, a guide is straight
+    if (this.tool === 'rect') return;   // a rectangle keeps its corners
     const tool = this.pathTool();
     if (!tool) { this.canvas.setPath(to); return; }
-    this.setDefaults(tool, { path: to === 'straight' ? 'straight' : undefined });
+    this.setDefaults(tool, { path: to });
     if (!this.canvas.setPath(to, { marks: false })) this.canvas.flash(to === 'straight' ? 'Straight' : 'Smooth');
   }
 
@@ -229,7 +234,7 @@ export class Workbench {
     const menu = (x, y) => showMenu([{ label }, ...list.map(([id, tip, k]) => ({ icon: icon(id), active: id === cur[0], label: tip.split(':')[0], hint: tip, keys: k, run: () => this.setTool(id) }))], x, y);
     const btn = h('button', { class: `wb-tool wb-tool-stack${inStack() ? ' on' : ''}`, 'data-guide': `tool:${cur[0]}`, title: `${cur[1]} (${key}; ${cycle}). Click again for the list · right-click: brush and look for new marks`, html: `${icon(cur[0])}<kbd>${key}</kbd><span class="wb-tool-caret"></span>` });
     btn.addEventListener('click', () => { if (inStack()) { const r = btn.getBoundingClientRect(); menu(r.left, r.bottom + 4); } else this.setTool(cur[0]); });
-    btn.addEventListener('contextmenu', ev => { ev.preventDefault(); const r = btn.getBoundingClientRect(); openToolDefaults(this, this.toolRole(cur[0]), r.left, r.bottom + 6); });
+    btn.addEventListener('contextmenu', ev => { ev.preventDefault(); const r = btn.getBoundingClientRect(); openToolDefaults(this, this.toolRole(cur[0]), r.left, r.bottom + 6, cur[0]); });
     return btn;
   }
 
@@ -254,6 +259,14 @@ export class Workbench {
   ungroupSelection() { const ids = [...this.canvas.selected]; if (ids.length) this.store.ungroup(ids); }
 
   /** Change the sculpt settings: { tool, radius, strength } or params for a tool ({ params: { amount } }). */
+  /** Settings of a shape tool (circle: sides; rect: round), kept in the browser. */
+  setShape(tool, patch) {
+    if (!SHAPE_DEFAULTS[tool]) return;
+    Object.assign(this.shapes[tool], patch);
+    try { localStorage.setItem(SHAPES_KEY, JSON.stringify(this.shapes)); } catch { /* ignore */ }
+    this.emit('tool');
+  }
+
   setSculpt(patch) {
     const s = this.sculpt;
     if (patch.params) s.params = { ...s.params, [s.tool]: { ...(s.params[s.tool] || {}), ...patch.params } };
@@ -467,7 +480,7 @@ export class Workbench {
       return { ...this.defaults(r), role: r, realize: { brush: b, params: { ...(this.brush.params[b] || {}) } } };
     }
     const d = this.toolDefaults[role] || {};
-    return { color: (role !== 'note' && this.paint?.stroke) || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...(d.path === 'straight' ? { path: 'straight' } : {}), ...(role === 'note' ? { note: d.note || {} } : {}) };
+    return { color: (role !== 'note' && this.paint?.stroke) || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...((d.path ?? (role === 'guide' ? 'straight' : null)) === 'straight' ? { path: 'straight' } : {}), ...(role === 'note' ? { note: d.note || {} } : {}) };
   }
 
   // ---- boards ----------------------------------------------------------------------
@@ -813,6 +826,7 @@ export class Workbench {
       getDefaults: r => this.defaults(r),
       getSculpt: () => this.sculpt,
       getLazy: () => this.lazy,
+      getShape: t => this.shapes[t],
       onSelect: ids => { if (ids?.length) this.selectedAsset = null; this.emit('selection'); this.renderChrome(); },
       onNoteStyled: note => this.setDefaults('note', { note }),
       onTool: t => this.setTool(t),

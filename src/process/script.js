@@ -264,7 +264,17 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
     circle(cx, cy, r, n = 48) { const ry = frac ? r * aspect() : r; return Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * ry]); },
     units() { /* read before the run: units('fraction') or units('artboard') */ },
     width: W, height: H,
-    rect(x, y, w, h) { return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]; },
+    /** The four corners; with round (0 to 1, 1 a pill) each corner is an arc, baked into the points (draw it with path: 'straight'). */
+    rect(x, y, w, h, round = 0) {
+      const t = Math.min(Math.max(+round || 0, 0), 1);
+      if (!t) return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+      const x0 = Math.min(x, x + w), x1 = Math.max(x, x + w), y0 = Math.min(y, y + h), y1 = Math.max(y, y + h), asp = frac ? aspect() : 1;
+      const rx = t * Math.min(x1 - x0, (y1 - y0) / asp) / 2, ry = rx * asp, pts = [];   // (in fractions the arc keeps its shape)
+      for (const [cx, cy, a0] of [[x1 - rx, y0 + ry, -Math.PI / 2], [x1 - rx, y1 - ry, 0], [x0 + rx, y1 - ry, Math.PI / 2], [x0 + rx, y0 + ry, Math.PI]]) {
+        for (let k = 0; k <= 6; k++) { const a = a0 + (k / 6) * (Math.PI / 2); pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]); }
+      }
+      return pts;
+    },
     random(a, b) { const r = rng(); if (a === undefined) return r; if (b === undefined) return r * a; return a + r * (b - a); },
     noise(x, y) { return noise(x, y); },
     seed(n) { rng = mulberry32(n); noise = makeNoise(rng); },
@@ -334,7 +344,7 @@ brush({id, label, roles, doc, params: {k: [min, max, def, doc]}, draw(ctx, e, p,
 defineLine(name, {doc, params: {k: [min, max, def]}}, (ctx, frames, p, env) => {...})   (shorthand)
   frames: [{x, y, nx, ny, speed, pressure}]   env: {color, rng, closed}
 walk({from, heading, steps, step, turn: (i, t) => degrees})
-circle(cx, cy, r)   rect(x, y, w, h)
+circle(cx, cy, r, n = 48)   rect(x, y, w, h, round = 0)   round 0..1 rounds the corners (1 is a pill); draw it with path: 'straight'
 random(a, b)  noise(x, y)  seed(n)  lerp  map  range(n)  sin cos PI TAU  print(...)`;
 
 /** The vocabulary as data: completions and hover docs in the editor, and references for models. */
@@ -360,7 +370,7 @@ export const SCRIPT_VOCAB = [
   ['defineLine', 'defineLine(name, { doc, params: { key: [min, max, default] } }, (ctx, frames, p, env) => { … })', 'Create your own line. frames: [{ x, y, nx, ny, speed, pressure }]; env: { color, rng, closed }. Then line(pts, { brush: name }).'],
   ['walk', 'walk({ from: [x, y], heading, steps, step, turn: (i, t) => degrees })', 'A line going for a walk: returns its points.'],
   ['circle', 'circle(cx, cy, r, n = 48)', 'Points around a circle.'],
-  ['rect', 'rect(x, y, w, h)', 'The four corners of a rectangle.'],
+  ['rect', 'rect(x, y, w, h, round = 0)', 'The four corners of a rectangle; round (0 to 1, 1 a pill) rounds them, baked into the points: draw it with path: \'straight\'.'],
   ['random', 'random(a, b)', 'Seeded random: random() 0..1, random(b) 0..b, random(a, b).'],
   ['noise', 'noise(x, y)', 'Seeded smooth noise, about -1..1.'],
   ['seed', 'seed(n)', 'Reseed random() and noise().'],

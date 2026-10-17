@@ -242,7 +242,8 @@ export function mountProperties(el, app) {
     ));
     if (tool === 'note') el.append(noteSection(noteProps({ note: d.note, color: d.color, points: [] }), patch => app.setDefaults(tool, { note: patch }), app));
     else el.append(brushSection(d.role || tool, d.realize, realize => app.setDefaults(tool, { realize }), app.store.doc));
-    el.append(lookSection(d, patch => app.setDefaults(tool, patch)));
+    // (A tool's smooth path is stored as 'smooth', not as nothing: a guide's default, with nothing stored, is straight.)
+    el.append(lookSection(d, patch => app.setDefaults(tool, 'path' in patch ? { ...patch, path: patch.path || 'smooth' } : patch)));
     el.append(section('Reason', true, whyField(d.why || '', v => app.setDefaults(tool, { why: v }), 'Why the next marks are made (kept on each one)')));
   };
 

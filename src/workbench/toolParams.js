@@ -127,7 +127,7 @@ export function openGridParams(app, x, y) {
  * Right-click a drawing tool's button: what its new marks will be (brush and its settings, opacity,
  * blend, path). The same defaults as Properties; they stay until changed.
  */
-export function openToolDefaults(app, tool, x, y) {
+export function openToolDefaults(app, tool, x, y, shape = null) {
   open?.close();
   const pop = h('div', { class: 'wb-cp-pop wb-tp' });
   const line = (label, control, doc) => h('label', { class: 'wb-tp-row wb-tp-row2', title: doc || '' }, h('span', { class: 'wb-tp-label' }, label), control);
@@ -137,6 +137,14 @@ export function openToolDefaults(app, tool, x, y) {
     draw(value);
     return wrap;
   };
+  // The shape tools' own settings (more shapes can add theirs here): the rows sit above the looks they share with the plane.
+  const shapeRows = () => {
+    const s = shape && app.shapes?.[shape];
+    if (!s) return [];
+    if (shape === 'circle') return [slider({ label: 'Sides', min: 3, max: 48, step: 1, value: s.sides, doc: 'Points on the circle. Straight, it is a polygon with this many sides; smooth, it is round (more points, rounder)', onInput: v => app.setShape('circle', { sides: Math.round(v) }) })];
+    if (shape === 'rect') return [slider({ label: 'Rounded', min: 0, max: 1, step: 0.01, value: s.round, doc: 'Corner roundness: 0 is square corners, 1 is a pill (the corners take half the shorter side)', onInput: v => app.setShape('rect', { round: v }) })];
+    return [];
+  };
   const render = () => {
     const d = app.defaults(tool), id = d.realize.brush, b = BRUSHES[id];
     const vals = resolveParams(id, d.realize.params);
@@ -144,13 +152,15 @@ export function openToolDefaults(app, tool, x, y) {
     brushSel.addEventListener('change', () => { app.setDefaults(tool, { realize: { brush: brushSel.value } }); render(); });
     brushSel.addEventListener('keydown', e => e.stopPropagation());
     pop.replaceChildren(
-      h('div', { class: 'wb-tp-head' }, h('span', { class: 'wb-tp-title' }, h('span', { html: brushIcon(id) }), `New ${tool}`), h('button', { class: 'wb-icon-btn', title: 'The brush in code', html: icon('script'), onclick: () => { close(); app.openCode?.('brush', id); } })),
+      h('div', { class: 'wb-tp-head' }, h('span', { class: 'wb-tp-title' }, h('span', { html: brushIcon(id) }), `New ${shape || tool}`), h('button', { class: 'wb-icon-btn', title: 'The brush in code', html: icon('script'), onclick: () => { close(); app.openCode?.('brush', id); } })),
+      ...shapeRows(),
       line('Brush', brushSel),
       ...(b?.params || []).map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => app.setDefaults(tool, { realize: { params: { [p.key]: v } } }) })),
       h('div', { class: 'wb-tp-sub' }, 'Look'),
       slider({ label: 'Opacity', min: 0, max: 1, step: 0.01, value: d.opacity ?? 1, doc: 'The whole mark’s opacity (on top of the brush’s own)', onInput: v => app.setDefaults(tool, { opacity: v }) }),
       line('Blend', (() => { const s = h('select', { class: 'wb-select' }, ...BLENDS.map(x => h('option', { value: x, selected: x === (d.blend || 'normal') }, x))); s.addEventListener('change', () => app.setDefaults(tool, { blend: s.value })); s.addEventListener('keydown', e => e.stopPropagation()); return s; })(), 'How the mark mixes with what is under it'),
-      tool === 'point' ? null : line('Path', seg([['smooth', 'Smooth'], ['straight', 'Straight']], d.path === 'straight' ? 'straight' : 'smooth', v => app.setDefaults(tool, { path: v === 'straight' ? 'straight' : undefined })), 'Smooth: a curve through the points. Straight: segments between them'));
+      // (A point has no path; a rectangle keeps its corners.)
+      ...(tool === 'point' || shape === 'rect' ? [] : [line('Path', seg([['smooth', 'Smooth'], ['straight', 'Straight']], d.path === 'straight' ? 'straight' : 'smooth', v => app.setDefaults(tool, { path: v })), 'Smooth: a curve through the points. Straight: segments between them')]));
   };
   render();
   document.body.append(pop);

@@ -116,8 +116,8 @@ It is kept minimal.
 - **Point by point:** with a drawing tool, click without dragging; each click adds a point. Double-click or Enter finishes, clicking the first point closes, Backspace removes the last point, Esc finishes.
 - **Closing:** a line drawn back to its start closes itself.
 - **Smooth or straight:** ` makes the path straight and ~ makes it smooth (double-tap CapsLock flips it; it ends as it was). With a drawing tool the choice is the tool's state: the stroke being drawn takes it now and the next strokes keep it. With Select or Direct it is the selected marks'. Properties → Look → Path sets it too. Starting a new stroke lets go of the mark selected before it.
-- **Gesture and guide** (under Line, on the same button; Shift+1 cycles line, gesture, guide): construction, shown in the process view and not in the picture. A gesture is the movement behind a form, drawn freehand; a guide is a straight segment, and Shift snaps its angle.
-- **Circle and rectangle** (under Plane, on the same button; Shift+2 cycles plane, circle, rectangle): drag a box. Shift keeps the sides equal (a circle, a square), Alt draws from the center, Ctrl snaps to the grid. Both make plane marks with the plane's brush, color and fill. A rectangle is four corners; a circle is twelve points on the ellipse, round when its path is smooth and a twelve-sided polygon when straight.
+- **Gesture and guide** (under Line, on the same button; Shift+1 cycles line, gesture, guide): construction, shown in the process view and not in the picture. A gesture is the movement behind a form, drawn freehand. A guide is a straight segment when you drag (Shift snaps its angle); click without dragging to place one point by point, straight by default and smooth (a curved construction line) with ~.
+- **Circle and rectangle** (under Plane, on the same button; Shift+2 cycles plane, circle, rectangle): drag a box. Shift keeps the sides equal (a circle, a square), Alt draws from the center, Ctrl snaps to the grid. Both make plane marks with the plane's brush, color and fill. A rectangle is four corners, or rounded ones (Rounded, 0 to 1, a pill at 1) baked into its points; a circle is Sides points (12 by default, 3 to 48) on the ellipse, round when its path is smooth and a polygon when straight. Right-click the Plane button while the circle or rectangle is in use to set Sides or Rounded; they stay for the next shapes.
 - **Tool settings:** right-click Point, Line or Plane (gesture and guide share the Line button; circle and rectangle the Plane button) for the brush, its settings, opacity, blend and path of new marks. They stay until changed.
 - **Direct selection** (Shift+V, sharing the Select slot):
   - Click a mark to see its points, and drag points to move them.
@@ -314,6 +314,8 @@ plane(rect(0.6, 0.2, 0.2, 0.23), { brush: 'hatch', angle: 30, spacing: 8, why: '
 decide('Where does the weight sit?', ['low left', 'high right'], 'low left', 'below and left feels heavy')
 note(0.02, 0.03, 'A note shown in the process view')
 ```
+
+`circle(cx, cy, r, n = 48)` and `rect(x, y, w, h, round = 0)` return point lists for `line()` and `plane()`. `round` (0 to 1, 1 a pill) bakes rounded corners into the rectangle's points: draw it with `path: 'straight'`. The Circle and Rectangle tools make the same marks by hand.
 
 The Score panel is a code editor (CodeMirror): line numbers, wrapping, folding, search, Cmd+/ comments, completion of the vocabulary, brush names and a brush's parameters, hover docs, and the failing line marked after a run.
 

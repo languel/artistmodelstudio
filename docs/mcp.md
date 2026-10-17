@@ -58,7 +58,11 @@ Image results (data URLs) come back as MCP image content, so an agent can see wh
 - `ams_board`: list, add, update (title, size, place, paper, text, and the opt-in `mask` (crop to the board), `maskWith` (`{ source | board, mode: luma | alpha, invert, feather, res, fx }`), `fx` (post effects on its picture) and `sourceFx` (on the source under it); `ams_vocabulary` lists the effects and their parameters), move in the sequence, delete (marks go to the blackboard unless deleted too), go, train (the board models learn from), assign marks to a board, and code (run the board's own score into it).
 - `ams_add` takes `board`: points are then relative to that board. `ams_get`, `ams_snapshot` and `ams_process_sheet` take `board` too.
 - `ams_page`: the drawing as a self-contained HTML page (every board with its picture, process view, replay, text and live code), with an intro.
-- `ams_active_brush`: the Brush tool's active brush and its slots, for drawing or performing alongside a person.
+- `ams_active_brush`: the Brush tool's active brush and its slots (Alt+Shift+1–9 by hand), for drawing or performing alongside a person.
+- `ams_add` also takes `path` (`smooth` | `straight`) and, instead of points, a `shape` (`circle` | `rect`) with `box` `[x0, y0, x1, y1]`, `sides` (circle, 3–64, default 12) and `round` (rectangle, 0–1, 1 a pill): a plane mark made by the same geometry as the Circle and Rectangle tools. A smooth circle is round and a straight one is a polygon; a rectangle is always straight. `ams_update` takes `path` too (`straight`, or `null` for smooth).
+- `ams_shape`: the shape tools' settings (right-click Circle or Rectangle): get, or set `{tool: circle | rect, sides, round}`, for the next shapes drawn by hand.
+- `ams_path`: smooth or straight as the backtick (straight) and tilde (smooth) keys do: with a drawing tool it is the tool's state, kept for the next strokes (and the stroke being drawn takes it); with Select or Direct it changes the selected marks. `get` returns each tool's path.
+- `ams_view` takes `tool` (select, direct, hand, board, point, line, gesture, guide, plane, circle, rect, note, brush, sculpt) and `cycle` (select, line, plane, brush, sculpt: step through that stack, as Shift+V, Shift+1, Shift+2, Shift+B and Shift+S do). `ams_wb_state` includes `shapes` and each tool's `paths`.
 - In scores, `board('Title')` makes a board (if new) and later marks land on it, in fractions of that board.
 
 ## The agent as engine
