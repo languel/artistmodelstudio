@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "mcp": "node src/mcp/mcpServer.js",
-    "build:single": "vite build --config vite.single.config.js && mv dist-single/index.html dist-single/ams.html 2>/dev/null || true"
+    "build:single": "vite build --config vite.single.config.js && mv dist-single/index.html dist-single/ams.html 2>/dev/null || true",
+    "build:embed": "vite build --config vite.embed.config.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

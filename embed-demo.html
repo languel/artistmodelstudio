@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Embedded editor: demo host</title>
+    <style>
+      body { margin: 0; font: 13px system-ui, sans-serif; display: grid; grid-template-columns: 1fr 300px; height: 100vh; background: #1b1b1b; color: #ddd; }
+      #draw { min-width: 0; }
+      aside { border-left: 1px solid #333; padding: 10px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+      button { font: inherit; padding: 4px 8px; }
+      pre { margin: 0; white-space: pre-wrap; font-size: 11px; color: #9a9; max-height: 40vh; overflow: auto; }
+      img { max-width: 100%; background: repeating-conic-gradient(#444 0 25%, #333 0 50%) 0 0 / 12px 12px; }
+    </style>
+  </head>
+  <body>
+    <div id="draw"></div>
+    <aside>
+      <b>Host page</b>
+      <button id="png">Export PNG of “image”</button>
+      <button id="svg">Export SVG of “image”</button>
+      <button id="doc">Get document</button>
+      <button id="load">Load a small drawing</button>
+      <button id="tool">Call ams_add (a circle)</button>
+      <img id="out" alt="" />
+      <pre id="log"></pre>
+    </aside>
+    <script type="module">
+      import { createEditor } from './src/embed/client.js';
+      const log = t => { const l = document.querySelector('#log'); l.textContent = `${t}\n${l.textContent}`.slice(0, 4000); };
+      const editor = await createEditor(document.querySelector('#draw'), {
+        src: './embed.html', ns: 'ams-demo',
+        boards: [{ id: 'main', title: 'image', width: 512, height: 512, ground: '#ffffff', hideLabel: true }, { id: 'mask', title: 'mask', width: 512, height: 512, ground: '#000000', x: 600, y: 0 }],
+        fit: true
+      });
+      window.editor = editor;
+      editor.on('change', m => log(`change rev ${m.rev} (${m.reason})`));
+      editor.on('selection', m => log(`selection ${m.ids.length}`));
+      editor.on('tool', m => log(`tool ${m.id}`));
+      log('ready');
+      document.querySelector('#png').onclick = async () => { const r = await editor.export({ board: 'main', format: 'png' }); document.querySelector('#out').src = URL.createObjectURL(r.blob); log(`png ${r.width}×${r.height}, ${r.blob.size} bytes`); };
+      document.querySelector('#svg').onclick = async () => { const r = await editor.export({ board: 'main', format: 'svg' }); log(`svg ${r.text.length} chars`); };
+      document.querySelector('#doc').onclick = async () => { const r = await editor.getDocument(); log(`document rev ${r.rev}: ${r.document.elements.length} marks, ${r.document.boards.length + 1} boards`); };
+      document.querySelector('#load').onclick = async () => { const r = await editor.getDocument(); await editor.load(r.document); log('loaded'); };
+      document.querySelector('#tool').onclick = async () => { const r = await editor.callTool('ams_add', { shape: 'circle', box: [100, 100, 300, 300], color: '#c61e00' }); log(`ams_add: ${JSON.stringify(r).slice(0, 120)}`); };
+    </script>
+  </body>
+</html>

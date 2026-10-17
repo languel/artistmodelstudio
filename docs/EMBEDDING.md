@@ -1,6 +1,6 @@
 # Embedding the drawing editor
 
-Status: plan (branch `embed-editor`). Written 17 Oct 2026. First host: p5comp (`~/dev/arduino/p5comp`), second: Genereti (`~/dev/genereti`).
+Status: Phase 1 and the client of Phase 2 are built and working (branch `embed-editor`); phases 3 to 5 are next. Written 17 Oct 2026. First host: p5comp (`~/dev/arduino/p5comp`), second: Genereti (`~/dev/genereti`).
 
 ## The goal
 
@@ -79,3 +79,32 @@ Guarantees: documents are plain JSON (`normalizeDocument` on load, so older file
 2. How many editors does a Genereti workflow show at once? (Decides whether iframes are enough or Phase 6 matters.)
 3. Where do host copies get updated from: this repo's `dist-embed/` by hand, a tagged release, or an npm package?
 4. Does the editor ever need to run offline from `file://` (the single-file build already does) or only from the host's server?
+
+## Phase 1 as built
+
+Files: `embed.html`, `src/embed/{main,isolate,bridge,client}.js`, `src/embed/noSamples.js`, `vite.embed.config.js`, `embed-demo.html` (a host page for trying it), and in `src/workbench/app.js` the `embed` option of the `Workbench` constructor (`persist` off: nothing autosaved, no scenes store; the studio's samples moved to `src/workbench/samples.js`, which the embed build swaps for a stub).
+
+Build and try:
+
+```sh
+npm run build:embed          # dist-embed/: embed.html, hashed assets, ams-editor.js (the client, one file)
+npm run dev                  # then open /embed-demo.html (a host page with buttons for each call)
+```
+
+URL parameters of `embed.html` (the client sets them): `ns` (storage namespace), `origin` (the host's origin: messages from any other are ignored), `theme` (dark | light), `persist=1` (autosave under `ns`), `tools=0`, `zoom=0`, `guide=1` (agent cursor and captions, off by default).
+
+Verified in the browser, from the dev server and from the built folder served by a plain static server (`python3 -m http.server`) next to a host page:
+
+- `createEditor` gets `ready`, `init` declares boards (a main board titled `image` and a `mask` board of the same size), `fit` frames them.
+- `export` gives PNG (with `scale` and `transparent`), SVG, JSON and Excalidraw; an unknown format is an `error`. `getDocument` returns the document with a `rev`; `callTool('ams_add', …)` draws; `loadExcalidraw(editor.export(…excalidraw).scene)` round trips; declared boards survive every `load`.
+- `change` (throttled to 120 ms, `rev` only goes up), `selection`, `tool` and `key` (keys the editor did not use) reach the host.
+- Storage: every `localStorage` key and IndexedDB name is under `ns:`; nothing is written to the studio's own keys; no scenes database is created; no autosave of the document; no request leaves the origin.
+- Startup weight: two requests, a 2.1 MB script (about 720 KB gzipped) and an 85 KB stylesheet; the iframe's DOM is ready in about 130 ms locally. The rest of `dist-embed/` (about 13 MB) is lazy chunks that load only when used (Mermaid and its diagrams, p5, KaTeX fonts).
+
+Known gaps (do before Phase 3 ships):
+
+- `dist-embed/` still carries three pictures and a GIF from the lessons (`walk.gif`, `munch.jpg`, `seurat.jpg`): find the importer and stub it like the samples.
+- Fonts: the studio's page loads Caveat, Patrick Hand and Newsreader from Google; the embed does not, so those faces fall back. Bundle them locally if the hand-lettered look matters to a host.
+- Keyboard focus: the host cannot yet forward its own keys into the editor; the client's `focus()` and clicking the iframe are the only ways in.
+- No automated test of the protocol yet (it needs a browser): the demo page is the manual check. A Playwright-style test of the demo page is the next addition.
+- The main chunk includes the lessons and walkthroughs; splitting them out would cut the 2.1 MB.

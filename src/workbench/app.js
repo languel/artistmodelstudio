@@ -24,7 +24,6 @@ import { onFitReady, fitTimes } from '../process/fit.js';
 import { createZip } from '../export/zip.js';
 import { AssetStore } from '../assets/assetStore.js';
 import { AssetPanel } from '../ui/AssetPanel.js';
-import { bundledReferences } from '../ui/ReferencePanel.js';
 import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
 import { icon, brushIcon, sculptIcon } from './icons.js';
@@ -75,10 +74,6 @@ import { Playlists } from './playlists.js';
 import { writePlaylist } from '../process/playlist.js';
 import { SOURCE_DEMOS } from './sourceDemos.js';
 
-// Stock samples kept out of the repository (examples/media/local/, with samples.json: sources and licences).
-const LOCAL_FILES = import.meta.glob('../../examples/media/local/*.{gif,mp4,webm}', { query: '?url', import: 'default', eager: true });
-const LOCAL_LIST = import.meta.glob('../../examples/media/local/samples.json', { import: 'default', eager: true });
-const localSamples = () => (Object.values(LOCAL_LIST)[0] || []).map(s => ({ ...s, folder: 'Samples', tags: ['sample', /^Public/.test(s.license) ? 'public-domain' : 'licensed'], url: LOCAL_FILES[`../../examples/media/local/${s.file}`] })).filter(s => s.url);
 import { Guide } from './guide.js';
 
 const DOC_KEY = 'ams_process_doc_v1';
@@ -114,12 +109,19 @@ const SHAPE_DEFAULTS = { circle: { sides: 12 }, rect: { round: 0 } };
 const SCULPT_KEY = 'ams_sculpt_v1';
 
 export class Workbench {
-  constructor(root) {
+  /**
+   * opts.embed: the editor as a component inside a host page (see src/embed/). { document, persist }: the host owns
+   * the document; with persist off (the default) nothing is autosaved, no scenes store, no bundled samples.
+   */
+  constructor(root, opts = {}) {
     this.root = root;
+    this.embed = opts.embed || null;
+    this.persist = !this.embed || Boolean(this.embed.persist);
     this.handlers = new Map();
     this.logLines = [];
     let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(DOC_KEY) || 'null'); } catch { /* ignore */ }
+    if (this.persist) { try { saved = JSON.parse(localStorage.getItem(DOC_KEY) || 'null'); } catch { /* ignore */ } }
+    if (!saved && this.embed) saved = this.embed.document ? normalizeDocument(this.embed.document) : createDocument();
     if (!saved) {
       const first = runScript(EXERCISES[1].source, { seed: 1, by: { kind: 'example', name: 'exercise' } }).doc;
       if (first) first.title = EXERCISES[1].title;
@@ -158,9 +160,9 @@ export class Workbench {
       // At most one save per interval (3 s while boards run live: a large scene is a large save), not a
       // debounce: a board following its sources changes the drawing many times a second, and a
       // debounce would never save while it runs.
-      if (!this.saveTimer) this.saveTimer = setTimeout(() => { this.saveTimer = 0; this.saveDoc(); }, reason === 'live board code' ? 3000 : 300);
+      if (this.persist && !this.saveTimer) this.saveTimer = setTimeout(() => { this.saveTimer = 0; this.saveDoc(); }, reason === 'live board code' ? 3000 : 300);
       // The scene store (IndexedDB) keeps it too, less often: it has room for large drawings.
-      if (!this.persistTimer && this.scenes && reason !== 'scene') this.persistTimer = setTimeout(() => { this.persistTimer = 0; this.scenes.persist().catch(() => {}); }, reason === 'live board code' ? 5000 : 1500);
+      if (this.persist && !this.persistTimer && this.scenes && reason !== 'scene') this.persistTimer = setTimeout(() => { this.persistTimer = 0; this.scenes.persist().catch(() => {}); }, reason === 'live board code' ? 5000 : 1500);
       if (reason === 'live board code') return;   // a live redraw: saved, drawn; the panels stay as they are
       this.perfTick?.();   // a board's performance switch (or a scene with some) starts or stops the count
       if (!this.store.doc.stages.some(s => s.id === this.activeStageId)) this.activeStageId = this.store.doc.stages[0]?.id;
@@ -352,6 +354,7 @@ export class Workbench {
    * stale copy is removed, so a reload takes the scene store's copy instead of an older drawing.
    */
   saveDoc() {
+    if (!this.persist) return;
     try { localStorage.setItem(DOC_KEY, JSON.stringify(this.store.doc)); localStorage.setItem(`${DOC_KEY}_saved`, String(Date.now())); }
     catch {
       try { localStorage.removeItem(DOC_KEY); localStorage.setItem(`${DOC_KEY}_saved`, '0'); } catch { /* ignore */ }
@@ -974,7 +977,7 @@ export class Workbench {
     this.scenes = new Scenes(this);
     // The scene store may hold a newer (or larger) copy of the open scene than localStorage did.
     // (No time recorded yet, as before this was added: trust localStorage if it has a drawing.)
-    {
+    if (this.persist) {
       let t = 0;
       try { const v = localStorage.getItem(`${DOC_KEY}_saved`); t = v != null ? Number(v) || 0 : localStorage.getItem(DOC_KEY) ? Infinity : 0; } catch { /* ignore */ }
       if (t !== Infinity) this.scenes.restoreNewer(t).catch(() => {});
@@ -1000,15 +1003,7 @@ export class Workbench {
     requestAnimationFrame(() => { this.canvas.resize(); if (!hadCamera) this.canvas.fit(); this.renderChrome(); });
     this.bindKeys();
     this.renderChrome();
-    this.assetStore.seed(bundledReferences()).catch(() => {});
-    // Test clips: a countdown (frame number, time, a sweep each second) as a 30 fps video and a 10 fps GIF.
-    import('./streamSamples.js').then(m => this.assetStore.seedStreams(m.STREAM_SAMPLES)).catch(() => {});
-    this.assetStore.seedClips([
-      { id: 'countdown-30fps', title: 'countdown 30fps', url: new URL('../../examples/media/countdown-30fps.mp4', import.meta.url).href, doc: '10 s at 30 fps: each frame shows its number and time' },
-      { id: 'countdown-10fps', title: 'countdown 10fps', url: new URL('../../examples/media/countdown-10fps.gif', import.meta.url).href, doc: '10 s at 10 fps (a GIF, 100 ms a frame)' },
-      { id: 'muybridge-horse', title: 'muybridge horse', folder: 'Samples', tags: ['sample', 'public-domain'], url: new URL('../../examples/media/muybridge-horse.gif', import.meta.url).href, doc: 'A race horse, 1.5 s GIF (300×200)', artist: 'Eadweard Muybridge', date: '1887', source: 'https://commons.wikimedia.org/wiki/File:Muybridge_race_horse_animated.gif', license: 'Public domain' },
-      ...localSamples()
-    ]).catch(() => {});
+    if (!this.embed) import('./samples.js').then(m => m.seedSamples(this.assetStore)).catch(() => {});   // (the studio's samples: an embedded editor has none)
     this.followSources();
     this.sources.startAll();
     initWorkbenchMCP(this);
