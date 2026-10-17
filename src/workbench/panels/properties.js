@@ -5,7 +5,7 @@
  */
 import { h, row, numberField, selectField, section, esc } from '../ui.js';
 import { icon } from '../icons.js';
-import { rangeInput, paintRange } from '../codeParams.js';
+import { rangeInput, paintRange } from '../rangeInput.js';
 import { colorField } from '../colorPicker.js';
 import { BRUSHES, brushesForRole, resolveParams } from '../../process/brushes.js';
 import { ROLES, BLENDS } from '../../process/document.js';

@@ -46,12 +46,23 @@ export function buildCommands(app) {
     const id = K[c.id] || (c.category === 'Tool' ? `tool.${(app.toolList || []).find(t => t[1] === c.name)?.[0]}` : null);
     if (id && app.shortcuts) c.keys = app.shortcuts.label(id);
   }
+  // The lean embedded editor is a drawing tool: no scenes, assets, recording, lessons or assistant to offer.
+  if (app.embed && !app.embed.full) {
+    const gone = /^(Record|Exercise|Walkthrough|Docs|Decide|Agent)$/, names = /^(New drawing|Open file|Save to Assets|Classic studio|Toggle reference|p5\.js sketch|Process sheet)/;
+    return out.filter(c => !gone.test(c.category) && !names.test(c.name));
+  }
   out.push({ id: 'Panel:Shortcuts', category: 'App', name: 'Shortcuts', hint: 'Search and reassign keys', keys: app.shortcuts?.label('app.shortcuts') || '', run: () => app.docks.open('shortcuts') });
   return out;
 }
 
 /** Slash commands, typed in the palette: /name arguments. */
 export function slashCommands(app) {
+  const all = slashAll(app);
+  // (the lean embedded editor has no presentation, samples, lessons or program boards)
+  return app.embed && !app.embed.full ? all.filter(c => !/^(ui|present|convert|samples|lesson)$/.test(c.name)) : all;
+}
+
+function slashAll(app) {
   return [
     { name: 'background', args: '<color | transparent | default>', doc: 'The workspace behind the boards: a color (#1b1c1f, a name), transparent (for a see-through window over the desktop), or the theme’s own', run: arg => app.setBackground(arg || 'default') },
     { name: 'transparent', args: '', doc: 'See-through workspace (toggle): only the boards, marks and interface show over what is behind the window', run: () => app.setBackground(app.background === 'transparent' ? 'default' : 'transparent') },

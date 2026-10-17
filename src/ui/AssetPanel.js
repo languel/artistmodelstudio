@@ -11,7 +11,7 @@ import { matches } from '../assets/assetStore.js';
 import { renderToCanvas } from '../process/render.js';
 import { normalizeDocument } from '../process/document.js';
 import { docAt } from '../process/take.js';
-import { rangeInput } from '../workbench/codeParams.js';
+import { rangeInput } from '../workbench/rangeInput.js';
 
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return null; };
 
