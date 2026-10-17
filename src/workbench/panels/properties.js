@@ -229,7 +229,7 @@ export function mountProperties(el, app) {
   };
 
   const renderDefaults = () => {
-    const tool = app.tool;
+    const tool = app.toolRole();   // circle and rectangle make planes: the plane's defaults
     if (tool === 'sculpt') return renderSculpt();
     if (!ROLES[tool] && tool !== 'brush') {
       el.append(h('div', { class: 'wb-empty' }, 'Select something, or pick a drawing tool to set its defaults.'));

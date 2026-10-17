@@ -10,6 +10,8 @@ export const ICONS = {
   sculpt: svg('<path d="M3 17c4-1 6-5 9-5s4 3 9 2"/><circle cx="12" cy="12" r="5.5" stroke-dasharray="2 2.2" opacity=".7"/>'),
   line: svg('<path d="M4 18c3-6 5-9 8-9s3 5 8-4"/>'),
   plane: svg('<path d="M5 7l9-3 5 7-4 8-10-2z" fill="currentColor" fill-opacity=".25"/>'),
+  circle: svg('<circle cx="12" cy="12" r="7.5" fill="currentColor" fill-opacity=".25"/>'),
+  rect: svg('<rect x="4.5" y="6" width="15" height="12" rx="0.5" fill="currentColor" fill-opacity=".25"/>'),
   guide: svg('<path d="M3 17L21 7" stroke-dasharray="3 3"/>'),
   gesture: svg('<path d="M4 16c4-9 7 4 10-3s4-6 6-4" stroke-dasharray="1.5 3"/>'),
   note: svg('<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4"/>'),

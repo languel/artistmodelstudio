@@ -115,8 +115,10 @@ It is kept minimal.
 
 - **Point by point:** with a drawing tool, click without dragging; each click adds a point. Double-click or Enter finishes, clicking the first point closes, Backspace removes the last point, Esc finishes.
 - **Closing:** a line drawn back to its start closes itself.
-- **Smooth or straight:** double-tap CapsLock (it ends as it was) flips the path of the stroke being drawn, or of the selected marks. Properties → Look → Path sets it too.
-- **Tool settings:** right-click Point, Line or Plane (or the gesture/guide button) for the brush, its settings, opacity, blend and path of new marks. They stay until changed.
+- **Smooth or straight:** ` makes the path straight and ~ makes it smooth (double-tap CapsLock flips it; it ends as it was). With a drawing tool the choice is the tool's state: the stroke being drawn takes it now and the next strokes keep it. With Select or Direct it is the selected marks'. Properties → Look → Path sets it too. Starting a new stroke lets go of the mark selected before it.
+- **Gesture and guide** (under Line, on the same button; Shift+1 cycles line, gesture, guide): construction, shown in the process view and not in the picture. A gesture is the movement behind a form, drawn freehand; a guide is a straight segment, and Shift snaps its angle.
+- **Circle and rectangle** (under Plane, on the same button; Shift+2 cycles plane, circle, rectangle): drag a box. Shift keeps the sides equal (a circle, a square), Alt draws from the center, Ctrl snaps to the grid. Both make plane marks with the plane's brush, color and fill. A rectangle is four corners; a circle is twelve points on the ellipse, round when its path is smooth and a twelve-sided polygon when straight.
+- **Tool settings:** right-click Point, Line or Plane (gesture and guide share the Line button; circle and rectangle the Plane button) for the brush, its settings, opacity, blend and path of new marks. They stay until changed.
 - **Direct selection** (Shift+V, sharing the Select slot):
   - Click a mark to see its points, and drag points to move them.
   - Shift-click or a marquee selects several.
@@ -173,7 +175,7 @@ A **project** holds **scenes**, and a scene holds **boards**. It is enough to wr
   - A page that opens with a document uses it as its header.
   - The studio's renderer is inside the page, and so is the drawing, so File → Open the page to keep working on it.
   - Two examples: `scripts/point-line-plane-demo.mjs` (a lecture after Kandinsky) and `scripts/senecio-report-scene.mjs` (the Senecio run report).
-- **Performing:** Alt+1–9 go to a board (0, 1 and 2 are the point, line and plane tools); Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush in a slot.
+- **Performing:** Alt+1–9 go to a board (0, 1 and 2 are the point, line and plane tools); Alt+Shift+1–9 pick a brush slot; Ctrl+Alt+Shift+1–9 keep the active brush in a slot (Shift+2 cycles the plane stack).
 
 In a score:
 

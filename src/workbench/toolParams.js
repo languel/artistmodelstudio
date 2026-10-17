@@ -55,12 +55,13 @@ export function openToolParams(app, x, y) {
       clearTimeout(timer);
       timer = setTimeout(() => { const bf = before; before = null; app.store.commitFrom(bf, 'brush param'); }, 350);
     } })));
-  } else if (app.defaults && ['point', 'line', 'plane', 'gesture', 'guide', 'brush'].includes(app.tool)) {
-    const d = app.defaults(app.tool), id = d.realize.brush, b = BRUSHES[id];
+  } else if (app.defaults && ['point', 'line', 'plane', 'circle', 'rect', 'gesture', 'guide', 'brush'].includes(app.tool)) {
+    const role = app.toolRole();   // circle and rectangle make planes: they draw with the plane's looks
+    const d = app.defaults(role), id = d.realize.brush, b = BRUSHES[id];
     const vals = resolveParams(id, d.realize.params);
     title = app.tool === 'brush' ? `Brush · ${b?.label || id}` : `New ${app.tool} · ${b?.label || id}`;
     code = () => app.openCode?.('brush', id);
-    rows.push(...(b?.params || []).map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => app.setDefaults(app.tool, { realize: { params: { [p.key]: v } } }) })));
+    rows.push(...(b?.params || []).map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => app.setDefaults(role, { realize: { params: { [p.key]: v } } }) })));
   }
   // Drawing tools: the lazy pen (an editor setting; it changes how strokes are drawn, not the marks).
   if (['line', 'plane', 'gesture', 'brush'].includes(app.tool) && app.lazy) {

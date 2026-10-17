@@ -14,15 +14,18 @@ export function defaultCommands(app) {
     cmd('tool.select', 'Tools', 'Select', ['v'], () => app.setTool('select')),
     cmd('tool.direct', 'Tools', 'Direct selection (edit points)', [], () => app.setTool('direct')),
     cmd('tool.cycle.select', 'Tools', 'Cycle select and direct', ['shift+v'], () => app.cycleStack('select')),
-    cmd('tool.cycle.construction', 'Tools', 'Cycle gesture and guide', ['shift+e', 'shift+g'], () => app.cycleStack('construction')),
+    cmd('tool.cycle.line', 'Tools', 'Cycle line, gesture and guide', ['shift+1'], () => app.cycleStack('line')),
     cmd('tool.cycle.brush', 'Tools', 'Cycle brushes', ['shift+b'], () => app.cycleStack('brush')),
     cmd('tool.cycle.sculpt', 'Tools', 'Cycle sculpt tools', ['shift+s'], () => app.cycleStack('sculpt')),
     cmd('tool.hand', 'Tools', 'Pan', ['h'], () => app.setTool('hand')),
     cmd('tool.point', 'Tools', 'Point (dimension 0)', ['0'], () => app.setTool('point')),
     cmd('tool.line', 'Tools', 'Line (dimension 1)', ['1'], () => app.setTool('line')),
     cmd('tool.plane', 'Tools', 'Plane (dimension 2)', ['2'], () => app.setTool('plane')),
-    cmd('tool.gesture', 'Tools', 'Gesture', ['e'], () => app.setTool('gesture')),
-    cmd('tool.guide', 'Tools', 'Guide', ['g'], () => app.setTool('guide')),
+    cmd('tool.circle', 'Tools', 'Circle (under plane)', [], () => app.setTool('circle')),
+    cmd('tool.rect', 'Tools', 'Rectangle (under plane)', [], () => app.setTool('rect')),
+    cmd('tool.cycle.plane', 'Tools', 'Cycle plane, circle and rectangle', ['shift+2'], () => app.cycleStack('plane')),
+    cmd('tool.gesture', 'Tools', 'Gesture (under line)', [], () => app.setTool('gesture')),
+    cmd('tool.guide', 'Tools', 'Guide (under line)', [], () => app.setTool('guide')),
     cmd('tool.note', 'Tools', 'Note', ['t'], () => app.setTool('note')),
     cmd('view.points', 'View', "Show marks' points", ["'"], () => app.togglePoints()),
     cmd('tool.brush', 'Tools', 'Brush', ['b'], () => app.setTool('brush')),
@@ -88,6 +91,7 @@ export function comboOf(e) {
   // Shifted punctuation (?, +) is its own key; letters and digits keep shift as a modifier.
   let key = k.length === 1 ? k.toLowerCase() : k.toLowerCase();
   if (e.altKey && e.code?.startsWith('Key')) key = e.code.slice(3).toLowerCase();
+  if (e.shiftKey && e.code?.startsWith('Digit')) key = e.code.slice(5);   // Shift+2 arrives as '@'; the digit is what is meant
   const withMod = mods.includes('mod') || mods.includes('ctrl');
   if (e.code === 'Slash' && withMod) key = '/';                       // ⌘? arrives as '/' on some layouts
   if (e.shiftKey && (/^[a-z0-9/]$/.test(key) && (withMod || /^[a-z0-9]$/.test(key)) || k.length > 1)) mods.push('shift');

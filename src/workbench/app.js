@@ -88,8 +88,23 @@ const TOOLS = [
 ];
 /** Select and direct selection (points) share a button. */
 const SELECTS = [['select', 'Select and move', 'V'], ['direct', 'Direct: edit points (click a mark, drag its points; double-click a segment adds one; Ctrl snaps)', '⇧V']];
-/** Construction: one button for gesture and guide (like the brush and sculpt stacks). */
-const CONSTRUCTION = [['gesture', 'Gesture: the movement behind a form', 'E'], ['guide', 'Guide: construction (straight; Shift snaps)', 'G']];
+/**
+ * Line, gesture and guide share a button (1; Shift+1 cycles). A gesture and a guide are construction: they show
+ * in the process view, not in the picture.
+ */
+const LINES = [
+  ['line', 'Line: a point that moved (dimension 1)', '1'],
+  ['gesture', 'Gesture: the movement behind a form (construction: process view only)', '⇧1'],
+  ['guide', 'Guide: construction, straight; Shift snaps the angle (process view only)', '⇧1']
+];
+/** Plane, circle and rectangle share a button (2; Shift+2 cycles). All three make plane marks. */
+const PLANES = [
+  ['plane', 'Plane: an enclosed area (dimension 2)', '2'],
+  ['circle', 'Circle: drag a box, an ellipse in it (Shift: a circle, Alt: from the center). Smooth is round; straight is a polygon', '⇧2'],
+  ['rect', 'Rectangle: drag a box (Shift: a square, Alt: from the center)', '⇧2']
+];
+/** The drawing tools whose path (smooth or straight) is the tool's state, and the defaults they keep it in. */
+const PATH_TOOLS = { line: 'line', plane: 'plane', circle: 'plane', gesture: 'gesture', brush: 'brush' };
 const NOTE_TOOL = ['note', 'Note: a written annotation', 'T'];
 const BRUSH_KEY = 'ams_brush_active';
 const SCULPT_KEY = 'ams_sculpt_v1';
@@ -159,13 +174,30 @@ export class Workbench {
   /** The brushes the brush stack offers (the Brush button's list). */
   brushIds() { return Object.keys(BRUSHES).filter(id => !BRUSHES[id].construction && BRUSHES[id].roles?.some(r => ['line', 'plane', 'gesture'].includes(r))); }
 
+  /** The defaults a tool draws with: circle and rectangle make planes, so they use the plane's. */
+  toolRole(tool = this.tool) { return tool === 'circle' || tool === 'rect' ? 'plane' : tool; }
+
+  /** The defaults a drawing tool keeps its path in (its state), or null (select, direct, pan, board, rect…). */
+  pathTool() { return PATH_TOOLS[this.tool] || null; }
+
   /**
-   * ` makes straight, ~ makes smooth: the stroke being drawn or the selected marks, else the active
-   * drawing tool's default (for the next stroke).
+   * ` makes straight, ~ makes smooth. With a drawing tool the choice is the tool's state: the stroke being
+   * drawn takes it now and the next strokes keep it (a mark selected earlier is not touched). With
+   * Select or Direct it is the selected marks'.
    */
   setPathChoice(to) {
-    if (this.canvas.setPath(to)) return;
-    if (['line', 'plane', 'gesture', 'brush'].includes(this.tool)) this.setDefaults(this.tool, { path: to === 'straight' ? 'straight' : undefined });
+    if (this.tool === 'rect' || this.tool === 'guide') return;   // a rectangle keeps its corners, a guide is straight
+    const tool = this.pathTool();
+    if (!tool) { this.canvas.setPath(to); return; }
+    this.setDefaults(tool, { path: to === 'straight' ? 'straight' : undefined });
+    if (!this.canvas.setPath(to, { marks: false })) this.canvas.flash(to === 'straight' ? 'Straight' : 'Smooth');
+  }
+
+  /** Double-tap CapsLock: the other path, as ` and ~ would set it. */
+  flipPathChoice() {
+    const tool = this.pathTool();
+    const straight = tool && !this.canvas.draft ? this.defaults(tool).path === 'straight' : this.canvas.pathIsStraight();
+    this.setPathChoice(straight ? 'smooth' : 'straight');
   }
 
   /**
@@ -175,7 +207,8 @@ export class Workbench {
   cycleStack(kind) {
     const stacks = {
       select: { ids: SELECTS.map(c => c[0]), inside: () => SELECTS.some(c => c[0] === this.tool), current: () => this.tool, shown: () => this.selectTool || 'select', go: id => this.setTool(id) },
-      construction: { ids: CONSTRUCTION.map(c => c[0]), inside: () => CONSTRUCTION.some(c => c[0] === this.tool), current: () => this.tool, shown: () => this.constructTool || 'gesture', go: id => this.setTool(id) },
+      line: { ids: LINES.map(c => c[0]), inside: () => LINES.some(c => c[0] === this.tool), current: () => this.tool, shown: () => this.lineTool || 'line', go: id => this.setTool(id) },
+      plane: { ids: PLANES.map(c => c[0]), inside: () => PLANES.some(c => c[0] === this.tool), current: () => this.tool, shown: () => this.planeTool || 'plane', go: id => this.setTool(id) },
       brush: { ids: this.brushIds(), inside: () => this.tool === 'brush', current: () => this.brush.id, shown: () => this.brush.id, go: id => { this.pickBrush(id, { apply: false }); this.setTool('brush'); } },
       sculpt: { ids: Object.keys(SCULPTS), inside: () => this.tool === 'sculpt', current: () => this.sculpt.tool, shown: () => this.sculpt.tool, go: id => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } },
     }[kind];
@@ -185,11 +218,30 @@ export class Workbench {
     stacks.go(stacks.ids[(i + 1) % stacks.ids.length]);
   }
 
+  /**
+   * One button for a stack of tools, showing the one in use (click again for the list; right-click for the looks of
+   * its new marks). `remembered` is the stack's last tool, shown while none of them is in use.
+   */
+  stackToolButton(list, remembered, label, cycle) {
+    const cur = list.find(c => c[0] === this.tool) || list.find(c => c[0] === remembered) || list[0];
+    const inStack = () => list.some(c => c[0] === this.tool);
+    const key = cur[2].replace('⇧', '');
+    const menu = (x, y) => showMenu([{ label }, ...list.map(([id, tip, k]) => ({ icon: icon(id), active: id === cur[0], label: tip.split(':')[0], hint: tip, keys: k, run: () => this.setTool(id) }))], x, y);
+    const btn = h('button', { class: `wb-tool wb-tool-stack${inStack() ? ' on' : ''}`, 'data-guide': `tool:${cur[0]}`, title: `${cur[1]} (${key}; ${cycle}). Click again for the list · right-click: brush and look for new marks`, html: `${icon(cur[0])}<kbd>${key}</kbd><span class="wb-tool-caret"></span>` });
+    btn.addEventListener('click', () => { if (inStack()) { const r = btn.getBoundingClientRect(); menu(r.left, r.bottom + 4); } else this.setTool(cur[0]); });
+    btn.addEventListener('contextmenu', ev => { ev.preventDefault(); const r = btn.getBoundingClientRect(); openToolDefaults(this, this.toolRole(cur[0]), r.left, r.bottom + 6); });
+    return btn;
+  }
+
+  planeStackButton() { return this.stackToolButton(PLANES, this.planeTool, 'Plane', 'Shift+2 cycles plane, circle and rectangle'); }
+  lineStackButton() { return this.stackToolButton(LINES, this.lineTool, 'Line', 'Shift+1 cycles line, gesture and guide'); }
+
   setTool(t) {
     // Choosing a tool means drawing again: leave a take being reviewed.
     if (this.player?.take) this.player.close();
-    if (t === 'gesture' || t === 'guide') this.constructTool = t;
+    if (LINES.some(c => c[0] === t)) this.lineTool = t;
     if (t === 'select' || t === 'direct') this.selectTool = t;
+    if (PLANES.some(c => c[0] === t)) this.planeTool = t;
     if (t !== 'direct' && this.canvas) this.canvas.selPoints = [];
     this.canvas?.finishClickPath?.();
     this.tool = t; this.canvas?.updateCursor(); this.emit('tool'); this.renderChrome();
@@ -666,7 +718,7 @@ export class Workbench {
     } else if (this.tool !== 'brush' && !this.canvas.selected.size) this.setTool('brush');
   }
 
-  /** Brush slots: the active brush with its settings (and the stroke color), on Shift+1–9. */
+  /** Brush slots: the active brush with its settings (and the stroke color), on Alt+Shift+1–9. */
   keepSlot(n) {
     this.slots[n] = { id: this.brush.id, params: { ...(this.brush.params[this.brush.id] || {}) }, stroke: this.paint?.stroke || null };
     try { localStorage.setItem('ams_brush_slots', JSON.stringify(this.slots)); } catch { /* ignore */ }
@@ -692,7 +744,7 @@ export class Workbench {
       { label: 'Settings…', hint: 'Opt+right-click on the canvas', run: () => { this.setTool('brush'); openToolParams(this, x, y); } },
       { label: 'Show code', run: () => this.openCode?.('brush', cur) },
       '-',
-      { label: 'Slots', hint: 'Shift+1–9 picks a slot; Ctrl+Shift+1–9 keeps the active brush there', items: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => ({ label: `${n}  ${this.slots[n] ? BRUSHES[this.slots[n].id]?.label || this.slots[n].id : '—'}`, keys: `⇧${n}`, run: () => this.useSlot(n) })).concat(['-', { label: 'Keep the active brush in…', items: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => ({ label: `Slot ${n}`, keys: `⌃⇧${n}`, run: () => this.keepSlot(n) })) }]) }
+      { label: 'Slots', hint: 'Alt+Shift+1–9 picks a slot; Ctrl+Alt+Shift+1–9 keeps the active brush there', items: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => ({ label: `${n}  ${this.slots[n] ? BRUSHES[this.slots[n].id]?.label || this.slots[n].id : '—'}`, keys: `⌥⇧${n}`, run: () => this.useSlot(n) })).concat(['-', { label: 'Keep the active brush in…', items: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => ({ label: `Slot ${n}`, keys: `⌃⌥⇧${n}`, run: () => this.keepSlot(n) })) }]) }
     ], x, y);
   }
 
@@ -777,6 +829,7 @@ export class Workbench {
     this.activeBoard = MAIN;
     this.canvas.onBoardSelect = id => { this.activeBoard = id; this.selectedAsset = null; this.emit('board'); };
     this.canvas.onOpenProperties = () => this.docks.open('properties');
+    this.canvas.onFlipPath = () => this.flipPathChoice();
     this.canvas.onBoardRename = id => this.renameBoard(id);
     this.canvas.onBoardContext = (id, e) => this.boardMenu(id, e.clientX, e.clientY);
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
@@ -836,15 +889,15 @@ export class Workbench {
     }
     this.scenes.on(() => this.renderChrome());
     try { const u = JSON.parse(localStorage.getItem('ams_ui') || 'null'); if (u) requestAnimationFrame(() => this.setUI(u)); } catch { /* ignore */ }
-    // Performing: Alt+1–9 go to a board (0, 1, 2 are tool keys); Shift+1–9 pick a brush slot; Ctrl+Shift+1–9 keep the active brush there.
+    // Performing: Alt+1–9 go to a board (0, 1, 2 are tool keys, Shift+2 cycles the plane stack); Alt+Shift+1–9 pick a brush slot; Ctrl+Alt+Shift+1–9 keep the active brush there.
     try { this.slots = JSON.parse(localStorage.getItem('ams_brush_slots') || '{}'); } catch { this.slots = {}; }
     window.addEventListener('keydown', e => {
       const m = /^Digit([1-9])$/.exec(e.code || '');
       if (!m || this.presenting || e.metaKey || e.target.closest?.('input, textarea, select, [contenteditable], .cm-editor')) return;
       const n = Number(m[1]);
-      if (e.shiftKey && e.ctrlKey) { e.preventDefault(); this.keepSlot(n); }
-      else if (e.shiftKey && !e.altKey) { e.preventDefault(); this.useSlot(n); }
-      else if (e.altKey && !e.ctrlKey) { const b = boardsOf(this.store.doc)[n - 1]; if (b) { e.preventDefault(); this.goToBoard(b.id, { animate: true }); } }
+      if (e.altKey && e.shiftKey && e.ctrlKey) { e.preventDefault(); this.keepSlot(n); }
+      else if (e.altKey && e.shiftKey) { e.preventDefault(); this.useSlot(n); }
+      else if (e.altKey && !e.ctrlKey && !e.shiftKey) { const b = boardsOf(this.store.doc)[n - 1]; if (b) { e.preventDefault(); this.goToBoard(b.id, { animate: true }); } }
     }, true);
     this.recorder = new Recorder(this);
     this.player = new TakePlayer(this);
@@ -1595,16 +1648,11 @@ export class Workbench {
       if (!t) { tools.append(h('div', { class: 'wb-sep' })); continue; }
       const [id, tip, key] = t;
       if (id === 'select') continue;
+      if (id === 'plane') { tools.append(this.planeStackButton()); continue; }
+      if (id === 'line') { tools.append(this.lineStackButton()); continue; }
       const drawing = ['point', 'line', 'plane'].includes(id);
       tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})${drawing ? ' · right-click: brush and look for new marks' : ''}`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id), oncontextmenu: drawing ? e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); openToolDefaults(this, id, r.left, r.bottom + 6); } : null }));
     }
-    // Construction: gesture and guide share a button showing the one in use (E, G still pick directly).
-    const con = CONSTRUCTION.find(c => c[0] === this.tool) || CONSTRUCTION.find(c => c[0] === this.constructTool) || CONSTRUCTION[0];
-    const conMenu = (x, y) => showMenu([{ label: 'Construction' }, ...CONSTRUCTION.map(([id, tip, key]) => ({ icon: icon(id), active: id === con[0], label: `${tip.split(':')[0]}`, hint: tip, keys: key, run: () => this.setTool(id) }))], x, y);
-    const conBtn = h('button', { class: `wb-tool wb-tool-stack${CONSTRUCTION.some(c => c[0] === this.tool) ? ' on' : ''}`, 'data-guide': `tool:${con[0]}`, title: `${con[1]} (${con[2]}). Click again or right-click for gesture and guide`, html: `${icon(con[0])}<kbd>${con[2]}</kbd><span class="wb-tool-caret"></span>` });
-    conBtn.addEventListener('click', () => { if (CONSTRUCTION.some(c => c[0] === this.tool)) { const r = conBtn.getBoundingClientRect(); conMenu(r.left, r.bottom + 4); } else this.setTool(con[0]); });
-    conBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); if (ev.altKey) conMenu(ev.clientX, ev.clientY); else { const r = conBtn.getBoundingClientRect(); openToolDefaults(this, con[0], r.left, r.bottom + 6); } });
-    tools.append(conBtn);
     // Brush: the active brush (click again or right-click for the list).
     const bb = BRUSHES[this.brush.id] || BRUSHES.ink;
     const brushBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'brush' ? ' on' : ''}`, 'data-guide': 'tool:brush', title: `Brush: ${bb.label} (B). Click again or right-click for the brushes`, html: `${brushIcon(this.brush.id)}<kbd>B</kbd><span class="wb-tool-caret"></span>` });

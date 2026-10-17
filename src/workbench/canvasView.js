@@ -4,8 +4,8 @@
  * World units are artboard units. Screen = world × zoom + offset (CSS px; the
  * backing store is scaled for devicePixelRatio).
  *
- * Tools: select (V), hand (H or hold Space), line (1), gesture (E), plane (2),
- * guide (G), point (0), note (T). Freehand tools capture time and pressure
+ * Tools: select (V), hand (H or hold Space), line (1; Shift+1 for gesture and guide), plane (2; Shift+2 for
+ * circle and rectangle), point (0), note (T). Freehand tools capture time and pressure
  * (mouse pressure is estimated from speed). Wheel pans; Ctrl/Cmd+wheel or pinch zooms.
  */
 import { sculptMark, SCULPTABLE, nearMark } from '../process/sculpt.js';
@@ -18,12 +18,26 @@ import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
 import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
 
 const CAMERA_KEY = 'ams_workbench_camera_v1';
-export const TOOL_KEYS = { v: 'select', h: 'hand', '1': 'line', e: 'gesture', '2': 'plane', g: 'guide', '0': 'point', t: 'note' };
+export const TOOL_KEYS = { v: 'select', h: 'hand', '1': 'line', '2': 'plane', '0': 'point', t: 'note' };
 
 /** Tools where Shift+drag over a mark sculpts it (Guide keeps Shift for angle snapping). */
 const SHIFT_SCULPT = new Set(['select', 'line', 'plane', 'gesture', 'brush']);
 /** Tools that draw: Ctrl there is snap, not Properties. */
-const DRAW_TOOLS = new Set(['point', 'note', 'line', 'plane', 'gesture', 'guide', 'brush']);
+const DRAW_TOOLS = new Set(['point', 'note', 'line', 'plane', 'circle', 'rect', 'gesture', 'guide', 'brush']);
+
+const CIRCLE_POINTS = 12;
+/**
+ * The points of a rectangle (its corners) or a circle (an ellipse in the box): plane marks keep their points,
+ * so a smooth circle is round and a straight one is a polygon with this many sides.
+ */
+function shapePoints(tool, x0, y0, x1, y1) {
+  if (tool === 'rect') return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y], i) => [x, y, i * 60, 0.5]);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, rx = (x1 - x0) / 2, ry = (y1 - y0) / 2;
+  return Array.from({ length: CIRCLE_POINTS }, (_, i) => {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / CIRCLE_POINTS;
+    return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, i * 60, 0.5];
+  });
+}
 
 export class CanvasView {
   constructor(host, store, { getTool, getStage, getDefaults, getSculpt, getLazy, onSelect, onTool, onNoteStyled, viewMode }) {
@@ -281,8 +295,8 @@ export class CanvasView {
       }
       const simp = this.getLazy?.()?.simplify || 0;
       // (A path made point by point keeps its points as clicked.)
-      if (!this.clickPath && simp > 0 && d.points.length > 3 && !this.draftStraight) d = { ...d, points: rdp(d.points, simp / this.cam.z) };
-      if (!this.clickPath && d.role === 'plane' && d.points.length > 5) d = { ...d, points: closeLasso(d.points, 6 / this.cam.z) };
+      if (!this.clickPath && !this.draftShape && simp > 0 && d.points.length > 3 && !this.draftStraight) d = { ...d, points: rdp(d.points, simp / this.cam.z) };
+      if (!this.clickPath && !this.draftShape && d.role === 'plane' && d.points.length > 5) d = { ...d, points: closeLasso(d.points, 6 / this.cam.z) };
       this.draftShown = d;
       if (d.role === 'plane' && d.points.length < 3) {
         // A plane has no area until it has three points: until then its outline so far (rubber band included) is drawn.
@@ -814,6 +828,7 @@ export class CanvasView {
       if (under && (under.locked || under.hidden)) { this.flash(under.locked ? 'This board is locked' : 'This board is hidden'); return; }
       if (tool === 'point') { const [px, py] = this.snapPt(wx, wy); return this.commitNew('point', [[px, py, 0, 0.5]]); }
       if (tool === 'note') { const [nx, ny] = this.snapPt(wx, wy); const [nsx, nsy] = this.toScreen(nx, ny); return this.startNote(nsx, nsy, nx, ny); }
+      if (tool === 'circle' || tool === 'rect') return this.startShape(e, tool, wx, wy);
       this.startStroke(e, tool, wx, wy);
     });
   }
@@ -1029,8 +1044,19 @@ export class CanvasView {
   }
 
   /** Flip the path (smooth ↔ straight): the stroke being drawn, or else the selected marks (one undo step). */
-  /** Smooth or straight: the stroke being drawn, or else the selected marks. False when neither applies. */
-  setPath(to) {
+  /** The selected marks that have a path to be smooth or straight (more than two points, not points, notes or images). */
+  pathMarks() {
+    return [...this.selected].map(id => this.store.doc.elements.find(x => x.id === id)).filter(e => e && e.points.length > 2 && !['point', 'note', 'image'].includes(e.role));
+  }
+
+  /** Is the stroke being drawn (or else the first selected mark) straight? */
+  pathIsStraight() { return (this.draft || this.pathMarks()[0])?.path === 'straight'; }
+
+  /**
+   * Smooth or straight: the stroke being drawn, or else (unless marks is false) the selected marks.
+   * False when neither applies.
+   */
+  setPath(to, { marks = true } = {}) {
     const straight = to === 'straight';
     if (this.draft) {
       this.draft.path = straight ? 'straight' : undefined;
@@ -1038,18 +1064,17 @@ export class CanvasView {
       this.invalidate();
       return true;
     }
-    const ids = [...this.selected].filter(id => { const e = this.store.doc.elements.find(x => x.id === id); return e && e.points.length > 2 && !['point', 'note', 'image'].includes(e.role); });
+    const ids = marks ? this.pathMarks().map(e => e.id) : [];
     if (!ids.length) return false;
     this.store.change('path', d => { for (const e of d.elements) if (ids.includes(e.id)) { if (straight) e.path = 'straight'; else delete e.path; } });
     this.flash(straight ? 'Straight' : 'Smooth');
     return true;
   }
 
-  /** Double-tap CapsLock: the other path (from the stroke being drawn, or the first selected mark). */
+  /** Double-tap CapsLock: the other path (the app decides what it applies to; see Workbench.flipPathChoice). */
   flipPath() {
-    if (this.draft) return this.setPath(this.draft.path === 'straight' ? 'smooth' : 'straight');
-    const first = [...this.selected].map(id => this.store.doc.elements.find(x => x.id === id)).find(e => e && e.points.length > 2 && !['point', 'note', 'image'].includes(e.role));
-    return this.setPath(first?.path === 'straight' ? 'smooth' : 'straight');
+    if (this.onFlipPath) return this.onFlipPath();
+    return this.setPath(this.pathIsStraight() ? 'smooth' : 'straight');
   }
 
   // ---- direct selection: editing points --------------------------------------------------
@@ -1382,6 +1407,8 @@ export class CanvasView {
 
   startStroke(e, tool, wx, wy) {
     const t0 = performance.now();
+    // A new stroke takes the focus: the mark selected before it is let go.
+    if (this.selected.size) this.select([]);
     if (tool === 'guide') [wx, wy] = this.snapPt(wx, wy);
     // The Brush tool draws with the active brush: a line, or a plane for a plane-only brush.
     if (e.ctrlKey && tool !== 'guide') [wx, wy] = this.snapTarget(wx, wy);
@@ -1447,6 +1474,43 @@ export class CanvasView {
       let extra = pathMode === 'straight' ? { path: 'straight' } : {};
       if (role !== 'plane' && !straight && pts.length > 3 && Math.hypot(pts[0][0] - pts.at(-1)[0], pts[0][1] - pts.at(-1)[1]) < 6 / this.cam.z) { pts = pts.slice(0, -1); extra = { ...extra, closed: true }; }
       if (pts.length >= minPts) this.commitNew(role, pts, extra, dkey);
+      else this.invalidate();
+    };
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+  }
+
+  /**
+   * Circle and Rectangle (under Plane): drag a box. Shift keeps the sides equal (a circle, a square), Alt draws from
+   * the center, Ctrl snaps. Both make plane marks: a rectangle keeps its corners, a circle follows the plane's path.
+   */
+  startShape(e, tool, wx, wy) {
+    if (this.selected.size) this.select([]);   // a new mark takes the focus
+    const snapAt = (ev, x, y) => (ev.ctrlKey ? this.snapTarget(x, y) : this.snapPt(x, y));
+    const [x0, y0] = snapAt(e, wx, wy);
+    const d = this.getDefaults('plane');
+    const path = tool === 'rect' || d.path === 'straight' ? 'straight' : undefined;
+    let moved = false;
+    this.pointer = true;
+    this.draftShape = true;
+    const mv = ev => {
+      let [x, y] = this.toWorld(...this.local(ev));
+      [x, y] = snapAt(ev, x, y);
+      let dx = x - x0, dy = y - y0;
+      if (!moved && Math.hypot(dx, dy) * this.cam.z < 3) return;
+      moved = true;
+      if (ev.shiftKey) { const s = Math.max(Math.abs(dx), Math.abs(dy)); dx = Math.sign(dx || 1) * s; dy = Math.sign(dy || 1) * s; }
+      const [ax, ay] = ev.altKey ? [x0 - dx, y0 - dy] : [x0, y0], [bx, by] = [x0 + dx, y0 + dy];
+      const points = shapePoints(tool, Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by));
+      this.draft = normalizeElement({ role: 'plane', stage: 'draft', points, realize: d.realize, color: d.color, ...(d.fill ? { fill: d.fill } : {}), ...(path ? { path } : {}), seed: 1 }, 'draft');
+      this.invalidate();
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+      this.pointer = false; this.draftShape = false;
+      const pts = this.draft?.points;
+      this.draft = null;
+      if (moved && pts) this.commitNew('plane', pts, tool === 'rect' ? { path: 'straight' } : {}, 'plane');
       else this.invalidate();
     };
     window.addEventListener('pointermove', mv);
