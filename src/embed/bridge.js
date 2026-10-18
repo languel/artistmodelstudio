@@ -126,11 +126,32 @@ export function startBridge(app, { origin = location.origin } = {}) {
     throw new Error(`Unknown export format ${format}`);
   };
 
+  let hostKey = false;
   const handlers = {
+    'host-key': m => {
+      hostKey = true;
+      const event=new KeyboardEvent(m.event==='keyup'?'keyup':'keydown',{
+        key:m.key,code:m.code,repeat:!!m.repeat,altKey:!!m.altKey,ctrlKey:!!m.ctrlKey,
+        metaKey:!!m.metaKey,shiftKey:!!m.shiftKey,bubbles:true,cancelable:true
+      });
+      try { app.canvas.canvas.dispatchEvent(event); }
+      finally { hostKey = false; }
+      return {handled:event.defaultPrevented};
+    },
     init: cfg => { configure(cfg || {}); return { protocol: PROTOCOL, boards: boardsOf(app.store.doc).map(b => ({ id: b.id, title: b.title, width: b.width, height: b.height })) }; },
     load: ({ document: doc, boards, fit }) => { app.loadDocument(normalizeDocument(doc), 'host'); declare(boards); if (fit) configure({ fit }); return { rev }; },
     loadExcalidraw: ({ scene }) => { app.loadDocument(fromExcalidraw(scene), 'host'); declare(); return { rev }; },
     'get-document': () => ({ rev, document: structuredClone(app.store.doc) }),
+    'select-box': ({x,y,w,h,additive=false}) => {
+      if (![x,y,w,h].every(Number.isFinite) || w<0 || h<0) throw new Error('Invalid selection box');
+      const c=app.canvas;
+      const ids=app.store.doc.elements.filter(el=>c.editable(el) && el.points?.length &&
+        el.points.every(([px,py])=>px>=x && px<=x+w && py>=y && py<=y+h)).map(el=>el.id);
+      const groups=new Set(app.store.doc.elements.filter(el=>ids.includes(el.id)&&el.group).map(el=>el.group));
+      c.select([...ids,...app.store.doc.elements.filter(el=>groups.has(el.group)&&c.editable(el)).map(el=>el.id)],additive);
+      c.invalidate();
+      return {selected:[...c.selected]};
+    },
     export: exportBoard,
     call: ({ name, args }) => window.ams.callTool(name, args || {}),
     'list-tools': () => window.ams.listTools(),
@@ -196,7 +217,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
   // Empty drawing selection leaves Delete and undo/redo to the circuit. Text fields
   // and selected drawing marks retain the editor's own editing/history shortcuts.
   window.addEventListener('keydown', e => {
-    if (!passthrough || !app.overlay || app.canvas.selected.size || app.canvas.selectedBoard ||
+    if (hostKey || !passthrough || !app.overlay || app.canvas.selected.size || app.canvas.selectedBoard ||
         e.target.closest?.('input,textarea,select,[contenteditable]')) return;
     const history = (e.metaKey || e.ctrlKey) && ['z','y'].includes(e.key.toLowerCase());
     const edit = ['Delete', 'Backspace'].includes(e.key) || (history && lastPassed);
@@ -236,12 +257,12 @@ export function startBridge(app, { origin = location.origin } = {}) {
   app.on('tool', () => post({ type: 'tool', id: app.tool }));
   // Keys the editor did not use go to the host, so the host's own shortcuts keep working.
   window.addEventListener('keydown', e => {
-    if (e.defaultPrevented || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+    if (hostKey || e.defaultPrevented || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
     post({ type: 'key', key: e.key, code: e.code, repeat: e.repeat, alt: e.altKey, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey });
   });
 
   window.addEventListener('keyup', e => {
-    if (e.defaultPrevented || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+    if (hostKey || e.defaultPrevented || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
     post({ type: 'key', event: 'keyup', key: e.key, code: e.code, repeat: e.repeat, alt: e.altKey, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey });
   });
 

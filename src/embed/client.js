@@ -104,6 +104,9 @@ export function createEditor(container, { src, ns = 'ams-embed', theme = 'host',
     reference: opts => request('reference', opts || {}),
     /** Read ({ x, y, z, w, h }) or set the view: screen = world × z + (x, y). The `camera` event reports the editor's own pans and zooms. */
     camera: cam => request('camera', cam || {}),
+    /** Select marks enclosed by a host selection box in shared world coordinates. */
+    selectBox: box => request('select-box', box),
+    key: event => request('host-key', event),
     fit: opts => request('fit', opts),
     focus: () => { frame.focus(); return request('focus'); },
     ready: () => readyPromise,

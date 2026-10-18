@@ -173,3 +173,12 @@ With no drawing selection, Delete/Backspace can reach the host. Undo/redo follow
 the host after a passed gesture; otherwise drawing history remains local. Unused
 keys emit `key` messages; keyup includes `event: "keyup"`; key events carry `repeat`. Hosts must filter by
 active view and translate iframe coordinates to their own viewport.
+
+`editor.selectBox({x,y,w,h,additive})` selects editable marks wholly enclosed by a
+host's world-space marquee, including their group mates. It returns `{selected}`.
+This lets an overlay host share box selection after a passed-through gesture.
+
+`editor.key({event,key,code,repeat,altKey,ctrlKey,metaKey,shiftKey})` forwards a
+host keydown/keyup to the editor, returning `{handled}`. Hosts must exclude text
+editing and reserve their own shortcuts. Forwarded events do not emit `key`
+back to the host, preventing an input routing loop.
