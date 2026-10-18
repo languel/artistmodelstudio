@@ -158,4 +158,18 @@ The studio's two islands are one toolbar in the embed: the **menu** (≡) is fir
 
 Theme: `createEditor` defaults to `theme: 'host'`: the editor wears the host page's theme and follows it. The host theme is `window.theme` if set, else `data-theme` or `data-bs-theme` on `<html>`, else a `dark` or `light` class, else the system's preference; changes (attribute, class, or the system's) are sent on. `editor.setTheme('dark' | 'light' | 'auto')` pins it, `setTheme('host')` follows again; `hostTheme()` is exported for hosts that want to read it.
 
-Alt+Z: in the Draw tab (standalone) it is the editor's zen; in overlay mode the editor passes it to the host as a `key` event, and p5comp uses it (also on the host page) to switch the drawing layer and its toolbar on and off.
+D toggles the drawing layer in p5comp. Alt+Z: in the Draw tab (standalone) it is the editor's zen; in overlay mode the editor passes it to the host as a `key` event, and p5comp uses it (also on the host page) to switch the drawing layer and its toolbar on and off.
+
+### Optional overlay input passthrough
+
+Hosts can initialize with `passthrough: true`. In overlay mode with Select active,
+a pointer gesture that starts outside marks, transform handles, and board handles
+is emitted as `pointer` messages (event type, iframe client x/y, pointer ID/type,
+buttons, pressure, modifier keys). The gesture remains captured by the editor
+until release; the host routes the sequence to its underlying content. Drawing
+tools and the standalone editor retain their input. Space-drag keeps editor pan.
+
+With no drawing selection, Delete/Backspace can reach the host. Undo/redo follows
+the host after a passed gesture; otherwise drawing history remains local. Unused
+keys emit `key` messages; keyup includes `event: "keyup"`; key events carry `repeat`. Hosts must filter by
+active view and translate iframe coordinates to their own viewport.

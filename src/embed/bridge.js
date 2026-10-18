@@ -14,6 +14,7 @@ export const PROTOCOL = 1;
 export function startBridge(app, { origin = location.origin } = {}) {
   const post = (msg, transfer) => window.parent.postMessage({ channel: CHANNEL, ...msg }, origin === 'null' ? '*' : origin, transfer);
   const boardOf = ref => { const bs = boardsOf(app.store.doc); return bs.find(b => b.id === ref || b.title === ref) || bs.find(b => b.id === MAIN); };
+  let passthrough = false;
   let rev = 0;
   const declared = new Map();   // the host's boards: they come back after every load, so a loaded drawing never loses them
 
@@ -76,6 +77,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
     app.hostSetUI(p);
   };
   const configure = cfg => {
+    if (cfg.passthrough != null) passthrough = !!cfg.passthrough;
     if (cfg.actions) app.hostActions = cfg.actions.filter(a => a?.id && a?.label);
     if (cfg.dock) document.documentElement.classList.toggle('dock-left', cfg.dock === 'left');
     if (cfg.ui) ui(cfg.ui);
@@ -165,6 +167,44 @@ export function startBridge(app, { origin = location.origin } = {}) {
     }
   });
 
+  // In an overlay, Select on empty space belongs to the host beneath the drawing.
+  // Drawing tools keep empty space so a new stroke can still start anywhere.
+  const canvas = app.canvas.canvas;
+  let passing = false, lastPassed = false;
+  const pointer = e => post({ type: 'pointer', event: e.type, x: e.clientX, y: e.clientY,
+    pointerId: e.pointerId, pointerType: e.pointerType, button: e.button, buttons: e.buttons,
+    pressure: e.pressure, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey });
+  canvas.addEventListener('pointerdown', e => {
+    lastPassed = false;
+    if (!passthrough || !app.overlay || app.tool !== 'select' || app.canvas.space) return;
+    const [x, y] = app.canvas.local(e), [wx, wy] = app.canvas.toWorld(x, y);
+    if (app.canvas.hitTest(wx, wy) || app.canvas.handleAt(x, y) || app.canvas.boardHandleAt?.(x, y)) { lastPassed = false; return; }
+    passing = lastPassed = true;
+    e.preventDefault(); e.stopImmediatePropagation();
+    canvas.setPointerCapture(e.pointerId);
+    pointer(e);
+  }, true);
+  for (const type of ['pointermove', 'pointerup', 'pointercancel']) canvas.addEventListener(type, e => {
+    if (!passing) return;
+    e.preventDefault(); e.stopImmediatePropagation(); pointer(e);
+    if (type !== 'pointermove') passing = false;
+  }, true);
+  for (const type of ['click', 'dblclick', 'contextmenu']) canvas.addEventListener(type, e => {
+    if (!lastPassed || !passthrough || !app.overlay || app.tool !== 'select') return;
+    e.preventDefault(); e.stopImmediatePropagation(); pointer(e);
+  }, true);
+  // Empty drawing selection leaves Delete and undo/redo to the circuit. Text fields
+  // and selected drawing marks retain the editor's own editing/history shortcuts.
+  window.addEventListener('keydown', e => {
+    if (!passthrough || !app.overlay || app.canvas.selected.size || app.canvas.selectedBoard ||
+        e.target.closest?.('input,textarea,select,[contenteditable]')) return;
+    const history = (e.metaKey || e.ctrlKey) && ['z','y'].includes(e.key.toLowerCase());
+    const edit = ['Delete', 'Backspace'].includes(e.key) || (history && lastPassed);
+    if (!edit) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    post({ type: 'key', key: e.key, code: e.code, repeat: e.repeat, alt: e.altKey, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey });
+  }, true);
+
   // Events, to the host. `change` carries no document: ask for it when it is wanted.
   let changeTimer = 0, lastReason = '';
   app.store.subscribe((_doc, reason) => {
@@ -197,7 +237,12 @@ export function startBridge(app, { origin = location.origin } = {}) {
   // Keys the editor did not use go to the host, so the host's own shortcuts keep working.
   window.addEventListener('keydown', e => {
     if (e.defaultPrevented || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
-    post({ type: 'key', key: e.key, code: e.code, alt: e.altKey, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey });
+    post({ type: 'key', key: e.key, code: e.code, repeat: e.repeat, alt: e.altKey, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey });
+  });
+
+  window.addEventListener('keyup', e => {
+    if (e.defaultPrevented || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+    post({ type: 'key', event: 'keyup', key: e.key, code: e.code, repeat: e.repeat, alt: e.altKey, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey });
   });
 
   post({ type: 'ready', protocol: PROTOCOL, tools: window.ams.listTools().length });
