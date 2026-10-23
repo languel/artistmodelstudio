@@ -891,15 +891,39 @@ export class Workbench {
     const name = typeof file === 'string' ? 'IanniX score' : file.name.replace(/\.[^.]+$/, '');
     if (!(await askConfirm('An IanniX score is a program, and it runs as one here. Open scores you trust only.', { ok: 'Run it' }))) return null;
     const { iannixToScore } = await import('../score/import/iannix.js');
-    const res = iannixToScore(text, { title: name, inBoard: true });
-    for (const w of res.warnings) this.log(`IanniX: ${w}`, 'error');
-    if (!res.code) { this.log('IanniX: nothing to import.', 'error'); return null; }
+    return this.scoreToBoard(iannixToScore(text, { title: name, inBoard: true }), 'IanniX', r => `${r.stats.curves} curves, ${r.stats.cursors} cursors, ${r.stats.triggers} triggers`);
+  }
+
+  /** Open a Midinous (.nous) or midinojs project as a new board whose code is the score; the scene takes its tempo. */
+  async importNous(file) {
+    if (!file) {
+      file = await new Promise(resolve => {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = '.nous,.json,application/json';
+        input.onchange = () => resolve(input.files[0] || null);
+        input.click();
+      });
+      if (!file) return null;
+    }
+    const text = typeof file === 'string' ? file : await file.text();
+    const name = typeof file === 'string' ? 'Midinous project' : file.name.replace(/\.[^.]+$/, '');
+    const { nousToScore } = await import('../score/import/nous.js');
+    const res = nousToScore(text, { title: name, inBoard: true });
+    const board = this.scoreToBoard(res, 'Midinous', r => `${r.stats.nodes} nodes, ${r.stats.paths} paths`);
+    if (board && res.settings?.tempo) this.player.setSettings({ tempo: res.settings.tempo });
+    return board;
+  }
+
+  /** A converted score ({ code, title, size, warnings, stats }) as a new board that runs it. */
+  scoreToBoard(res, what, describe) {
+    for (const w of res.warnings) this.log(w.startsWith(what) ? w : `${what}: ${w}`, 'error');
+    if (!res.code) { this.log(`${what}: nothing to import.`, 'error'); return null; }
     const board = this.store.addBoard({ title: res.title, ...res.size, ground: '#f6f3ea', adopt: false });
     this.store.updateBoard(board.id, { code: res.code });
     const run = this.store.runBoardCode(board.id, res.code, runScript);
-    if (run?.error) { this.log(`IanniX: ${run.error}`, 'error'); return null; }
+    if (run?.error) { this.log(`${what}: ${run.error}`, 'error'); return null; }
     this.goToBoard(board.id, { animate: true });
-    this.log(`IanniX “${res.title}”: ${res.stats.curves} curves, ${res.stats.cursors} cursors, ${res.stats.triggers} triggers on a new board (its code is in Code → Board). Press play on the Timeline.`);
+    this.log(`${what} “${res.title}”: ${describe(res)} on a new board (its code is in Code → Board). Press play on the Timeline.`);
     return board;
   }
 

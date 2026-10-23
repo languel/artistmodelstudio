@@ -91,3 +91,6 @@ export function noteNumber(name) {
   const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1].toUpperCase()] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0);
   return (Number(m[3]) + 1) * 12 + base;
 }
+
+/** The order Midinous files index scales in. */
+export const MIDINOUS_ORDER = ['Hirajoshi', 'Insen', 'Iwato', 'Pentatonic Major', 'Pentatonic Minor', 'Two Semitone Tritone', 'Aeolian', 'Dorian', 'Harmonic Major', 'Harmonic Minor', 'Ionian', 'Locrian', 'Lydian', 'Mixolydian', 'Phrygian', 'Altered', 'Half Diminished', 'Locrian Major', 'Lydian Augmented', 'Melodic Minor', 'Ukrainian Dorian', 'Augmented', 'Blues', 'Flamenco', 'Hungarian', 'Persian', 'Prometheus', 'Chromatic', 'Octatonic Whole', 'Octatonic Half', 'Tritone', 'Whole Tone'];

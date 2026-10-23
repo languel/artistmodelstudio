@@ -63,8 +63,10 @@ export function createWorld(def = {}) {
   // ---- triggers ----------------------------------------------------------------------------
   for (const t of def.triggers || []) {
     const region = prepare(t.region);
+    const rd = t.region;
+    const center = rd.kind === 'circle' ? { x: rd.x, y: rd.y } : rd.kind === 'polygon' ? { x: rd.pts.reduce((a, q) => a + q[0], 0) / rd.pts.length, y: rd.pts.reduce((a, q) => a + q[1], 0) / rd.pts.length } : rd.kind === 'line' ? { x: rd.pts[0][0], y: rd.pts[0][1] } : { x: 0, y: 0 };
     w.triggers.push({
-      id: t.id, region, regionDef: t.region, policy: t.policy || 'latched', gate: t.gate ?? 0, lockout: t.lockout ?? 0,
+      id: t.id, region, regionDef: t.region, center, policy: t.policy || 'latched', gate: t.gate ?? 0, lockout: t.lockout ?? 0,
       on: t.on || (region.kind === 'line' ? ['cross'] : ['enter', 'exit']),
       filter: t.filter ?? null, handle: t.handle || null, state: t.state || {},
       slots: new Map(), pairs: new Map()
@@ -252,7 +254,7 @@ export function createWorld(def = {}) {
     const { nx, ny } = frame(ev.pt);
     return {
       t: ev.t, type, traveler: ev.tr?.id ?? null, trigger: ev.trig?.id ?? null, tag: ev.tr?.tag ?? null,
-      x: ev.pt.x, y: ev.pt.y, nx, ny, u: ev.pt.u, speed: ev.speed || 0, p: ev.pt.p ?? null, data: ev.tr?.data, ...(extra || {})
+      x: ev.pt.x, y: ev.pt.y, nx, ny, u: ev.pt.u, speed: ev.speed || 0, p: ev.pt.p ?? null, data: ev.data ?? ev.tr?.data, ...(extra || {})
     };
   }
 
@@ -260,6 +262,7 @@ export function createWorld(def = {}) {
     return {
       state, t, rng: w.rng,
       launch: (pathId, opts = {}) => launch(pathId, { ...opts, start: opts.start ?? t }),
+      arrive: (triggerId, data, delay = 0) => arrive(triggerId, data, t + delay),
       kill: id => kill(id, t)
     };
   }
@@ -267,7 +270,7 @@ export function createWorld(def = {}) {
   function fire(type, ev) {
     const rec = record(type, ev, ev.dir ? { dir: ev.dir } : null);
     w.events.push(rec);
-    if (ev.trig && ev.trig.handle && ev.trig.on.includes(type)) ev.trig.handle(rec, api(ev.trig.state, ev.t));
+    if (ev.trig && ev.trig.handle && (type === 'arrive' || ev.trig.on.includes(type))) ev.trig.handle(rec, api(ev.trig.state, ev.t));
   }
 
   function enter(ev) {
@@ -309,10 +312,14 @@ export function createWorld(def = {}) {
     else if (ev.type === 'cross') cross(ev);
     else if (ev.type === 'close') {
       if (ev.slot.count === 0 && ev.slot.open) { ev.slot.open = false; fire('exit', ev); }
+    } else if (ev.type === 'arrive') {
+      fire('arrive', ev);
     } else if (ev.type === 'end') {
       const rec = record('end', ev);
       w.events.push(rec);
       if (ev.tr.handle) ev.tr.handle(rec, api(ev.tr.state, ev.t));
+      // A traveler sent to a node arrives there when its path ends.
+      if (ev.tr.data?.to != null) arrive(ev.tr.data.to, ev.tr.data, ev.t);
     } else if (ev.type === 'release') {
       // The traveler is gone: it leaves whatever it was inside of.
       for (const trig of w.triggers) {
@@ -335,6 +342,14 @@ export function createWorld(def = {}) {
     return tr.id;
   }
 
+  /** Deliver a signal to a trigger at time t, as if a traveler had reached it (a node of a graph): handlers hear 'arrive'. */
+  function arrive(triggerId, data, t = w.cur) {
+    const trig = w.triggers.find(x => x.id === triggerId);
+    if (!trig) return false;
+    push({ type: 'arrive', t, trig, tr: null, data, pt: { ...trig.center, u: 0, p: null }, speed: 0 });
+    return true;
+  }
+
   function kill(id, t = w.cur) {
     const tr = w.travelers.find(x => x.id === id && !x.done);
     if (!tr) return false;
@@ -344,6 +359,9 @@ export function createWorld(def = {}) {
   }
 
   for (const d of def.travelers || []) addTraveler(d);
+  // Signals that start the graph: { trigger, t, data }
+  const starts = def.starts || [];
+  for (const st of starts) arrive(st.trigger, st.data || {}, st.t || 0);
 
   /**
    * Jump to time t without sweeping over what lies between (a seek, or starting in the middle):
@@ -353,6 +371,7 @@ export function createWorld(def = {}) {
    */
   function seek(t) {
     w.queue = []; w.events = [];
+    for (const st of starts) if ((st.t || 0) >= t) arrive(st.trigger, st.data || {}, st.t || 0);
     w.travelers = w.travelers.filter(tr => !tr.die);
     w.live = w.travelers.length;
     for (const trig of w.triggers) { trig.pairs.clear(); trig.slots.clear(); }
@@ -382,7 +401,7 @@ export function createWorld(def = {}) {
       w.travelers = w.travelers.filter(tr => !(tr.done && tr.die));
     },
     take() { const e = w.events; w.events = []; return e.sort((a, b) => a.t - b.t); },
-    launch, kill,
+    launch, kill, arrive,
     /** Where every live traveler is at time t: for drawing. */
     positions(t) {
       const out = [];

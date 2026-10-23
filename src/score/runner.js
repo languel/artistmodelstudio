@@ -60,8 +60,10 @@ export function createRunner({ getDoc, getSettings, outputs, now = () => perform
   function build(t, settings) {
     const ctx = timeContext(settings);
     entries = buildEntries(getDoc(), settings, { helpers: (event, api) => musicHelpers({ out: push, ctx, event, api }), onError });
-    for (const e of entries) e.world.seek(t);
-    stepped = t;
+    // Playing from the very start begins at 0, so what is due at 0 (a start node, a traveler leaving) is not missed.
+    const from = t < 0.1 ? 0 : t;
+    for (const e of entries) e.world.seek(from);
+    stepped = from;
   }
 
   return {

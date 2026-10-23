@@ -3,13 +3,13 @@
  * overlapping notes from cutting each other off. Everything turns into raw MIDI messages,
  * { t, bytes } (t in transport seconds), which any output can play (outputs/gm.js, outputs/log.js).
  *
- *   note(ch, pitch, vel = 100, dur = 0.25)   ch 1..16; pitch a number or a name ('C#4'); vel 0..127;
+ *   note(ch, pitch, vel = 100, dur = 0.25, delay = 0)   ch 1..16; pitch a number or a name ('C#4'); vel 0..127;
  *                                            dur seconds, a time ('1 beat', '8n') or 'gate' (held until the trigger is left)
  *   notef(ch, pitch, vel, dur)               pitch and vel as 0..1
  *   cc(ch, n, v) / ccf(ch, n, v 0..1)        controllers;  bend(ch, v -1..1);  program(ch, n);  panic()
  *   map(v, [a, b], [c, d])  clamp(v, a, b)  lane(v 0..1, n)  quant(v, n)
  *   snap(n, scale, root)  step(n, k, scale, root)  noteName(n)  noteNumber(name)   (scale.js)
- *   rng()  launch(pathId, opts)  kill(id)  state   (the world's)
+ *   rng()  launch(pathId, opts)  kill(id)  arrive(trigger, data)  route(mode, outs, data)  state   (the world's)
  *
  * The event's own fields (t, type, x, y, nx, ny, u, speed, p, dir, tag, traveler, trigger) are in scope
  * of the emit code as plain names; nx and ny run 0..1 across the board, y up.
@@ -23,7 +23,7 @@ const chan = ch => clampI(ch, 1, 16) - 1;
 export const FIELDS = ['t', 'type', 'x', 'y', 'nx', 'ny', 'u', 'speed', 'p', 'dir', 'tag', 'traveler', 'trigger', 'data'];
 
 /** Names of the helpers (the code compiled from `emit` gets these in scope). */
-export const HELPER_NAMES = ['note', 'notef', 'cc', 'ccf', 'bend', 'program', 'panic', 'release', 'map', 'clamp', 'lane', 'quant', 'snap', 'step', 'noteName', 'noteNumber', 'rng', 'launch', 'kill', 'state', 'beats', 'seconds'];
+export const HELPER_NAMES = ['note', 'notef', 'cc', 'ccf', 'bend', 'program', 'panic', 'release', 'map', 'clamp', 'lane', 'quant', 'snap', 'step', 'noteName', 'noteNumber', 'rng', 'launch', 'kill', 'arrive', 'route', 'state', 'beats', 'seconds'];
 
 /**
  * The helpers for one event. `out(msg)` receives { t, bytes }; `ctx` is the time context
@@ -39,11 +39,27 @@ export function musicHelpers({ out, ctx, event, api }) {
   const held = () => (api.state._held ||= []);
   const send = (t, ...bytes) => out({ t, bytes });
   const pitchOf = p => (typeof p === 'string' && !/^-?\d+(\.\d+)?$/.test(p) ? noteNumber(p) : Number(p));
-  const note = (ch, pitch, vel = 100, dur = 0.25) => {
-    const c = chan(ch), n = clampI(pitchOf(pitch), 0, 127), v = clampI(vel, 1, 127);
-    send(at, 0x90 | c, n, v);
+  const note = (ch, pitch, vel = 100, dur = 0.25, delay = 0) => {
+    const c = chan(ch), n = clampI(pitchOf(pitch), 0, 127), v = clampI(vel, 1, 127), t0 = at + seconds(delay);
+    send(t0, 0x90 | c, n, v);
     if (dur === 'gate' && event.type === 'enter') held().push([c, n]);
-    else send(at + Math.max(0.005, seconds(dur === 'gate' ? 0.25 : dur)), 0x80 | c, n, 0);
+    else send(t0 + Math.max(0.005, seconds(dur === 'gate' ? 0.25 : dur)), 0x80 | c, n, 0);
+  };
+  /**
+   * Send a signal on: each out is [path, beats, to, weight?]: a traveler runs the path (beats long) and
+   * arrives at `to`, a trigger by name, carrying `data`. modes: 'robin' (one out, each time the next),
+   * 'split' (all), 'random' (one, by weight), 'portal' (all, at once, no travel). This is a Midinous node's routing.
+   */
+  const route = (mode, outs, data = {}) => {
+    if (!outs?.length) return;
+    const run = ([path, b, to]) => api.launch(path, { dur: seconds(`${b} beats`), data: { ...data, to } });
+    if (mode === 'split') outs.forEach(run);
+    else if (mode === 'portal') outs.forEach(([, , to]) => api.arrive(to, data));
+    else if (mode === 'random') {
+      const total = outs.reduce((a, o) => a + (o[3] ?? 100), 0);
+      let r = api.rng() * total;
+      run(outs.find(o => (r -= o[3] ?? 100) < 0) || outs.at(-1));
+    } else { const i = api.state._rr = ((api.state._rr ?? -1) + 1) % outs.length; run(outs[i]); }
   };
   const release = () => {
     const h = held();
@@ -51,7 +67,7 @@ export function musicHelpers({ out, ctx, event, api }) {
   };
   const lerp = (v, [a, b], [c, d]) => (b === a ? c : c + ((v - a) / (b - a)) * (d - c));
   return {
-    note, release,
+    note, release, route, arrive: api.arrive,
     notef: (ch, pitch, vel, dur) => note(ch, Math.trunc(pitchOf(pitch) * 127), Math.max(1, Math.trunc(vel * 127)), dur),
     cc: (ch, n, v) => send(at, 0xb0 | chan(ch), clampI(n, 0, 127), clampI(v, 0, 127)),
     ccf: (ch, n, v) => send(at, 0xb0 | chan(ch), clampI(n, 0, 127), clampI(v * 127, 0, 127)),

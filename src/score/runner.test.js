@@ -77,3 +77,15 @@ describe('the runner', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 });
+
+describe('starting playback', () => {
+  it('from just after 0 still plays what is due at 0', () => {
+    const d = normalizeDocument({ artboard: { width: 100, height: 100 }, elements: [
+      { id: 'n', role: 'point', points: [[50, 50]], play: { trigger: { name: 'a', start: true, on: [], emit: 'note(1, 60, 100, 0.1)' } } }
+    ] });
+    const log = createLogOutput();
+    const r = createRunner({ getDoc: () => d, getSettings: () => ({ tempo: 120, signature: { numerator: 4, denominator: 4 }, fps: 30 }), outputs: () => [log], now: () => 0 });
+    r.tick({ t: 0.0004, playing: true, rate: 1 });
+    expect(log.sent.filter(s => s.bytes && s.bytes[0] === 0x90)).toHaveLength(1);
+  });
+});

@@ -4,7 +4,8 @@
  *   play: {
  *     path:    true | 'name',                         a line that can be travelled (by its mark id, or by the name)
  *     travel:  { on: id, dur | speed, start, rate, loop, as, tag },   a point that travels line `on`
- *     trigger: { on, gate, lockout, policy, filter, r, emit },        a plane, circle, line or point
+ *     trigger: { on, gate, lockout, policy, filter, r, emit, name, start },   a plane, circle, line or point
+ *              name: how others reach it (arrive, a traveler's data.to); start: a time at which a signal arrives from nowhere
  *   }
  *
  * `emit` is code: an expression (or statements) run on each event the trigger (or, in `travel`, the
@@ -36,7 +37,7 @@ export function compileEmit(src, names = HELPER_NAMES) {
 export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, seed = 1, ctx = timeContext(DEFAULT_TRANSPORT) } = {}) {
   const d = boardDoc(doc, board);
   const marks = d.elements.filter(e => e.play && e.points?.length);
-  const paths = {}, travelers = [], triggers = [];
+  const paths = {}, travelers = [], triggers = [], starts = [];
   const info = { skipped: [] };
   const make = typeof helpers === 'function' ? helpers : () => helpers;
   const names = typeof helpers === 'function' ? HELPER_NAMES : Object.keys(helpers);
@@ -76,10 +77,12 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
       else if (e.closed || e.role === 'plane') region = { kind: 'polygon', pts };
       else region = { kind: 'line', pts };
       const handle = typeof trigger.emit === 'string' || trigger.emitExit ? wrap(trigger.emit, trigger.emitExit) : handlers[trigger.handler] || null;
-      const { emit, emitExit, handler, r, ...opts } = trigger;
-      triggers.push({ id: e.id, region, ...opts, gate: secs(opts.gate), lockout: secs(opts.lockout), handle });
+      const { emit, emitExit, handler, r, name, start, ...opts } = trigger;
+      const id = name || e.id;
+      triggers.push({ id, region, ...opts, gate: secs(opts.gate), lockout: secs(opts.lockout), handle });
+      if (start !== undefined && start !== false) starts.push({ trigger: id, t: start === true ? 0 : secs(start), data: {} });
     }
   }
 
-  return { def: { paths, travelers, triggers, bounds: { x: 0, y: 0, width: d.artboard.width, height: d.artboard.height }, seed }, info };
+  return { def: { paths, travelers, triggers, starts, bounds: { x: 0, y: 0, width: d.artboard.width, height: d.artboard.height }, seed }, info };
 }
