@@ -29,6 +29,7 @@ function optsOf(e, doc) {
   const st = doc.stages.find(s => s.id === e.stage);
   if (st) o.stage = st.name;
   for (const k of ['label', 'opacity', 'blend', 'hidden', 'locked', 'path']) if (e[k] !== undefined) o[k] = e[k];
+  if (e.play) o.play = e.play;
   if (e.note) o.note = e.note;
   if (e.role === 'image') o.src = KEEP_SRC;
   if (e.why) o.why = e.why;

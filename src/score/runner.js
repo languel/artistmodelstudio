@@ -25,8 +25,27 @@ export function scoreSignature(doc) {
 
 export const hasScore = doc => (doc?.elements || []).some(e => e.play);
 
-export function createRunner({ getDoc, getSettings, outputs, now = () => performance.now(), lookahead = 0.12, step = 1 / 240, onError = () => {} }) {
-  let worlds = [], queue = [], stepped = 0, active = false, builtKey = '', lastT = 0, lastNow = 0;
+/**
+ * The worlds of a document, one per board that has a score: [{ board, world }]. `helpers(event, api)`
+ * makes the music helpers handlers use (none are needed just to look at positions).
+ */
+export function buildEntries(doc, settings, { helpers = () => ({}), onError = () => {} } = {}) {
+  const ctx = timeContext(settings);
+  const boards = new Set((doc?.elements || []).filter(e => e.play).map(e => e.board || MAIN));
+  const out = [];
+  for (const b of boardsOf(doc)) {
+    if (!boards.has(b.id)) continue;
+    try {
+      const { def, info } = compileDoc(doc, { board: b.id, ctx, helpers });
+      for (const s of info.skipped) onError(`${b.title || b.id}: ${s}`);
+      out.push({ board: b, world: createWorld(def) });
+    } catch (e) { onError(`${b.title || b.id}: ${e.message}`); }
+  }
+  return out;
+}
+
+export function createRunner({ getDoc, getSettings, outputs, now = () => performance.now(), lookahead = 0.12, step = 1 / 240, onError = () => {}, onEvents = () => {} }) {
+  let entries = [], queue = [], stepped = 0, active = false, builtKey = '', lastT = 0, lastNow = 0;
   const tracker = createVoiceTracker();
   const failed = new Set();
 
@@ -39,25 +58,15 @@ export function createRunner({ getDoc, getSettings, outputs, now = () => perform
   const silence = () => { queue = []; tracker.reset(); for (const o of outputs()) o.clear?.(); };
 
   function build(t, settings) {
-    const doc = getDoc();
     const ctx = timeContext(settings);
-    const boards = new Set((doc?.elements || []).filter(e => e.play).map(e => e.board || MAIN));
-    worlds = [];
-    for (const b of boardsOf(doc)) {
-      if (!boards.has(b.id)) continue;
-      try {
-        const { def, info } = compileDoc(doc, { board: b.id, ctx, helpers: (event, api) => musicHelpers({ out: push, ctx, event, api }) });
-        for (const s of info.skipped) onError(`${b.title || b.id}: ${s}`);
-        const w = createWorld(def);
-        w.seek(t);
-        worlds.push(w);
-      } catch (e) { onError(`${b.title || b.id}: ${e.message}`); }
-    }
+    entries = buildEntries(getDoc(), settings, { helpers: (event, api) => musicHelpers({ out: push, ctx, event, api }), onError });
+    for (const e of entries) e.world.seek(t);
     stepped = t;
   }
 
   return {
-    get worlds() { return worlds; },
+    get entries() { return entries; },
+    get active() { return active; },
     get queued() { return queue.length; },
     stop() { if (active) { active = false; silence(); } },
     tick({ t, playing, rate = 1, limit = Infinity, key = '' }) {
@@ -75,8 +84,10 @@ export function createRunner({ getDoc, getSettings, outputs, now = () => perform
       const horizon = Math.min(t + lookahead * rate, limit);
       while (stepped < horizon - 1e-9) {
         stepped = Math.min(horizon, stepped + step);
-        for (const w of worlds) {
+        for (const { board, world: w } of entries) {
           try { w.step(stepped); } catch (e) { if (!failed.has(w)) { failed.add(w); onError(e.message); } }
+          const evs = w.take();
+          if (evs.length) onEvents(evs, board);
         }
       }
       while (queue.length && queue[0].t <= horizon) {
