@@ -96,3 +96,24 @@ describe('gm output', () => {
     expect(l.sent).toEqual([{ bytes: [1, 2, 3], atMs: 5 }, { clear: true }]);
   });
 });
+
+import { createWebMidiOutput } from './outputs/webmidi.js';
+describe('web midi output', () => {
+  const port = (id, name) => { const sent = []; return { id, name, sent, send: (b, t) => sent.push([b, t]) }; };
+  const fake = ports => async () => ({ outputs: new Map(ports.map(p => [p.id, p])), onstatechange: null });
+  it('connects, picks a port, and sends with the time', async () => {
+    const a = port('a', 'Synth A'), b = port('b', 'Synth B');
+    const m = createWebMidiOutput({ requestAccess: fake([a, b]), now: () => 1000 });
+    m.send([0x90, 60, 100], 1500);
+    expect(a.sent).toEqual([]);                             // not connected: silent
+    expect(await m.connect()).toEqual([{ id: 'a', name: 'Synth A' }, { id: 'b', name: 'Synth B' }]);
+    m.send([0x90, 60, 100], 1500); m.send([0x80, 60, 0], 900);
+    expect(a.sent).toEqual([[[0x90, 60, 100], 1500], [[0x80, 60, 0], undefined]]);   // a time in the past is "now"
+    m.select('all'); m.send([0xc0, 5]);
+    expect(b.sent).toEqual([[[0xc0, 5], undefined]]);
+    m.select('none'); m.send([0xc0, 6]);
+    expect(a.sent).toHaveLength(3);
+    m.select('b'); m.clear();
+    expect(b.sent.slice(-3).map(s => s[0])).toEqual([[0xbf, 64, 0], [0xbf, 120, 0], [0xbf, 123, 0]]);
+  });
+});

@@ -1,6 +1,7 @@
 /** Settings: the artboard (size, paper), the workspace (theme, grid, reference), and the guide. */
 import { h, row, numberField, selectField, section } from '../ui.js';
 import { colorField } from '../colorPicker.js';
+import { GM_PROGRAMS } from '../../score/outputs/gm.js';
 
 const PRESETS = [
   ['square', 'Square', 1000, 1000], ['a4', 'A4', 794, 1123], ['letter', 'Letter', 816, 1056], ['4:3', '4 : 3', 1200, 900],
@@ -43,6 +44,7 @@ export function mountSettings(root, app) {
         row('Smoothing', numberField({ value: app.lazy.smoothing, min: 0, max: 0.95, step: 0.01, def: 0, title: 'Each step the pen covers only part of the way (0.5 = half): higher is smoother and lags more. 0 = off', onChange: v => app.setLazy({ smoothing: v }) }))),
       section('Export', true,
         row('p5.js', selectField([['2', '2.x (latest)'], ['1', '1.x']], app.p5Version(), v => { try { localStorage.setItem('ams_p5_version', v); } catch { /* ignore */ } }), 'The p5.js version p5 exports target: 2.x uses splineVertex, 1.x curveVertex')),
+      soundSection(app),
       gridSection(app),
       section('Guide', true,
         row('Show agents', check(app.guide.enabled, v => { app.guide.enabled = v; ls('ams_guide_enabled', v ? '1' : '0'); }, 'Move a cursor and narrate when an agent or walkthrough acts')),
@@ -68,4 +70,24 @@ function gridSection(app) {
     row('Subdivisions', numberField({ value: g.subdivisions, min: 1, max: 20, step: 1, def: 4, title: 'Minor divisions per major square (1 = none)', onChange: v => set({ subdivisions: Math.round(v) }) })),
     row('Color', colorField(g.color, v => set({ color: v }), { title: 'Grid color', fallback: '#8a837840', app })),
     row('Snap', check(g.snap, v => set({ snap: v }), 'Points, notes, guides and moved selections land on the grid (subdivisions)')));
+}
+
+/** Where a score is heard: the built-in General MIDI sound, and a MIDI port. */
+function soundSection(app) {
+  const sc = app.score;
+  if (!sc) return section('Sound', false);
+  const ports = sc.midi.ports();
+  const ch = Number(sessionStorage.getItem('ams_sound_ch') || 1);
+  const prog = sc.prefs.programs[ch] ?? (ch === 3 ? 32 : 0);
+  return section('Sound', false,
+    row('Built-in', check(sc.prefs.gm, v => { sc.setSound({ gm: v }); }, 'Play scores with the built-in General MIDI sound'), 'The built-in General MIDI sound (no MIDI hardware needed)'),
+    row('MIDI', h('span', { class: 'wb-row-inline' },
+      selectField([['none', 'None'], ['all', 'All ports'], ...ports.map(p => [p.id, p.name])], sc.midi.selected, v => { sc.setSound({ midi: v }); app.store.emit('sound'); }, 'A MIDI output for scores'),
+      h('button', { class: 'wb-btn', title: 'Ask the browser for MIDI access', onclick: () => sc.connectMidi().then(() => app.store.emit('sound')).catch(e => app.log(`MIDI: ${e.message}`, 'error')) }, sc.midi.connected ? 'Refresh' : 'Connect')), 'A MIDI output port, for real instruments'),
+    row('Channel', h('span', { class: 'wb-row-inline' },
+      selectField(Array.from({ length: 16 }, (_, i) => [String(i + 1), i === 9 ? '10 · drums' : String(i + 1)]), String(ch), v => { sessionStorage.setItem('ams_sound_ch', v); app.store.emit('sound'); }, 'The channel to set the instrument of'),
+      ch === 10 ? null : selectField(GM_PROGRAMS.map((n, i) => [String(i), `${i + 1} ${n}`]), String(prog), v => sc.setSound({ program: [ch, Number(v)] }), 'The built-in sound (and MIDI port) plays this instrument on the channel')), 'Which instrument a channel plays'),
+    h('div', { class: 'wb-row wb-row-actions' },
+      h('button', { class: 'wb-btn', title: 'Play a short chord on the outputs', onclick: () => sc.test() }, 'Test'),
+      h('button', { class: 'wb-btn', title: 'Everything off', onclick: () => sc.panic() }, 'Stop all')));
 }
