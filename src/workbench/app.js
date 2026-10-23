@@ -894,6 +894,21 @@ export class Workbench {
     return this.scoreToBoard(iannixToScore(text, { title: name, inBoard: true }), 'IanniX', r => `${r.stats.curves} curves, ${r.stats.cursors} cursors, ${r.stats.triggers} triggers`);
   }
 
+  /** The score as a MIDI file, rendered ahead of time for `seconds` (the loop range, if one is set, else 60): downloaded. */
+  async exportMidi(seconds) {
+    const [{ renderScore }, { midiFile }, { download }] = await Promise.all([import('../score/runner.js'), import('../score/midifile.js'), import('./ui.js')]);
+    const st = this.player.settings, range = this.player.loopRange;
+    const len = Math.min(900, Math.max(1, Number(seconds) || (range ? range[1] / 1000 : 60)));
+    const out = renderScore(this.store.doc, st, len);
+    for (const e of out.errors) this.log(`Score: ${e}`, 'error');
+    const notes = out.messages.filter(m => (m.bytes[0] & 0xf0) === 0x90 && m.bytes[2] > 0).length;
+    if (!notes) { this.log('The score plays no notes to export.', 'error'); return null; }
+    const bytes = midiFile(out.messages, { tempo: st.tempo, signature: st.signature, name: this.store.doc.title });
+    download(bytes, `${(this.store.doc.title || 'score').replace(/[^\w.-]+/g, '_')}.mid`, 'audio/midi');
+    this.log(`MIDI file: ${notes} notes, ${len} s at ${st.tempo} bpm.`);
+    return { notes, seconds: len, bytes: bytes.length };
+  }
+
   /** Open a Midinous (.nous) or midinojs project as a new board whose code is the score; the scene takes its tempo. */
   async importNous(file, { title } = {}) {
     if (!file) {

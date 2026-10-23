@@ -361,6 +361,32 @@ The **Process** panel scrubs and replays the stages, shows a filmstrip, the deci
       h('pre', {}, h('code', {}, SCRIPT_REFERENCE)),
       prose('Options that are not element fields (`stage, brush, color, why, closed, pressures, seed`) are brush parameters. Scripted paths get synthetic time (16 ms per point) unless the point carries its own `[x, y, t]`.'))),
 
+    T('score-play', 'Scores', 'Scores that play', 'Travelers, paths and triggers on the Timeline: sound, IanniX, Midinous, a gas.', () => prose(`
+A score can **play**. Marks that carry a \`play\` option run on the Timeline's playhead: press play, and a **traveler** (a point) runs a **path** (a line), and **triggers** (planes, points, lines) sound when it touches them. The picture is the score; the Timeline is the clock; tempo, meter and the loop range are the scene's (Timeline bar).
+
+\`\`\`
+const p = line([[100, 500], [900, 300]], { play: { path: true } })
+point(100, 500, { play: { travel: { on: p, dur: '8 beats', loop: 'pingpong' } } })
+plane(rect(450, 350, 100, 200), { play: { trigger: { emit: "note(1, snap(48 + lane(ny, 24), 'dorian', 62), 90, 'gate')" } } })
+\`\`\`
+
+## The three parts
+- **path**: \`play: { path: true }\`, or a name: \`path: 'melody'\`.
+- **traveler**: \`play: { travel: { on: path, dur | speed, start, rate, loop: 'once' | 'loop' | 'pingpong', as: 'drawn', width, tag } }\`. Times are seconds or times (\`'2 beats'\`, \`'1 bar'\`, \`'500ms'\`, \`'4n'\`). **as: 'drawn'** replays a line at the speed the hand drew it; \`width\` makes the traveler a bar across the path (an IanniX cursor).
+- **trigger**: \`play: { trigger: { emit, emitExit, on, gate, lockout, policy, filter, r, name, start } }\`. **emit** is code run on each touch; **policy** is \`latched\` (one voice however many travelers; the default), \`pair\` or \`every\`; **gate** holds it open at least that long; **lockout** is the time before it can fire again.
+- **body**: \`play: { body: { speed: [60, 220], r: 7, emit } }\`: a point that moves by itself, bounces off the board and other bodies (elastic), and touches triggers like a traveler. Many of them are a gas; \`spawn({ x, y, vx, vy, life })\` and \`effect({ type: 'mark', x, y })\` make more.
+
+## What emit can use
+The event: \`type\` (enter, exit, cross, end, arrive, collide), \`x y\`, **\`nx ny\`** (0 to 1 across the board, y up), \`u\` (how far along the path), \`speed\`, \`p\` (pressure of the line), \`dir\`, \`tag\`, \`traveler\`, \`trigger\`, \`other\`, \`data\`. Helpers: \`note(ch, pitch, vel, dur, delay)\` (\`dur\` a time, or \`'gate'\`: held until the trigger is left), \`notef\`, \`cc\`, \`ccf\`, \`bend\`, \`program\`, \`map\`, \`clamp\`, \`lane(ny, n)\`, \`quant\`, \`snap(note, scale, root)\`, \`step(note, k, scale, root)\` (the 32 Midinous scales), \`beats(n)\`, \`rng()\`, \`launch(path, opts)\`, \`arrive(trigger, data)\`, \`route(mode, outs, data)\`, \`state\` (kept between events).
+
+## Hearing it
+The **built-in sound** is General MIDI (TinySynth: no hardware needed); **Settings → Sound** also connects a **MIDI port** (permission is asked when you press Connect), sets each channel's instrument, and has Test and Stop all. Seeking, looping and pausing silence what is sounding. Agents cannot hear: \`ams_score { action: 'events' }\` renders a score ahead of time and says what it would play. **/midi** (or \`ams_score export\`) writes it as a MIDI file.
+
+## IanniX and Midinous
+**/iannix** opens a \`.iannix\` score (it is JavaScript, so it runs as a program: open ones you trust) and **/nous** opens a Midinous or midinojs project. Each becomes a new board whose code is the AMS score it comes to (Code → Board): read it, change it. IanniX curves are lines, cursors are travelers (speed, pattern, width and bounds kept), triggers play their MIDI messages (IanniX's default: \`notef 1 trigger_value_y trigger_value_x trigger_duration\`). In Midinous a node is a trigger, a path is a line, a grid cell is a beat, and robin, split, random and portal are \`route()\`. OSC and cursor messages are not imported; the warnings say what was left out.
+
+Exercises: *Score: a line, a traveler, planes that sound*, and *Score: a gas that plays*. Design notes: docs/notes/paths-travelers-triggers.md.
+`)),
     T('score-sources', 'Scores', 'Sources and redraw', 'The camera, images and videos as streams code reads by name; redraw from them.', () => prose(`
 The **Sources** panel lists the project's streams: the camera, and images or videos from Assets. Code reads them by name, fitted to the board (fractions of the board):
 
