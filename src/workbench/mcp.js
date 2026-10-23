@@ -347,10 +347,11 @@ export function workbenchTools(app) {
       const p = app.player;
       if (a.action === 'list') return (await app.assetStore.all()).filter(x => x.kind === 'take').map(x => ({ id: x.id, title: x.title, seconds: Math.round((x.meta?.duration || 0) / 1000), clips: x.meta?.clips }));
       if (a.action === 'open') { await app.openTake(a.id); return { open: p.take.title, seconds: Math.round(p.duration / 1000) }; }
-      if (!p.take) throw new Error('No take open: ams_timeline {action: "open", id}');
+      // (the transport runs without a take: scores play on it)
       if (a.action === 'play') { p.play(); return { playing: true }; }
       if (a.action === 'pause') { p.pause(); return { t: Math.round(p.t) }; }
       if (a.action === 'seek') { p.seek(a.ms || 0); return { t: Math.round(p.t) }; }
+      if (!p.take) throw new Error('No take open: ams_timeline {action: "open", id}');
       if (a.action === 'summary') { const { summarize, duration: dur } = await import('../process/take.js'); const s2 = summarize(p.take); s2.duration = dur(s2); await app.recorder.saveTake(s2, { title: s2.title }); p.load(s2); return { title: s2.title, seconds: Math.round(s2.duration / 1000) }; }
       if (a.action === 'walkthrough') { const w = await app.walkthroughs.fromTake(p.take); return { walkthrough: w.id, steps: w.steps.length }; }
       if (a.action === 'export') {

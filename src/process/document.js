@@ -11,6 +11,7 @@
  * Pure data + a tiny observable store with undo. No DOM.
  */
 import { normalizeTime } from './envelope.js';
+import { normalizeTransport } from '../time/sceneTransport.js';
 import { installLines, embedBrushes } from './brushes.js';
 import { migrateBoards, boardsOf, newBoardId, nextBoardPlace, boardForPoints, MAIN, BLACKBOARD, BOARD_FLAGS, rateOf } from './boards.js';
 
@@ -84,6 +85,7 @@ export function normalizeDocument(doc, { own = false } = {}) {
   const stageIds = new Set(d.stages.map(s => s.id));
   d.elements = (d.elements || []).map(e => normalizeElement(e, stageIds.has(e.stage) ? e.stage : d.stages[0].id));
   d.decisions = d.decisions || [];
+  if (d.transport) d.transport = normalizeTransport(d.transport);   // (absent: the defaults; see src/time/sceneTransport.js)
   d.lines = d.lines && typeof d.lines === 'object' ? d.lines : {};
   d.groups = d.groups && typeof d.groups === 'object' ? d.groups : {};
   d.brushes = d.brushes && typeof d.brushes === 'object' ? d.brushes : {};

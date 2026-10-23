@@ -8,12 +8,25 @@ import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
 import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf } from '../../process/take.js';
 import { showMenu } from '../menu.js';
+import { createTimelineTicks, formatTimecode, formatMusicalPosition, snapTimelineTime, secondsToFrame } from '../../time/transport.js';
+import { RULERS, FPS_CHOICES, timeContext } from '../../time/sceneTransport.js';
 
 const TRACK_LABEL = { title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
 const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`; };
+const RULER_NAMES = { time: 'Minutes and seconds', beats: 'Bars, beats and sixteenths', frames: 'Frames' };
+const RULER_MODE = { time: 'timecode', beats: 'beats', frames: 'frame' };   // (the names src/time/transport.js uses)
 
 export function mountTimeline(root, app) {
   const P = () => app.player, R = () => app.recorder;
+  const S = () => P().settings;   // the scene's transport: tempo, signature, fps, ruler, loop range
+  /** A time (ms) as the ruler reads it. */
+  const stamp = ms => {
+    const st = S();
+    if (st.ruler === 'beats') return formatMusicalPosition(ms / 1000, st.tempo, st.signature);
+    if (st.ruler === 'frames') return String(secondsToFrame(ms / 1000, st.fps));
+    return fmt(ms);
+  };
+  const stampOf = (t, total) => (st => (st.ruler === 'time' ? `${fmt(t)} / ${fmt(total)}` : stamp(t)))(S());
   let pps = 60;             // pixels per second
   let selected = null;
   const bar = h('div', { class: 'wb-tl-bar' });
@@ -40,14 +53,27 @@ export function mountTimeline(root, app) {
       h('option', { value: '' }, take ? `${take.title}${take.assetId ? '' : ' (unsaved)'}` : 'Takes…'),
       ...takes.map(a => h('option', { value: a.id }, `${a.title} · ${fmt(a.meta?.duration || 0)}`)));
     sel.addEventListener('change', async () => { const a = takes.find(x => x.id === sel.value); if (a) openTake(a); sel.blur(); });
+    const st = S();
+    const ruler = h('select', { class: 'wb-select wb-tl-ruler-mode', title: 'What the ruler shows' }, ...RULERS.map(r => h('option', { value: r, selected: r === st.ruler, title: RULER_NAMES[r] }, { time: 's', beats: '♩', frames: 'f' }[r])));
+    ruler.addEventListener('change', () => { p.setSettings({ ruler: ruler.value }); ruler.blur(); });
+    const tempo = h('input', { class: 'wb-select wb-tl-tempo', type: 'number', min: 20, max: 400, step: 1, value: st.tempo, title: 'Tempo (beats a minute)' });
+    tempo.addEventListener('change', () => p.setSettings({ tempo: Number(tempo.value) }));
+    tempo.addEventListener('keydown', ev => ev.stopPropagation());
+    const sig = h('select', { class: 'wb-select', title: 'Meter' }, ...['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '9/8', '12/8'].map(m => h('option', { value: m, selected: m === `${st.signature.numerator}/${st.signature.denominator}` }, m)));
+    sig.addEventListener('change', () => { const [numerator, denominator] = sig.value.split('/').map(Number); p.setSettings({ signature: { numerator, denominator } }); sig.blur(); });
+    const fps = h('select', { class: 'wb-select', title: 'Frames a second' }, ...FPS_CHOICES.map(f => h('option', { value: f, selected: f === st.fps }, `${f} fps`)));
+    fps.addEventListener('change', () => { p.setSettings({ fps: Number(fps.value) }); fps.blur(); });
     const rate = h('select', { class: 'wb-select', title: 'Playback rate' }, ...[0.5, 1, 2, 4, 8].map(r => h('option', { value: r, selected: r === (p?.rate || 1) }, `${r}×`)));
     rate.addEventListener('change', () => { p.rate = Number(rate.value); rate.blur(); });
     bar.replaceChildren(...[
       h('button', { class: `wb-icon-btn wb-tl-rec${rec ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : 'Record: everything that happens becomes a take', html: rec ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>', onclick: () => (rec ? R().stop() : R().start()) }),
-      h('button', { class: 'wb-icon-btn', title: 'Play / pause (Space in the timeline)', disabled: !take, html: p?.playing ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : icon('play'), onclick: () => p.toggle() }),
-      h('span', { class: 'wb-tl-time' }, take ? `${fmt(p.t)} / ${fmt(p.duration)}` : rec ? `● ${fmt(R().now())}` : '0:00.0'),
+      h('button', { class: 'wb-icon-btn', title: 'Play / pause (Space in the timeline)', html: p?.playing ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : icon('play'), onclick: () => p.toggle() }),
+      h('span', { class: 'wb-tl-time' }, rec && !take ? `● ${fmt(R().now())}` : stampOf(p.t, p.duration)),
+      ruler,
+      st.ruler === 'frames' ? fps : tempo,
+      st.ruler === 'frames' ? null : sig,
       rate,
-      h('button', { class: `wb-icon-btn${p?.loop ? ' on' : ''}`, title: 'Loop', disabled: !take, html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a6 6 0 016-6h8l-3-3M20 12a6 6 0 01-6 6H6l3 3"/></svg>', onclick: () => { p.loop = !p.loop; drawBar(); } }),
+      h('button', { class: `wb-icon-btn${p?.loop ? ' on' : ''}`, title: p.loopRange ? 'Loop the marked range (Shift-drag the ruler to mark one; right-click it to clear)' : 'Loop (Shift-drag the ruler to mark a range)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a6 6 0 016-6h8l-3-3M20 12a6 6 0 01-6 6H6l3 3"/></svg>', onclick: () => { p.loop = !p.loop; drawBar(); drawLanes(); } }),
       sel,
       h('button', { class: 'wb-btn', title: 'Add at the playhead', disabled: !take, onclick: e => showMenu(addItems(), e.clientX, e.clientY) }, '+ Add'),
       take?.original
@@ -137,27 +163,66 @@ export function mountTimeline(root, app) {
     const p = P(), rec = live(), take = p?.take || rec;
     const tracks = take ? tracksOf(take) : TRACKS.map(k => ({ id: k, kind: k, name: TRACK_NAMES[k] }));
     labels.replaceChildren(h('div', { class: 'wb-tl-rulerlabel' }), ...tracks.map(tr => trackLabel(tr, take, Boolean(rec))));
-    if (!take) { lanes.replaceChildren(h('div', { class: 'wb-tl-empty' }, 'Record, or open a take.')); return; }
+    // (without a take the lanes are empty and the playhead still runs: scores play on it)
     const now = rec ? R().now() : p.t;
     const d = rec ? now : p.duration, W = Math.max(lanes.clientWidth, x(d) + (rec ? lanes.clientWidth : 120));
     laneWidth = W;
+    const st = S();
     const ruler = h('div', { class: 'wb-tl-ruler', style: { width: `${W}px` } });
-    const step = pps > 80 ? 1 : pps > 25 ? 5 : pps > 8 ? 10 : 30;
-    for (let s = 0; s * 1000 <= d + step * 1000; s += step) ruler.append(h('span', { style: { left: `${x(s * 1000)}px` } }, fmt(s * 1000).replace(/\.0$/, '')));
+    if (st.ruler === 'time') {
+      const step = pps > 80 ? 1 : pps > 25 ? 5 : pps > 8 ? 10 : 30;
+      for (let s = 0; s * 1000 <= d + step * 1000; s += step) ruler.append(h('span', { style: { left: `${x(s * 1000)}px` } }, fmt(s * 1000).replace(/\.0$/, '')));
+    } else {
+      // Bars and beats, or frames: the ticks and labels of the Underscores ruler.
+      const secs = W / pps;
+      for (const k of createTimelineTicks(secs, 12, { mode: RULER_MODE[st.ruler], rangeStart: 0, rangeEnd: secs, pixelWidth: W, fps: st.fps, tempo: st.tempo, signature: st.signature })) {
+        const label = !k.showLabel ? '' : st.ruler === 'beats' ? formatMusicalPosition(k.time, st.tempo, st.signature).replace(/(\.1)?\.1$/, '') : String(secondsToFrame(k.time, st.fps));
+        ruler.append(h('span', { class: k.major ? 'major' : 'minor', style: { left: `${x(k.time * 1000)}px` } }, label));
+      }
+    }
     const rows = tracks.map(tr => {
       const row = h('div', { class: `wb-tl-row${tr.muted ? ' muted' : ''}`, 'data-track': tr.id, 'data-kind': tr.kind, style: { width: `${W}px` } });
-      for (const c of take.clips.filter(c => laneOf(c) === tr.id)) row.append(clipEl(c, Boolean(rec)));
+      for (const c of (take?.clips || []).filter(c => laneOf(c) === tr.id)) row.append(clipEl(c, Boolean(rec)));
       return row;
     });
     playhead.classList.toggle('live', Boolean(rec));
-    lanes.replaceChildren(ruler, ...rows, playhead);
+    // The loop range: a band over the lanes (Shift-drag the ruler to mark one).
+    const lr = p.loopRange;
+    const band = h('div', { class: `wb-tl-loop${p.loop ? ' on' : ''}`, style: lr ? { left: `${x(lr[0])}px`, width: `${x(lr[1] - lr[0])}px` } : { display: 'none' } });
+    lanes.replaceChildren(ruler, ...rows, band, playhead);
     setHead(now);
     if (rec) return;   // read-only until the recording stops
     // Scrub by clicking or dragging on the ruler or empty lanes.
-    const scrub = ev => { const r = lanes.getBoundingClientRect(); p.seek(((ev.clientX - r.left + lanes.scrollLeft) / pps) * 1000); };
+    const at = ev => { const r = lanes.getBoundingClientRect(); return ((ev.clientX - r.left + lanes.scrollLeft) / pps) * 1000; };
+    const scrub = ev => p.seek(at(ev));
+    // Marks fall on the beat (or frame) in those rulers; hold Alt for any time.
+    const snapped = ev => {
+      const ms = Math.max(0, at(ev));
+      if (st.ruler === 'time' || ev.altKey) return Math.round(ms / 10) * 10;
+      return snapTimelineTime(ms / 1000, W / pps, RULER_MODE[st.ruler], { fps: st.fps, tempo: st.tempo, signature: st.signature }, 'minor') * 1000;
+    };
+    ruler.addEventListener('contextmenu', ev => {
+      ev.preventDefault();
+      showMenu([{ label: 'Clear the loop range', disabled: !p.loopRange, run: () => p.setSettings({ loop: { start: 0, end: 0 } }) }], ev.clientX, ev.clientY);
+    });
     for (const el of [ruler, ...rows]) el.addEventListener('pointerdown', ev => {
       if (ev.target.closest('.wb-tl-clip')) return;
-      select(null); scrub(ev);
+      select(null);
+      if (ev.shiftKey && el === ruler) {
+        // Mark a loop range: drag from where you press.
+        const a = snapped(ev);
+        const mv = e2 => { const b = snapped(e2); band.style.display = ''; band.style.left = `${x(Math.min(a, b))}px`; band.style.width = `${x(Math.abs(b - a))}px`; };
+        const up = e2 => {
+          window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+          const b = snapped(e2), lo = Math.min(a, b), hi = Math.max(a, b);
+          p.setSettings({ loop: hi - lo >= 20 ? { start: lo / 1000, end: hi / 1000 } : { start: 0, end: 0 } });
+          if (hi - lo >= 20 && !p.loop) p.loop = true;
+          drawBar(); drawLanes();
+        };
+        window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+        return;
+      }
+      scrub(ev);
       const mv = e2 => scrub(e2), up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); };
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
     });
@@ -302,22 +367,31 @@ export function mountTimeline(root, app) {
   const loop = () => {
     raf = 0;
     const p = P(), rec = live();
-    if (!p?.take && !rec) return;
+    if (!p) return;
     const t = rec ? R().now() : p.t;
     setHead(t);
     timeEl ||= bar.querySelector('.wb-tl-time');
-    if (timeEl?.isConnected) timeEl.textContent = rec ? `● ${fmt(t)}` : `${fmt(t)} / ${fmt(p.duration)}`; else timeEl = null;
-    if (rec && x(t) > laneWidth - 60) drawLanes();          // grow a screen at a time
+    if (timeEl?.isConnected) timeEl.textContent = rec ? `● ${fmt(t)}` : stampOf(t, p.duration); else timeEl = null;
+    if ((rec || !p.take) && x(t) > laneWidth - 60) drawLanes();          // grow a screen at a time
     if (rec || p.playing) follow(t);
     if (rec || p.playing) raf = requestAnimationFrame(loop);
   };
   const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
-  const sync = () => {
-    const p = P(); if (!p?.take) return;
-    if (lastPlaying !== p.playing) { lastPlaying = p.playing; drawBar(); timeEl = null; }   // redraw the bar only when play/pause flips
-    if (p.playing) kick(); else { setHead(p.t); timeEl ||= bar.querySelector('.wb-tl-time'); if (timeEl) timeEl.textContent = `${fmt(p.t)} / ${fmt(p.duration)}`; }
+  // The scene's transport changed (a setting, an undo, another scene): the bar and ruler follow.
+  let settingsKey = '';
+  const checkSettings = () => {
+    const p = P(); if (!p) return;
+    const key = JSON.stringify(p.settings);
+    if (key === settingsKey) return;
+    settingsKey = key; drawBar(); timeEl = null; drawLanes();
   };
-  const attach = () => { if (!P() || !R()) return setTimeout(attach, 30); P().on(sync); drawBar(); drawLanes(); loadTakes(); };
+  const sync = () => {
+    const p = P(); if (!p) return;
+    checkSettings();
+    if (lastPlaying !== p.playing) { lastPlaying = p.playing; drawBar(); timeEl = null; }   // redraw the bar only when play/pause flips
+    if (p.playing) kick(); else { setHead(p.t); timeEl ||= bar.querySelector('.wb-tl-time'); if (timeEl) timeEl.textContent = stampOf(p.t, p.duration); }
+  };
+  const attach = () => { if (!P() || !R()) return setTimeout(attach, 30); P().on(sync); app.store.subscribe(checkSettings); settingsKey = JSON.stringify(P().settings); drawBar(); drawLanes(); loadTakes(); };
   // While recording, new clips redraw the lanes (at most every 250 ms); the loop moves the playhead.
   let liveQueued = false;
   const liveRedraw = () => { if (liveQueued) return; liveQueued = true; setTimeout(() => { liveQueued = false; if (live()) drawLanes(); }, 250); };

@@ -502,6 +502,12 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-clip.t-action { background: color-mix(in srgb, var(--wb-muted) 45%, transparent); color: var(--wb-text); }
 .wb-tl-clip.t-camera { background: #b3bfd0; }
 .wb-tl-clip.t-audio { background: #d0b3c4; }
+.wb-tl-ruler span.minor { top: 11px; height: 6px; padding: 0; border-left-color: color-mix(in srgb, var(--wb-line) 70%, transparent); }
+.wb-tl-ruler span.major { height: 16px; }
+.wb-tl-ruler-mode { width: 40px; }
+.wb-tl-tempo { width: 52px; font-family: var(--font-mono); }
+.wb-tl-loop { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--wb-accent-2) 10%, transparent); border-left: 1px solid color-mix(in srgb, var(--wb-accent-2) 50%, transparent); border-right: 1px solid color-mix(in srgb, var(--wb-accent-2) 50%, transparent); pointer-events: none; }
+.wb-tl-loop.on { background: color-mix(in srgb, var(--wb-accent-2) 18%, transparent); }
 .wb-tl-playhead { position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: #c0563f; pointer-events: none; will-change: transform; }
 .wb-tl-empty { padding: 14px; color: var(--wb-muted); }
 
