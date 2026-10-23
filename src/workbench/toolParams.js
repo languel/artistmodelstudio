@@ -185,7 +185,7 @@ export function openToolDefaults(app, tool, x, y, shape = null) {
     const lz = d.lazy || {}, on = Boolean(lz.on), radius = lz.radius ?? 40, catchUp = lz.catch !== false;
     const pen = seg([['off', 'Off'], ['lazy', 'Lazy']], on ? 'lazy' : 'off', v => { app.setDefaults(tool, { lazy: { on: v === 'lazy', radius, catch: catchUp } }); render(); });
     return [line('Pen', pen, 'Off: the pen follows the cursor. Lazy: it trails the cursor on a string, so strokes come out smoother'),
-      ...(on ? [slider({ label: 'Laziness', min: 0, max: 120, step: 1, value: radius, doc: 'Length of the string (screen px): the pen waits until the cursor is this far away. Smoothing and Simplify (Opt+right-click) still apply.', onInput: v => app.setDefaults(tool, { lazy: { on: true, radius: Math.round(v), catch: catchUp } }) }),
+      ...(on ? [slider({ label: 'Laziness', min: 0, max: 120, step: 1, value: radius, doc: 'Length of the string (screen px): the pen waits until the cursor is this far away. Same as Lazy in Settings → Drawing; Smoothing and Simplify still apply.', onInput: v => app.setLazy({ radius: Math.round(v) }) }),   // (the editor's Lazy: the same slider as Settings → Drawing and the grid popover)
         line('Catch up', seg([['off', 'Off'], ['on', 'On']], catchUp ? 'on' : 'off', v => { app.setDefaults(tool, { lazy: { on: true, radius, catch: v === 'on' } }); render(); }), 'On: when the pointer stops, the pen catches up to it, so the line reaches the cursor. Off: the line stops where the string leaves it')] : [])];
   };
   const render = () => {

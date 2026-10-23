@@ -10,7 +10,7 @@
  */
 import { sculptMark, SCULPTABLE, nearMark, falloff, effectiveSculpt } from '../process/sculpt.js';
 import { boardsOf, boardDoc, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD } from '../process/boards.js';
-import { closeLasso, lazyFollow, lazyCatchUp, straightEnd } from '../process/strokes.js';
+import { closeLasso, lazyFollow, lazyCatchUp, straightEnd, effectiveLazy } from '../process/strokes.js';
 import { rdp } from '../process/sculpt.js';
 import { renderDocument, nextTimed, drawOutlines } from '../process/render.js';
 import { smoothPath } from '../process/walk.js';
@@ -1499,8 +1499,7 @@ export class CanvasView {
     // Lazy drawing: the pen trails the cursor on a string (screen px), smoothed (an editor setting).
     // The tool's Pen (right-click the tool): Lazy takes its laziness (the string's length) and the editor's Smoothing.
     const lazyTool = d.lazy || {};
-    const lazy = { ...(this.getLazy?.() || { radius: 0, smoothing: 0 }), radius: lazyTool.on ? (lazyTool.radius ?? 40) : 0 };
-    if (!lazyTool.on) lazy.smoothing = 0;
+    const lazy = effectiveLazy(this.getLazy?.(), lazyTool);
     const lazyOn = !straight && (lazy.radius > 0 || lazy.smoothing > 0);   // (lazy.simplify applies on release)
     const catchOn = lazyOn && lazyTool.catch !== false;   // the pen catches up to a still pointer (the tool's Catch up setting)
     let pen = [wx, wy], cursor = [wx, wy], snapped = Boolean(e.ctrlKey);

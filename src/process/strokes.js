@@ -38,6 +38,18 @@ export function closeLasso(pts, tol = 6) {
  * cursor pulls the string taut), and `smoothing` (0..1) eases it further. Returns the next pen
  * position, given the last one and the cursor.
  */
+/**
+ * The lazy settings a stroke uses. The editor's Lazy and Smoothing (Settings → Drawing, the grid popover) apply to
+ * every drawing stroke; a tool's own Lazy (its Pen) adds the string where the editor has none, with its own length.
+ * So the editor's sliders always take effect, and turning Lazy on for a tool never silences them.
+ */
+export function effectiveLazy(editor = {}, tool = {}) {
+  const on = Boolean(tool.on);
+  const editorRadius = Number(editor.radius) || 0, editorSmoothing = Number(editor.smoothing) || 0;
+  const radius = editorRadius > 0 ? editorRadius : on ? (Number(tool.radius) || 40) : 0;
+  return { radius, smoothing: editorSmoothing, simplify: Number(editor.simplify) || 0 };
+}
+
 export function lazyStep(pen, cursor, radius, smoothing = 0) {
   let [px, py] = pen;
   const dx = cursor[0] - px, dy = cursor[1] - py, d = Math.hypot(dx, dy);
