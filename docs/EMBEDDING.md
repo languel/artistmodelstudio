@@ -52,7 +52,7 @@ Configured by the `init` message (and URL params for simple cases). Defaults are
 
 Every message is `{ channel: 'ams-editor-v1', type, id?, … }`. Parent and iframe check `event.source` and `origin`. Requests carry an `id` and get one `result` or `error` reply.
 
-Host → editor: `init { ns, ui, theme, background, boards, persist, tools[] }`, `load { document }`, `loadExcalidraw { scene }`, `get-document`, `export { board, format: png|svg|json|p5|excalidraw, scale, transparent }`, `call { name, args }` (any `ams_*` tool), `set-ui { … }`, `focus`, `fit`.
+Host → editor: `init { ns, ui, theme, background, boards, persist, tools[] }`, `load { document }`, `loadExcalidraw { scene }`, `get-document`, `export { board, format: png|bitmap|svg|json|p5|excalidraw, scale, transparent }`, `call { name, args }` (any `ams_*` tool), `set-ui { … }`, `focus`, `fit`.
 
 Editor → host: `ready { protocol, version, tools }`, `change { rev, reason }` (throttled; no payload, ask for the document when needed), `draft { active }` (a stroke is being drawn: at most once per frame while it grows and once more when it ends; no payload; a stroke is in the document only after the pointer is released, so a live host answers with `export { draft: true }`), `selection { ids }`, `tool { id }`, `result { id, value }`, `error { id, message }`, `key { combo }` (shortcuts the editor does not use, so the host's keys keep working; and the host's keys forwarded in when focus is outside).
 
@@ -100,7 +100,7 @@ URL parameters of `embed.html` (the client sets them): `ns` (storage namespace),
 Verified in the browser, from the dev server and from the built folder served by a plain static server (`python3 -m http.server`) next to a host page:
 
 - `createEditor` gets `ready`, `init` declares boards (a main board titled `image` and a `mask` board of the same size), `fit` frames them.
-- `export` gives PNG (with `scale` and `transparent`), SVG, JSON and Excalidraw; an unknown format is an `error`. `getDocument` returns the document with a `rev`; `callTool('ams_add', …)` draws; `loadExcalidraw(editor.export(…excalidraw).scene)` round trips; declared boards survive every `load`.
+- `export` gives PNG (with `scale` and `transparent`), SVG, JSON and Excalidraw; an unknown format is an `error`. `format: 'bitmap'` answers `{ bitmap: ImageBitmap }`, with no encode, for live views (it is carried by structured clone; `ids` exports stay PNG or SVG); a host falls back to `png` when an older editor answers "Unknown export format". `getDocument` returns the document with a `rev`; `callTool('ams_add', …)` draws; `loadExcalidraw(editor.export(…excalidraw).scene)` round trips; declared boards survive every `load`.
 - `change` (throttled to 120 ms, `rev` only goes up), `selection`, `tool` and `key` (keys the editor did not use) reach the host.
 - Storage: every `localStorage` key and IndexedDB name is under `ns:`; nothing is written to the studio's own keys; no scenes database is created; no autosave of the document; no request leaves the origin.
 - Startup weight: two requests, a 2.1 MB script (about 720 KB gzipped) and an 85 KB stylesheet; the iframe's DOM is ready in about 130 ms locally. The rest of `dist-embed/` (about 13 MB) is lazy chunks that load only when used (Mermaid and its diagrams, p5, KaTeX fonts).

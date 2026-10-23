@@ -108,7 +108,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
       return { format, ids, blob };
     }
     const b = boardOf(board);
-    if (format === 'png') {
+    if (format === 'png' || format === 'bitmap') {   // 'bitmap' is the same picture as an ImageBitmap, with no encode (a live view)
       let out;
       const stroke = draft ? draftOn(b) : null;
       if (transparent || stroke) {   // the marks alone, no paper (transparent); and the stroke being drawn (draft)
@@ -117,7 +117,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
         if (stroke) { part.stages = [...(part.stages || []), { id: 'draft', visible: true }]; part.elements = [...part.elements, stroke]; }
         out = app.boardPicture(b, scale, mode, part);
       } else out = app.boardPicture(b, scale, mode);
-      return { format, board: b.id, width: out.width, height: out.height, blob: await toBlob(out) };
+      return { format, board: b.id, width: out.width, height: out.height, ...(format === 'bitmap' ? { bitmap: await createImageBitmap(out) } : { blob: await toBlob(out) }) };
     }
     const part = boardDoc(app.store.doc, b.id);
     if (format === 'svg') return { format, board: b.id, text: toSVG(part, { mode }) };

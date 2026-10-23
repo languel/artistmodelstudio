@@ -149,6 +149,28 @@ export const BRUSHES = {
       ctx.globalAlpha *= p.opacity;
       ctx.fillStyle = e.color || k.INK;
       ctx.beginPath();
+      if (!e.closed && pts.length >= 3 && !p.wobble) {   // (wobble makes each radius jump: the old union of quads and discs keeps its edge smooth, an outline through them spikes)
+        // One outline (left offsets forward, right offsets back), the round caps, and a disc every 4th point (these keep
+        // tight bends filled and cancel winding artifacts inside loops): far cheaper than a quad and a disc per point.
+        const N = pts.length, R = new Array(N), P = [];   // P: the outline's vertices, for the sign of its winding
+        for (let f = 0; f < N; f++) {
+          const a = pts[f > 0 ? f - 1 : 0], b = pts[f < N - 1 ? f + 1 : N - 1];   // the tangent, from the neighbours
+          let dx = b[0] - a[0], dy = b[1] - a[1];
+          const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+          const q = pts[f], rf = r[f], lx = q[0] - dy * rf, ly = q[1] + dx * rf;
+          f ? ctx.lineTo(lx, ly) : ctx.moveTo(lx, ly); P.push(lx, ly);
+          R[f] = [q[0] + dy * rf, q[1] - dx * rf];
+        }
+        for (let f = N - 1; f >= 0; f--) { ctx.lineTo(R[f][0], R[f][1]); P.push(R[f][0], R[f][1]); }
+        ctx.closePath();
+        let area = 0;
+        for (let f = 0, q = P.length - 2; f < P.length; q = f, f += 2) area += P[q] * P[f + 1] - P[f] * P[q + 1];
+        for (let f = 0; f < N; f++) {
+          if (f % 4 && f !== N - 1) continue;
+          ctx.moveTo(pts[f][0] + r[f], pts[f][1]);
+          ctx.arc(pts[f][0], pts[f][1], r[f], 0, Math.PI * 2, area < 0);   // the outline's winding, or 'nonzero' cancels the overlap
+        }
+      } else {
       const segs = e.closed ? pts.length : pts.length - 1;
       for (let i = 0; i < segs; i++) {
         const a = pts[i], b = pts[(i + 1) % pts.length], ra = r[i], rb = r[(i + 1) % pts.length];
@@ -164,6 +186,7 @@ export const BRUSHES = {
         ctx.closePath();
       }
       for (let i = 0; i < pts.length; i++) { ctx.moveTo(pts[i][0] + r[i], pts[i][1]); ctx.arc(pts[i][0], pts[i][1], r[i], 0, Math.PI * 2); }
+      }
       ctx.fill('nonzero');
       ctx.restore();
     }
