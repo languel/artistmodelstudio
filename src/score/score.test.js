@@ -253,7 +253,7 @@ describe('compile', () => {
     elements: [
       { id: 'p', role: 'line', points: [[0, 50], [100, 50]], path: 'straight', play: { path: true } },
       { id: 'dot', role: 'point', points: [[0, 50]], play: { travel: { on: 'p', dur: 10, tag: 'a' } } },
-      { id: 'zone', role: 'plane', points: [[40, 40], [60, 40], [60, 60], [40, 60]], play: { trigger: { emit: 'seen.push([type, +t.toFixed(2), +ny.toFixed(2), tag])' } } }
+      { id: 'zone', role: 'plane', points: [[40, 40], [60, 40], [60, 60], [40, 60]], play: { trigger: { emit: 'seen.push([type, +t.toFixed(2), +ny.toFixed(2), tag])', emitExit: 'seen.push([type, +t.toFixed(2), +ny.toFixed(2), tag])' } } }
     ]
   });
 

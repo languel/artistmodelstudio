@@ -74,4 +74,4 @@ Pick **Reference Fitter** as the engine, choose a reference in the **Reference**
 
 ## Licenses
 
-MIT © 2026 Artist Model Studio contributors. Exported sketches vendor p5.js (LGPL-2.1) and p5.brush (MIT) unmodified; bundled reference images are public domain (see `fixtures/references/*/sources.json`).
+MIT © 2026 Artist Model Studio contributors. Exported sketches vendor p5.js (LGPL-2.1) and p5.brush (MIT) unmodified; the built-in score sound is jzz and jzz-synth-tiny (MIT) with g200kg's webaudio-tinysynth (MIT); bundled reference images are public domain (see `fixtures/references/*/sources.json`).

@@ -324,7 +324,36 @@ export function createWorld(def = {}) {
 
   for (const d of def.travelers || []) addTraveler(d);
 
+  /**
+   * Jump to time t without sweeping over what lies between (a seek, or starting in the middle):
+   * dynamic travelers are dropped, handlers' state is kept, and travelers already under way (and
+   * who is inside what) are taken as they stand, silently. A traveler that starts at t or later
+   * begins as usual.
+   */
+  function seek(t) {
+    w.queue = []; w.events = [];
+    w.travelers = w.travelers.filter(tr => !tr.die);
+    w.live = w.travelers.length;
+    for (const trig of w.triggers) { trig.pairs.clear(); trig.slots.clear(); }
+    w.now = w.cur = t;
+    for (const tr of w.travelers) {
+      tr.done = false; tr.seeded = false; tr.lastT = t;
+      if (t <= tr.spec.start) continue;
+      if (!tr.fn && tr.spec.loop === 'once' && lapEnds(tr.spec, tr.spec.start - 1, t).length) { tr.done = true; continue; }
+      tr.seeded = true;
+      const p = tr.pointAt(t);
+      for (const trig of w.triggers) {
+        if (trig.region.kind !== 'area' || !passes(trig, tr) || !trig.region.inside(p.x, p.y)) continue;
+        const pair = pairOf(trig, tr);
+        pair.geo = pair.inside = true;
+        pair.slot = slotOf(trig, tr);
+        pair.slot.count++;
+      }
+    }
+  }
+
   return {
+    seek,
     step(t1) {
       w.now = Math.max(w.now, t1);
       for (let i = 0; i < w.travelers.length; i++) sweep(w.travelers[i], t1);

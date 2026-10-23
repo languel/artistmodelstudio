@@ -98,7 +98,10 @@ export class TakePlayer {
   changed() { if (this.take) { touch(this.take); this.render(); this.emit(); } }
 
   // (without a take the timeline has no end: you can seek and play past the drawn length)
-  seek(t) { this.t = Math.max(0, this.take ? Math.min(this.duration, t) : t); this.render(); this.syncAudio(); this.emit(); }
+  /** Where the playhead is right now (ms): `t` is as of its last tick, up to a frame or a timer old. Sound wants this one. */
+  position() { return this.playing ? this.t + (performance.now() - (this.at ?? performance.now())) * this.rate : this.t; }
+
+  seek(t) { this.t = Math.max(0, this.take ? Math.min(this.duration, t) : t); this.at = performance.now(); this.render(); this.syncAudio(); this.emit(); }
 
   /** The range playback wraps in (ms), or null: the loop range, else the whole take. */
   wrapRange() {
@@ -113,21 +116,27 @@ export class TakePlayer {
     if (wrap && (this.t < wrap[0] || this.t >= wrap[1])) this.t = wrap[0];
     this.playing = true;
     let last = performance.now();
-    const tick = now => {
+    this.at = last;
+    const tick = () => {
       if (!this.playing) return;
+      const now = performance.now();
+      if (now - last < 8) return;   // (the frame and the timer below both call this)
       const r = this.wrapRange();
       // Time is the wall clock's (not the frames'): a slow frame skips ahead, it does not slow the music.
       this.t = advanceTransportPlaybackTime(this.t / 1000, (now - last) / 1000, { rate: this.rate, loopEnabled: Boolean(r), loopStart: r ? r[0] / 1000 : 0, loopEnd: r ? r[1] / 1000 : 0 }) * 1000;
-      last = now;
+      last = now; this.at = now;
       if (this.take && !r && this.t >= this.duration) { this.t = this.duration; this.playing = false; }
       this.render(); this.syncAudio(); this.emit();
       if (this.playing) this.raf = requestAnimationFrame(tick);
     };
     this.raf = requestAnimationFrame(tick);
+    // Frames stop in a hidden or unfocused pane; the transport (and what plays on it) must not.
+    clearInterval(this.timer);
+    this.timer = setInterval(() => { if (performance.now() - last > 60) tick(); }, 40);
     this.emit();
   }
 
-  pause() { this.playing = false; cancelAnimationFrame(this.raf); this.syncAudio(); this.emit(); }
+  pause() { this.playing = false; cancelAnimationFrame(this.raf); clearInterval(this.timer); this.syncAudio(); this.emit(); }
   toggle() { this.playing ? this.pause() : this.play(); }
 
   render() {

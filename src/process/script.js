@@ -25,8 +25,8 @@ import { findBoard, newBoardId, nextBoardPlace } from './boards.js';
 import { getSource, streamState } from './streams.js';
 import { fitSource } from './fit.js';
 
-const EXTRA_KEYS = ['time', 'born', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'path', 'fill'];
-const ELEMENT_KEYS = new Set(['time', 'born', 'path', 'fill', 'why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id']);
+const EXTRA_KEYS = ['time', 'born', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'path', 'fill', 'play'];
+const ELEMENT_KEYS = new Set(['time', 'born', 'path', 'fill', 'why', 'color', 'brush', 'stage', 'closed', 'pressures', 'text', 'seed', 'by', 'label', 'opacity', 'blend', 'note', 'src', 'asset', 'hidden', 'locked', 'group', 'id', 'play']);
 
 /** 1D/2D value noise (seeded, smooth), enough for gentle variation. */
 function makeNoise(rng) {
@@ -334,7 +334,7 @@ board(title, {width, height})   later marks land on this board (made if new); fr
 source(name, { fit })   a camera / image / video: .color(x, y) .value(x, y) .rgb(x, y) .pose .hands .mask(x, y) .frame (fit: 'cover' crops, 'contain' letterboxes)
 fit(source, {shapes, kinds, brush, stage, live})   redraw a source as plane marks (live: continuous)
 point(x, y, {size, color, why})
-line(points, {brush, width, pressure, taper, wobble, color, why, pressures: t => 0..1, time: {in, hold, out, life, draw, curve, loop}})
+line(points, {brush, width, pressure, taper, wobble, color, why, pressures: t => 0..1, time: {in, hold, out, life, draw, curve, loop}, play: {path: true}})
 plane(points, {brush: flat | hatch | stipple | wash, angle, spacing, density, color, why})   line brushes: ink charcoal chalk pencil bristles marker ...
 guide(points, {why})   gesture(points, {why})   note(x, y, text)
 decide(question, options, chosen, why)

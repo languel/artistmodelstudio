@@ -47,6 +47,7 @@ import { Recorder } from './recorder.js';
 import { History } from './history.js';
 import { mountHistory } from './panels/history.js';
 import { TakePlayer } from './takePlayer.js';
+import { ScorePlayer } from './scorePlayer.js';
 import { loadLibrary } from '../process/brushes.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
@@ -999,6 +1000,7 @@ export class Workbench {
     }, true);
     this.recorder = new Recorder(this);
     this.player = new TakePlayer(this);
+    this.score = new ScorePlayer(this);   // plays marks with `play` on the transport
     this.shortcuts = new Shortcuts(this);
     this.registerPanels();
     const hadCamera = Boolean(localStorage.getItem('ams_workbench_camera_v1'));
