@@ -9,7 +9,7 @@
 import { normalizeElement } from '../process/document.js';
 
 const SESSIONS_KEY = 'ams_agent_sessions_v1';
-const READ_ONLY = /^ams_(wb_state|vocabulary|get|snapshot|process_sheet|pending|candidates|sessions|show|decision_pending|decision_labels|record|timeline|layout)$/;
+const READ_ONLY = /^ams_(wb_state|vocabulary|get|snapshot|process_sheet|pending|candidates|sessions|show|decision_pending|decision_labels|record|timeline|layout|score)$/;
 
 const summarize = (name, a) => {
   switch (name) {

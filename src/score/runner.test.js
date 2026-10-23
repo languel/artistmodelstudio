@@ -89,3 +89,14 @@ describe('starting playback', () => {
     expect(log.sent.filter(s => s.bytes && s.bytes[0] === 0x90)).toHaveLength(1);
   });
 });
+
+import { renderScore } from './runner.js';
+describe('rendering a score ahead of time', () => {
+  it('gives events and messages without a clock or sound', () => {
+    const out = renderScore(doc(), { tempo: 120, signature: { numerator: 4, denominator: 4 }, fps: 30 }, 7);
+    expect(out.errors).toEqual([]);
+    expect(out.events.filter(e => e.type === 'enter').map(e => +e.t.toFixed(2))).toEqual([4]);
+    expect(out.messages.map(m => m.bytes[0] & 0xf0)).toEqual([0x90, 0x80]);
+    expect(out.events.every(e => e.board === 'main')).toBe(true);
+  });
+});

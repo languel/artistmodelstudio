@@ -343,6 +343,40 @@ export function workbenchTools(app) {
       if (a.action === 'stop') { const t = await r.stop(); return t ? { saved: t.title, clips: t.clips.length, seconds: Math.round(t.duration / 1000), asset: t.assetId } : { saved: null }; }
       return { recording: r.recording, clips: r.take?.clips.length || 0, auto: r.settings };
     } },
+    { name: 'ams_score', description: 'Scores that play: marks with `play` (a line that can be travelled, a point that travels it, planes or points that sound when a traveler reaches them) run on the Timeline\'s transport. action "events" {seconds, board} renders the score ahead of time and returns what would happen (you cannot hear: this is how to check it); "import" {kind: iannix | nous, source, title} opens an IanniX score or a Midinous / midinojs project as a new board; "settings" {tempo, signature: "4/4", ruler: time | beats | frames, loop: [startSeconds, endSeconds] | null}; "sound" {gm: bool, midi: none | all | portId, program: [channel, 0..127]}; "play" / "pause" / "seek" {ms} are ams_timeline\'s. A trigger\'s play.trigger.emit is code: note(ch, pitch, vel, dur) with ny, nx, x, y, speed, u in scope, snap(), lane(), beats().', inputSchema: S({ action: str('events | import | settings | sound'), seconds: num('events: how many seconds to render (default 16)'), board: str('events: one board (a title or id); default all'), kind: str('import: iannix | nous'), source: str('import: the file text'), title: str('import: the board title'), tempo: num('beats a minute'), signature: str('e.g. 3/4'), ruler: str('time | beats | frames'), loop: { type: ['array', 'null'], items: { type: 'number' }, description: 'loop range in seconds, or null to clear' }, gm: { type: 'boolean' }, midi: str('none | all | a port id'), program: { type: 'array', items: { type: 'number' }, description: '[channel 1..16, program 0..127]' } }, ['action']), run: async (a) => {
+      const sc = app.score, p = app.player;
+      if (a.action === 'events') {
+        const { renderScore } = await import('../score/runner.js');
+        const doc = a.board ? boardOnly(app.store.doc, a.board) : app.store.doc;
+        const out = renderScore(doc, p.settings, Math.min(600, Math.max(1, a.seconds || 16)));
+        const NAMES = (n) => ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][n % 12] + (Math.floor(n / 12) - 1);
+        const notes = out.messages.filter(m => (m.bytes[0] & 0xf0) === 0x90 && m.bytes[2] > 0).map(m => `${m.t.toFixed(3)}s ch${(m.bytes[0] & 15) + 1} ${NAMES(m.bytes[1])} v${m.bytes[2]}`);
+        const kinds = {};
+        for (const e of out.events) kinds[e.type] = (kinds[e.type] || 0) + 1;
+        return { seconds: a.seconds || 16, tempo: p.settings.tempo, events: kinds, notes: notes.length, firstNotes: notes.slice(0, 60), errors: out.errors };
+      }
+      if (a.action === 'import') {
+        if (a.kind === 'iannix') { const b = await app.importIannix(String(a.source || ''), { confirmed: true, title: a.title }); return b ? { board: b.id, title: b.title } : { imported: false }; }
+        if (a.kind === 'nous') { const b = await app.importNous(String(a.source || ''), { title: a.title }); return b ? { board: b.id, title: b.title, tempo: p.settings.tempo } : { imported: false }; }
+        throw new Error('kind: iannix | nous');
+      }
+      if (a.action === 'settings') {
+        const patch = {};
+        if (a.tempo !== undefined) patch.tempo = a.tempo;
+        if (a.signature) { const [numerator, denominator] = String(a.signature).split('/').map(Number); patch.signature = { numerator, denominator }; }
+        if (a.ruler) patch.ruler = a.ruler;
+        if (a.loop !== undefined) patch.loop = Array.isArray(a.loop) ? { start: a.loop[0], end: a.loop[1] } : { start: 0, end: 0 };
+        if (Object.keys(patch).length) p.setSettings(patch);
+        return p.settings;
+      }
+      if (a.action === 'sound') {
+        const patch = {};
+        for (const k of ['gm', 'midi', 'program']) if (a[k] !== undefined) patch[k] = a[k];
+        sc.setSound(patch);
+        return { ...sc.prefs, midi: sc.midi.selected, outputs: sc.outputs().map(o => o.id) };
+      }
+      throw new Error('Unknown action');
+    } },
     { name: 'ams_timeline', description: 'Takes on the timeline: action "list" (takes in Assets), "open" {id}, "play", "pause", "seek" {ms}, "summary" (a short-form cut of the open take, saved), "walkthrough" (make a live walkthrough from it), "export" {format: html | project | video | json, rate}.', inputSchema: S({ action: str('list | open | play | pause | seek | summary | walkthrough | export'), id: str('Take asset id'), ms: num('Time in ms'), format: str('html | project | video | json'), rate: num('Video speed') }, ['action']), run: async (a) => {
       const p = app.player;
       if (a.action === 'list') return (await app.assetStore.all()).filter(x => x.kind === 'take').map(x => ({ id: x.id, title: x.title, seconds: Math.round((x.meta?.duration || 0) / 1000), clips: x.meta?.clips }));
@@ -384,6 +418,13 @@ function normalizePoints(pts) {
   if (pts.every(p => Array.isArray(p) && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))) return pts.map(p => p.map(Number));
   if (pts.every(v => Number.isFinite(Number(v))) && pts.length % 2 === 0) { const out = []; for (let i = 0; i < pts.length; i += 2) out.push([Number(pts[i]), Number(pts[i + 1])]); return out; }
   throw new Error('points must be a list like [[x, y], [x, y]] (numbers in artboard units)');
+}
+
+/** A document with only one board's marks (for rendering a board's score alone). */
+function boardOnly(doc, key) {
+  const b = findBoard(doc, key);
+  if (!b) throw new Error(`No board “${key}”`);
+  return { ...doc, elements: doc.elements.filter(e => (e.board || MAIN) === b.id) };
 }
 
 function loadScore(app, source, seed, by, title) {

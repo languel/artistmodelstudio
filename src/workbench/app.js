@@ -877,7 +877,7 @@ export class Workbench {
    * Open an IanniX score (.iannix: JavaScript that makes a score) as a new board whose code is the AMS
    * score it comes to: curves are lines, cursors travel them, triggers play. Plays on the transport.
    */
-  async importIannix(file) {
+  async importIannix(file, { confirmed = false, title } = {}) {
     if (!file) {
       file = await new Promise(resolve => {
         const input = document.createElement('input');
@@ -888,14 +888,14 @@ export class Workbench {
       if (!file) return null;
     }
     const text = typeof file === 'string' ? file : await file.text();
-    const name = typeof file === 'string' ? 'IanniX score' : file.name.replace(/\.[^.]+$/, '');
-    if (!(await askConfirm('An IanniX score is a program, and it runs as one here. Open scores you trust only.', { ok: 'Run it' }))) return null;
+    const name = title || (typeof file === 'string' ? 'IanniX score' : file.name.replace(/\.[^.]+$/, ''));
+    if (!confirmed && !(await askConfirm('An IanniX score is a program, and it runs as one here. Open scores you trust only.', { ok: 'Run it' }))) return null;
     const { iannixToScore } = await import('../score/import/iannix.js');
     return this.scoreToBoard(iannixToScore(text, { title: name, inBoard: true }), 'IanniX', r => `${r.stats.curves} curves, ${r.stats.cursors} cursors, ${r.stats.triggers} triggers`);
   }
 
   /** Open a Midinous (.nous) or midinojs project as a new board whose code is the score; the scene takes its tempo. */
-  async importNous(file) {
+  async importNous(file, { title } = {}) {
     if (!file) {
       file = await new Promise(resolve => {
         const input = document.createElement('input');
@@ -906,7 +906,7 @@ export class Workbench {
       if (!file) return null;
     }
     const text = typeof file === 'string' ? file : await file.text();
-    const name = typeof file === 'string' ? 'Midinous project' : file.name.replace(/\.[^.]+$/, '');
+    const name = title || (typeof file === 'string' ? 'Midinous project' : file.name.replace(/\.[^.]+$/, ''));
     const { nousToScore } = await import('../score/import/nous.js');
     const res = nousToScore(text, { title: name, inBoard: true });
     const board = this.scoreToBoard(res, 'Midinous', r => `${r.stats.nodes} nodes, ${r.stats.paths} paths`);

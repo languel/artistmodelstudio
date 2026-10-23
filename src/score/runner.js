@@ -101,3 +101,25 @@ export function createRunner({ getDoc, getSettings, outputs, now = () => perform
     }
   };
 }
+
+/**
+ * A whole score ahead of time, with no sound: what its worlds do over `seconds`. For tests, for agents
+ * (who cannot hear), and as the first step of exporting. Returns { events, messages } in time order;
+ * messages are { t, bytes } (what an output would be sent, before the voice tracker).
+ */
+export function renderScore(doc, settings, seconds, { step = 1 / 240 } = {}) {
+  const ctx = timeContext(settings);
+  const messages = [], events = [], errors = [];
+  const entries = buildEntries(doc, settings, { helpers: (event, api) => musicHelpers({ out: m => messages.push(m), ctx, event, api }), onError: m => errors.push(m) });
+  for (const { board, world } of entries) {
+    try {
+      for (let t = step; t < seconds + step; t += step) {
+        world.step(Math.min(t, seconds));
+        for (const e of world.take()) events.push({ ...e, board: board.id });
+      }
+    } catch (e) { errors.push(`${board.title || board.id}: ${e.message}`); }
+  }
+  events.sort((a, b) => a.t - b.t);
+  messages.sort((a, b) => a.t - b.t);
+  return { events, messages: messages.filter(m => m.t <= seconds + 1), errors };
+}
