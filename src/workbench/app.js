@@ -54,7 +54,7 @@ import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
 import { openPalette } from './palette.js';
 import { showMenu } from './menu.js';
-import { askText } from './dialog.js';
+import { askText, askConfirm } from './dialog.js';
 import { brushesForRole, KIT, BRUSHES } from '../process/brushes.js';
 import { txStats } from '../process/texture.js';
 import { Composer } from './masks.js';
@@ -871,6 +871,36 @@ export class Workbench {
     res.doc.title = this.store.doc.title;
     this.loadDocument(res.doc, reason);
     return null;
+  }
+
+  /**
+   * Open an IanniX score (.iannix: JavaScript that makes a score) as a new board whose code is the AMS
+   * score it comes to: curves are lines, cursors travel them, triggers play. Plays on the transport.
+   */
+  async importIannix(file) {
+    if (!file) {
+      file = await new Promise(resolve => {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = '.iannix,.js,.txt,text/plain';
+        input.onchange = () => resolve(input.files[0] || null);
+        input.click();
+      });
+      if (!file) return null;
+    }
+    const text = typeof file === 'string' ? file : await file.text();
+    const name = typeof file === 'string' ? 'IanniX score' : file.name.replace(/\.[^.]+$/, '');
+    if (!(await askConfirm('An IanniX score is a program, and it runs as one here. Open scores you trust only.', { ok: 'Run it' }))) return null;
+    const { iannixToScore } = await import('../score/import/iannix.js');
+    const res = iannixToScore(text, { title: name, inBoard: true });
+    for (const w of res.warnings) this.log(`IanniX: ${w}`, 'error');
+    if (!res.code) { this.log('IanniX: nothing to import.', 'error'); return null; }
+    const board = this.store.addBoard({ title: res.title, ...res.size, ground: '#f6f3ea', adopt: false });
+    this.store.updateBoard(board.id, { code: res.code });
+    const run = this.store.runBoardCode(board.id, res.code, runScript);
+    if (run?.error) { this.log(`IanniX: ${run.error}`, 'error'); return null; }
+    this.goToBoard(board.id, { animate: true });
+    this.log(`IanniX “${res.title}”: ${res.stats.curves} curves, ${res.stats.cursors} cursors, ${res.stats.triggers} triggers on a new board (its code is in Code → Board). Press play on the Timeline.`);
+    return board;
   }
 
   loadDocument(doc, reason = 'load') {

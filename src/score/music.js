@@ -20,7 +20,7 @@ import { resolveTimeValue } from '../time/timeValue.js';
 const clampI = (v, a, b) => Math.max(a, Math.min(b, Math.round(Number(v) || 0)));
 const chan = ch => clampI(ch, 1, 16) - 1;
 
-export const FIELDS = ['t', 'type', 'x', 'y', 'nx', 'ny', 'u', 'speed', 'p', 'dir', 'tag', 'traveler', 'trigger'];
+export const FIELDS = ['t', 'type', 'x', 'y', 'nx', 'ny', 'u', 'speed', 'p', 'dir', 'tag', 'traveler', 'trigger', 'data'];
 
 /** Names of the helpers (the code compiled from `emit` gets these in scope). */
 export const HELPER_NAMES = ['note', 'notef', 'cc', 'ccf', 'bend', 'program', 'panic', 'release', 'map', 'clamp', 'lane', 'quant', 'snap', 'step', 'noteName', 'noteNumber', 'rng', 'launch', 'kill', 'state', 'beats', 'seconds'];

@@ -523,7 +523,10 @@ export class ProcessStore {
         stageId.set(s.id, t.id);
       }
       const onBoard = id === MAIN ? undefined : id;
-      for (const e of res.doc.elements) d.elements.push({ ...e, id: newId(e.role), stage: stageId.get(e.stage) || d.stages[0].id, by: { kind: 'code', name: id }, ...(onBoard ? { board: onBoard } : {}), points: e.points.map(([x, y, t, p]) => [x + b.x, y + b.y, t, p]) });
+      // (marks get new ids; a traveler that names its path by mark id follows it to the new id)
+      const newIds = new Map(res.doc.elements.map(e => [e.id, newId(e.role)]));
+      const play = e => (e.play?.travel?.on && newIds.has(e.play.travel.on) ? { play: { ...e.play, travel: { ...e.play.travel, on: newIds.get(e.play.travel.on) } } } : {});
+      for (const e of res.doc.elements) d.elements.push({ ...e, ...play(e), id: newIds.get(e.id), stage: stageId.get(e.stage) || d.stages[0].id, by: { kind: 'code', name: id }, ...(onBoard ? { board: onBoard } : {}), points: e.points.map(([x, y, t, p]) => [x + b.x, y + b.y, t, p]) });
       for (const x of res.doc.decisions) d.decisions.push({ ...x, id: newId('dec'), stage: stageId.get(x.stage) || d.stages[0].id, by: { kind: 'code', name: id } });
       if (id === MAIN) d.artboard.code = source; else d.boards.find(x => x.id === id).code = source;
       // underlay(…) in the code sets the board's source underneath (a reference, not part of the picture); mask(…) its mask.

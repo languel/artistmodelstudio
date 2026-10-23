@@ -118,11 +118,11 @@ export function createWorld(def = {}) {
     const drawn = d.as === 'drawn' && path?.drawn;
     const totalMs = drawn ? drawnDuration(path) * 1000 : 0;
     const tr = {
-      id, spec, path, tag: d.tag ?? null, state: d.state || {}, handle: d.handle || null,
+      id, spec, path, tag: d.tag ?? null, data: d.data, width: Math.max(0, Number(d.width) || 0), state: d.state || {}, handle: d.handle || null,
       die: d.die ?? die, silent, seeded: false, done: false, lastT: 0, fn: d.pos || null,
       atProgress(u) {
         const s = drawn ? sampleDrawn(path, u * totalMs) : sample(path, u);
-        return { x: s.x, y: s.y, p: s.p, u };
+        return { x: s.x, y: s.y, p: s.p, u, tx: s.tx, ty: s.ty };
       },
       pointAt(t) {
         if (this.fn) { const q = this.fn(t); return { x: q.x, y: q.y, p: q.p ?? null, u: 0 }; }
@@ -163,7 +163,9 @@ export function createWorld(def = {}) {
     const dt = tb - ta;
     const speed = dt > 0 ? Math.hypot(pb.x - pa.x, pb.y - pa.y) / dt : 0;
     for (const trig of w.triggers) {
-      if (!passes(trig, tr) || !overlaps(trig.region.bounds, pa.x, pa.y, pb.x, pb.y)) continue;
+      if (!passes(trig, tr)) continue;
+      if (tr.width > 0 && trig.regionDef.kind === 'circle' && pa.tx !== undefined) { wide(tr, trig, ta, tb, pa, pb, speed); continue; }
+      if (!overlaps(trig.region.bounds, pa.x, pa.y, pb.x, pb.y)) continue;
       const pair = trig.region.kind === 'area' ? pairOf(trig, tr) : null;
       let cs = trig.region.crossings(pa, pb, pair ? pair.geo : false);
       if (pair && cs.length) {
@@ -184,6 +186,25 @@ export function createWorld(def = {}) {
         push({ type: pair.geo ? 'enter' : 'exit', t: tb, tr, trig, pt: pb, speed });
       }
     }
+  }
+
+  /**
+   * A traveler with a width is a bar across its path (IanniX's cursor). A circular trigger is touched
+   * when the bar passes its centre (in the traveler's own frame, along the path), within half the width
+   * of the path. The touch is a moment: it enters and leaves at once (a trigger's gate holds it open).
+   */
+  function wide(tr, trig, ta, tb, pa, pb, speed) {
+    const { x: cx, y: cy, r } = trig.regionDef;
+    const f0 = (cx - pa.x) * pa.tx + (cy - pa.y) * pa.ty, f1 = (cx - pb.x) * pb.tx + (cy - pb.y) * pb.ty;
+    if (!((f0 > 0 && f1 <= 0) || (f0 < 0 && f1 >= 0))) return;
+    const s = f0 / (f0 - f1);
+    const at = lerpPt(pa, pb, s);
+    const tx = pa.tx + (pb.tx - pa.tx) * s, ty = pa.ty + (pb.ty - pa.ty) * s;
+    if (Math.abs(-(cx - at.x) * ty + (cy - at.y) * tx) > tr.width / 2 + r) return;
+    const t = ta + s * (tb - ta);
+    const pt = { x: cx, y: cy, u: at.u, p: at.p };
+    push({ type: 'enter', t, tr, trig, pt, speed });
+    push({ type: 'exit', t, tr, trig, pt, speed });
   }
 
   /** A jump (a loop wrap): no sweep, only who is inside afterwards. */
@@ -231,7 +252,7 @@ export function createWorld(def = {}) {
     const { nx, ny } = frame(ev.pt);
     return {
       t: ev.t, type, traveler: ev.tr?.id ?? null, trigger: ev.trig?.id ?? null, tag: ev.tr?.tag ?? null,
-      x: ev.pt.x, y: ev.pt.y, nx, ny, u: ev.pt.u, speed: ev.speed || 0, p: ev.pt.p ?? null, ...(extra || {})
+      x: ev.pt.x, y: ev.pt.y, nx, ny, u: ev.pt.u, speed: ev.speed || 0, p: ev.pt.p ?? null, data: ev.tr?.data, ...(extra || {})
     };
   }
 

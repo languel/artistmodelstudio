@@ -2,7 +2,7 @@
  * From marks to a world definition. A mark plays when it carries `play`:
  *
  *   play: {
- *     path:    true,                                  a line that can be travelled
+ *     path:    true | 'name',                         a line that can be travelled (by its mark id, or by the name)
  *     travel:  { on: id, dur | speed, start, rate, loop, as, tag },   a point that travels line `on`
  *     trigger: { on, gate, lockout, policy, filter, r, emit },        a plane, circle, line or point
  *   }
@@ -50,18 +50,23 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
     };
   };
 
+  // A path is known by its mark id, or by the name given as `path: 'name'` (names survive a mark being remade).
+  const pathKey = new Map();
   for (const e of d.elements) {
     if (!e.play?.path && !marks.some(m => m.play.travel?.on === e.id)) continue;
-    paths[e.id] = { points: e.points, closed: Boolean(e.closed) };
+    const key = typeof e.play?.path === 'string' && e.play.path ? e.play.path : e.id;
+    pathKey.set(e.id, key);
+    paths[key] = { points: e.points, closed: Boolean(e.closed) };
   }
 
   for (const e of marks) {
     const { travel, trigger } = e.play;
     if (travel) {
-      if (!paths[travel.on]) info.skipped.push(`${e.id}: no path "${travel.on}"`);
+      const on = pathKey.get(travel.on) ?? travel.on;
+      if (!paths[on]) info.skipped.push(`${e.id}: no path "${travel.on}"`);
       else {
         const { emit, ...t } = travel;
-        travelers.push({ id: e.id, ...t, start: secs(t.start), dur: secs(t.dur), tag: t.tag ?? e.tag ?? null, handle: emit ? wrap(emit) : handlers[t.handler] || null });
+        travelers.push({ id: e.id, ...t, on, start: secs(t.start), dur: secs(t.dur), tag: t.tag ?? e.tag ?? null, handle: emit ? wrap(emit) : handlers[t.handler] || null });
       }
     }
     if (trigger) {
