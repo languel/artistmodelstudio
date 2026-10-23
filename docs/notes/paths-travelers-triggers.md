@@ -1,6 +1,6 @@
 # Paths, travelers and triggers: a plan for scores in AMS
 
-Status: plan, 23 Oct 2026. Nothing is built yet. Written after reading IanniX in `~/dev/underscores` (`notes/iannix.md`, `src/iannixEngine.js`, `iannixScript.js`, `iannixMidi.js`, `scoreTiming.js`, `transport.js`) and the original C++ in `~/dev/IanniX`.
+Status: **built** 23 Oct 2026 (M0 to M7; see the end of docs/HANDOFF.md item 66 for what is and is not done). Written as a plan; where the build differs: no separate `Clock` (the Timeline's playhead is the transport, §3), imports write AMS score code instead of marks (§7), bodies and effects are in the kernel (§5), tempo and loop range live in `doc.transport`. Written after reading IanniX in `~/dev/underscores` (`notes/iannix.md`, `src/iannixEngine.js`, `iannixScript.js`, `iannixMidi.js`, `scoreTiming.js`, `transport.js`) and the original C++ in `~/dev/IanniX`.
 
 ## 1. What IanniX is, reduced to its idea
 
