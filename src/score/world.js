@@ -31,8 +31,15 @@
  * `state` is the trigger's (or, for a traveler's own handler, the traveler's) object, kept between
  * events. A traveler's handler hears 'end' (it finished a lap).
  *
- * Event: { t, type: 'enter' | 'exit' | 'cross' | 'end', traveler, trigger, tag, x, y, nx, ny,
- *          u, speed, p, dir }
+ * Bodies (a gas, bouncing balls): points with a velocity and a radius that move by themselves, bounce off
+ * the frame and each other (elastic), and touch triggers like any traveler. bodies: [{ id, x, y, vx, vy,
+ * r, tag, data, handle, life }]. They run on a fixed step (1/120 s) so a run is the same every time; a
+ * seek replays the motion silently from the start. A body's handler hears 'collide' ({ other }).
+ * api.spawn({ x, y, vx, vy, r, tag, data, handle, life }) makes one; api.effect({ … }) asks for something
+ * outside the world (the caller decides; the studio makes marks), collected by takeEffects().
+ *
+ * Event: { t, type: 'enter' | 'exit' | 'cross' | 'end' | 'arrive' | 'collide', traveler, trigger, tag, x, y, nx, ny,
+ *          u, speed, p, dir, data, other }
  *   u: where along its path (0..1); speed: world units a second; p: the pressure of the path there.
  */
 import { makePath, sample, sampleDrawn, drawnDuration } from './paths.js';
@@ -53,7 +60,7 @@ function mulberry32(seed) {
 export function createWorld(def = {}) {
   const w = {
     now: 0, cur: 0, seq: 0, queue: [], events: [], travelers: [], triggers: [],
-    paths: new Map(), max: def.maxTravelers ?? 256, live: 0,
+    paths: new Map(), max: def.maxTravelers ?? 256, live: 0, bodies: [], effects: [], simT: 0, silent: false,
     bounds: { x: 0, y: 0, width: 1, height: 1, ...(def.bounds || {}) },
     rng: mulberry32(def.seed ?? 1), auto: 0
   };
@@ -221,7 +228,7 @@ export function createWorld(def = {}) {
 
   /** Move a traveler from where it was last looked at up to t1, making raw contacts. */
   function sweep(tr, t1) {
-    if (tr.done) return;
+    if (tr.done || tr.body) return;
     if (!tr.seeded) {
       if (t1 < tr.spec.start) return;
       tr.lastT = tr.spec.start;
@@ -263,6 +270,8 @@ export function createWorld(def = {}) {
       state, t, rng: w.rng,
       launch: (pathId, opts = {}) => launch(pathId, { ...opts, start: opts.start ?? t }),
       arrive: (triggerId, data, delay = 0) => arrive(triggerId, data, t + delay),
+      spawn: spec => spawn({ x: 0, y: 0, vx: 0, vy: 0, ...spec }, t),
+      effect: fx => { if (!w.silent) w.effects.push({ t, ...fx }); },
       kill: id => kill(id, t)
     };
   }
@@ -314,6 +323,13 @@ export function createWorld(def = {}) {
       if (ev.slot.count === 0 && ev.slot.open) { ev.slot.open = false; fire('exit', ev); }
     } else if (ev.type === 'arrive') {
       fire('arrive', ev);
+    } else if (ev.type === 'collide') {
+      for (const [me, other] of [[ev.tr, ev.other], [ev.other, ev.tr]]) {
+        if (!me.handle) continue;
+        const rec = record('collide', { ...ev, tr: me }, { other: other.id });
+        w.events.push(rec);
+        me.handle(rec, api(me.state, ev.t));
+      }
     } else if (ev.type === 'end') {
       const rec = record('end', ev);
       w.events.push(rec);
@@ -358,7 +374,83 @@ export function createWorld(def = {}) {
     return true;
   }
 
+  // ---- bodies --------------------------------------------------------------------------------
+  const DT = 1 / 120;
+  function addBody(d, born = 0) {
+    const b = { x: d.x, y: d.y, vx: d.vx || 0, vy: d.vy || 0, r: Math.max(0.5, d.r ?? 6), life: d.life ?? Infinity, born };   // (only a spawned body has a life)
+    b.m = b.r * b.r;
+    b.init = { x: b.x, y: b.y, vx: b.vx, vy: b.vy };
+    const tr = addTraveler({ id: d.id, pos: () => ({ x: b.x, y: b.y }), start: 0, tag: d.tag, data: d.data, state: d.state, handle: d.handle, die: d.life != null });
+    tr.body = b; b.tr = tr;
+    w.bodies.push(b);
+    return tr;
+  }
+  function spawn(d, t) {
+    if (w.live >= w.max) return null;
+    const tr = addBody(d, t);
+    tr.seeded = true;   // (born where it is: not "entering" what it is born inside of)
+    for (const trig of w.triggers) if (trig.region.kind === 'area' && passes(trig, tr) && trig.region.inside(d.x, d.y)) pairOf(trig, tr).geo = true;
+    return tr.id;
+  }
+  /** One fixed step of every body: move, bounce off the frame, touch triggers, collide in pairs. */
+  function bodyStep(t) {
+    const { x: bx, y: by, width: bw, height: bh } = w.bounds;
+    for (const b of w.bodies) {
+      if (b.dead) continue;
+      b.px = b.x; b.py = b.y;
+      b.x += b.vx * DT; b.y += b.vy * DT;
+      if (b.x < bx + b.r) { b.x = bx + b.r; b.vx = Math.abs(b.vx); } else if (b.x > bx + bw - b.r) { b.x = bx + bw - b.r; b.vx = -Math.abs(b.vx); }
+      if (b.y < by + b.r) { b.y = by + b.r; b.vy = Math.abs(b.vy); } else if (b.y > by + bh - b.r) { b.y = by + bh - b.r; b.vy = -Math.abs(b.vy); }
+    }
+    if (!w.silent) {
+      for (const b of w.bodies) {
+        if (b.dead) continue;
+        if (!b.tr.seeded) { b.tr.seeded = true; seed(b.tr, t - DT, false); }
+        segment(b.tr, t - DT, t, { x: b.px, y: b.py, u: 0, p: null }, { x: b.x, y: b.y, u: 0, p: null });
+      }
+    }
+    // Collisions: a grid of cells twice the largest radius, so each body only meets its neighbours.
+    const live = w.bodies.filter(b => !b.dead);
+    if (live.length > 1) {
+      const cell = 2 * Math.max(...live.map(b => b.r));
+      const grid = new Map();
+      live.forEach((b, i) => { const k = `${Math.floor(b.x / cell)},${Math.floor(b.y / cell)}`; (grid.get(k) || grid.set(k, []).get(k)).push(i); });
+      for (let i = 0; i < live.length; i++) {
+        const a = live[i], cx = Math.floor(a.x / cell), cy = Math.floor(a.y / cell);
+        for (let gx = cx - 1; gx <= cx + 1; gx++) for (let gy = cy - 1; gy <= cy + 1; gy++) {
+          for (const j of grid.get(`${gx},${gy}`) || []) {
+            if (j <= i) continue;
+            const c = live[j];
+            const dx = c.x - a.x, dy = c.y - a.y, d2 = dx * dx + dy * dy, rr = a.r + c.r;
+            if (d2 >= rr * rr || d2 === 0) continue;
+            const d = Math.sqrt(d2), nx = dx / d, ny = dy / d;
+            const rel = (a.vx - c.vx) * nx + (a.vy - c.vy) * ny;   // closing speed along the normal
+            const push = (rr - d) / 2;
+            a.x -= nx * push; a.y -= ny * push; c.x += nx * push; c.y += ny * push;
+            if (rel <= 0) continue;
+            const ja = (2 * c.m) / (a.m + c.m) * rel, jc = (2 * a.m) / (a.m + c.m) * rel;
+            a.vx -= ja * nx; a.vy -= ja * ny; c.vx += jc * nx; c.vy += jc * ny;
+            if (!w.silent) push2({ type: 'collide', t, tr: a.tr, other: c.tr, pt: { x: a.x + nx * a.r, y: a.y + ny * a.r, u: 0, p: null }, speed: rel });
+          }
+        }
+      }
+    }
+    for (const b of w.bodies) if (!b.dead && t - b.born >= b.life) { b.dead = true; b.tr.done = true; push({ type: 'release', t, tr: b.tr, pt: { x: b.x, y: b.y, u: 0, p: null }, speed: 0 }); }
+    if (w.bodies.some(b => b.dead)) w.bodies = w.bodies.filter(b => !b.dead);
+  }
+  const push2 = ev => push(ev);
+  function stepBodies(t1) {
+    while (w.simT + DT <= t1 + 1e-9) { w.simT += DT; bodyStep(w.simT); }
+  }
+  function resetBodies() {
+    w.bodies = w.bodies.filter(b => b.tr.id in initial);
+    for (const b of w.bodies) { Object.assign(b, b.init, { dead: false, px: b.init.x, py: b.init.y }); b.tr.done = false; b.tr.seeded = false; }
+    w.simT = 0;
+  }
+
   for (const d of def.travelers || []) addTraveler(d);
+  const initial = {};
+  for (const d of def.bodies || []) { const tr = addBody({ ...d, life: undefined }); initial[tr.id] = true; }
   // Signals that start the graph: { trigger, t, data }
   const starts = def.starts || [];
   for (const st of starts) arrive(st.trigger, st.data || {}, st.t || 0);
@@ -370,13 +462,28 @@ export function createWorld(def = {}) {
    * begins as usual.
    */
   function seek(t) {
-    w.queue = []; w.events = [];
+    w.queue = []; w.events = []; w.effects = [];
     for (const st of starts) if ((st.t || 0) >= t) arrive(st.trigger, st.data || {}, st.t || 0);
     w.travelers = w.travelers.filter(tr => !tr.die);
     w.live = w.travelers.length;
     for (const trig of w.triggers) { trig.pairs.clear(); trig.slots.clear(); }
     w.now = w.cur = t;
+    // The bodies: back to where they began, and run up to t without a sound (the same steps, so the same places).
+    w.travelers = w.travelers.filter(tr => !tr.body || tr.body.tr.id in initial);
+    resetBodies();
+    w.silent = true;
+    stepBodies(Math.min(t, 300));
+    w.silent = false;
+    for (const b of w.bodies) {
+      b.tr.seeded = true;
+      for (const trig of w.triggers) {
+        if (trig.region.kind !== 'area' || !passes(trig, b.tr) || !trig.region.inside(b.x, b.y)) continue;
+        const pair = pairOf(trig, b.tr);
+        pair.geo = pair.inside = true; pair.slot = slotOf(trig, b.tr); pair.slot.count++;
+      }
+    }
     for (const tr of w.travelers) {
+      if (tr.body) continue;
       tr.done = false; tr.seeded = false; tr.lastT = t;
       if (t <= tr.spec.start) continue;
       if (!tr.fn && tr.spec.loop === 'once' && lapEnds(tr.spec, tr.spec.start - 1, t).length) { tr.done = true; continue; }
@@ -396,16 +503,19 @@ export function createWorld(def = {}) {
     seek,
     step(t1) {
       w.now = Math.max(w.now, t1);
+      stepBodies(t1);
       for (let i = 0; i < w.travelers.length; i++) sweep(w.travelers[i], t1);
       drain(t1);
       w.travelers = w.travelers.filter(tr => !(tr.done && tr.die));
     },
     take() { const e = w.events; w.events = []; return e.sort((a, b) => a.t - b.t); },
+    takeEffects() { const e = w.effects; w.effects = []; return e; },
+    bodies: () => w.bodies.filter(b => !b.dead),
     launch, kill, arrive,
     /** Where every live traveler is at time t: for drawing. */
     positions(t) {
       const out = [];
-      for (const tr of w.travelers) if (t >= tr.spec.start) out.push({ id: tr.id, tag: tr.tag, ...tr.pointAt(t) });
+      for (const tr of w.travelers) if (t >= tr.spec.start) out.push({ id: tr.id, tag: tr.tag, ...(tr.body ? { x: tr.body.x, y: tr.body.y, r: tr.body.r } : tr.pointAt(t)) });
       return out;
     },
     travelers: () => w.travelers, triggers: () => w.triggers

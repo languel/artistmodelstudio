@@ -272,3 +272,17 @@ describe('compile', () => {
     expect(() => compileDoc(normalizeDocument({ elements: [{ id: 'z', role: 'plane', points: [[0, 0], [1, 0], [1, 1]], play: { trigger: { emit: 'foo(' } } }] }))).toThrow();
   });
 });
+
+describe('emit code', () => {
+  it('is an expression or statements; a syntax error fails at compile time', async () => {
+    const { compileEmit } = await import('./compile.js');
+    const names = ['note'];
+    const got = [];
+    const h = { note: (...a) => got.push(a) };
+    compileEmit("note(1, 2)", names)(h, {}, {});
+    compileEmit("if (true) note(3, 4)", names)(h, {}, {});
+    compileEmit("const k = 5;\nnote(k, 6)", names)(h, {}, {});
+    expect(got).toEqual([[1, 2], [3, 4], [5, 6]]);
+    expect(() => compileEmit('note(', names)).toThrow();
+  });
+});

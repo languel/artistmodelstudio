@@ -9,6 +9,7 @@
  *   cc(ch, n, v) / ccf(ch, n, v 0..1)        controllers;  bend(ch, v -1..1);  program(ch, n);  panic()
  *   map(v, [a, b], [c, d])  clamp(v, a, b)  lane(v 0..1, n)  quant(v, n)
  *   snap(n, scale, root)  step(n, k, scale, root)  noteName(n)  noteNumber(name)   (scale.js)
+ *   spawn({ x, y, vx, vy, r, life, tag })  effect({ … })  (bodies; see world.js)
  *   rng()  launch(pathId, opts)  kill(id)  arrive(trigger, data)  route(mode, outs, data)  state   (the world's)
  *
  * The event's own fields (t, type, x, y, nx, ny, u, speed, p, dir, tag, traveler, trigger) are in scope
@@ -20,10 +21,10 @@ import { resolveTimeValue } from '../time/timeValue.js';
 const clampI = (v, a, b) => Math.max(a, Math.min(b, Math.round(Number(v) || 0)));
 const chan = ch => clampI(ch, 1, 16) - 1;
 
-export const FIELDS = ['t', 'type', 'x', 'y', 'nx', 'ny', 'u', 'speed', 'p', 'dir', 'tag', 'traveler', 'trigger', 'data'];
+export const FIELDS = ['t', 'type', 'x', 'y', 'nx', 'ny', 'u', 'speed', 'p', 'dir', 'tag', 'traveler', 'trigger', 'data', 'other'];
 
 /** Names of the helpers (the code compiled from `emit` gets these in scope). */
-export const HELPER_NAMES = ['note', 'notef', 'cc', 'ccf', 'bend', 'program', 'panic', 'release', 'map', 'clamp', 'lane', 'quant', 'snap', 'step', 'noteName', 'noteNumber', 'rng', 'launch', 'kill', 'arrive', 'route', 'state', 'beats', 'seconds'];
+export const HELPER_NAMES = ['note', 'notef', 'cc', 'ccf', 'bend', 'program', 'panic', 'release', 'map', 'clamp', 'lane', 'quant', 'snap', 'step', 'noteName', 'noteNumber', 'rng', 'launch', 'kill', 'spawn', 'effect', 'arrive', 'route', 'state', 'beats', 'seconds'];
 
 /**
  * The helpers for one event. `out(msg)` receives { t, bytes }; `ctx` is the time context
@@ -81,7 +82,7 @@ export function musicHelpers({ out, ctx, event, api }) {
     snap: (n, scale, root) => snap(n, scale, root),
     step: (n, k, scale, root) => step(n, k, scale, root),
     noteName, noteNumber,
-    rng: api.rng, launch: api.launch, kill: api.kill, state: api.state,
+    rng: api.rng, launch: api.launch, kill: api.kill, spawn: api.spawn, effect: api.effect, state: api.state,
     beats: n => seconds(`${n} beats`), seconds
   };
 }

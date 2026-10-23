@@ -44,7 +44,7 @@ export function buildEntries(doc, settings, { helpers = () => ({}), onError = ()
   return out;
 }
 
-export function createRunner({ getDoc, getSettings, outputs, now = () => performance.now(), lookahead = 0.12, step = 1 / 240, onError = () => {}, onEvents = () => {} }) {
+export function createRunner({ getDoc, getSettings, outputs, now = () => performance.now(), lookahead = 0.12, step = 1 / 240, onError = () => {}, onEvents = () => {}, onEffects = () => {} }) {
   let entries = [], queue = [], stepped = 0, active = false, builtKey = '', lastT = 0, lastNow = 0;
   const tracker = createVoiceTracker();
   const failed = new Set();
@@ -90,6 +90,8 @@ export function createRunner({ getDoc, getSettings, outputs, now = () => perform
           try { w.step(stepped); } catch (e) { if (!failed.has(w)) { failed.add(w); onError(e.message); } }
           const evs = w.take();
           if (evs.length) onEvents(evs, board);
+          const fx = w.takeEffects();
+          if (fx.length) onEffects(fx, board);
         }
       }
       while (queue.length && queue[0].t <= horizon) {

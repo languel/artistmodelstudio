@@ -4,6 +4,7 @@
  * rate and pause are the transport's. Audio starts on the first play of a scene that has a score
  * (browsers need a click for that, and Play is one).
  */
+import { normalizeElement } from '../process/document.js';
 import { createRunner, buildEntries, hasScore, scoreSignature } from '../score/runner.js';
 import { createGmOutput } from '../score/outputs/gm.js';
 import { createWebMidiOutput } from '../score/outputs/webmidi.js';
@@ -30,10 +31,28 @@ export class ScorePlayer {
       getSettings: () => app.player.settings,
       outputs: () => this.outputs(),
       onError: msg => { this.errors.push(msg); app.log?.(`Score: ${msg}`, 'error'); },
+      onEffects: (fx, board) => this.applyEffects(fx, board),
       onEvents: (evs, board) => { for (const e of evs) if (e.trigger) this.flashes.push({ board: board.id, trigger: e.trigger, t: e.t, type: e.type }); }
     });
     this.flashes = [];   // what the overlay lights up: { board, trigger, t (s), type }
     app.player.on(() => this.onPlayer());
+  }
+
+  /**
+   * What a score asks of the drawing (api.effect): { type: 'mark', x, y, role?, size?, color?, life? } makes a
+   * mark where it says (board coordinates) that fades and goes after `life` seconds. Live changes: no undo steps.
+   */
+  applyEffects(list, board) {
+    const marks = list.filter(f => f.type === 'mark' && Number.isFinite(f.x) && Number.isFinite(f.y)).slice(0, 12);   // (a burst is not allowed to flood the page)
+    if (!marks.length) return;
+    const ids = [];
+    this.app.store.change('score', d => {
+      for (const f of marks) {
+        const e = normalizeElement({ role: f.role || 'point', points: [[board.x + f.x, board.y + f.y, 0, 0.5]], color: f.color || null, realize: { brush: f.brush || 'dot', params: { size: f.size || 10 } }, why: 'made by a score', by: { kind: 'score', name: 'score' }, board: board.id === 'main' ? undefined : board.id, time: { out: f.life || 1.5 }, born: Date.now() }, d.stages[d.stages.length - 1].id);
+        d.elements.push(e); ids.push(e.id);
+      }
+    }, { transient: true, by: 'score' });
+    setTimeout(() => { if (!ids.length) return; this.app.store.change('score', d => { d.elements = d.elements.filter(e => !ids.includes(e.id)); }, { transient: true, by: 'score' }); }, 4000);
   }
 
   outputs() { return [...(this.prefs.gm ? [this.gm] : []), ...(this.midi.connected ? [this.midi] : []), ...this.extra]; }

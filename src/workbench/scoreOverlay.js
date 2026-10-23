@@ -68,9 +68,10 @@ export class ScoreOverlay {
       for (const q of now) {
         const [x, y] = at(q.x, q.y);
         const b = before.get(q.id);
-        if (b && p.playing) { const [bx, by] = at(b.x, b.y); ctx.strokeStyle = accent; ctx.globalAlpha = 0.45; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(x, y); ctx.stroke(); }
-        ctx.globalAlpha = 1; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.stroke();
+        if (b && p.playing && !q.r) { const [bx, by] = at(b.x, b.y); ctx.strokeStyle = accent; ctx.globalAlpha = 0.45; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(x, y); ctx.stroke(); }
+        const rad = q.r ? Math.max(2.5, q.r * cvw.cam.z) : 5;   // (a body is as big as it is; a traveler is a dot)
+        ctx.globalAlpha = q.r ? 0.85 : 1; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.stroke();
       }
     }
     ctx.globalAlpha = 1;

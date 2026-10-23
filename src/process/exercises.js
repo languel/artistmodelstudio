@@ -168,5 +168,45 @@ for (const gx of range(3)) for (const gy of range(3)) {
 
 stage('Notes', 'notes')
 note(20, 20, 'Verostko: the algorithm is the score, the pen is the performer.')`
+  },
+  {
+    id: 'score-travel',
+    title: 'Score: a line, a traveler, planes that sound',
+    brief: 'After Xenakis and IanniX. A line can be travelled; a point travels it; a plane sounds when the point reaches it. Press play on the Timeline. How high a plane sounds is how high it sits (ny, 0 to 1, y up); how long the line takes is in beats at the scene\'s tempo. Change the line, the planes, the scale.',
+    source: `units('artboard')
+artboard(1000, 600, '#f3efe6')
+stage('Score', 'marks')
+
+const path = line([[60, 420], [260, 160], [480, 380], [700, 120], [940, 300]], { width: 2, why: 'the line the point travels: its length in time is the dur below' })
+point(60, 420, { size: 14, play: { travel: { on: path, dur: '16 beats', loop: 'pingpong' } }, why: 'the traveler' })
+
+// Three planes: each plays a note of D dorian by its height, for as long as the traveler is inside it.
+for (const [x, y, w, h] of [[200, 180, 110, 150], [430, 230, 120, 190], [650, 90, 110, 140]]) {
+  plane(rect(x, y, w, h), {
+    color: '#9db4c0', opacity: 0.5,
+    play: { trigger: { emit: "note(1, snap(50 + lane(ny, 24), 'dorian', 62), 90, 'gate')" } },
+    why: 'it sounds while the traveler is inside'
+  })
+}
+stage('Notes', 'notes')
+note(20, 20, 'Play the Timeline. Edit the emit code of a plane (Code, then Selection).')`
+  },
+  {
+    id: 'score-gas',
+    title: 'Score: a gas that plays',
+    brief: 'Any mover can sound. Forty points with a speed and a direction bounce about, and collide like billiard balls; each collision plays a note, higher when harder. The seed decides who goes where; the same seed is the same piece. Raise seed, add points, change the scale.',
+    source: `units('artboard')
+artboard(1000, 700, '#14161a')
+stage('Gas', 'marks')
+
+for (const i of range(40)) {
+  point(random(60, 940), random(60, 640), {
+    size: 14, color: '#e8d9a8',
+    play: { body: { speed: [60, 220], r: 7, emit: "if (type === 'collide' && traveler < other) note(1, snap(48 + lane(ny, 36), 'pentatonicminor', 60), clamp(30 + speed * 0.5, 30, 120), 0.2)" } },
+    why: 'a body: it moves by itself'
+  })
+}
+stage('Notes', 'notes')
+note(20, 20, 'Play the Timeline. A collision between two points plays a note.')`
   }
 ];

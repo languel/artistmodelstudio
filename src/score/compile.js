@@ -4,6 +4,7 @@
  *   play: {
  *     path:    true | 'name',                         a line that can be travelled (by its mark id, or by the name)
  *     travel:  { on: id, dur | speed, start, rate, loop, as, tag },   a point that travels line `on`
+ *     body:    { v: [vx, vy] | speed: n | [min, max], angle, r, emit, tag },   a point that moves by itself, bounces, collides
  *     trigger: { on, gate, lockout, policy, filter, r, emit, name, start },   a plane, circle, line or point
  *              name: how others reach it (arrive, a traveler's data.to); start: a time at which a signal arrives from nowhere
  *   }
@@ -26,18 +27,31 @@ import { DEFAULT_TRANSPORT, timeContext } from '../time/sceneTransport.js';
 
 const xy = pts => pts.map(q => [q[0], q[1]]);
 
+/** A small seeded random stream per body, so a score's gas is the same every run. */
+function rngFor(seed, n) {
+  let a = (Math.imul((seed >>> 0) + 1, 2654435761) ^ Math.imul(n + 1, 40503)) >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /** Handler code from source text: (helpers, event, api) => result. Throws on a syntax error, so a bad score fails when compiled. */
 export function compileEmit(src, names = HELPER_NAMES) {
-  const body = /\breturn\b|;|\n/.test(src) ? src : `return (${src})`;
-  // eslint-disable-next-line no-new-func
-  const fn = new Function('h', 'api', ...FIELDS, `const { ${names.join(', ')} } = h;\n${body}`);
+  const head = `const { ${names.join(', ')} } = h;\n`;
+  const make = body => new Function('h', 'api', ...FIELDS, head + body);   // eslint-disable-line no-new-func
+  let fn;
+  try { fn = make(`return (${src});`); } catch { fn = make(src); }   // an expression, else statements (a syntax error throws here)
   return (h, e, api) => fn(h, api, ...FIELDS.map(f => e[f]));
 }
 
 export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, seed = 1, ctx = timeContext(DEFAULT_TRANSPORT) } = {}) {
   const d = boardDoc(doc, board);
   const marks = d.elements.filter(e => e.play && e.points?.length);
-  const paths = {}, travelers = [], triggers = [], starts = [];
+  const paths = {}, travelers = [], triggers = [], starts = [], bodies = [];
   const info = { skipped: [] };
   const make = typeof helpers === 'function' ? helpers : () => helpers;
   const names = typeof helpers === 'function' ? HELPER_NAMES : Object.keys(helpers);
@@ -61,7 +75,18 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
   }
 
   for (const e of marks) {
-    const { travel, trigger } = e.play;
+    const { travel, trigger, body } = e.play;
+    if (body) {
+      // A mover with a velocity: `v: [vx, vy]`, or `speed` (a number or [min, max]) and `angle` (degrees; omitted: any way, by the seed).
+      const rnd = rngFor(seed, bodies.length);
+      const pick = v => (Array.isArray(v) ? v[0] + rnd() * (v[1] - v[0]) : v);
+      let vx = body.v?.[0], vy = body.v?.[1];
+      if (vx === undefined) {
+        const sp = pick(body.speed ?? 100), an = body.angle !== undefined ? pick(body.angle) * Math.PI / 180 : rnd() * Math.PI * 2;
+        vx = Math.cos(an) * sp; vy = Math.sin(an) * sp;
+      }
+      bodies.push({ id: e.id, x: e.points[0][0], y: e.points[0][1], vx, vy, r: body.r ?? Math.max(2, (e.size || 12) / 2), tag: body.tag ?? e.tag ?? null, data: body.data, handle: body.emit ? wrap(body.emit) : null });
+    }
     if (travel) {
       const on = pathKey.get(travel.on) ?? travel.on;
       if (!paths[on]) info.skipped.push(`${e.id}: no path "${travel.on}"`);
@@ -84,5 +109,5 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
     }
   }
 
-  return { def: { paths, travelers, triggers, starts, bounds: { x: 0, y: 0, width: d.artboard.width, height: d.artboard.height }, seed }, info };
+  return { def: { paths, travelers, triggers, starts, bodies, bounds: { x: 0, y: 0, width: d.artboard.width, height: d.artboard.height }, seed }, info };
 }
