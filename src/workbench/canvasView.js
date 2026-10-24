@@ -682,6 +682,15 @@ export class CanvasView {
   }
 
   hitTest(wx, wy, accept) {
+    // A traveler is drawn over everything, wherever it is now: it is hit before what lies under it.
+    if (this.travelerPos?.size) {
+      for (const [id, [x, y]] of this.travelerPos) {
+        const el = this.store.doc.elements.find(e => e.id === id);
+        if (!el || (accept && !accept(el)) || !this.editable(el)) continue;
+        const ring = Math.max(4, (Number(el.realize?.params?.size) || 16) * 0.3 * this.cam.z);
+        if (Math.hypot(x - wx, y - wy) * this.cam.z < ring + 5) return el;
+      }
+    }
     const hit = this.hitTop(wx, wy, accept);
     // A thin line over a point (a traveler or a node on its path) must not hide it: the point wins.
     if (hit && ['line', 'gesture', 'guide'].includes(hit.role)) return this.hitTop(wx, wy, x => x.role === 'point' && (!accept || accept(x))) || hit;

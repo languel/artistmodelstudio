@@ -432,6 +432,8 @@ A **node** is a point that a traveler reaches on a path, after Midinous: it does
 
 **Making them:** the Play tool (Y) → right-click → *Node* and a kind (Shift+Y goes through every kind). Click to place one (on the path it is near); drag from a node to another for an edge (to a gate, from an LED, switch or counter: an input), or to empty paper for an edge and a new node. Properties → Play shows a node's kind, how it sends on and its settings; right-click → *Convert to* makes any point a node. A node's **Edges** setting draws new edges straight, across then up, or up then across, as Midinous does.
 
+**Travelers and events on lines.** A traveler is one mark: a ring and dot drawn wherever it is, with a dotted ghost ring where it began. Drag it along its path to set where it begins (Ctrl: snap to the Timeline's divisions; hold Ctrl with a path, traveler or event selected to see the divisions). An event can sit on a line too (Properties → On path) and follows it. **Cmd-drag** a traveler or event: it comes off its line and moves freely; let go over a line and it attaches there, else it stays free.
+
 Midinous and midinojs files (/nous) come in as nodes and edges. Exercise: *Score: nodes on paths (Midinous)*.
 `)),
     T('score-sources', 'Scores', 'Sources and redraw', 'The camera, images and videos as streams code reads by name; redraw from them.', () => prose(`

@@ -265,3 +265,18 @@ describe('events on lines', () => {
     expect(t.play.travel.on).toBe('');
   });
 });
+
+describe('a traveler dropped late on a once-through line', () => {
+  it('is where it was dropped, not at the end', () => {
+    const d = nd({ elements: [
+      { id: 'L', role: 'line', path: 'straight', points: [[0, 0], [100, 0]], play: { path: true } },
+      { id: 't', role: 'point', points: [[0, 0]], play: { travel: { on: '', loop: 'once' } } }] });
+    const settings = { tempo: 120, signature: { numerator: 4, denominator: 4 }, fps: 30, beatUnits: 25 };   // the line takes 2 s
+    R.attachTraveler(d, 't', 'L', 0.3, 1.5, settings);   // dropped 1.5 s into the transport, 30% along
+    const t = d.elements.find(x => x.id === 't');
+    const progress = 1.5 / 2 + t.play.travel.at;   // where it is at 1.5 s
+    expect(progress).toBeCloseTo(0.3, 2);
+    expect(t.play.travel.at).toBeLessThan(0);
+    expect(t.points[0][0]).toBeCloseTo(30, 3);
+  });
+});

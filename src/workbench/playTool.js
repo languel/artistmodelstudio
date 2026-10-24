@@ -79,9 +79,10 @@ export class PlayTool {
    */
   phaseFor(id, u, at0) {
     const w = this.app.score?.view?.().flatMap(en => en.world.travelers()).find(t => t.id === id);
-    if (!w) return u;
-    const here = w.pointAt(this.app.player.position() / 1000).u;
-    return at0 + (u - here);
+    if (!w?.spec) return u;
+    // How far through its lap it is now, not clamped (a once-through traveler that has finished is dropped where it is let go).
+    const f = ((this.app.player.position() / 1000 - w.spec.start) * (w.spec.rate ?? 1)) / Math.max(1e-6, w.spec.dur);
+    return at0 + u - f;
   }
 
   /** u (0..1 along a path) moved to the nearest Timeline division of the time it takes to get there. */

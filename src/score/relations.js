@@ -134,14 +134,14 @@ export function attachTraveler(d, id, pathId, u, t = 0, settings = null) {
   if (!el?.play?.travel || !line || !isLine(line)) return false;
   withPlay(line, pl => { pl.path = pl.path || true; });
   withPlay(el, pl => { pl.travel = { ...pl.travel, on: line.id }; delete pl.travel.cue; delete pl.travel.at; });
-  // Where it would be now without a phase: progress along the line from the playhead (loops wrap).
+  // Where it would be now without a phase: how far along its lap the playhead is (not clamped: a once-through traveler dropped
+  // late is still where it was let go; its phase is negative).
   let here = 0;
   const tv = el.play.travel;
   if (t > 0 && settings) {
     const sec = pathTime(line, { ctx: timeContext(settings), beatUnits: settings.beatUnits, quant: settings.quant }).seconds;
     const dur = (typeof tv.dur === 'number' ? tv.dur : sec) / Math.max(0.001, tv.rate ?? 1);
-    const f = (t - (typeof tv.start === 'number' ? tv.start : 0)) / Math.max(0.001, dur);
-    here = f <= 0 ? 0 : tv.loop === 'once' || (!tv.loop && !line.closed) ? Math.min(1, f) : f - Math.floor(f);
+    here = (t - (typeof tv.start === 'number' ? tv.start : 0)) / Math.max(0.001, dur);
   }
   return offset(d, id, u, u - here);
 }
@@ -193,8 +193,12 @@ export function offset(d, travelerId, u, phase = u) {
   const el = find(d, travelerId);
   const line = el?.play?.travel && d.elements.find(x => x.id === el.play.travel.on || x.label === el.play.travel.on);
   if (!line) return false;
-  const at = Math.max(0, Math.min(1, u)), ph = ((phase % 1) + 1) % 1;
-  withPlay(el, pl => { if (ph > 0.0005 && ph < 0.9995) pl.travel.at = Math.round(ph * 1000) / 1000; else delete pl.travel.at; });
+  const at = Math.max(0, Math.min(1, u));
+  // The phase: how far along it is at time zero. A looping traveler's wraps round; a once-through one's does not (it may be
+  // negative: it has been running a while by the time it was dropped; wrapping it would put it at the end of the line).
+  const tv = el.play.travel, loops = tv.loop === 'loop' || (tv.loop === undefined && Boolean(line.closed));
+  const ph = loops ? ((phase % 1) + 1) % 1 : phase;
+  withPlay(el, pl => { if (Math.abs(ph) > 0.0005 && (!loops || ph < 0.9995)) pl.travel.at = Math.round(ph * 1000) / 1000; else delete pl.travel.at; });
   const q = pointAt(outlineOf(line), at);
   if (el.role === 'point') el.points = [[q[0], q[1], el.points[0]?.[2] ?? 0, el.points[0]?.[3] ?? 0.5]];
   return true;
