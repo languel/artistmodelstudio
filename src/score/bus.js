@@ -14,6 +14,7 @@
  *   phase: entry | exit | cross | end | arrive | collide
  */
 import { triggerIdOf } from './compile.js';
+import * as signals from './signals.js';
 
 const PHASE = { enter: 'entry', exit: 'exit', cross: 'cross', end: 'end', arrive: 'arrive', collide: 'collide' };
 const RING = 256;
@@ -61,7 +62,18 @@ export function sampleFeatures(entries, t, doc) {
       features[`${name}.active`] = on ? 1 : 0;
     }
   }
-  return { features, ports: {} };   // (designated ports come later)
+  // Published values (out(name, value)): features under their own names.
+  for (const n of signals.names()) { const v = signals.get(n).value; if (typeof v === 'number' || typeof v === 'string') features[n] = v; }
+  // Designated outputs (play.out = 'name'): the mark's main value under a short name, always listed in ports.
+  const ports = {};
+  for (const e of doc?.elements || []) {
+    const o = e.play?.out;
+    if (!o) continue;
+    const base = names.get(e.id) || e.id;
+    const v = e.play?.travel ? features[`${base}.u`] : e.play?.trigger ? features[`${base}.active`] : e.play?.body ? features[`${base}.x`] : undefined;
+    if (v !== undefined) { ports[o] = v; features[o] = v; }
+  }
+  return { features, ports };
 }
 
 /** The bus: keeps the recent events, and tells subscribers about frames and events. */

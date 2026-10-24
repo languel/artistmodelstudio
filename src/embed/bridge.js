@@ -129,7 +129,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
   let hostKey = false;
   const scoreSubs = new Map();
   // __ in the embed (the iframe's own window: the host's window.__ is never touched): the score as signals, the same names as the messages.
-  window.__ = { score: { read: name => app.score.bus.read(name, app.score.features()), subscribe: (opts) => app.score.bus.subscribe(opts), recent: (since, name) => app.score.bus.recent(since, name), features: t => app.score.features(t) } };
+  window.__ = { score: { read: name => app.score.bus.read(name, app.score.features()), subscribe: (opts) => app.score.bus.subscribe(opts), recent: (since, name) => app.score.bus.recent(since, name), features: t => app.score.features(t), setInput: (name, value) => app.score.setInput(name, value), exportScore: () => app.score.exportScore() } };
   const handlers = {
     /** Score signals: subscribe { names?, hz? } → frames and events to the host until unsubscribed. */
     'score-subscribe': m => {
@@ -142,6 +142,22 @@ export function startBridge(app, { origin = location.origin } = {}) {
       scoreSubs.set(id, unsub);
       return { subId: id, hz: m.hz || 25 };
     },
+    /** Host clock: the host drives the playhead (position, playing, rate) and the score follows; drift is corrected, so small
+     * differences do not restart anything. Off: the editor's own transport runs (the default). */
+    'transport': m => {
+      const p = app.player;
+      if (!p.hostClock) return { ignored: true };
+      if (Number.isFinite(m.rate) && m.rate > 0) p.rate = m.rate;
+      const want = Number(m.time) * 1000;
+      if (Number.isFinite(want) && Math.abs(p.position() - want) > 40) p.seek(Math.max(0, want));
+      if (m.playing && !p.playing) p.play();
+      if (m.playing === false && p.playing) p.pause();
+      return { t: p.position() / 1000, playing: p.playing };
+    },
+    /** A designated input (play.in) set by the host. */
+    'score-input': m => ({ accepted: app.score.setInput(String(m.name), m.value) }),
+    /** The score as a standalone export: JSON that src/score/runtime.js plays anywhere. */
+    'score-export': () => ({ score: app.score.exportScore() }),
     'score-unsubscribe': m => { scoreSubs.get(m.subId)?.(); scoreSubs.delete(m.subId); return { ok: true }; },
     /** The current value of signals (names are prefixes: 'lead' gives lead.x, lead.u…). */
     'score-read': m => { const f = app.score.features(); return { t: f.t, features: app.score.bus.read(m.name, f) }; },
@@ -156,7 +172,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
       finally { hostKey = false; }
       return {handled:event.defaultPrevented};
     },
-    init: cfg => { configure(cfg || {}); return { protocol: PROTOCOL, boards: boardsOf(app.store.doc).map(b => ({ id: b.id, title: b.title, width: b.width, height: b.height })) }; },
+    init: cfg => { if (cfg?.clock === 'host') app.player.hostClock = true; configure(cfg || {}); return { protocol: PROTOCOL, boards: boardsOf(app.store.doc).map(b => ({ id: b.id, title: b.title, width: b.width, height: b.height })) }; },
     load: ({ document: doc, boards, fit }) => { app.loadDocument(normalizeDocument(doc), 'host'); declare(boards); if (fit) configure({ fit }); return { rev }; },
     loadExcalidraw: ({ scene }) => { app.loadDocument(fromExcalidraw(scene), 'host'); declare(); return { rev }; },
     'get-document': () => ({ rev, document: structuredClone(app.store.doc) }),

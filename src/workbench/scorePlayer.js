@@ -14,6 +14,8 @@ import { createGmOutput } from '../score/outputs/gm.js';
 import { createWebMidiOutput } from '../score/outputs/webmidi.js';
 import { createRouter, strips, patchMixer } from '../score/mixer.js';
 import { createBus, sampleFeatures } from '../score/bus.js';
+import * as signals from '../score/signals.js';
+import { scoreExport } from '../score/runtime.js';
 
 const PREFS = 'ams_sound_v1';
 
@@ -243,6 +245,28 @@ export class ScorePlayer {
       this.runner.stop();
     }
   }
+
+  /**
+   * A designated input (play.in = name): a traveler's place on its path (0..1 of a lap, live), or an event fired (a value
+   * above zero fires it now). Any other score is not changed by it. Returns whether a mark takes this name.
+   */
+  setInput(name, value) {
+    const el = this.rawDoc().elements.find(e => e.play?.in === name);
+    if (!el) return false;
+    const t = this.app.player.position() / 1000;
+    signals.publish(name, value, t);
+    const entries = this.runner.active ? this.runner.entries : this.view();
+    for (const { world } of entries) {
+      if (el.play.travel) {
+        const tr = world.travelers().find(x => x.id === el.id);
+        if (tr?.spec) tr.spec.start = t - (Number(value) || 0) * Math.max(1e-6, tr.spec.dur) / Math.max(1e-6, tr.spec.rate ?? 1);
+      } else if (el.play.trigger && Number(value) > 0) world.arrive(triggerIdOf(el), { input: value }, t);
+    }
+    return true;
+  }
+
+  /** The score as a standalone export (src/score/runtime.js plays it anywhere). */
+  exportScore() { return scoreExport(this.rawDoc(), this.app.player.settings); }
 
   /** The features of the score now, for the bus's subscribers (sampled only when someone listens). */
   features(t = this.app.player.position() / 1000) {

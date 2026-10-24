@@ -204,3 +204,12 @@ Features: travelers `<name>.x .y .u .speed .lap .active`; bodies `.x .y .r .vx .
 Inside the editor, `__.score` has the same: `read(name)`, `subscribe({names,hz,onFrame,onEvent})`, `recent(since,name)`, `features(t)`. The editor's `window.__` is in its own iframe window, so it never touches the host's.
 
 Not yet: the host clock (the host driving the playhead), host writes to designated inputs, designated output ports, and the standalone runtime (see the plan).
+
+
+### Host clock, designated inputs and outputs, standalone score (25 Oct 2026)
+
+- **Host clock:** `init({ clock: 'host' })`, then `editor.transport({ time, playing, rate })` each frame (seconds). The score follows the host's playhead; a seek happens only when the drift is over 40 ms, so the score is not restarted by small corrections. Without it the editor's own transport runs.
+- **Designated outputs:** a mark with `play.out = 'name'` publishes its main value under that short name, listed in `ports` in every frame: a traveler's `u`, an event's `active`, a body's `x`. Event code can also publish any value with `out('name', value)`; it appears as a feature of that name.
+- **Designated inputs:** a mark with `play.in = 'name'` takes a value from the host: `editor.setScoreInput('name', value)`. A traveler's value is its place on its path (0 to 1 of a lap, live, the same as dragging it); an event fires when the value is above zero. Inputs are the one kind of write a host may make without a permission, since the drawing's author named them.
+- **Standalone score:** `editor.exportScore()` returns the score as plain JSON (`format: 'ams-score/1'`). `score-runtime.js` (next to `ams-editor.js` in the embed build, 50 KB) plays that JSON in any page with no editor: `createScoreRuntime(json)`, then `features(t)`, `seek(t)`, `recent(since, name)`, `setInput(name, value)`. It gives the same names and values as the editor.
+- Not built: host writes to travelers and events other than designated inputs (the plan's permission-gated `score-call`).
