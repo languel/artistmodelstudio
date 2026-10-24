@@ -58,7 +58,7 @@ export class CanvasView {
     // Note fonts are drawn on the canvas, so ask for them explicitly and redraw when they arrive.
     Promise.all(['22px Caveat', '17px "Patrick Hand"', '17px Newsreader'].map(f => document.fonts?.load(f).catch(() => null))).then(() => this.invalidate());
     this.upTo = Infinity;   // stage scrub
-    this.grid = { show: 'paper', style: 'lines', spacing: 100, subdivisions: 4, color: '#8a837840', snap: false, snapMode: 'points' };
+    this.grid = { show: 'paper', style: 'lines', spacing: 100, subdivisions: 4, auto: false, color: '#8a837840', snap: false, snapMode: 'points' };
     try { Object.assign(this.grid, JSON.parse(localStorage.getItem('ams_grid_v2')) || {}); } catch { /* defaults */ }
     this.space = false;
     try { this.cam = JSON.parse(localStorage.getItem(CAMERA_KEY)) || null; } catch { this.cam = null; }
@@ -396,10 +396,27 @@ export class CanvasView {
     return hit ? [hit[0], hit[1]] : [x, y];
   }
 
+  /**
+   * The grid's steps (world units) at the current zoom: { major, minor, snap }. With `auto`, the major
+   * step grows and shrinks by the subdivisions (or by 2) so it stays 80 to 80×n screen px, and snapping
+   * uses the finest lines that are drawn: zoom in to place finer.
+   */
+  gridSteps() {
+    const g = this.grid, div = Math.max(1, g.subdivisions), z = this.cam.z;
+    let major = g.spacing;
+    if (g.auto) {
+      const k = div > 1 ? div : 2;
+      for (let i = 0; i < 40 && major * z < 80; i++) major *= k;
+      for (let i = 0; i < 40 && major * z > 80 * k; i++) major /= k;
+    }
+    const minor = major / div;
+    return { major, minor, snap: div > 1 && minor * z >= 5 ? minor : major };
+  }
+
   /** Nearest grid point (a subdivision) when snapping is on. */
   snapPt(x, y, force = false) {
     if (!this.grid.snap && !force) return [x, y];
-    const q = this.grid.spacing / Math.max(1, this.grid.subdivisions);
+    const q = this.gridSteps().snap;
     return [Math.round(x / q) * q, Math.round(y / q) * q];
   }
 
@@ -409,7 +426,7 @@ export class CanvasView {
     if (!g.show || g.show === 'off' || this.presenting) return;
     if (onlyPaper !== (g.show === 'paper')) return;
     const { ctx } = this;
-    const z = this.cam.z, major = g.spacing * z, minor = major / Math.max(1, g.subdivisions);
+    const z = this.cam.z, steps = this.gridSteps(), major = steps.major * z, minor = steps.minor * z;
     if (major < 4) return;
     let x0 = 0, y0 = 0, x1 = this.w, y1 = this.h;
     ctx.save();
@@ -1191,7 +1208,7 @@ export class CanvasView {
       moved = true;
       let dx = x - wx, dy = y - wy;
       if (ev.ctrlKey || this.grid.snap) {
-        const q = this.grid.spacing / Math.max(1, this.grid.subdivisions);
+        const q = this.gridSteps().snap;
         if (this.grid.snapMode === 'increments') { dx = Math.round(dx / q) * q; dy = Math.round(dy / q) * q; }
         else { const exclude = new Set(); const [gx, gy] = this.snapTarget(grab[0] + dx, grab[1] + dy, exclude); dx = gx - grab[0]; dy = gy - grab[1]; }
       }
@@ -1486,7 +1503,7 @@ export class CanvasView {
         // With snap on, or Ctrl held: 'points' puts the mark's point nearest the grab on a grid point;
         // 'increments' moves in whole grid steps from where the selection started.
         if (this.grid.snap || ev.ctrlKey) {
-          const q = this.grid.spacing / Math.max(1, this.grid.subdivisions);
+          const q = this.gridSteps().snap;
           if (this.grid.snapMode === 'increments') { dx = Math.round(dx / q) * q; dy = Math.round(dy / q) * q; }
           else if (anchor) { const [gx, gy] = this.snapTarget(anchor[0] + dx, anchor[1] + dy, this.selected); dx = gx - anchor[0]; dy = gy - anchor[1]; }
         }

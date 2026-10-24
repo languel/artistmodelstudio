@@ -171,9 +171,10 @@ export const BRUSHES = {
   },
 
   trigger: {
-    label: 'Trigger', roles: ['plane', 'point', 'line'], doc: 'The look of what sounds when touched: a plane is a soft area with a dashed edge, a point is rings like a ripple, a line is a dashed gate with end ticks.',
+    label: 'Trigger', roles: ['plane', 'point', 'line'], doc: 'The look of what sounds when touched: a plane is a soft area with a dashed edge, a point is a square (travelers are round), a line is a dashed gate with end ticks.',
     params: [
-      param('size', 'Size', 4, 80, 1, 16, 'A point: diameter of its inner ring.'),
+      param('size', 'Size', 4, 80, 1, 16, 'A point: the width of its square.'),
+      param('shape', 'Shape', 0, 2, 1, 0, 'A point: 0 a square, 1 a diamond, 2 rings like a ripple.'),
       param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.'),
       param('fill', 'Fill', 0, 1, 0.02, 0.16, 'A plane: how strongly it is filled.'),
       param('dash', 'Dash', 0, 30, 1, 6, 'Dash length of the edge (0 = solid).')
@@ -184,9 +185,19 @@ export const BRUSHES = {
       ctx.globalAlpha *= p.opacity;
       ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = w; ctx.lineJoin = 'round';
       if (e.role === 'point') {
+        const shape = Math.round(p.shape ?? 0);
         for (const [x, y] of e.points) {
-          [[0.5, 0.9], [0.85, 0.5], [1.2, 0.25]].forEach(([r, a]) => { ctx.globalAlpha = p.opacity * a; ctx.beginPath(); ctx.arc(x, y, p.size * r, 0, Math.PI * 2); ctx.stroke(); });
-          ctx.globalAlpha = p.opacity; ctx.beginPath(); ctx.arc(x, y, p.size * 0.12, 0, Math.PI * 2); ctx.fill();
+          if (shape === 2) {
+            [[0.5, 0.9], [0.85, 0.5], [1.2, 0.25]].forEach(([r, a]) => { ctx.globalAlpha = p.opacity * a; ctx.beginPath(); ctx.arc(x, y, p.size * r, 0, Math.PI * 2); ctx.stroke(); });
+            ctx.globalAlpha = p.opacity; ctx.beginPath(); ctx.arc(x, y, p.size * 0.12, 0, Math.PI * 2); ctx.fill();
+            continue;
+          }
+          // A square (or a diamond): a soft fill, an edge, a faint outer edge and a small centre.
+          const sq = (h, rot) => { ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(Math.PI / 4); ctx.beginPath(); ctx.rect(-h, -h, 2 * h, 2 * h); ctx.restore(); };
+          const rot = shape === 1, h = (p.size / 2) * (rot ? 0.85 : 1);
+          sq(h, rot); ctx.globalAlpha = p.opacity * 0.18; ctx.fill(); ctx.globalAlpha = p.opacity; ctx.stroke();
+          ctx.globalAlpha = p.opacity * 0.3; ctx.setLineDash([2 / k.scale, 3 / k.scale]); sq(h * 1.55, rot); ctx.stroke(); ctx.setLineDash([]);
+          ctx.globalAlpha = p.opacity; sq(Math.max(0.8, h * 0.18), rot); ctx.fill();
         }
       } else if (e.role === 'line') {
         const pts = k.smoothPath(e.points, false);

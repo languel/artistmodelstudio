@@ -847,3 +847,4 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-tl-loop-h.in { left: -4px; }
 .wb-tl-loop-h.out { right: -4px; }
 .wb-tl-loop-h:hover { background: color-mix(in srgb, var(--wb-accent-2) 35%, transparent); }
+.wb-tl { --wb-tl-grid: color-mix(in srgb, currentColor 7%, transparent); --wb-tl-grid-strong: color-mix(in srgb, currentColor 16%, transparent); }

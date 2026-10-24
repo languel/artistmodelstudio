@@ -8,8 +8,8 @@ import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
 import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf } from '../../process/take.js';
 import { showMenu } from '../menu.js';
-import { createTimelineTicks, formatTimecode, formatMusicalPosition, snapTimelineTime, secondsToFrame } from '../../time/transport.js';
-import { RULERS, FPS_CHOICES, QUANT_CHOICES, timeContext } from '../../time/sceneTransport.js';
+import { createTimelineTicks, formatTimecode, formatMusicalPosition, secondsToFrame } from '../../time/transport.js';
+import { RULERS, FPS_CHOICES, QUANT_CHOICES, SNAP_CHOICES, snapStep, timeContext } from '../../time/sceneTransport.js';
 
 const TRACK_LABEL = { title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
 const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`; };
@@ -64,6 +64,8 @@ export function mountTimeline(root, app) {
     const units = h('input', { class: 'wb-select wb-tl-units', type: 'number', min: 0.01, step: 1, value: st.beatUnits, title: 'Artboard units in one beat: a path this long takes a beat (the default grid\'s minor cell is 25), so a line of four cells is a bar' });
     units.addEventListener('change', () => p.setSettings({ beatUnits: Number(units.value) }));
     units.addEventListener('keydown', ev => ev.stopPropagation());
+    const snapSel = h('select', { class: 'wb-select', title: 'The Timeline grid: the playhead, the loop range and clips fall on it (Alt: any time). Auto follows the zoom' }, ...SNAP_CHOICES.map(([v, l]) => h('option', { value: v, selected: v === st.snap }, `⊞ ${l}`)));
+    snapSel.addEventListener('change', () => { p.setSettings({ snap: snapSel.value }); snapSel.blur(); });
     const quant = h('select', { class: 'wb-select', title: 'Round how long each path takes to a division (a path can choose its own in Properties)' }, ...QUANT_CHOICES.map(([v, l]) => h('option', { value: v, selected: v === st.quant }, v ? `⌊${l}⌋` : 'Free')));
     quant.addEventListener('change', () => { p.setSettings({ quant: quant.value }); quant.blur(); });
     const cell = h('button', { class: 'wb-icon-btn', type: 'button', title: 'A beat is one minor cell of the canvas grid', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h16v16H4zM4 12h16M12 4v16"/></svg>', onclick: () => { const g = app.canvas.grid; p.setSettings({ beatUnits: Math.round((g.spacing / Math.max(1, g.subdivisions)) * 100) / 100 }); } });
@@ -78,7 +80,7 @@ export function mountTimeline(root, app) {
       ruler,
       st.ruler === 'frames' ? fps : tempo,
       st.ruler === 'frames' ? null : sig,
-      units, cell, quant,
+      units, cell, snapSel, quant,
       rate,
       h('button', { class: `wb-icon-btn${p?.loop ? ' on' : ''}`, title: p.loopRange ? 'Loop the marked range (Shift-drag the ruler to mark one; right-click it to clear)' : 'Loop (Shift-drag the ruler to mark a range)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a6 6 0 016-6h8l-3-3M20 12a6 6 0 01-6 6H6l3 3"/></svg>', onclick: () => { p.loop = !p.loop; drawBar(); drawLanes(); } }),
       sel,
@@ -187,8 +189,11 @@ export function mountTimeline(root, app) {
         ruler.append(h('span', { class: k.major ? 'major' : 'minor', style: { left: `${x(k.time * 1000)}px` } }, label));
       }
     }
+    // The grid's lines over the lanes (each step, and the bars more strongly in the beats ruler).
+    const step = snapStep(st, pps) * pps, barPx = (60 / st.tempo) * (4 / st.signature.denominator) * st.signature.numerator * pps;
+    const gridStyle = step >= 4 ? { backgroundImage: [st.ruler === 'beats' && barPx > step ? `repeating-linear-gradient(90deg, var(--wb-tl-grid-strong) 0 1px, transparent 1px ${barPx}px)` : null, `repeating-linear-gradient(90deg, var(--wb-tl-grid) 0 1px, transparent 1px ${step}px)`].filter(Boolean).join(', ') } : {};
     const rows = tracks.map(tr => {
-      const row = h('div', { class: `wb-tl-row${tr.muted ? ' muted' : ''}`, 'data-track': tr.id, 'data-kind': tr.kind, style: { width: `${W}px` } });
+      const row = h('div', { class: `wb-tl-row${tr.muted ? ' muted' : ''}`, 'data-track': tr.id, 'data-kind': tr.kind, style: { width: `${W}px`, ...gridStyle } });
       for (const c of (take?.clips || []).filter(c => laneOf(c) === tr.id)) row.append(clipEl(c, Boolean(rec)));
       return row;
     });
@@ -216,15 +221,11 @@ export function mountTimeline(root, app) {
     if (rec) return;   // read-only until the recording stops
     // Scrub by clicking or dragging on the ruler or empty lanes.
     const at = ev => { const r = lanes.getBoundingClientRect(); return ((ev.clientX - r.left + lanes.scrollLeft) / pps) * 1000; };
-    // Hold Ctrl while dragging the playhead: it falls on the ruler's subdivisions (beats and their parts in the beats ruler, frames, or seconds).
-    const sub = ev => snapTimelineTime(Math.max(0, at(ev)) / 1000, W / pps, RULER_MODE[st.ruler], { fps: st.fps, tempo: st.tempo, signature: st.signature }, 'minor') * 1000;
-    const scrub = ev => p.seek(ev.ctrlKey ? sub(ev) : at(ev));
-    // Marks fall on the beat (or frame) in those rulers; hold Alt for any time.
-    const snapped = ev => {
-      const ms = Math.max(0, at(ev));
-      if (st.ruler === 'time' || ev.altKey) return Math.round(ms / 10) * 10;
-      return snapTimelineTime(ms / 1000, W / pps, RULER_MODE[st.ruler], { fps: st.fps, tempo: st.tempo, signature: st.signature }, 'minor') * 1000;
-    };
+    // The grid (the bar's ⊞ select): the playhead, the loop range and clips fall on it; Alt for any time. With the grid off, Ctrl snaps to the ruler's divisions.
+    const grid = ev => { const q = snapStep(st, pps) || (ev.ctrlKey ? snapStep({ ...st, snap: 'auto' }, pps) : 0); return ev.altKey ? 0 : q * 1000; };
+    const snapMs = (ms, ev) => { const q = grid(ev); return q ? Math.max(0, Math.round(ms / q) * q) : Math.max(0, Math.round(ms)); };
+    const scrub = ev => p.seek(snapMs(at(ev), ev));
+    const snapped = ev => snapMs(at(ev), ev);
     ruler.addEventListener('contextmenu', ev => {
       ev.preventDefault();
       showMenu([{ label: 'Clear the loop range', disabled: !p.loopRange, run: () => p.setSettings({ loop: { start: 0, end: 0 } }) }], ev.clientX, ev.clientY);
@@ -289,9 +290,11 @@ export function mountTimeline(root, app) {
       const grip = ev.target.classList.contains('wb-tl-grip');
       const x0 = ev.clientX, s0 = c.start, d0 = c.dur;
       const mv = e2 => {
-        let dt = ((e2.clientX - x0) / pps) * 1000;
-        if (!e2.shiftKey) dt = Math.round(dt / 100) * 100;    // 0.1 s steps; Shift is free
-        if (grip) c.dur = Math.max(100, Math.round(d0 + dt)); else c.start = Math.max(0, Math.round(s0 + dt));
+        const dt = ((e2.clientX - x0) / pps) * 1000;
+        // On the grid (Alt or Shift: free): the start, or the end when the right edge is dragged.
+        const free = e2.altKey || e2.shiftKey, q = free ? 0 : snapStep(S(), pps) * 1000;
+        const on = v => (q ? Math.round(v / q) * q : v);
+        if (grip) c.dur = Math.max(q || 100, Math.round(on(s0 + d0 + dt) - s0)); else c.start = Math.max(0, Math.round(on(s0 + dt)));
         el.style.left = `${x(c.start)}px`; el.style.width = `${Math.max(6, x(c.dur))}px`;
       };
       const lane0 = laneOf(c);

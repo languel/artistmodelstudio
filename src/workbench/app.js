@@ -2167,7 +2167,7 @@ export class Workbench {
       { label: 'Create board from selection', hint: 'A board around the selected marks, which move into it', run: () => this.boardFromSelection(ids) },
       { label: 'Make mask', hint: 'The selected marks become the mask of the board they are on: they move to a board of their own (a mask board), and the board shows only where they are', run: () => this.makeMask(ids) },
       { label: 'Snap', hint: 'To the grid (its finest lines); one undo step', items: (() => {
-        const q = this.canvas.grid.spacing / Math.max(1, this.canvas.grid.subdivisions);
+        const q = this.canvas.gridSteps().snap;
         const snap = (mode, k = 1) => { const n = this.store.snapMarks(ids, mode, q * k); this.log(`Snapped ${n} mark${n === 1 ? '' : 's'} (${mode}${k > 1 ? `, ${k}× grid` : ''}).`); };
         return [
           { label: 'Points to grid', hint: 'Every point to the nearest grid point', run: () => snap('points') },

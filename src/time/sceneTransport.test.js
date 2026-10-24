@@ -28,3 +28,22 @@ describe('length in words', () => {
     expect(formatLength(1)).toBe('1 beat'); expect(formatLength(1.5)).toBe('1.5 beats'); expect(formatLength(6, 3)).toBe('2 bars');
   });
 });
+
+import { snapStep, snapTime } from './sceneTransport.js';
+describe('the Timeline grid', () => {
+  const t = (o = {}) => normalizeTransport({ tempo: 120, ruler: 'beats', ...o });
+  it('auto follows the zoom: finer divisions as you zoom in', () => {
+    expect(snapStep(t(), 20)).toBeCloseTo(0.5, 6);          // a beat (0.5 s) is 10 px
+    expect(snapStep(t(), 200)).toBeCloseTo(0.0625, 6);      // an eighth of a beat
+    expect(snapStep(t(), 2)).toBeCloseTo(8, 6);             // four bars
+    expect(snapStep(t({ ruler: 'frames', fps: 30 }), 300)).toBeCloseTo(1 / 30, 6);
+    expect(snapStep(t({ ruler: 'time' }), 60)).toBeCloseTo(0.25, 6);
+  });
+  it('a chosen division, or none', () => {
+    expect(snapStep(t({ snap: '0.25 beat' }), 1)).toBeCloseTo(0.125, 6);
+    expect(snapStep(t({ snap: '1 bar' }), 1)).toBeCloseTo(2, 6);
+    expect(snapStep(t({ snap: 'off' }), 100)).toBe(0);
+    expect(snapTime(1.3, t({ snap: '1 beat' }), 100)).toBeCloseTo(1.5, 6);
+    expect(snapTime(1.3, t({ snap: 'off' }), 100)).toBe(1.3);
+  });
+});

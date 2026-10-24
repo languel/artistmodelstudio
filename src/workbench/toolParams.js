@@ -137,6 +137,7 @@ export function openGridParams(app, x, y) {
     line('Names', (() => { const c = h('input', { type: 'checkbox', checked: Boolean(app.scoreView?.names), onchange: e => app.setScoreView({ names: e.target.checked }) }); return c; })(), 'Show the names of marks that play (the id when a mark has none) and the links between them (Alt+N)'),
     line('Style', seg([['lines', 'Lines'], ['dots', 'Dots']], g.style || 'lines', v => app.canvas.setGrid({ style: v }))),
     slider({ label: 'Spacing', min: 5, max: 400, step: 1, value: g.spacing, doc: 'Distance between major lines, in artboard units', onInput: v => app.canvas.setGrid({ spacing: v }) }),
+    line('Auto', h('input', { type: 'checkbox', checked: Boolean(g.auto), onchange: e => app.canvas.setGrid({ auto: e.target.checked }) }), 'The grid follows the zoom: finer lines (and finer snapping) as you zoom in, coarser as you zoom out'),
     line('Grid', colorField(g.color, v => app.canvas.setGrid({ color: v }), { title: 'Grid color', fallback: '#8a837840', app })),
     line(board.main ? 'Paper' : `Paper · ${board.title || 'board'}`, colorField(board.ground, v => app.store.updateBoard(board.id, { ground: v }), { title: 'The paper of the board under the pointer (else the active one)', fallback: '#f3efe6', app })),
     line('Workspace', colorField(workspaceColor(), v => app.setBackground(v), { title: 'Workspace background (behind the boards)', fallback: '#1b1b1b', app })),
