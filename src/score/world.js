@@ -11,7 +11,7 @@
  *   paths:     { id: { points: [[x, y, t?, p?], …], closed? } }
  *   travelers: [{ id, on: pathId, start, dur | speed, rate, loop, tag, as: 'drawn', state, handle, die }]
  *              or a free one: { id, pos: t => ({ x, y }), start, tag, state, handle }
- *   triggers:  [{ id, region, on, gate, lockout, policy, filter, state, handle }]
+ *   triggers:  [{ id, region, on, gate, lockout, policy, filter, state, handle, meta }]   (meta: carried along, for drawing)
  *   bounds:    { x, y, width, height }: the frame that nx, ny (0..1, y up) are measured in
  *
  * Detection is swept (see regions.js), so a fast traveler cannot jump over a thin trigger, and
@@ -27,7 +27,7 @@
  *   lockout  seconds after an opening before it can open again.
  *   filter   a tag ('bass') or a function (traveler) => boolean: which travelers it listens to.
  *
- * A handler is (event, api) => void. api = { launch(pathId, opts), kill(id), state, rng(), t }.
+ * A handler is (event, api) => void. api = { launch(pathId, opts), kill(id), carry(id, data), killAll(), arrive, state, rng(), t }.
  * `state` is the trigger's (or, for a traveler's own handler, the traveler's) object, kept between
  * events. A traveler's handler hears 'end' (it finished a lap).
  *
@@ -39,7 +39,7 @@
  * outside the world (the caller decides; the studio makes marks), collected by takeEffects().
  *
  * Event: { t, type: 'enter' | 'exit' | 'cross' | 'end' | 'arrive' | 'collide', traveler, trigger, tag, x, y, nx, ny,
- *          u, speed, p, dir, data, other }
+ *          u, speed, p, dir, data, other, path (the key of the traveler's path), dynamic (a traveler a handler sent) }
  *   u: where along its path (0..1); speed: world units a second; p: the pressure of the path there.
  */
 import { makePath, sample, sampleDrawn, drawnDuration } from './paths.js';
@@ -75,7 +75,7 @@ export function createWorld(def = {}) {
     w.triggers.push({
       id: t.id, region, regionDef: t.region, center, policy: t.policy || 'latched', gate: t.gate ?? 0, lockout: t.lockout ?? 0,
       on: t.on || (region.kind === 'line' ? ['cross'] : ['enter', 'exit']),
-      filter: t.filter ?? null, handle: t.handle || null, state: t.state || {},
+      filter: t.filter ?? null, handle: t.handle || null, state: t.state || {}, meta: t.meta ?? null,
       slots: new Map(), pairs: new Map()
     });
   }
@@ -131,7 +131,7 @@ export function createWorld(def = {}) {
     const range = Array.isArray(d.range) ? [Math.max(0, Math.min(1, d.range[0])), Math.max(0, Math.min(1, d.range[1]))] : null;
     const totalMs = drawn ? drawnDuration(path) * 1000 : 0;
     const tr = {
-      id, spec, path, tag: d.tag ?? null, data: d.data, width: Math.max(0, Number(d.width) || 0), state: d.state || {}, handle: d.handle || null,
+      id, on: d.on ?? null, spec, path, tag: d.tag ?? null, data: d.data, width: Math.max(0, Number(d.width) || 0), state: d.state || {}, handle: d.handle || null,
       die: d.die ?? die, silent, seeded: false, done: false, lastT: 0, fn: d.pos || null,
       atProgress(u0) {
         const u = range ? range[0] + (range[1] - range[0]) * u0 : u0;
@@ -178,7 +178,7 @@ export function createWorld(def = {}) {
     const speed = dt > 0 ? Math.hypot(pb.x - pa.x, pb.y - pa.y) / dt : 0;
     for (const trig of w.triggers) {
       if (!passes(trig, tr)) continue;
-      if (tr.width > 0 && pa.tx !== undefined) { if (trig.regionDef.kind === 'circle') wide(tr, trig, ta, tb, pa, pb, speed); else bar(tr, trig, ta, tb, pa, pb, speed); continue; }
+      if ((tr.width > 0 || trig.regionDef.center) && pa.tx !== undefined) { if (trig.regionDef.kind === 'circle') wide(tr, trig, ta, tb, pa, pb, speed); else bar(tr, trig, ta, tb, pa, pb, speed); continue; }
       if (!overlaps(trig.region.bounds, pa.x, pa.y, pb.x, pb.y)) continue;
       const pair = trig.region.kind === 'area' ? pairOf(trig, tr) : null;
       let cs = trig.region.crossings(pa, pb, pair ? pair.geo : false);
@@ -205,12 +205,12 @@ export function createWorld(def = {}) {
   /**
    * A traveler with a width is a bar across its path (IanniX's cursor). A circular trigger is touched
    * when the bar passes its centre (in the traveler's own frame, along the path), within half the width
-   * of the path. The touch is a moment: it enters and leaves at once (a trigger's gate holds it open).
+   * of the path. A node (region.center) is touched that way by any traveler on a path: at its centre. The touch is a moment: it enters and leaves at once (a trigger's gate holds it open).
    */
   function wide(tr, trig, ta, tb, pa, pb, speed) {
     const { x: cx, y: cy, r } = trig.regionDef;
     const f0 = (cx - pa.x) * pa.tx + (cy - pa.y) * pa.ty, f1 = (cx - pb.x) * pb.tx + (cy - pb.y) * pb.ty;
-    if (!((f0 > 0 && f1 <= 0) || (f0 < 0 && f1 >= 0))) return;
+    if (!((f0 > 1e-6 && f1 <= 1e-6) || (f0 < -1e-6 && f1 >= -1e-6))) return;   // (it passes the centre in this move; a traveler born on the centre does not)
     const s = f0 / (f0 - f1);
     const at = lerpPt(pa, pb, s);
     const tx = pa.tx + (pb.tx - pa.tx) * s, ty = pa.ty + (pb.ty - pa.ty) * s;
@@ -318,7 +318,7 @@ export function createWorld(def = {}) {
     const { nx, ny } = frame(ev.pt);
     return {
       t: ev.t, type, traveler: ev.tr?.id ?? null, trigger: ev.trig?.id ?? null, tag: ev.tr?.tag ?? null,
-      x: ev.pt.x, y: ev.pt.y, nx, ny, u: ev.pt.u, speed: ev.speed || 0, p: ev.pt.p ?? null, lat: ev.pt.lat, data: ev.data ?? ev.tr?.data, ...(extra || {})
+      x: ev.pt.x, y: ev.pt.y, nx, ny, u: ev.pt.u, speed: ev.speed || 0, p: ev.pt.p ?? null, lat: ev.pt.lat, data: ev.data ?? ev.tr?.data, path: ev.tr?.on ?? null, dynamic: Boolean(ev.tr?.die), ...(extra || {})
     };
   }
 
@@ -329,7 +329,11 @@ export function createWorld(def = {}) {
       arrive: (triggerId, data, delay = 0) => arrive(triggerId, data, t + delay),
       spawn: spec => spawn({ x: 0, y: 0, vx: 0, vy: 0, ...spec }, t),
       effect: fx => { if (!w.silent) w.effects.push({ t, ...fx }); },
-      kill: id => kill(id, t)
+      kill: id => kill(id, t),
+      /** What a traveler carries on (merged into its data): a node's note, for the next node's step. */
+      carry: (id, patch) => { const tr = w.travelers.find(x => x.id === id); if (tr) tr.data = { ...(tr.data || {}), ...patch }; },
+      /** Stop every traveler a handler sent (a terminator that stops all). */
+      killAll: () => { for (const tr of w.travelers) if (tr.die && !tr.done && !tr.body) kill(tr.id, t); }
     };
   }
 

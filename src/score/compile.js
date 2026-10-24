@@ -6,6 +6,7 @@
  *     travel:  { on: id, dur | speed, start, rate, loop, as, tag },   a point that travels line `on`
  *     body:    { v: [vx, vy] | speed: n | [min, max], angle, r, emit, tag },   a point that moves by itself, bounces, collides
  *     trigger: { on, gate, lockout, policy, filter, r, emit, emitExit, name, start, dir, to },   a plane, circle, line or point
+ *     node:    { kind, mode, start, to, … }   a node of a Midinous-style graph on the paths (see nodes.js)
  *              dir: -1 | 1 limits a crossing to one way; to: [ref | { to, dur }] sends a traveler on to those triggers (a route)
  *     travel:  also { at: 0..1 (begins that far along), cue: a trigger that starts it (it waits until the trigger fires) }
  *              name: how others reach it (arrive, a traveler's data.to); start: a time at which a signal arrives from nowhere
@@ -26,7 +27,8 @@
  * Coordinates are the board's own (boardDoc), so a score does not depend on where its board sits.
  */
 import { boardDoc, MAIN } from '../process/boards.js';
-import { outlineOf as outline, centerOf, lengthBy } from './geometry.js';
+import { outlineOf as outline, centerOf, lengthBy, nearestOn } from './geometry.js';
+import { makeNodeHandler, normalizeNode, isLit } from './nodes.js';
 import { FIELDS, HELPER_NAMES } from './music.js';
 import { resolveTimeValue } from '../time/timeValue.js';
 import { DEFAULT_TRANSPORT, timeContext } from '../time/sceneTransport.js';
@@ -68,7 +70,7 @@ export function compileEmit(src, names = HELPER_NAMES) {
  */
 export function pathTime(e, { ctx = timeContext(DEFAULT_TRANSPORT), beatUnits = DEFAULT_TRANSPORT.beatUnits, quant = '' } = {}) {
   const spec = e.play?.path && typeof e.play.path === 'object' ? e.play.path : {};
-  const pts = outline(e);
+  const pts0 = outline(e), pts = e.closed && pts0.length > 2 ? [...pts0, pts0[0]] : pts0;   // (a closed line is travelled all the way round)
   const beatSeconds = resolveTimeValue('1 beat', ctx);
   const units = lengthBy(pts, spec.metric || 'arc');
   const len = spec.len;
@@ -87,7 +89,7 @@ export function pathTime(e, { ctx = timeContext(DEFAULT_TRANSPORT), beatUnits = 
 }
 
 /** The name a trigger is reached by: its `name`, else the mark's label, else its id. */
-export const triggerIdOf = e => e.play?.trigger?.name || e.label || e.id;
+export const triggerIdOf = e => e.play?.trigger?.name || e.play?.node?.name || e.label || e.id;
 
 export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, seed = 1, ctx = timeContext(DEFAULT_TRANSPORT), beatUnits = DEFAULT_TRANSPORT.beatUnits, quant = '' } = {}) {
   const d = boardDoc(doc, board);
@@ -129,7 +131,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
   // Triggers are reached by their name, label or id: from routes (`to`) and cues (`cue`).
   const triggerId = triggerIdOf;
   const trigKey = new Map();
-  for (const e of marks) if (e.play.trigger) { trigKey.set(e.id, triggerId(e)); if (e.label && !trigKey.has(e.label)) trigKey.set(e.label, triggerId(e)); }
+  for (const e of marks) if (e.play.trigger || e.play.node) { trigKey.set(e.id, triggerId(e)); if (e.label && !trigKey.has(e.label)) trigKey.set(e.label, triggerId(e)); }
   const cues = new Map();   // trigger id → travelers it starts: [{ path, opts }]
   const pending = [];       // triggers whose handlers are finished once everything is known
 
@@ -189,6 +191,60 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
       pending.push({ obj, base, routes, dir });
       if (start !== undefined && start !== false) starts.push({ trigger: id, t: start === true ? 0 : secs(start), data: {} });
     }
+  }
+
+  // Nodes (nodes.js): a trigger whose handler is its kind's, with the ways out that the paths around it make.
+  const beat = resolveTimeValue('1 beat', ctx);
+  const nodeMarks = marks.filter(e => e.play.node && !e.play.trigger);
+  const realPaths = Object.keys(paths).filter(k => !k.startsWith('route:'));
+  const nodeInfo = new Map();   // node id → { e, n, c, r, state }
+  for (const e of nodeMarks) {
+    const n = normalizeNode(e.play.node), c = centerOf(e);
+    const r = e.play.node.r ?? Math.max(4, (e.realize?.params?.size || 14) / 2);
+    nodeInfo.set(triggerId(e), { e, n, c, r, state: {} });
+  }
+  const nodeAt = (x, y) => {   // the node a place is on (the nearest, within its radius)
+    let best = null, bd = Infinity;
+    for (const [id, ni] of nodeInfo) { const dd = Math.hypot(ni.c[0] - x, ni.c[1] - y); if (dd <= ni.r + 1 && dd < bd) { best = id; bd = dd; } }
+    return best;
+  };
+  const pathEnd = new Map(realPaths.map(k => { const pts = paths[k].points, q = pts[pts.length - 1]; return [k, paths[k].closed ? null : nodeAt(q[0], q[1])]; }));
+  const closedPaths = new Set(realPaths.filter(k => paths[k].closed));
+  const ccLast = new Map();
+  for (const [id, ni] of nodeInfo) {
+    const { e, n, c, r } = ni;
+    const onPath = new Map(), outs = [], extra = [];
+    for (const k of realPaths) {
+      const hit = nearestOn(paths[k].points, c[0], c[1]);
+      if (!hit || hit.d > r + 1) continue;
+      onPath.set(k, hit.u);
+      if (hit.u < 0.995 || paths[k].closed) outs.push({ key: k, u: hit.u >= 0.995 ? 0 : hit.u, seconds: pathTimes.get(k) ?? 1, end: pathEnd.get(k) ?? null, weight: nodeInfo.get(pathEnd.get(k))?.n.weight ?? 100 });
+    }
+    for (const ref of n.to) {
+      const target = d.elements.find(x => x.id === ref || x.label === ref);
+      const pk = target && pathKey.get(target.id);
+      if (pk && paths[pk]) {
+        const hit = nearestOn(paths[pk].points, c[0], c[1]);
+        const u = hit && hit.d <= r + 1 ? hit.u : 0;
+        extra.push({ path: { key: pk, u, seconds: pathTimes.get(pk) ?? 1 }, end: pathEnd.get(pk) ?? null, weight: nodeInfo.get(pathEnd.get(pk))?.n.weight ?? 100 });
+        continue;
+      }
+      const tk = target && trigKey.get(target.id);
+      if (!tk) { info.skipped.push(`${e.label || e.id}: nothing called "${ref}" to send to`); continue; }
+      const tc = centerOf(target), key = `route:${id}->${tk}:${extra.length}`;
+      paths[key] = { points: [c, tc], closed: false };
+      const cells = (Math.abs(tc[0] - c[0]) + Math.abs(tc[1] - c[1])) / Math.max(0.001, beatUnits);
+      extra.push({ node: tk, route: { key, dur: Math.max(0.01, cells * beat) }, weight: nodeInfo.get(tk)?.n.weight ?? 100 });
+    }
+    const pts = xy(outline(e));
+    const region = e.role === 'point' || pts.length === 1 ? { kind: 'circle', x: c[0], y: c[1], r, center: true }   // (touched when a traveler passes its centre, like a Midinous node)
+      : e.closed || e.role === 'plane' ? { kind: 'polygon', pts } : { kind: 'line', pts };
+    const handler = makeNodeHandler(n, {
+      beat, onPath, outs, extra, closed: closedPaths, scene: {}, ccLast,
+      lit: (ref, t) => { const k = trigKey.get(ref) ?? ref, o = nodeInfo.get(k); return o ? isLit(o.n.kind, o.n, o.state, t) : false; }
+    });
+    triggers.push({ id, region, policy: 'pair', on: region.kind === 'line' ? ['cross'] : ['enter'], state: ni.state, meta: { node: n.kind }, handle: (ev, api) => handler(ev, api, make(ev, api)) });
+    if (n.start !== false && n.start !== undefined && n.start !== null) starts.push({ trigger: id, t: n.start === true ? 0 : secs(n.start), data: {} });
   }
 
   // Handlers: the sound, then what it sends on and starts. A crossing can be limited to one direction.

@@ -6,7 +6,7 @@
  *   note(ch, pitch, vel = 100, dur = 0.25, delay = 0)   ch 1..16; pitch a number or a name ('C#4'); vel 0..127;
  *                                            dur seconds, a time ('1 beat', '8n') or 'gate' (held until the trigger is left)
  *   notef(ch, pitch, vel, dur)               pitch and vel as 0..1
- *   cc(ch, n, v) / ccf(ch, n, v 0..1)        controllers;  bend(ch, v -1..1);  program(ch, n);  panic()
+ *   cc(ch, n, v, delay) / ccf(ch, n, v 0..1)  controllers;  bend(ch, v -1..1);  program(ch, n);  panic()
  *   map(v, [a, b], [c, d])  clamp(v, a, b)  lane(v 0..1, n)  quant(v, n)
  *   snap(n, scale, root)  step(n, k, scale, root)  noteName(n)  noteNumber(name)   (scale.js)
  *   spawn({ x, y, vx, vy, r, life, tag })  effect({ … })  (bodies; see world.js)
@@ -70,7 +70,7 @@ export function musicHelpers({ out, ctx, event, api }) {
   return {
     note, release, route, arrive: api.arrive,
     notef: (ch, pitch, vel, dur) => note(ch, Math.trunc(pitchOf(pitch) * 127), Math.max(1, Math.trunc(vel * 127)), dur),
-    cc: (ch, n, v) => send(at, 0xb0 | chan(ch), clampI(n, 0, 127), clampI(v, 0, 127)),
+    cc: (ch, n, v, delay = 0) => send(at + seconds(delay), 0xb0 | chan(ch), clampI(n, 0, 127), clampI(v, 0, 127)),
     ccf: (ch, n, v) => send(at, 0xb0 | chan(ch), clampI(n, 0, 127), clampI(v * 127, 0, 127)),
     bend: (ch, v) => { const b = clampI(8192 + v * 8191, 0, 16383); send(at, 0xe0 | chan(ch), b & 0x7f, b >> 7); },
     program: (ch, n) => send(at, 0xc0 | chan(ch), clampI(n, 0, 127)),
