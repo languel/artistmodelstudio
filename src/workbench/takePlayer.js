@@ -136,6 +136,12 @@ export class TakePlayer {
     this.emit();
   }
 
+  /** Back to the start (the loop range's start, if one is marked). */
+  rewind() { const r = this.loopRange; this.seek(r ? r[0] : 0); }
+
+  /** Pause and go back to the start. */
+  stop() { this.pause(); this.rewind(); }
+
   pause() { this.playing = false; cancelAnimationFrame(this.raf); clearInterval(this.timer); this.syncAudio(); this.emit(); }
   toggle() { this.playing ? this.pause() : this.play(); }
 

@@ -39,7 +39,8 @@ export function buildEntries(doc, settings, { helpers = () => ({}), onError = ()
     try {
       const { def, info } = compileDoc(doc, { board: b.id, ctx, helpers });
       for (const s of info.skipped) onError(`${b.title || b.id}: ${s}`);
-      out.push({ board: b, world: createWorld(def) });
+      // idle: nothing in it starts by itself (no traveler running, no body, no trigger set to start)
+      out.push({ board: b, world: createWorld(def), idle: !(def.travelers.length || def.bodies.length || def.starts.length) });
     } catch (e) { onError(`${b.title || b.id}: ${e.message}`); }
   }
   return out;

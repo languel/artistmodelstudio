@@ -278,6 +278,7 @@ export class Workbench {
       { label: 'Attach to the nearest line', hint: 'A point travels it, from its start; anything else moves onto it', run: attach },
       one ? { label: 'Link to…', hint: 'Click another mark: what they are decides the relation (travels, sends to, starts)', run: link } : null,
       one?.play?.travel?.on ? { label: 'Detach from its path', run: () => edit('detach', (d, e) => { if (e.play?.travel) e.play.travel = { ...e.play.travel, on: '' }; }) } : null,
+      one?.play?.trigger ? { label: one.play.trigger.start !== undefined && one.play.trigger.start !== false ? 'Does not start by itself' : 'Starts when play begins', hint: 'It fires when the transport starts, with no one touching it: what makes a score go', run: () => edit('trigger start', (d, e) => { const t = { ...e.play.trigger }; if (t.start !== undefined && t.start !== false) delete t.start; else t.start = 0; e.play = { ...e.play, trigger: t }; }) } : null,
       one?.play?.trigger ? { label: 'Sound', items: SOUNDS.filter(p => p.k !== 'collide').map(p => ({ label: p.label, hint: p.hint, active: readSound(one.play.trigger.emit)?.k === p.k, run: () => edit('sound', (d, e) => { e.play.trigger = { ...e.play.trigger, emit: soundCode({ ...SOUND_DEFAULTS[p.k], ch: readSound(e.play.trigger.emit)?.ch ?? 1 }) }; }) })) } : null,
       { label: this.score?.solo ? 'Solo off' : 'Solo', run: () => this.toggleSolo() },
       '-',

@@ -199,6 +199,8 @@ export class ScorePlayer {
     const p = this.app.player;
     if (p.playing && !this.timer && hasScore(this.doc())) {
       this.gm.resume().catch(e => this.app.log?.(`Sound: ${e.message}`, 'error'));
+      const v = this.view();
+      if (v.length && v.every(e => e.idle)) this.app.canvas.flash('Nothing starts this score: give a trigger a Start, or a traveler a path');
       this.timer = setInterval(() => this.tick(), TICK_MS);
       this.tick();
     } else if (!p.playing && this.timer) {

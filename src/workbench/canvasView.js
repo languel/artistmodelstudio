@@ -504,11 +504,13 @@ export class CanvasView {
     const f = this.frame();
     if (!f) return null;
     const near = 7, ring = 22;
+    // A small mark (a point) is mostly corner handles: inside it you move it; rotating is only from just outside the corner.
+    const roomy = Math.min(f.r - f.l, f.b - f.t) >= 3 * ring;
     for (const hx of [-1, 1]) for (const hy of [-1, 1]) {
       const cx = hx < 0 ? f.l : f.r, cy = hy < 0 ? f.t : f.b;
       const dx = (sx - cx) * -hx, dy = (sy - cy) * -hy;   // positive = inside the frame
       if (Math.abs(dx) <= near && Math.abs(dy) <= near) return { kind: 'scale', hx, hy };
-      if (dx > near * 0.5 && dy > near * 0.5 && dx < ring && dy < ring) return { kind: 'rotate', hx, hy };
+      if (roomy && dx > near * 0.5 && dy > near * 0.5 && dx < ring && dy < ring) return { kind: 'rotate', hx, hy };
       if (dx < -near * 0.5 && dy < -near * 0.5 && dx > -ring && dy > -ring) return { kind: 'rotate', hx, hy };
     }
     if (sy > f.t + near && sy < f.b - near) for (const hx of [-1, 1]) if (Math.abs(sx - (hx < 0 ? f.l : f.r)) <= 5) return { kind: 'scale', hx, hy: 0 };
@@ -695,7 +697,7 @@ export class CanvasView {
 
     window.addEventListener('keydown', e => {
       if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
-      if (e.code === 'Space' && !e.shiftKey) { this.space = true; c.style.cursor = 'grab'; e.preventDefault(); }   // (Shift+Space: the radial menu)
+      if (e.code === 'Space' && !e.shiftKey && !e.altKey) { this.space = true; c.style.cursor = 'grab'; e.preventDefault(); }   // (Shift+Space: the radial menu)
     });
     window.addEventListener('keyup', e => { if (e.code === 'Space') { const tap = this.space && !this.spaceUsed && this.getTool() === 'play'; this.space = false; this.spaceUsed = false; this.updateCursor(); if (tap) this.onSpaceTap?.(); } });   // (in the Play tool a tap of Space is play / pause; held, it pans)
     // Option (Alt) held: the sculpt brush shows the control points it would move, in any tool.

@@ -191,6 +191,7 @@ export function playBody(app, e) {
       timeField(app, r.dur ?? '', v => setTo(to.map((q, k) => (k === i ? { ...q, dur: v } : q)), 'route time'), { placeholder: '1 beat' })))));
     parts.push(row(to.length ? '' : 'Sends to', objectField({ app, value: '', accept: x => x.id !== e.id && (x.play?.trigger || x.role === 'point' || x.role === 'plane'), placeholder: 'add: a name, or pick', title: 'Add a trigger to send a traveler to', onChange: v => { if (v) { const m = resolveMark(app.store.doc, v); app.store.change('route', d => R.send(d, e.id, m ? m.id : v)); } } })));
     parts.push(
+      row('Starts', timeField(app, part.start === true ? 0 : part.start ?? '', v => setPart({ start: v }, 'trigger start'), { placeholder: 'when touched' })),
       row('Policy', selectField([['latched', 'One voice (latched)'], ['pair', 'One per traveler'], ['every', 'Every touch']], part.policy || 'latched', v => setPart({ policy: v === 'latched' ? undefined : v }, 'trigger policy'), 'How many voices touching it makes')),
       row('Hold', timeField(app, part.gate ?? '', v => setPart({ gate: v }, 'trigger hold'), { placeholder: '0' })),
       row('Rest', timeField(app, part.lockout ?? '', v => setPart({ lockout: v }, 'trigger rest'), { placeholder: '0' })),
