@@ -58,7 +58,8 @@ Nothing needs to be declared to be readable: every path, traveler, event and nod
 - **Rate:** 25 Hz by default (Genereti's control rate), adjustable per subscription (`subscribe-score { hz }`) and per project (`init { score: { hz } }`).
 - **Score-only boards:** fine: a board may hold only marks that play (no picture) and still be a full source of signals.
 - **Event code:** internal use for now; no sandboxing beyond the iframe. Checking drawings from others is the user's responsibility.
-- **MIDI:** Poliplan does not generate MIDI. AMS does, through its own MIDI system (the mixer and Web MIDI out), when it is the one running the score. The host does not receive MIDI messages as events for now.
+- **MIDI:** Poliplan does not generate MIDI, and the host is not sent MIDI messages. AMS still plays notes through its own MIDI system when it runs the score (the mixer, Web MIDI out); that is a separate use.
+- **Main use: automation the host interprets.** Events are signals, not notes. What a host needs most, in this order: (1) **traveler position**: `u` along its path and `x y` inside the board's normalized rect, with `speed` and `lap`; (2) **event on/off**: `active`, `entry`/`exit`/`cross` pulses with their time, direction and where (`x y u lat`), and who caused them (`traveler`, `tag`); (3) **collisions** between bodies (`collide` with `other`, `speed`); (4) path and score state (`time`, `playing`, designated ports). An event needs no `emit` code to publish: every enter, exit, cross, end, arrive and collide is already a recorded world event, so an event mark with no sound is a pure sensor. `emit` and `out()` only add *derived* values on top.
 
 ## Open questions
 
