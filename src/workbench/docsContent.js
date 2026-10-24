@@ -410,6 +410,30 @@ Exercises: *Score: a line, a traveler, planes that sound*, and *Score: a gas tha
 
 **Mixer and scale.** The **Mixer** tab (beside the Timeline) has the sixteen MIDI channels: choose each one's instrument (General MIDI), where it is heard (built-in sound, a MIDI port, both, or off), volume, pan, transpose, and mute or solo it. The **Scale** at the top holds every note to a scale (Off: notes play as written), so a score that wanders across the whole keyboard becomes tonal while its code stays the same. The mixer is saved with the scene.
 `)),
+    T('score-nodes', 'Scores', 'Nodes on paths (Midinous)', 'Notes, controllers, logic gates, LEDs, counters, switches, terminators and anchors that travelers reach on paths.', () => prose(`
+A **node** is a point that a traveler reaches on a path, after Midinous: it does what its kind does and sends the signal on down the paths that leave it. A line with nodes along it is a chain; a path drawn from one node to another is an **edge**, and it follows its nodes when you move them.
+
+\`point(100, 100, { play: { node: { kind: 'note', note: 62, start: true } } })\`
+
+| Kind | Shape | What it does |
+|---|---|---|
+| Note | square | plays a note: its own, or a **step** (scale steps) from the note the signal carries; range, scale, snap, velocity, channel, length (beats), repeat, chance; **mute** (silent, still carries its note), **pass** (no note of its own) |
+| Controller | circle | sends a MIDI controller value; **slew** glides from the last value |
+| Logic gate | D | lets a signal on only when its **inputs** (other nodes) say so: AND, OR, XOR, NAND, NOR, XNOR |
+| LED | diamond | lights up for a while, or on and off in turn: an input for gates |
+| Counter | hexagon | lets every n-th signal through |
+| Switch | octagon | on and off in turn; while off a signal stops here (unless it does not block) |
+| Terminator | X | stops what reaches it, even a traveler that loops (the absorber) |
+| Anchor | dot | a silent corner |
+
+**How it sends on** (the lines inside its shape): *robin* one way each time, in turn; *split* every way; *random* one way by weight; *portal* straight to the nodes at the far ends, no travel. A **start** node fires when play begins. **Sends to** adds ways out: a path (it runs from the node) or a node (straight there).
+
+**Signals and drivers.** A traveler a node sent is a signal: it is stopped where it is stopped. A traveler you placed (a driver, often looping) is only stopped by a terminator: it carries its note on, and the nodes it passes send signals out the other ways. A node sounds when a traveler passes its centre. Lit: a note while it sounds, an LED while lit, a switch while on; gates read that.
+
+**Making them:** the Play tool (Y) → right-click → *Node* and a kind (Shift+Y goes through every kind). Click to place one (on the path it is near); drag from a node to another for an edge (to a gate, from an LED, switch or counter: an input), or to empty paper for an edge and a new node. Properties → Play shows a node's kind, how it sends on and its settings; right-click → *Convert to* makes any point a node. A node's **Edges** setting draws new edges straight, across then up, or up then across, as Midinous does.
+
+Midinous and midinojs files (/nous) come in as nodes and edges. Exercise: *Score: nodes on paths (Midinous)*.
+`)),
     T('score-sources', 'Scores', 'Sources and redraw', 'The camera, images and videos as streams code reads by name; redraw from them.', () => prose(`
 The **Sources** panel lists the project's streams: the camera, and images or videos from Assets. Code reads them by name, fitted to the board (fractions of the board):
 

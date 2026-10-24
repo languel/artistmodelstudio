@@ -249,3 +249,10 @@ M0 to M3 is the minimum that proves the idea; M0 is also what keeps everything e
 6. **Importer trust.** Running `.iannix` as JS in the page (as board code is) behind a confirm, or a stricter command-only parser that refuses scripts with loops? Several examples depend on JS loops, so I recommend the former.
 7. **Sound dependency.** Add `jzz` and `jzz-synth-tiny` (MIT, 320 KB, lazy) for the built-in GM sound, as Underscores does. The single-file build inlines dynamic imports, so it grows by that much; I'd accept it. The alternative is ~60 lines of oscillator voices (like midinojs's `SynthService`) with no GM instruments.
 8. **Midinous scope.** Nodes note/CC/counter/switch and the four routing modes in M4; logic gates and logic paths later. OK?
+
+
+## Nodes (24 Oct 2026)
+
+Midinous and midinojs are graphs of nodes; here a node is a point on the paths (`play.node`), and an edge is a path that remembers its two nodes. What we keep from Midinous: the kinds (note, cc, gate, LED, counter, switch, terminator, anchor), play modes (robin, split, portal, random), relative notes counted in scale steps with ranges, force scale, repeat, chance, mute and pass, start nodes, path weights, and timing by the grid (a cell a beat). midinojs drew gates, LEDs, counters and switches but never ran them; their meaning here is ours: every node has a *lit* state over time (a note while it sounds, an LED while lit, a switch while on, a counter or anchor for a moment when it lets one through) and a gate reads its inputs' lit states with AND/OR/XOR/NAND/NOR/XNOR. A counter passes every n-th signal, a switch blocks while off, a terminator stops anything (it is the absorber for loops).
+
+What is new here: nodes can sit *along* any drawn line (a chain), and a traveler you place (a driver, often looping) is not a Midinous signal: it is only stopped by terminators, carries its note on, and the nodes it passes send signals out their other ways. Signals are the travelers nodes launch: they go one way and stop where they are stopped. A node fires when a traveler passes its centre, not when it touches its edge, so the time is exact.

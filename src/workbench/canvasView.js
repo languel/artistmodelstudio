@@ -560,6 +560,7 @@ export class CanvasView {
         const o = originals.get(el.id);
         if (o) el.points = o.map(([x, y, t, p]) => { const [nx, ny] = fn(x, y); return [nx, ny, t, p]; });
       }
+      this.store.derive?.(this.store.doc);   // (edges follow their nodes as they move)
       changed = true;
       this.invalidate();
     };
@@ -1510,6 +1511,7 @@ export class CanvasView {
         if (!dx && !dy && !moved) return;
         moved = true;
         for (const el of this.store.doc.elements) { const o = orig.get(el.id); if (o) el.points = o.map(([px, py, t, p]) => [px + dx, py + dy, t, p]); }
+        this.store.derive?.(this.store.doc);
         this.invalidate();
       };
       const up = () => {

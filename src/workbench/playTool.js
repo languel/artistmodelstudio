@@ -8,7 +8,8 @@
  *   Shift+drag a mark: it moves, and snaps onto a path that is near. Click a trigger: you hear it.
  *   On empty paper, by kind: path (draw a line), traveler (click: a point; click near a path: on it; drag: a
  *     bar across it), trigger (click: a point; drag: an area), gate (click on a path: a gate across it; drag:
- *     a line), body (click: a point that moves by itself; drag: throw it).
+ *     a line), body (click: a point that moves by itself; drag: throw it), node (click: a node of the kind
+ *     chosen, on the path it is near; drag from a node to another: an edge, to empty paper: an edge and a new node).
  *
  * Everything it makes is a mark with `play` (Properties → Play, Code → Selection): the tool only writes it.
  */
@@ -23,7 +24,8 @@ export const PLAY_KINDS = [
   ['traveler', 'Traveler', 'Click: a point that travels (click near a path to put it on that path). Drag: a bar across a path.'],
   ['trigger', 'Trigger', 'Click: a point that sounds when touched. Drag: an area.'],
   ['gate', 'Gate', 'Click on a path: a gate across it. Drag: a line that sounds when crossed.'],
-  ['body', 'Body', 'Click: a point that moves by itself. Drag: throw it.']
+  ['body', 'Body', 'Click: a point that moves by itself. Drag: throw it.'],
+  ['node', 'Node', 'Click: a node (Midinous) of the chosen kind; near a path it sits on it. Drag from a node: an edge to another node, or to a new one where you let go.']
 ];
 const SNAP = 14;   // screen px
 
@@ -48,9 +50,12 @@ export class PlayTool {
     return true;
   }
 
+  /** The mark under a place: a point (a node, a traveler, a trigger) before a line drawn over it. */
+  hitAt(wx, wy, accept = () => true) { return this.cv.hitTest(wx, wy, x => x.role === 'point' && accept(x)) || this.cv.hitTest(wx, wy, accept); }
+
   hover(e) {
     const [wx, wy] = this.cv.toWorld(...this.cv.local(e));
-    const hit = this.drag ? null : this.cv.hitTest(wx, wy);
+    const hit = this.drag ? null : this.hitAt(wx, wy);
     if ((hit?.id || null) !== this.cv.pickHover) { this.cv.pickHover = hit?.id || null; this.cv.invalidate(); }
   }
 
@@ -58,7 +63,7 @@ export class PlayTool {
   down(e, wx, wy) {
     this.cv.playNew = null;
     this.cv.pickHover = null;
-    let hit = this.cv.hitTest(wx, wy);
+    let hit = this.hitAt(wx, wy);
     // A click on a plain line, when making a traveler, gate, trigger or body, is a click on the paper beside it: what you make is placed there.
     if (hit && !['link', 'path'].includes(this.kind) && ['line', 'gesture', 'guide'].includes(hit.role) && !hit.play?.trigger) hit = null;
     if (hit) return this.pressMark(e, hit, wx, wy);
@@ -114,9 +119,10 @@ export class PlayTool {
           if (near) { dx = near.hit.x - c0[0]; dy = near.hit.y - c0[1]; this.snap = { x: near.hit.x, y: near.hit.y }; }
         }
         for (const el of this.doc.elements) { const o = orig.get(el.id); if (o) el.points = o.map(q => [q[0] + dx, q[1] + dy, ...q.slice(2)]); }
+        app.store.derive?.(app.store.doc);
         cv.invalidate();
       } else {
-        const target = cv.hitTest(mx, my, x => x.id !== hit.id);
+        const target = this.hitAt(mx, my, x => x.id !== hit.id);
         const c = centerOf(hit);
         this.drag = { kind: 'band', x0: c[0], y0: c[1], x1: mx, y1: my, from: hit.id, target: target?.id || null, rel: target ? R.infer(hit, target) : null };
         cv.pickHover = target?.id || null;
@@ -125,11 +131,15 @@ export class PlayTool {
     };
     const finish = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); this.drag = null; this.snap = null; app.score?.endScrub(); cv.invalidate(); };
     const up = ev => {
-      const d = this.drag;
+      let d = this.drag;
+      if (mode === 'link') {   // (what is under the pointer where it is let go: the last move may have been short of it)
+        const [ux, uy] = cv.toWorld(...cv.local(ev)), target = this.hitAt(ux, uy, x => x.id !== hit.id);
+        d = { ...(d || {}), x1: ux, y1: uy, target: target?.id || null, rel: target ? R.infer(hit, target) : null };
+      }
       finish();
       if (!mode) {   // a click: select; a trigger sounds
         if (ev.shiftKey) cv.select(cv.selected.has(hit.id) ? [...cv.selected].filter(i => i !== hit.id) : [...cv.selected, hit.id]); else cv.select([hit.id]);
-        if (hit.play?.trigger) app.score?.audition(hit.id);
+        if (hit.play?.trigger || hit.play?.node) app.score?.audition(hit.id);
         return;
       }
       if (mode === 'link') {
@@ -137,6 +147,13 @@ export class PlayTool {
           this.app.store.change('link', draft => R.apply(draft, d.rel));
           cv.select([hit.id]);
           cv.flash(d.rel.label);
+        } else if (d && !d.target && this.kind === 'node' && hit.play?.node && this.creatable(d.x1, d.y1)) {
+          // From a node to empty paper: a new node there, and an edge to it (one step).
+          const near = nearestPath(this.paths(), d.x1, d.y1, this.radius());
+          const [x, y] = near ? [near.hit.x, near.hit.y] : cv.snapPt(d.x1, d.y1);
+          const el = this.makeNode(x, y);
+          this.app.store.change('edge', draft => R.edge(draft, hit.id, el.id));
+          cv.select([el.id]);
         }
       } else this.app.store.commitFrom(before, mode === 'slide' ? 'traveler offset' : 'move');
     };
@@ -173,6 +190,11 @@ export class PlayTool {
     if (kind === 'path') { cv.playNew = { play: { path: true } }; return cv.startStroke(e, 'line', wx, wy); }
     if (kind === 'trigger') { cv.playNew = { play: { trigger: { emit: emitFor(DEFAULTS.height) } } }; return cv.startStroke(e, 'plane', wx, wy); }
     if (kind === 'gate') { cv.playNew = { play: { trigger: { emit: emitFor({ ...DEFAULTS.height, dur: 0.25 }) } } }; return cv.startStroke(e, 'line', wx, wy); }
+    if (kind === 'node') {   // a drag on paper places the node where it is let go
+      const up = ev => { window.removeEventListener('pointerup', up); const [x, y] = cv.toWorld(...cv.local(ev)); this.makeNode(x, y); };
+      window.addEventListener('pointerup', up);
+      return;
+    }
     const bar = kind === 'traveler';
     const mv = ev => {
       const [x, y] = cv.toWorld(...cv.local(ev));
@@ -194,6 +216,7 @@ export class PlayTool {
     if (kind === 'path') { cv.flash('Drag to draw a path'); return; }
     if (kind === 'traveler') return this.makeTraveler(wx, wy, 0);
     if (kind === 'body') return this.makeBody(wx, wy);
+    if (kind === 'node') return this.makeNode(wx, wy);
     if (kind === 'trigger') {
       const el = cv.commitNew('point', [[wx, wy, 0, 0.5]], this.playExtra('point', { trigger: { emit: emitFor(DEFAULTS.height) } }));
       app.score?.audition(el.id);
@@ -228,6 +251,16 @@ export class PlayTool {
     const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
     // It lies across a path: the path nearest its middle (a little further is fine for a long bar).
     return this.makeTraveler(mx, my, Math.round(len), 1 + Math.min(2, len / 60));
+  }
+
+  /** A node of the kind chosen: on the path it is near (its centre on the line), else where clicked (on the grid when snapping). */
+  makeNode(wx, wy) {
+    const near = nearestPath(this.paths(), wx, wy, this.radius());
+    const [x, y] = near ? [near.hit.x, near.hit.y] : this.cv.snapPt(wx, wy);
+    const kind = this.app.playNodeKind || 'note';
+    const node = kind === 'note' ? { kind, note: 60 } : kind === 'cc' ? { kind, cc: 1, value: 127 } : kind === 'counter' ? { kind, count: 4 } : { kind };
+    const el = this.cv.commitNew('point', [[x, y, 0, 0.5]], this.playExtra('point', { node }));
+    return el;
   }
 
   makeBody(x, y, vx, vy) {

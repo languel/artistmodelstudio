@@ -125,7 +125,7 @@ export class ScorePlayer {
   /** What a trigger sounds like, now: it is touched once (from a click). Nothing needs to be playing. */
   async audition(id) {
     const doc = this.rawDoc(), mark = doc.elements.find(e => e.id === id);
-    if (!mark?.play?.trigger) return false;
+    if (!mark?.play?.trigger && !mark?.play?.node) return false;
     this.gm.resume().catch(() => {});
     const settings = this.app.player.settings, ctx = timeContext(settings), msgs = [];
     const entries = buildEntries(doc, settings, { helpers: (event, api) => musicHelpers({ out: m => msgs.push(m), ctx, event, api }), onError: m => this.app.log?.(`Score: ${m}`, 'error') });

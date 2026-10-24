@@ -26,7 +26,7 @@ const play = (project, seconds, opts) => {
   const board = boardsOf(run.doc).find(b => b.title === 'T');
   const msgs = [];
   const ctx = { tempo: opts?.tempo ?? 120, signature: { numerator: 4, denominator: 4 }, fps: 30 };
-  const { def } = compileDoc(run.doc, { board: board.id, ctx, helpers: (event, api) => musicHelpers({ out: m => msgs.push(m), ctx, event, api }) });
+  const { def } = compileDoc(run.doc, { board: board.id, ctx, beatUnits: res.settings.beatUnits, helpers: (event, api) => musicHelpers({ out: m => msgs.push(m), ctx, event, api }) });
   renderEvents(def, seconds);
   return { msgs: msgs.sort((a, b) => a.t - b.t), res };
 };
@@ -85,5 +85,19 @@ describe('Midinous projects', () => {
     ] };
     const { msgs } = play(c, 3);
     expect(ons(msgs).map(o => o[2])).toEqual([60]);   // one start signal reaches a counter that wants two
+  });
+
+  it('every node kind comes in as a node: a gate gets its logic paths as inputs', () => {
+    const legacy = { _version: 1501, _performance_data: { tempo: 120 },
+      _note_points: { a: { id: 1, Origin: '0, 0', Start: true, midi_data: { Primary: 60, Secondary: 100, Channel: 1, Duration: 1 }, relative_midi_data: { Primary: 0 }, _Mode: 1, PathMode: 2, SerializablePathTo: [2, 3] } },
+      _LED_points: { b: { id: 2, Origin: '144, 0', SerializableLogicPathTo: [3] } },
+      _gate_points: { c: { id: 3, Origin: '0, 144', _Type: 1, negated: true } },
+      _terminator_points: { d: { id: 4, Origin: '144, 144', MaxCount: 2 } } };
+    const res = nousToScore(legacy, { title: 'L' });
+    expect(res.warnings).toEqual([]);
+    expect(res.code).toContain('"kind":"led","name":"n2"');
+    expect(res.code).toContain('"kind":"gate","name":"n3","type":"nor","inputs":["n2"]');
+    expect(res.code).toContain('"kind":"terminator","name":"n4","limit":2');
+    expect(res.code).toContain('"edge":["n1","n2"]');
   });
 });

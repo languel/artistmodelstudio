@@ -26,7 +26,8 @@ import { AssetStore } from '../assets/assetStore.js';
 import { AssetPanel } from '../ui/AssetPanel.js';
 import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
-import { icon, brushIcon, sculptIcon } from './icons.js';
+import { icon, brushIcon, sculptIcon, nodeIcon } from './icons.js';
+import { NODE_KINDS, NODE_INFO, MODES } from '../score/nodes.js';
 import { h, download, editInPlace } from './ui.js';
 import { mountScenes } from './panels/scenes.js';
 import { mountBoards } from './panels/boards.js';
@@ -218,9 +219,18 @@ export class Workbench {
 
   // ---- the Play tool ---------------------------------------------------------------------------
   cyclePlayKind() {
-    const ids = PLAY_KINDS.map(k => k[0]), i = this.tool === 'play' ? ids.indexOf(this.playKind) : -1;
-    this.setPlayKind(ids[(i + 1) % ids.length]);
-    this.canvas.flash?.(PLAY_KINDS.find(k => k[0] === this.playKind)[1]);
+    // Every kind, and every kind of node in turn (node:note, node:cc…).
+    const ids = PLAY_KINDS.flatMap(k => (k[0] === 'node' ? NODE_KINDS.map(n => `node:${n}`) : [k[0]]));
+    const cur = this.playKind === 'node' ? `node:${this.playNodeKind}` : this.playKind;
+    const next = ids[((this.tool === 'play' ? ids.indexOf(cur) : -1) + 1) % ids.length];
+    if (next.startsWith('node:')) this.setPlayNodeKind(next.slice(5)); else this.setPlayKind(next);
+    this.canvas.flash?.(this.playKind === 'node' ? NODE_INFO[this.playNodeKind].label : PLAY_KINDS.find(k => k[0] === this.playKind)[1]);
+  }
+  /** The kind of node the Play tool places. */
+  setPlayNodeKind(k) {
+    this.playNodeKind = NODE_KINDS.includes(k) ? k : 'note';
+    try { localStorage.setItem('ams_playnode', this.playNodeKind); } catch { /* ignore */ }
+    this.setPlayKind('node');
   }
   setPlayKind(k) {
     this.playKind = k;
@@ -233,14 +243,16 @@ export class Workbench {
   playMenu(x, y) {
     const solo = Boolean(this.score?.solo);
     showMenu([{ label: 'Play' },
-      ...PLAY_KINDS.map(([id, label, hint]) => ({ icon: this.playKindIcon(id), active: id === this.playKind, label, hint, run: () => this.setPlayKind(id) })),
+      ...PLAY_KINDS.map(([id, label, hint]) => (id === 'node'
+        ? { icon: this.playKindIcon(id), active: id === this.playKind, label: `Node: ${NODE_INFO[this.playNodeKind].label}`, hint, items: NODE_KINDS.map(k => ({ icon: nodeIcon(k), active: this.playKind === 'node' && k === this.playNodeKind, label: NODE_INFO[k].label, hint: NODE_INFO[k].hint, run: () => this.setPlayNodeKind(k) })) }
+        : { icon: this.playKindIcon(id), active: id === this.playKind, label, hint, run: () => this.setPlayKind(id) })),
       '-',
       { label: solo ? 'Solo off (all marks sound)' : 'Solo the selection', hint: 'Only the selected marks sound, with what they need (their path, what they send to)', keys: this.shortcuts?.label('score.solo'), run: () => this.toggleSolo() },
       { label: this.scoreView.names ? 'Hide names' : 'Show names', hint: 'The names of marks that play (the id when a mark has none), and the links between them', run: () => this.setScoreView({ names: !this.scoreView.names }) },
       { label: 'Stop all sound', run: () => this.score?.panic() }], x, y);
   }
 
-  playKindIcon(id) { return ({ link: icon('score'), path: brushIcon('path'), traveler: brushIcon('traveler'), trigger: brushIcon('trigger'), gate: icon('gate'), body: brushIcon('body') })[id]; }
+  playKindIcon(id) { return id === 'node' ? nodeIcon(this.playNodeKind || 'note') : ({ link: icon('score'), path: brushIcon('path'), traveler: brushIcon('traveler'), trigger: brushIcon('trigger'), gate: icon('gate'), body: brushIcon('body') })[id]; }
 
   /** Solo the selected marks that play (again: everything sounds). */
   toggleSolo() {
@@ -280,7 +292,14 @@ export class Workbench {
       { label: els.every(e => e.play?.travel) ? 'Not a traveler' : 'Make a traveler', run: set('travel', () => ({ on: '' })) },
       { label: els.every(e => e.play?.trigger) ? 'Not a trigger' : 'Make a trigger', run: set('trigger', () => ({ emit: soundCode(SOUND_DEFAULTS.height) })) },
       { label: els.every(e => e.play?.body) ? 'Not a body' : 'Make a body', run: set('body', () => ({ speed: [60, 200] })) },
+      { label: els.every(e => e.play?.node) ? 'Not a node' : 'Make a node', hint: 'A Midinous node: it plays, counts or decides when a traveler reaches it, and sends the signal on', run: set('node', () => ({ kind: this.playNodeKind || 'note' })) },
       '-',
+      ...(els.every(e => e.play?.node) ? [
+        { label: 'Node kind', items: NODE_KINDS.map(k => ({ icon: nodeIcon(k), label: NODE_INFO[k].label, hint: NODE_INFO[k].hint, active: one?.play.node.kind === k, run: () => edit('node kind', (d, e) => { e.play.node = { ...e.play.node, kind: k }; }) })) },
+        { label: 'Sends', items: MODES.map(m => ({ label: m, active: (one?.play.node.mode || 'robin') === m, run: () => edit('node mode', (d, e) => { e.play.node = { ...e.play.node, mode: m }; if (m === 'robin') delete e.play.node.mode; }) })) },
+        { label: one?.play.node.start ? 'Not a start' : 'A start', hint: 'It fires when play starts', run: () => edit('node start', (d, e) => { e.play.node = { ...e.play.node, start: !one?.play.node.start || undefined }; if (!e.play.node.start) delete e.play.node.start; }) },
+        { label: one?.play.node.mute ? 'Unmute' : 'Mute', run: () => edit('node mute', (d, e) => { e.play.node = { ...e.play.node, mute: !one?.play.node.mute || undefined }; if (!e.play.node.mute) delete e.play.node.mute; }) },
+        '-'] : []),
       { label: 'Attach to the nearest line', hint: 'A point travels it, from its start; anything else moves onto it', run: attach },
       one ? { label: 'Link to…', hint: 'Click another mark: what they are decides the relation (travels, sends to, starts)', run: link } : null,
       one?.play?.travel?.on ? { label: 'Detach from its path', run: () => edit('detach', (d, e) => { if (e.play?.travel) e.play.travel = { ...e.play.travel, on: '' }; }) } : null,
@@ -1121,6 +1140,8 @@ export class Workbench {
     this.runScript = runScript;
     this.canvas.onDrawn = () => this.frames.update();
     try { this.playKind = localStorage.getItem('ams_playkind') || 'link'; } catch { this.playKind = 'link'; }
+    try { this.playNodeKind = localStorage.getItem('ams_playnode') || 'note'; } catch { this.playNodeKind = 'note'; }
+    this.store.derive = d => Rel.syncEdges(d);   // edges (paths between nodes) follow their nodes
     this.canvas.playTool = new PlayTool(this, this.canvas);
     this.canvas.onSpaceTap = () => this.player?.toggle();
     this.canvas.onPlayAfter = (el, after) => { if (after.travel) this.store.change('travel', d => Rel.travel(d, after.travel, el.id)); };
@@ -2150,7 +2171,7 @@ export class Workbench {
         { label: 'Send to back', run: () => this.store.arrange(ids, 'back') }
       ] },
       { label: 'Move to stage', items: this.store.doc.stages.map(st => ({ label: st.name, run: () => this.store.patchElements(ids, { stage: st.id }, 'stage') })) },
-      this.playMenuItems(ids) && { label: 'Convert to', hint: 'Make this a path, a traveler, a trigger or a body (again: undo it)', items: this.playMenuItems(ids).items.slice(0, 4) },
+      this.playMenuItems(ids) && { label: 'Convert to', hint: 'Make this a path, a traveler, a trigger, a body or a node (again: undo it)', items: this.playMenuItems(ids).items.slice(0, 5) },
       this.playMenuItems(ids),
       brushes.length ? { label: 'Brush', items: brushes.map(b => ({ icon: brushIcon(b.id), label: b.label, run: () => this.store.change('brush', d => { for (const el of d.elements) if (ids.includes(el.id)) el.realize = { brush: b.id, params: {} }; }) })) } : null,
       lineish ? { label: 'Sculpt', hint: 'Brush the selected marks into shape (Shift+drag over a mark does it with any tool)', items: [

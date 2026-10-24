@@ -209,4 +209,41 @@ for (const i of range(40)) {
 stage('Notes', 'notes')
 note(20, 20, 'Play the Timeline. A collision between two points plays a note.')`
   }
+  ,
+  {
+    id: 'score-nodes',
+    title: 'Score: nodes on paths (Midinous)',
+    brief: 'A graph of nodes, after Midinous: a start note sends a traveler down its edge; each node it reaches plays (a step up the scale from the last), counts, or decides, and sends the signal on. A fork sends both ways; a counter lets every second signal through to a controller; a switch, read by a logic gate, opens the way to a high note every other time; a terminator ends it. Each edge takes a beat (its Length in Properties); edges follow their nodes when you move them.',
+    source: `units('artboard')
+artboard(800, 500, '#f3efe6')
+stage('Graph', 'marks')
+const node = (x, y, label, n) => point(x, y, { size: 16, label, play: { node: n }, why: 'a node: ' + n.kind })
+const edge = (a, b, pts, len = '1 beat') => line(pts, { path: 'straight', play: { path: { edge: [a, b], len } }, why: 'an edge: ' + a + ' to ' + b + ', ' + len })
+
+node(100, 100, 'start', { kind: 'note', note: 62, start: true, scale: 'dorian' })
+node(200, 100, 'up1', { kind: 'note', rel: 2, scale: 'dorian', dur: 0.5 })
+node(300, 100, 'fork', { kind: 'note', rel: 1, scale: 'dorian', mode: 'split' })
+node(400, 100, 'high', { kind: 'note', rel: 3, scale: 'dorian', repeat: 1, dur: 0.5, mode: 'split' })
+node(300, 200, 'count', { kind: 'counter', count: 2 })
+node(300, 300, 'cc', { kind: 'cc', cc: 74, value: 20, slew: 2 })
+node(400, 200, 'sw', { kind: 'switch', block: false })
+node(500, 200, 'gate', { kind: 'gate', type: 'and', inputs: ['sw'] })
+node(600, 200, 'top', { kind: 'note', note: 81, vel: 70 })
+node(500, 100, 'back', { kind: 'anchor' })
+node(700, 200, 'end', { kind: 'terminator' })
+
+edge('start', 'up1', [[100, 100], [200, 100]])
+edge('up1', 'fork', [[200, 100], [300, 100]])
+edge('fork', 'high', [[300, 100], [400, 100]])
+edge('fork', 'count', [[300, 100], [300, 200]])
+edge('count', 'cc', [[300, 200], [300, 300]], '0.5 beat')
+edge('high', 'back', [[400, 100], [500, 100]])
+edge('back', 'start', [[500, 100], [500, 50], [100, 50], [100, 100]], '2 beats')
+edge('high', 'sw', [[400, 100], [400, 200]])
+edge('sw', 'gate', [[400, 200], [500, 200]])
+edge('gate', 'top', [[500, 200], [600, 200]])
+edge('top', 'end', [[600, 200], [700, 200]])
+stage('Notes', 'notes')
+note(20, 440, 'Play the Timeline. Play tool (Y) → Node: click to place, drag from a node to another for an edge.')`
+  }
 ];

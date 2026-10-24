@@ -119,7 +119,8 @@ const BRUSH_ICONS = {
   dot: `<circle cx="12" cy="12" r="5" ${F}/>`,
   traveler: `<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.4" ${F}/><circle cx="12" cy="12" r="9.4" stroke-dasharray="1.6 2.4" opacity=".5"/>`,
   path: '<path d="M3 17c4-8 8-10 14-9"/><circle cx="3.6" cy="16.6" r="1.8"/><path d="M16 4.8l5 3.4-5.4 2.6z" fill="currentColor" stroke="none"/>',
-  trigger: '<circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="5.2" opacity=".75"/><circle cx="12" cy="12" r="8.6" opacity=".4"/>',
+  trigger: '<rect x="6.5" y="6.5" width="11" height="11"/><rect x="3" y="3" width="18" height="18" stroke-dasharray="1.6 2.4" opacity=".45"/><rect x="11" y="11" width="2" height="2" fill="currentColor" stroke="none"/>',
+  node: '<rect x="5" y="5" width="14" height="14" rx="3" fill="currentColor" fill-opacity=".22"/><path d="M8.5 12l6-4.5M8.5 12l6 4.5"/>',
   body: `<circle cx="12" cy="12" r="7" ${F}/><circle cx="9.6" cy="9.4" r="1.6" fill="#fff" stroke="none" opacity=".6"/>`
 };
 const SCULPT_ICONS = {
@@ -171,4 +172,29 @@ export function iconFromCanvas(src, ground = '#f3efe6') {
   }
   o.putImageData(img, 0, 0);
   return out.toDataURL('image/png');
+}
+
+/** A node's kind as a small glyph (the shapes of the node brush). */
+export function nodeIcon(kind) {
+  const P = {
+    note: '<rect x="5" y="5" width="14" height="14" rx="3"/>',
+    cc: '<circle cx="12" cy="12" r="7"/>',
+    gate: '<path d="M5 5h7a7 7 0 0 1 0 14H5z"/>',
+    led: '<path d="M12 4l8 8-8 8-8-8z"/>',
+    counter: '<path d="M12 4.5l6.5 3.75v7.5L12 19.5l-6.5-3.75v-7.5z"/>',
+    switch: '<path d="M8.9 4.5h6.2l4.4 4.4v6.2l-4.4 4.4H8.9l-4.4-4.4V8.9zM6 12h12"/>',
+    terminator: '<path d="M6 6l12 12M18 6L6 18" stroke-width="3"/>',
+    anchor: '<circle cx="12" cy="12" r="2.6" fill="currentColor"/>'
+  };
+  return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">${P[kind] || P.note}</svg>`;
+}
+/** How a node sends on, as a small glyph. */
+export function nodeModeIcon(mode) {
+  const P = {
+    robin: '<path d="M6 12l11-6"/><path d="M6 12l11 6" stroke-dasharray="1.5 2"/>',
+    split: '<path d="M6 12l11-6M6 12l11 6"/>',
+    random: '<rect x="5" y="10" width="7" height="7"/><rect x="11" y="5" width="7" height="7"/>',
+    portal: '<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>'
+  };
+  return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">${P[mode] || P.robin}</svg>`;
 }

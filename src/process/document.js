@@ -191,6 +191,7 @@ export class ProcessStore {
       this.future = [];
     }
     const result = fn(this.doc);
+    this.derive?.(this.doc);   // (what follows from an edit, in the same step: edges follow their nodes)
     embedBrushes(this.doc);
     if (record && !transient) this.log.push({ t: Date.now(), label, by });
     this.emit(label, transient);
@@ -199,6 +200,7 @@ export class ProcessStore {
 
   /** Record an edit made directly on `doc` (e.g. a drag): `before` is the JSON snapshot taken first. */
   commitFrom(before, label, { by = 'user' } = {}) {
+    this.derive?.(this.doc);
     if (before === JSON.stringify(this.doc)) return;
     this.past.push(before);
     this.trimPast();

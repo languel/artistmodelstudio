@@ -8,10 +8,11 @@
  *   const { code, title, size, settings, warnings, stats } = nousToScore(textOrObject, { title })
  *
  * Reads midinojs JSON ({ points: [...], settings }) and the original Midinous JSON (_note_points,
- * _cc_points, … and _paths). Node types: note and cc (with repeat, chance, mute, relative notes and
- * scales), counter, switch, terminator, anchor; play modes robin, split, random, portal; a start node
- * sends its signal when play starts. Not imported (listed in `warnings`): gates and logic paths (the
- * signal passes through), LED nodes, groups. A switch passes every other signal.
+ * _cc_points, … and _paths). Every node type becomes an AMS node (play.node, see nodes.js): note and cc
+ * (repeat, chance, mute, pass, relative notes with ranges and scales, slew), logic gates (with their logic
+ * paths as inputs), LEDs, counters, switches, terminators, anchors; play modes robin, split, random,
+ * portal; path weights; start nodes. Edges are paths drawn as Midinous drew them, timed in grid cells.
+ * Not imported: groups.
  */
 import { MIDINOUS_ORDER } from '../scale.js';
 
@@ -48,7 +49,11 @@ function readNode(d, type) {
     mode: typeof mode === 'string' ? Math.max(0, MODES.indexOf(mode)) : num(mode, 0),
     pathMode: typeof path === 'string' ? ({ horz: 0, vert: 1, line: 2 }[path] ?? 0) : num(path, 0),
     to: [...(d.SerializablePathTo || d.to || [])], weights: {},
-    countMax: d.CountLimit ?? d.countMax, ccNum: d.ccNum, ccValue: d.ccValue, gateType: d.gateType
+    countMax: d.CountLimit ?? d.countMax, ccNum: d.ccNum, ccValue: d.ccValue, gateType: d.gateType,
+    isPass: Boolean(d.pass ?? d.isPass),
+    range: rel.RangeFields?.Primary ? (rel.RangeFields.Primary.Up && rel.RangeFields.Primary.Down ? 'both' : rel.RangeFields.Primary.Up ? 'up' : rel.RangeFields.Primary.Down ? 'down' : null) : null,
+    gateIndex: d._Type, negated: Boolean(d.negated), slew: d.slew_mode ? num(d.slew_value, 0) : 0,
+    maxCount: num(d.MaxCount, 0), bypass: Boolean(d.Bypass), logicTo: [...(d.SerializableLogicPathTo || [])]
   };
 }
 
@@ -66,7 +71,8 @@ export function parseNous(input) {
     const byId = new Map(nodes.map(n => [n.id, n]));
     for (const p of Object.values(data._paths || {})) {
       const src = byId.get(p.key?.source_id);
-      if (!src || p.logic) continue;
+      if (!src) continue;
+      if (p.logic) { if (!src.logicTo.includes(p.key.target_id)) src.logicTo.push(p.key.target_id); continue; }
       if (!src.to.includes(p.key.target_id)) src.to.push(p.key.target_id);
       src.weights[p.key.target_id] = p.weight;
     }
@@ -80,38 +86,49 @@ function edgePoints(a, b, mode) {
   return mode === 1 ? [[a.x, a.y], [a.x, b.y], [b.x, b.y]] : [[a.x, a.y], [b.x, a.y], [b.x, b.y]];
 }
 
-const nodeEmit = (n, byId, ctx) => {
-  const L = [];
-  const scaleName = i => (i === undefined || i < 0 ? null : MIDINOUS_ORDER[i] ?? null);
-  const outs = n.to.filter(id => byId.has(id)).map(id => {
-    const t = byId.get(id);
-    const cells = (Math.abs(t.x - n.x) + Math.abs(t.y - n.y)) / GRID;
-    return [`e${n.id}_${id}`, r(Math.max(0.25, cells), 3), `n${id}`, n.weights[id] ?? t.chance ?? 100];
-  });
-  const route = outs.length && n.type !== 'terminator' ? `route(${q(MODES[n.mode] ?? 'robin')}, ${q(outs)}, { note: n })` : null;
-  if (n.type === 'terminator') return '';
-  const scale = q(scaleName(n.relScale) || scaleName(n.scale) || ctx.scale || 'Chromatic'), root = n.relRoot >= 0 && n.relRoot != null ? n.relRoot : n.root >= 0 && n.root != null ? n.root : ctx.root ?? 60;
-  if (n.type === 'counter') {
-    L.push(`state.n = (state.n || 0) + 1`, `if (state.n < ${Math.max(1, num(n.countMax, 1))}) return`, `state.n = 0`, 'const n = data && data.note');
-  } else if (n.type === 'switch') {
-    L.push('state.on = !state.on', 'if (!state.on) return', 'const n = data && data.note');
-  } else if (n.type === 'note' || n.type === 'cc') {
-    L.push(`const base = data && data.note != null ? data.note : ${n.note}`);
-    if (n.type === 'note') {
-      L.push(n.relative && !n.pass ? `let n = step(base, ${n.offset}, ${scale}, ${root})` : n.relative ? 'let n = base' : `let n = ${n.note}`);
-      if (n.forceScale) L.push(`n = snap(n, ${scale}, ${root})`);
-      const dur = `beats(${r(n.duration, 3)})`;
-      const play = [`note(${n.channel}, n, ${n.velocity}, ${dur})`];
-      if (n.repeat) play.push(`for (let k = 1; k <= ${n.repeat}; k++) note(${n.channel}, n, ${n.velocity}, ${dur}, ${dur} * k)`);
-      if (!n.mute) L.push(`if (rng() * 100 < ${num(n.chance, 100)}) { ${play.join('; ')} }`);
-    } else {
-      L.push('const n = base');
-      if (!n.mute) L.push(`cc(${n.channel}, ${num(n.ccNum ?? n.note)}, ${num(n.ccValue ?? n.velocity)})`);
-    }
-  } else L.push('const n = data && data.note');   // anchors, gates, LEDs: the signal passes
-  if (route) L.push(route);
-  return L.join(';\n');
-};
+const GATES = ['and', 'or', 'xor', 'nand'];
+const NEGATE = { and: 'nand', or: 'nor', xor: 'xnor', nand: 'and' };
+
+/** A Midinous node as an AMS node (nodes.js): only what differs from the defaults. */
+function nodeSpec(n, byId, ctx) {
+  const scaleName = i => (i === undefined || i === null || i < 0 ? null : MIDINOUS_ORDER[i] ?? null);
+  const kind = ['note', 'cc', 'gate', 'led', 'counter', 'switch', 'terminator', 'anchor'].includes(n.type) ? n.type : 'note';
+  const o = { kind, name: `n${n.id}` };
+  const mode = MODES[n.mode] ?? 'robin';
+  if (mode !== 'robin' && kind !== 'terminator') o.mode = mode;
+  if (n.start) o.start = true;
+  if (n.mute) o.mute = true;
+  if (kind === 'note') {
+    if (n.relative) { o.rel = n.pass ? 0 : n.offset; if (n.range) o.range = n.range; } else o.note = n.note;
+    const sc = scaleName(n.relScale) || scaleName(n.scale) || ctx.scale;
+    const root = n.relRoot >= 0 && n.relRoot != null ? n.relRoot : n.root >= 0 && n.root != null ? n.root : ctx.root;
+    if (sc) o.scale = sc;
+    if (root != null) o.root = 60 + (num(root, 0) % 12);
+    o.force = Boolean(n.forceScale);
+    if (n.velocity !== 100) o.vel = n.velocity;
+    if (n.channel !== 1) o.ch = n.channel;
+    if (n.duration !== 1) o.dur = r(n.duration, 4);
+    if (n.repeat) o.repeat = n.repeat;
+    if (num(n.chance, 100) < 100) o.chance = num(n.chance, 100);
+    if (n.isPass) o.pass = true;
+  } else if (kind === 'cc') {
+    o.cc = num(n.ccNum ?? n.note, 1); o.value = num(n.ccValue ?? n.velocity, 127);
+    if (n.channel !== 1) o.ch = n.channel;
+    if (n.slew) o.slew = r(n.slew, 3);
+  } else if (kind === 'counter') o.count = Math.max(1, num(n.countMax, 1));
+  else if (kind === 'gate') {
+    let type = typeof n.gateType === 'string' ? n.gateType.toLowerCase() : GATES[num(n.gateIndex, 0)] || 'and';
+    if (n.negated) type = NEGATE[type] || type;
+    if (type !== 'and') o.type = type;
+    const inputs = [...byId.values()].filter(m => m.logicTo.includes(n.id)).map(m => `n${m.id}`);
+    if (inputs.length) o.inputs = inputs;
+  } else if (kind === 'terminator') {
+    if (n.maxCount) o.limit = n.maxCount;
+    if (n.bypass) o.bypass = true;
+  }
+  if (n.pathMode === 0) o.shape = 'horz'; else if (n.pathMode === 1) o.shape = 'vert';
+  return o;
+}
 
 export function nousToScore(input, options = {}) {
   const { nodes, settings } = parseNous(input);
@@ -119,10 +136,6 @@ export function nousToScore(input, options = {}) {
   const title = options.title || 'Midinous project';
   const byId = new Map(nodes.map(n => [n.id, n]));
   if (!nodes.length) return { code: '', title, size: { width: 1000, height: 600 }, settings, warnings: ['Midinous: no nodes'], stats: { nodes: 0, paths: 0 } };
-
-  const kinds = new Set(nodes.map(n => n.type));
-  for (const k of ['gate', 'led']) if (kinds.has(k)) warnings.push(`Midinous: ${k} nodes are not imported (the signal passes through them)`);
-  if (kinds.has('switch')) warnings.push('Midinous: a switch passes every other signal');
 
   const xs = nodes.map(n => n.x / GRID), ys = nodes.map(n => n.y / GRID);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
@@ -137,20 +150,22 @@ export function nousToScore(input, options = {}) {
   L.push(`units('artboard')`);
   if (!options.inBoard) L.push(`board(${q(title)}, { width: ${width}, height: ${height} })`);
   let paths = 0;
+  // Edges: a path from each node to each node it sends to (across first, up first, or straight, as Midinous drew it), timed in grid cells as Midinous does.
   for (const n of nodes) {
     for (const id of n.to) {
       const t = byId.get(id);
       if (!t) continue;
       paths++;
       const pts = edgePoints({ x: px(n), y: py(n) }, { x: px(t), y: py(t) }, n.pathMode);
-      L.push(`line(${q(pts)}, { path: 'straight', width: 2, color: ${q(n.color || '#6a8caf')}, opacity: 0.6, play: { path: ${q(`e${n.id}_${id}`)} } })`);
+      const shape = n.pathMode === 0 ? 'horz' : n.pathMode === 1 ? 'vert' : null;
+      const w = n.weights[id];
+      L.push(`line(${q(pts)}, { path: 'straight', width: 2, color: ${q(n.color || '#6a8caf')}, opacity: 0.7, play: { path: ${q({ edge: [`n${n.id}`, `n${id}`], ...(shape ? { shape } : {}), metric: 'manhattan', ...(w != null && w !== 1 ? { weight: w * 100 } : {}) })} } })`);
     }
   }
   for (const n of nodes) {
-    const emit = nodeEmit(n, byId, ctx);
-    const colour = n.color || (n.type === 'cc' ? '#c8664f' : n.type === 'terminator' ? '#777777' : '#222222');
-    const size = n.type === 'terminator' ? 7 : n.type === 'anchor' ? 4 : 9;
-    L.push(`point(${px(n)}, ${py(n)}, { size: ${size}, color: ${q(colour)}${n.label ? `, label: ${q(n.label)}` : ''}, play: { trigger: { name: ${q(`n${n.id}`)}, on: [], r: 6${n.start ? ', start: true' : ''}${emit ? `, emit: ${q(emit)}` : ''} } } })`);
+    const spec = nodeSpec(n, byId, ctx);
+    const size = n.type === 'anchor' ? 8 : 14;
+    L.push(`point(${px(n)}, ${py(n)}, { size: ${size}${n.color ? `, color: ${q(n.color)}` : ''}${n.label ? `, label: ${q(n.label)}` : ''}, play: { node: ${q(spec)} } })`);
   }
   if (!nodes.some(n => n.start)) warnings.push('Midinous: no start node, so nothing plays (mark one as a start)');
   // A grid cell is a beat: the scene's beat is as long as a cell is on this board.

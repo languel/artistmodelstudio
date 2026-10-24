@@ -153,7 +153,7 @@ export const BRUSHES = {
       k.tracePath(ctx, pts, e.closed); ctx.stroke();
       if (!e.closed) {
         const [sx, sy] = pts[0];
-        ctx.beginPath(); ctx.arc(sx, sy, 2.5 + p.width, 0, Math.PI * 2); ctx.stroke();
+        if (!e.play?.path?.edge) { ctx.beginPath(); ctx.arc(sx, sy, 2.5 + p.width, 0, Math.PI * 2); ctx.stroke(); }   // (an edge starts at a node, which says so)
         if (p.arrow > 0) {
           const b = pts[pts.length - 1];
           let a = pts[pts.length - 2], i = pts.length - 2;
@@ -215,6 +215,57 @@ export const BRUSHES = {
           ctx.globalAlpha = p.opacity * p.fill; ctx.fill();
           ctx.globalAlpha = p.opacity; if (p.dash > 0) ctx.setLineDash([p.dash, p.dash * 0.7]); ctx.stroke();
         }
+      }
+      ctx.restore();
+    }
+  },
+
+  node: {
+    label: 'Node', roles: ['point'], doc: 'The marker of a node (Midinous): its shape says its kind (a note is a square, a controller a circle, a logic gate a D, an LED a diamond, a counter a hexagon, a switch an octagon with a bar, a terminator an X, an anchor a dot); a start has a diamond around it, a muted one is dotted, a pass is hollow; the lines inside show how it sends on.',
+    params: [
+      param('size', 'Size', 4, 80, 1, 14, 'Width in artboard units.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
+    ],
+    draw(ctx, e, p, k) {
+      const n = e.play?.node || {}, kind = n.kind || 'note', c = e.color || k.INK, w = 1.4 / k.scale;
+      ctx.save();
+      ctx.globalAlpha *= p.opacity;
+      ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = w; ctx.lineJoin = 'round';
+      for (const [x, y] of e.points) {
+        const r = p.size / 2;
+        const shape = () => {
+          ctx.beginPath();
+          if (kind === 'cc') ctx.arc(x, y, r, 0, Math.PI * 2);
+          else if (kind === 'gate') { ctx.moveTo(x - r, y - r); ctx.lineTo(x, y - r); ctx.arc(x, y, r, -Math.PI / 2, Math.PI / 2); ctx.lineTo(x - r, y + r); ctx.closePath(); }
+          else if (kind === 'led') { ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath(); }
+          else if (kind === 'counter') { for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 - Math.PI / 2; ctx[i ? 'lineTo' : 'moveTo'](x + r * Math.cos(a), y + r * Math.sin(a)); } ctx.closePath(); }
+          else if (kind === 'switch') { for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 - Math.PI / 8; ctx[i ? 'lineTo' : 'moveTo'](x + r * Math.cos(a), y + r * Math.sin(a)); } ctx.closePath(); }
+          else if (kind === 'terminator') { const t = r / 3; ctx.moveTo(x - r, y - r + t); ctx.lineTo(x - t, y); ctx.lineTo(x - r, y + r - t); ctx.lineTo(x - r + t, y + r); ctx.lineTo(x, y + t); ctx.lineTo(x + r - t, y + r); ctx.lineTo(x + r, y + r - t); ctx.lineTo(x + t, y); ctx.lineTo(x + r, y - r + t); ctx.lineTo(x + r - t, y - r); ctx.lineTo(x, y - t); ctx.lineTo(x - r + t, y - r); ctx.closePath(); }
+          else if (kind === 'anchor') ctx.arc(x, y, Math.max(1.5, r * 0.3), 0, Math.PI * 2);
+          else { const q = r * 0.25; ctx.moveTo(x - r + q, y - r); ctx.arcTo(x + r, y - r, x + r, y + r, q); ctx.arcTo(x + r, y + r, x - r, y + r, q); ctx.arcTo(x - r, y + r, x - r, y - r, q); ctx.arcTo(x - r, y - r, x + r, y - r, q); ctx.closePath(); }
+        };
+        shape();
+        if (!n.pass && kind !== 'anchor') { ctx.globalAlpha = p.opacity * (kind === 'terminator' ? 0.85 : 0.22); ctx.fill(); }
+        ctx.globalAlpha = p.opacity;
+        if (n.mute) ctx.setLineDash([1.2 / k.scale, 2.4 / k.scale]);
+        if (kind === 'anchor') ctx.fill(); else ctx.stroke();
+        ctx.setLineDash([]);
+        if (kind === 'switch') { ctx.beginPath(); ctx.moveTo(x - r * 0.9, y); ctx.lineTo(x + r * 0.9, y); ctx.stroke(); }
+        // How it sends on: two lines (split), two with one dashed (robin), a ring (portal), two squares (random).
+        const mode = n.mode || 'robin', s = r * 0.55;
+        if (kind !== 'terminator' && kind !== 'anchor' && kind !== 'switch') {
+          ctx.lineWidth = w * 0.8; ctx.globalAlpha = p.opacity * 0.85;
+          if (mode === 'split' || mode === 'robin') {
+            ctx.beginPath(); ctx.moveTo(x - s, y); ctx.lineTo(x + s * 0.7, y - s * 0.8); ctx.stroke();
+            if (mode === 'robin') ctx.setLineDash([1 / k.scale, 1.5 / k.scale]);
+            ctx.beginPath(); ctx.moveTo(x - s, y); ctx.lineTo(x + s * 0.7, y + s * 0.8); ctx.stroke(); ctx.setLineDash([]);
+          } else if (mode === 'portal') { ctx.beginPath(); ctx.arc(x, y, s * 0.7, 0, Math.PI * 2); ctx.stroke(); }
+          else if (mode === 'random') { ctx.beginPath(); ctx.rect(x - s * 0.8, y - s * 0.1, s * 0.75, s * 0.75); ctx.rect(x - s * 0.1, y - s * 0.8, s * 0.75, s * 0.75); ctx.stroke(); }
+        }
+        // A start: a diamond around it. Repeats: two small arrows.
+        ctx.lineWidth = w; ctx.globalAlpha = p.opacity;
+        if (n.start) { const d = r * 1.55; ctx.beginPath(); ctx.moveTo(x, y - d); ctx.lineTo(x + d, y); ctx.lineTo(x, y + d); ctx.lineTo(x - d, y); ctx.closePath(); ctx.stroke(); }
+        if (n.repeat > 0) { const a = r * 1.3; for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x + sg * a, y - sg * r * 0.2); ctx.lineTo(x + sg * (a + r * 0.45), y - sg * r * 0.6); ctx.lineTo(x + sg * (a + r * 0.45), y + sg * r * 0.2); ctx.closePath(); ctx.fill(); } }
       }
       ctx.restore();
     }

@@ -5,7 +5,7 @@
  * comment on the code's first line, and edit the code by hand and it reads "custom".
  */
 import { h, row, numberField, selectField, section } from '../ui.js';
-import { brushIcon } from '../icons.js';
+import { brushIcon, nodeIcon, nodeModeIcon } from '../icons.js';
 import { objectField, nameOf, resolveMark } from '../objectPicker.js';
 import { PRESETS, DEFAULTS, emitFor, readPreset } from '../../score/presets.js';
 import { scaleNames } from '../../score/scale.js';
@@ -15,12 +15,15 @@ import * as R from '../../score/relations.js';
 const barAngle = R.barAngle;
 import { timeContext, formatDuration, QUANT_CHOICES } from '../../time/sceneTransport.js';
 import { pathTime } from '../../score/compile.js';
+import { NODE_KINDS, NODE_INFO, MODES, MODE_INFO, GATE_TYPES, normalizeNode } from '../../score/nodes.js';
+import { noteName } from '../../score/scale.js';
 
 const TITLES = {
   path: 'A path: a line that can be travelled',
   travel: 'A traveler: a point that runs a path',
   trigger: 'A trigger: it sounds when something touches it',
-  body: 'A body: a point that moves by itself, bounces and collides'
+  body: 'A body: a point that moves by itself, bounces and collides',
+  node: 'A node (Midinous): a note, a controller, a logic gate, a counter… that a traveler reaches on a path, and that sends the signal on'
 };
 const LOOPS = [['once', '→', 'Once'], ['loop', '↻', 'Loop'], ['pingpong', '⇄', 'Back and forth']];
 const SCALES = [['', 'No scale'], ...scaleNames().map(n => [n.toLowerCase().replace(/[^a-z]/g, ''), n])];
@@ -160,6 +163,64 @@ export function playBody(app, e) {
       row('Offset', numberField({ value: t.at || 0, min: 0, max: 1, step: 0.01, def: 0, title: 'How far along its path it begins (0 to 1). Drag the marker along the path with the Play tool to set it', onChange: (v, { final }) => { if (final) app.store.change('traveler offset', d => R.offset(d, e.id, v)); } })),
       row('Starts on', objectField({ app, value: t.cue || '', accept: x => x.id !== e.id && x.play?.trigger, placeholder: 'when play starts', title: 'A trigger that starts it: it waits until that trigger sounds. Empty: it runs from the start', onChange: v => setT({ cue: v || undefined }, 'traveler cue') }))
     );
+  }
+
+  // ---- a node (nodes.js): its kind, how it sends on, and its kind's settings ----
+  if (play.node) {
+    const n = normalizeNode(play.node), raw = play.node;
+    const setN = (patch, lab) => edit(pl => { pl.node = { ...pl.node, ...patch }; for (const k of Object.keys(pl.node)) if (pl.node[k] === undefined) delete pl.node[k]; }, lab || 'node');
+    const num = (k, lab, min, max, stepv, def, title) => row(lab, numberField({ value: raw[k] ?? n[k], min, max, step: stepv, def, title, onChange: (v, { final }) => { if (final) setN({ [k]: v === def ? undefined : v }, `node ${k}`); } }));
+    const check = (k, lab, title, def = false) => row(lab, h('input', { type: 'checkbox', checked: Boolean(raw[k] ?? def), title, onchange: ev => setN({ [k]: ev.target.checked === def ? undefined : ev.target.checked }, `node ${k}`) }));
+    const refs = (k, lab, accept, title) => {
+      const list = [].concat(raw[k] || []);
+      const out = list.map((r, i) => row(i ? '' : lab, h('span', { class: 'wb-row-inline wb-obj' },
+        objectField({ app, value: r, accept, title, onChange: v => setN({ [k]: (v ? list.map((q, j) => (j === i ? v : q)) : list.filter((_, j) => j !== i)) }, `node ${k}`) }),
+        h('button', { class: 'wb-icon-btn', type: 'button', title: 'Remove', onclick: () => { const next = list.filter((_, j) => j !== i); setN({ [k]: next.length ? next : undefined }, `node ${k}`); } }, '×'))));
+      out.push(row(list.length ? '' : lab, objectField({ app, value: '', accept, placeholder: 'add: a name, or pick', title, onChange: v => { if (v) setN({ [k]: [...list, v] }, `node ${k}`); } })));
+      return out;
+    };
+    parts.push(
+      row('Node', h('span', { class: 'wb-row-inline wb-node-kinds' }, ...NODE_KINDS.map(k => h('button', { class: `wb-icon-btn${n.kind === k ? ' on' : ''}`, type: 'button', title: `${NODE_INFO[k].label}: ${NODE_INFO[k].hint}`, html: nodeIcon(k), onclick: () => setN({ kind: k }, 'node kind') })))),
+      n.kind === 'terminator' ? null : row('Sends', h('span', { class: 'wb-row-inline' }, ...MODES.map(m => h('button', { class: `wb-icon-btn${n.mode === m ? ' on' : ''}`, type: 'button', title: `${m}: ${MODE_INFO[m]}`, html: nodeModeIcon(m), onclick: () => setN({ mode: m === 'robin' ? undefined : m }, 'node mode') })))),
+      row('Starts', timeField(app, raw.start === true ? 0 : raw.start ?? '', v => setN({ start: v === 0 ? true : v }, 'node start'), { placeholder: 'when reached' }))
+    );
+    if (n.kind === 'note') {
+      const relative = n.rel != null;
+      parts.push(
+        row('Note', h('span', { class: 'wb-row-inline' },
+          h('label', { class: 'wb-row-inline', title: 'A step from the note the signal carries (the note of the node it came from), instead of a note of its own' }, h('input', { type: 'checkbox', checked: relative, onchange: ev => setN({ rel: ev.target.checked ? 1 : undefined }, 'node relative') }), 'step'),
+          relative
+            ? numberField({ value: n.rel, min: -48, max: 48, step: 1, def: 1, title: 'Scale steps from the incoming note (0: the same note)', onChange: (v, { final }) => { if (final) setN({ rel: v }, 'node step'); } })
+            : numberField({ value: n.note, min: 0, max: 127, step: 1, def: 60, title: `MIDI note (${noteName(n.note)})`, onChange: (v, { final }) => { if (final) setN({ note: v }, 'node note'); } }),
+          relative ? null : h('span', { class: 'wb-muted' }, noteName(n.note)))),
+        relative ? row('Range', selectField([['', 'Exactly'], ['up', 'Up to it'], ['down', 'Down to it'], ['both', 'Up or down']], n.range || '', v => setN({ range: v || undefined }, 'node range'), 'A random step, up to the number of steps')) : null,
+        row('Scale', h('span', { class: 'wb-row-inline' },
+          selectField([['', 'The scene\'s'], ...SCALES.slice(1)], (n.scale || '').toLowerCase().replace(/[^a-z]/g, ''), v => setN({ scale: v || undefined }, 'node scale'), 'The scale steps are counted in (and notes snap to)'),
+          numberField({ value: n.root ?? 60, min: 0, max: 127, step: 1, def: 60, title: 'Root note of the scale', onChange: (v, { final }) => { if (final) setN({ root: v === 60 ? undefined : v }, 'node root'); } }))),
+        check('force', 'Snap', 'Move the note to the nearest note of the scale', relative),
+        num('vel', 'Velocity', 1, 127, 1, 100, ''), num('ch', 'Channel', 1, 16, 1, 1, 'MIDI channel (10 is drums)'),
+        num('dur', 'Length', 0.0625, 64, 0.25, 1, 'In beats'), num('repeat', 'Repeat', 0, 64, 1, 0, 'How many more times it plays, a length apart'),
+        num('chance', 'Chance', 0, 100, 5, 100, 'Percent: how likely it sounds'),
+        check('mute', 'Mute', 'It sounds nothing, but still carries its note on'), check('pass', 'Pass', 'It leaves the signal as it came: no sound and no note of its own')
+      );
+    } else if (n.kind === 'cc') {
+      parts.push(num('cc', 'Controller', 0, 127, 1, 1, 'Controller number (1 is the mod wheel)'), num('value', 'Value', 0, 127, 1, 127, ''), num('ch', 'Channel', 1, 16, 1, 1, ''),
+        num('slew', 'Slew', 0, 64, 0.25, 0, 'Beats to glide from the last value of this controller'), check('mute', 'Mute', 'It sends nothing'));
+    } else if (n.kind === 'led') {
+      parts.push(row('Light', selectField([['pulse', 'For a while'], ['toggle', 'On and off in turn']], n.hold, v => setN({ hold: v === 'pulse' ? undefined : v }, 'led'))), n.hold === 'pulse' ? num('dur', 'Length', 0.0625, 64, 0.25, 1, 'Beats it stays lit') : null);
+    } else if (n.kind === 'counter') {
+      parts.push(num('count', 'Every', 1, 256, 1, 4, 'Lets every n-th signal through'));
+    } else if (n.kind === 'switch') {
+      parts.push(check('on', 'On at first', 'Whether it starts on (it turns at every signal)'), check('block', 'Blocks', 'While off, a signal stops here (else it only turns)', true));
+    } else if (n.kind === 'gate') {
+      parts.push(row('Logic', selectField(GATE_TYPES.map(g => [g, g.toUpperCase()]), n.type, v => setN({ type: v === 'and' ? undefined : v }, 'gate type'), 'How the inputs decide')),
+        ...refs('inputs', 'Inputs', x => x.id !== e.id && x.play?.node, 'Nodes this gate reads: lit (a note sounding, an LED lit, a switch on…) or not'));
+    } else if (n.kind === 'terminator') {
+      parts.push(num('limit', 'Stops', 0, 999, 1, 0, 'How many it stops (0: all)'), check('stop', 'Stop all', 'Stop every signal at once, not only this one'), check('bypass', 'Bypass', 'Let everything through'));
+    }
+    if (n.kind !== 'terminator') parts.push(...refs('to', 'Sends to', x => x.id !== e.id && (x.play?.node || x.play?.trigger || x.play?.path), 'More ways out: a path (it runs from here), or a node (straight there)'));
+    parts.push(num('weight', 'Weight', 0, 1000, 5, 100, 'How likely a random node sends here'),
+      row('Edges', selectField([['line', 'Straight'], ['horz', 'Across, then up or down'], ['vert', 'Up or down, then across']], n.shape, v => setN({ shape: v === 'line' ? undefined : v }, 'node edges'), 'How a path drawn from this node to another is made (the Play tool)')));
   }
 
   // ---- a trigger or a body: what it sounds ----

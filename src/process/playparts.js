@@ -6,11 +6,11 @@
 import { BRUSHES } from './brushes.js';
 import { DEFAULT_REALIZE } from './document.js';
 
-export const PARTS = ['path', 'travel', 'trigger', 'body'];
-export const MARKER = { path: 'path', travel: 'traveler', trigger: 'trigger', body: 'body' };
+export const PARTS = ['path', 'travel', 'trigger', 'body', 'node'];
+export const MARKER = { path: 'path', travel: 'traveler', trigger: 'trigger', body: 'body', node: 'node' };
 const SCORE_BRUSHES = new Set(Object.values(MARKER));
 /** Which marker wins when a mark is several things. */
-const PRIORITY = ['trigger', 'body', 'travel', 'path'];
+const PRIORITY = ['node', 'trigger', 'body', 'travel', 'path'];
 
 /** Which parts a mark plays. */
 export const partsOf = play => PARTS.filter(k => play?.[k]);
@@ -38,6 +38,7 @@ export function newPart(kind, { path = '' } = {}) {
   if (kind === 'travel') return { on: path };   // (how long it takes: its path's time, unless it says)
   if (kind === 'trigger') return {};
   if (kind === 'body') return { speed: [60, 200] };
+  if (kind === 'node') return { kind: 'note', note: 60 };
   return null;
 }
 

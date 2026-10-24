@@ -87,6 +87,7 @@ export class ScoreOverlay {
       if (e.hidden || !e.points?.length) continue;
       const tg = e.play?.trigger;
       if (tg?.to && (showLinks || sel.has(e.id))) for (const r of [].concat(tg.to)) { const t = find(typeof r === 'string' ? r : r.to); if (t?.points?.length) arrow(centerOf(e), centerOf(t), false); }
+      for (const ref of [].concat(e.play?.node?.inputs || [])) if (showLinks || sel.has(e.id)) { const t = find(ref); if (t?.points?.length) arrow(centerOf(t), centerOf(e), true); }
       const cue = e.play?.travel?.cue;
       if (cue && (showLinks || sel.has(e.id))) { const t = find(cue); if (t?.points?.length) arrow(centerOf(t), centerOf(e), true); }
     }
@@ -177,6 +178,27 @@ export class ScoreOverlay {
         }
         ctx.restore();
         moving = true;
+      }
+      // Nodes: lit (a glow, and a clock hand going round while it sounds), a switch or LED that is on, a counter's count, a gate's last word.
+      for (const trig of world.triggers()) {
+        const m = trig.meta;
+        if (!m?.node || trig.regionDef.kind !== 'circle') continue;
+        const st = trig.state || {}, d = trig.regionDef, [x, y] = at(d.x, d.y), r = Math.max(5, d.r * cvw.cam.z);
+        const lit = (st.litFrom ?? Infinity) <= pos && pos < (st.litUntil ?? -Infinity);
+        const on = (m.node === 'switch' || (m.node === 'led' && m.hold === 'toggle')) && Boolean(st.on ?? m.on);
+        if (lit || on) {
+          const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.4);
+          g.addColorStop(0, accent); g.addColorStop(1, 'transparent');
+          ctx.globalAlpha = on && !lit ? 0.3 : 0.55; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 2.4, 0, Math.PI * 2); ctx.fill();
+          if (lit && st.litUntil > st.litFrom) {
+            const k = (pos - st.litFrom) / (st.litUntil - st.litFrom);
+            ctx.globalAlpha = 0.7; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r * 0.8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
+          }
+          moving = moving || lit;
+        }
+        if (m.node === 'counter' && st.hits) { ctx.globalAlpha = 0.9; ctx.fillStyle = accent; ctx.font = '10px Inter, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(`${st.n || 0}/${m.count}`, x, y + r + 11); }
+        if (m.node === 'gate' && st.at !== undefined && pos - st.at < 1) { ctx.globalAlpha = 0.9 * (1 - (pos - st.at)); ctx.strokeStyle = st.open ? accent : '#8a8a8a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, Math.PI * 2); ctx.stroke(); moving = true; }
+        ctx.globalAlpha = 1;
       }
       // Travelers: a soft glow, a trail that thins and fades, and a bar as a line that fades at its ends.
       ctx.globalAlpha = 1;

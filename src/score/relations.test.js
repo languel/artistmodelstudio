@@ -211,3 +211,21 @@ describe('how long a path takes', () => {
     expect(at(travel({ range: [0.25, 1] }))).toBeCloseTo(0.5, 1);
   });
 });
+
+import { normalizeDocument as nd } from '../process/document.js';
+describe('edges between nodes', () => {
+  it('an edge is made from one node to another and follows them; a hand-drawn one keeps its middle', () => {
+    const d = nd({ elements: [
+      { id: 'a', role: 'point', points: [[0, 0]], play: { node: { kind: 'note', shape: 'horz' } } },
+      { id: 'b', role: 'point', points: [[100, 50]], play: { node: { kind: 'note' } } },
+      { id: 'h', role: 'line', points: [[0, 0], [50, -40], [100, 50]], play: { path: { edge: ['a', 'b'] } } }] });
+    const line = R.edge(d, 'a', 'b');
+    expect(line.points.map(q => q.slice(0, 2))).toEqual([[0, 0], [100, 0], [100, 50]]);
+    expect(R.infer(d.elements[0], d.elements[1]).kind).toBe('edge');
+    d.elements[1].points = [[200, 50]];
+    expect(R.syncEdges(d)).toBe(2);
+    expect(line.points.map(q => q.slice(0, 2))).toEqual([[0, 0], [200, 0], [200, 50]]);
+    expect(d.elements.find(e => e.id === 'h').points.map(q => q.slice(0, 2))).toEqual([[0, 0], [50, -40], [200, 50]]);
+    expect(R.syncEdges(d)).toBe(0);
+  });
+});

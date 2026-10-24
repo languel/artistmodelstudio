@@ -113,6 +113,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
   const pathKey = new Map();
   const pathTimes = new Map();   // path key → the seconds it takes
   const pathLoops = new Map();   // path key → whether travelers on it loop (unless they say): `path.loop`, else the path is closed
+  const pathWeights = new Map(); // path key → its `weight` (how likely a random node sends down it)
   const wanted = new Set(marks.map(m => m.play.travel?.on).filter(Boolean));
   for (const e of d.elements) {
     const named = typeof e.play?.path === 'string' && e.play.path ? e.play.path : e.play?.path?.name || null;
@@ -125,6 +126,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
     pathTimes.set(key, time.seconds);
     const pl = e.play?.path && typeof e.play.path === 'object' ? e.play.path.loop : undefined;
     pathLoops.set(key, pl === undefined ? Boolean(e.closed) : Boolean(pl));
+    if (e.play?.path?.weight != null) pathWeights.set(key, Number(e.play.path.weight));
     info.paths.push({ id: e.id, key, ...time });
   }
 
@@ -218,10 +220,10 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
       const hit = nearestOn(paths[k].points, c[0], c[1]);
       if (!hit || hit.d > r + 1) continue;
       onPath.set(k, hit.u);
-      if (hit.u < 0.995 || paths[k].closed) outs.push({ key: k, u: hit.u >= 0.995 ? 0 : hit.u, seconds: pathTimes.get(k) ?? 1, end: pathEnd.get(k) ?? null, weight: nodeInfo.get(pathEnd.get(k))?.n.weight ?? 100 });
+      if (hit.u < 0.995 || paths[k].closed) outs.push({ key: k, u: hit.u >= 0.995 ? 0 : hit.u, seconds: pathTimes.get(k) ?? 1, end: pathEnd.get(k) ?? null, weight: pathWeights.get(k) ?? nodeInfo.get(pathEnd.get(k))?.n.weight ?? 100 });
     }
     for (const ref of n.to) {
-      const target = d.elements.find(x => x.id === ref || x.label === ref);
+      const target = d.elements.find(x => x.id === ref || x.label === ref || x.play?.node?.name === ref);
       const pk = target && pathKey.get(target.id);
       if (pk && paths[pk]) {
         const hit = nearestOn(paths[pk].points, c[0], c[1]);
@@ -243,7 +245,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
       beat, onPath, outs, extra, closed: closedPaths, scene: {}, ccLast,
       lit: (ref, t) => { const k = trigKey.get(ref) ?? ref, o = nodeInfo.get(k); return o ? isLit(o.n.kind, o.n, o.state, t) : false; }
     });
-    triggers.push({ id, region, policy: 'pair', on: region.kind === 'line' ? ['cross'] : ['enter'], state: ni.state, meta: { node: n.kind }, handle: (ev, api) => handler(ev, api, make(ev, api)) });
+    triggers.push({ id, region, policy: 'pair', on: region.kind === 'line' ? ['cross'] : ['enter'], state: ni.state, meta: { node: n.kind, count: n.count, hold: n.hold, on: n.on }, handle: (ev, api) => handler(ev, api, make(ev, api)) });
     if (n.start !== false && n.start !== undefined && n.start !== null) starts.push({ trigger: id, t: n.start === true ? 0 : secs(n.start), data: {} });
   }
 
