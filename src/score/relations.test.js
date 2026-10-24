@@ -229,3 +229,39 @@ describe('edges between nodes', () => {
     expect(R.syncEdges(d)).toBe(0);
   });
 });
+
+describe('events on lines', () => {
+  const mk = () => nd({ elements: [
+    { id: 'L', role: 'line', path: 'straight', points: [[0, 0], [100, 0]], play: { path: true } },
+    { id: 'L2', role: 'line', path: 'straight', points: [[0, 50], [100, 50]], play: { path: true } },
+    { id: 'e', role: 'point', points: [[30, 20]], play: { trigger: {} } },
+    { id: 't', role: 'point', points: [[0, 0]], play: { travel: { on: 'L' } } }] });
+  it('an event attaches to a line, slides along it, follows it, and detaches', () => {
+    const d = mk();
+    expect(R.attachEvent(d, 'e', 'L', 0.3)).toBe(true);
+    const e = () => d.elements.find(x => x.id === 'e');
+    expect(e().points[0].slice(0, 2)).toEqual([30, 0]);
+    expect(e().play.trigger).toMatchObject({ path: 'L', at: 0.3 });
+    R.slideEvent(d, 'e', 0.8);
+    expect(e().points[0][0]).toBeCloseTo(80, 3);
+    d.elements.find(x => x.id === 'L').points = [[0, 10], [200, 10]];
+    expect(R.syncAttached(d)).toBe(1);
+    expect(e().points[0].slice(0, 2).map(Math.round)).toEqual([160, 10]);
+    expect(R.syncAttached(d)).toBe(0);
+    R.detach(d, 'e');
+    expect(e().play.trigger.path).toBeUndefined();
+    d.elements.find(x => x.id === 'L').points = [[0, 99], [200, 99]];
+    expect(R.syncAttached(d)).toBe(0);   // free now: it stays
+  });
+  it('placing an event on a line attaches it; a traveler dropped on another line goes there and carries on from the drop', () => {
+    const d = mk();
+    R.place(d, 'e', 'L2');
+    expect(d.elements.find(x => x.id === 'e').play.trigger.path).toBe('L2');
+    R.attachTraveler(d, 't', 'L2', 0.4, 0, { tempo: 120, signature: { numerator: 4, denominator: 4 }, fps: 30, beatUnits: 25 });
+    const t = d.elements.find(x => x.id === 't');
+    expect(t.play.travel.on).toBe('L2');
+    expect(t.play.travel.at).toBeCloseTo(0.4, 3);
+    R.detach(d, 't');
+    expect(t.play.travel.on).toBe('');
+  });
+});

@@ -267,7 +267,7 @@ export class CanvasView {
     for (const b of boards) if (b.hidden || this.composedIds?.has(b.id)) skip.add(b.id);
     renderDocument(ctx, skip.size ? { ...doc, elements: doc.elements.filter(e => !skip.has(e.board || MAIN)) } : doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
-      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, now: this.frameNow, view: this.viewRect(), hideTravelers: this.travelersLive,
+      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, now: this.frameNow, view: this.viewRect(),
       selectColor: css.getPropertyValue('--wb-select').trim() || '#8a8a8a'
     });
     if (composed.length) this.drawComposed(ctx, doc, composed, css);
@@ -893,6 +893,12 @@ export class CanvasView {
         if (tool === 'board') return this.startBoardRect(e, wx, wy);
         if (this.selectedBoard && !this.hitTest(wx, wy) && !e.shiftKey) this.selectBoard(null);
       }
+      // A traveler or an event on a path is one mark: dragging it slides it along the path (a traveler: where it begins).
+      // Alt takes it off the path; Shift-dragging a traveler or an event over a path attaches it (before Shift+drag sculpts).
+      if (tool === 'select' && !this.handleAt(sx, sy)) {
+        const tv = this.hitTest(wx, wy), playish = tv?.play?.travel || tv?.play?.trigger, onPath = tv?.play?.travel?.on || tv?.play?.trigger?.path;
+        if (tv && playish && !e.metaKey && this.playTool && (onPath || e.shiftKey || e.altKey)) { if (!this.selected.has(tv.id) && !e.shiftKey) this.select([tv.id]); return this.playTool.pressMark(e, tv, wx, wy, { slide: true }); }
+      }
       // Sculpt: the Sculpt tool, or Shift+drag over a mark with most tools.
       if (tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length && !(tool === 'select' && this.handleAt(sx, sy)))) {
         return this.startSculpt(e, wx, wy, tool === 'sculpt' ? null : () => { if (tool === 'select') this.startSelectClick(e, wx, wy); });
@@ -900,9 +906,6 @@ export class CanvasView {
       if (tool === 'select') {
         const hd = this.handleAt(sx, sy);
         if (hd) return this.startTransform(e, hd);
-        // A traveler on a path is one mark: dragging it along the path sets where it begins (its phase).
-        const tv = this.hitTest(wx, wy);
-        if (tv?.play?.travel?.on && !e.metaKey && !e.ctrlKey && this.playTool) { if (!this.selected.has(tv.id)) this.select([tv.id], e.shiftKey); return this.playTool.pressMark(e, tv, wx, wy, { slide: true }); }
         return this.startSelect(e, wx, wy);
       }
       const stage = this.getStage();
@@ -953,13 +956,13 @@ export class CanvasView {
       // (only a few boards can be that close, and a huge picture costs more than it saves).
       if (Math.max(W, H) * s > 2 * Math.max(this.w, this.h) * dpr) { this.baked.delete(b.id); continue; }
       done.add(b.id);
-      const key = `${s.toFixed(4)}|${mode}|${this.upTo}|${this.travelersKey || ''}`;
+      const key = `${s.toFixed(4)}|${mode}|${this.upTo}`;
       let c = this.baked.get(b.id);
       if (!c || c.key !== key || !c.canvas.width || !c.canvas.height) {   // (a canvas the browser has emptied is baked again)
         if (!marks) { marks = new Map(); for (const e of doc.elements) { const k = e.board || MAIN; (marks.get(k) || marks.set(k, []).get(k)).push(e); } }
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(W * s)); canvas.height = Math.max(1, Math.round(H * s));
-        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, hideTravelers: this.travelersLive, transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, frozen: true, now: this.frameNow });
+        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, frozen: true, now: this.frameNow });
         c = { key, canvas };
         this.baked.set(b.id, c);
       }

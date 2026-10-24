@@ -35,7 +35,7 @@ export const timedActive = (doc, now) => nextTimed(doc, now) === 0;
 
 export function renderDocument(ctx, doc, {
   mode = 'process', upTo = Infinity, transform = { x: 0, y: 0, scale: 1 },
-  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a', frozen = false, now = null, view = null, hideTravelers = false
+  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a', frozen = false, now = null, view = null
 } = {}) {
   const { width, height } = doc.artboard;
   txBeginFrame();
@@ -54,7 +54,7 @@ export function renderDocument(ctx, doc, {
     .map(([e]) => e);
 
   installLines(doc);
-  const env = { scale: transform.scale, rng: null, frozen, now, age: 0, hideTravelers };
+  const env = { scale: transform.scale, rng: null, frozen, now, age: 0 };
   const boardRects = new Map(boardsOf(doc).map(b => [b.id, { x: b.x, y: b.y, width: b.width, height: b.height, mask: Boolean(b.mask) }]));
   env.boards = boardRects;
   const overlay = [];

@@ -1165,7 +1165,7 @@ export class Workbench {
     this.canvas.onDrawn = () => this.frames.update();
     try { this.playKind = localStorage.getItem('ams_playkind') || 'link'; } catch { this.playKind = 'link'; }
     try { this.playNodeKind = localStorage.getItem('ams_playnode') || 'note'; } catch { this.playNodeKind = 'note'; }
-    this.store.derive = d => Rel.syncEdges(d);   // edges (paths between nodes) follow their nodes
+    this.store.derive = d => { Rel.syncEdges(d); Rel.syncAttached(d); };   // edges follow their nodes; attached events follow their lines
     this.canvas.playTool = new PlayTool(this, this.canvas);
     this.canvas.onSpaceTap = () => this.player?.toggle();
     this.canvas.onPlayAfter = (el, after) => { if (after.travel) this.store.change('travel', d => Rel.travel(d, after.travel, el.id)); };

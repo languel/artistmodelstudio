@@ -11,12 +11,17 @@
  *   offset(d, travelerId, u)    the traveler begins u (0..1) of the way along its line; its marker goes there
  *   edge(d, fromId, toId)       a path from one node to another (straight, or across then up, by the first's `shape`)
  *   input(d, nodeId, gateId)    the node is an input of the logic gate
+ *   attachEvent(d, id, pathId, u)  an event sits on a line at u (0..1) and follows it; detach(d, id) frees a traveler or an event
+ *   slideEvent(d, id, u)        an attached event moves along its line
+ *   syncAttached(d)             attached events follow their lines (after an edit)
  *   syncEdges(d)                the edges follow their nodes (after a move; a hand-drawn edge keeps its middle): returns how many changed
  */
 import { emitFor, DEFAULTS } from './presets.js';
 import { outlineOf, centerOf, pointAt, nearestOn } from './geometry.js';
 import { realizeAfter, newPart, canBePath } from '../process/playparts.js';
 import { normalizeElement } from '../process/document.js';
+import { pathTime } from './compile.js';
+import { timeContext } from '../time/sceneTransport.js';
 
 export const refOf = e => e.label || e.id;
 const isLine = e => ['line', 'gesture', 'guide'].includes(e.role) && (e.points?.length || 0) >= 2;
@@ -103,8 +108,84 @@ export function place(d, markId, pathId) {
   if (!el || !line) return false;
   const [cx, cy] = centerOf(el);
   const hit = nearestOn(outlineOf(line), cx, cy);
+  if (el.play?.trigger) return attachEvent(d, markId, pathId, hit.u);   // an event placed on a line stays on it
   moveTo(el, hit.x, hit.y);
   return true;
+}
+
+/** An event sits on a line at u (0..1): its middle is there, and stays there when the line changes. */
+export function attachEvent(d, id, pathId, u) {
+  const el = find(d, id), line = find(d, pathId);
+  if (!el?.play?.trigger || !line || !isLine(line)) return false;
+  const at = Math.max(0, Math.min(1, u));
+  withPlay(el, pl => { pl.trigger = { ...pl.trigger, path: refOf(line), at: Math.round(at * 10000) / 10000 }; });
+  withPlay(line, pl => { pl.path = pl.path || true; });
+  const q = pointAt(outlineOf(line), at);
+  moveTo(el, q[0], q[1]);
+  return true;
+}
+
+/**
+ * A traveler dropped on a line (maybe another one) begins there: it is on that line, and where it is *now* (at the
+ * playhead `t`, in seconds) is u, so it carries on from where it was dropped.
+ */
+export function attachTraveler(d, id, pathId, u, t = 0, settings = null) {
+  const el = find(d, id), line = find(d, pathId);
+  if (!el?.play?.travel || !line || !isLine(line)) return false;
+  withPlay(line, pl => { pl.path = pl.path || true; });
+  withPlay(el, pl => { pl.travel = { ...pl.travel, on: line.id }; delete pl.travel.cue; delete pl.travel.at; });
+  // Where it would be now without a phase: progress along the line from the playhead (loops wrap).
+  let here = 0;
+  const tv = el.play.travel;
+  if (t > 0 && settings) {
+    const sec = pathTime(line, { ctx: timeContext(settings), beatUnits: settings.beatUnits, quant: settings.quant }).seconds;
+    const dur = (typeof tv.dur === 'number' ? tv.dur : sec) / Math.max(0.001, tv.rate ?? 1);
+    const f = (t - (typeof tv.start === 'number' ? tv.start : 0)) / Math.max(0.001, dur);
+    here = f <= 0 ? 0 : tv.loop === 'once' || (!tv.loop && !line.closed) ? Math.min(1, f) : f - Math.floor(f);
+  }
+  return offset(d, id, u, u - here);
+}
+
+/** An attached event moves along its line. */
+export function slideEvent(d, id, u) {
+  const el = find(d, id), ref = el?.play?.trigger?.path;
+  const line = ref && d.elements.find(x => x.id === ref || x.label === ref);
+  return line ? attachEvent(d, id, line.id, u) : false;
+}
+
+/** Where along a line (0..1) a mark's middle is nearest. */
+export function nearestU(d, id, pathId) {
+  const el = find(d, id), line = find(d, pathId);
+  if (!el || !line) return 0;
+  const [cx, cy] = centerOf(el);
+  return nearestOn(outlineOf(line), cx, cy).u;
+}
+
+/** A traveler or an event leaves its path (it stays where it is). */
+export function detach(d, id) {
+  const el = find(d, id);
+  if (!el) return false;
+  withPlay(el, pl => {
+    if (pl.travel) { pl.travel = { ...pl.travel, on: '' }; delete pl.travel.at; }
+    if (pl.trigger) { pl.trigger = { ...pl.trigger }; delete pl.trigger.path; delete pl.trigger.at; }
+  });
+  return true;
+}
+
+/** Attached events follow their lines: each is moved so its middle is at its place on the line. In place; returns how many moved. */
+export function syncAttached(d) {
+  let moved = 0;
+  for (const e of d.elements) {
+    const t = e.play?.trigger;
+    if (!t?.path) continue;
+    const line = d.elements.find(x => x.id === t.path || x.label === t.path);
+    if (!line || !isLine(line)) continue;
+    const q = pointAt(outlineOf(line), t.at ?? 0), [cx, cy] = centerOf(e);
+    if (Math.abs(q[0] - cx) < 1e-6 && Math.abs(q[1] - cy) < 1e-6) continue;
+    moveTo(e, q[0], q[1]);
+    moved++;
+  }
+  return moved;
 }
 
 /** `phase` (default u): the traveler's `at`, which differs from u when the playhead is not at the start (see the Play tool). */

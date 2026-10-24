@@ -17,6 +17,7 @@ import * as R from '../score/relations.js';
 import { outlineOf, centerOf, nearestOn, nearestPath, pointAt } from '../score/geometry.js';
 import { emitFor, DEFAULTS } from '../score/presets.js';
 import { boardAt } from '../process/boards.js';
+import { snapStep } from '../time/sceneTransport.js';
 
 export const PLAY_KINDS = [
   ['link', 'Point at things', 'Press a mark and drag to another: what they are decides the relation. Drag a traveler along its path. Shift+drag moves a mark, snapping to paths.'],
@@ -83,46 +84,67 @@ export class PlayTool {
     return at0 + (u - here);
   }
 
+  /** u (0..1 along a path) moved to the nearest Timeline division of the time it takes to get there. */
+  snapU(id, u) {
+    const tr = this.app.score?.view?.().flatMap(en => en.world.travelers()).find(t => t.id === id);
+    const dur = tr?.spec?.dur;
+    if (!(dur > 0)) return u;
+    const st = this.app.player.settings, q = snapStep({ ...st, snap: st.snap === 'off' ? 'auto' : st.snap }, 100);
+    if (!(q > 0)) return u;
+    return Math.max(0, Math.min(1, (Math.round((u * dur) / q) * q) / dur));
+  }
+
   // ---- on a mark ------------------------------------------------------------------------------
   pressMark(e, hit, wx, wy, { slide: forceSlide = false } = {}) {
     const cv = this.cv, app = this.app;
     const x0 = e.clientX, y0 = e.clientY;
     let mode = null;
-    const tr = hit.play?.travel;
-    const line = tr && this.doc.elements.find(x => (x.id === tr.on || x.label === tr.on) && x.points?.length >= 2);
+    const tr = hit.play?.travel, ev0 = hit.play?.trigger;
+    // The line it sits on: a traveler's path, or the line an event is attached to.
+    const ref = tr ? tr.on : ev0?.path;
+    const line = ref && this.doc.elements.find(x => (x.id === ref || x.label === ref) && x.points?.length >= 2);
+    const isEvent = Boolean(ev0) && !tr;
     const before = JSON.stringify(this.doc);
     const startSel = cv.selected.has(hit.id) ? [...cv.selected] : [hit.id];
     const orig = new Map(this.doc.elements.filter(x => startSel.includes(x.id)).map(x => [x.id, x.points.map(q => [...q])]));
     const here = cv.travelerPos?.get(hit.id) || hit.points[0];   // (where the traveler is drawn)
     let last = line ? nearestOn(outlineOf(line), here[0], here[1]).u : 0;
     const at0 = tr?.at || 0;
+    let dropOn = null;   // where a mark dragged free would attach: { path, u }
 
     const mv = ev => {
       const [mx, my] = cv.toWorld(...cv.local(ev));
       if (!mode) {
         if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return;
         if (this.kind === 'path' && hit.role === 'point' && !hit.play?.trigger && !ev.shiftKey) { finish(); this.startLineFrom(e, hit); return; }
-        mode = line && (forceSlide || (!ev.shiftKey && !ev.altKey)) ? 'slide' : ev.shiftKey ? 'move' : 'link';
+        // On a line: dragging slides along it. Alt (or Shift) takes it off the line: it moves freely, and where it is let go near a line it attaches to that one, else it is free.
+        mode = line && !ev.shiftKey && !ev.altKey ? 'slide' : ev.shiftKey || (line && ev.altKey) ? 'move' : forceSlide ? 'move' : 'link';
         if (!cv.selected.has(hit.id)) cv.select([hit.id]);
       }
       if (mode === 'slide') {
-        const u = nearestOn(outlineOf(line), mx, my).u;
-        R.offset(this.doc, hit.id, u, this.phaseFor(hit.id, u, at0));   // (live or paused: the traveler carries on from where it is dropped)
+        let u = nearestOn(outlineOf(line), mx, my).u;
+        if (ev.ctrlKey && !isEvent) u = this.snapU(hit.id, u);   // Ctrl: on the Timeline's divisions of the time along the path
+        if (isEvent) R.slideEvent(this.doc, hit.id, u);
+        else R.offset(this.doc, hit.id, u, this.phaseFor(hit.id, u, at0));   // (live or paused: the traveler carries on from where it is dropped)
         const q = pointAt(outlineOf(line), u);
-        this.slide = { id: hit.id, x: q[0], y: q[1] };   // (the overlay draws it there)
-        app.score?.scrub(hit.id, last, u);
+        if (!isEvent) this.slide = { id: hit.id, x: q[0], y: q[1] };   // (the overlay draws it there)
+        if (!isEvent) app.score?.scrub(hit.id, last, u);
         last = u;
         cv.invalidate();
       } else if (mode === 'move') {
         let dx = mx - wx, dy = my - wy;
-        this.snap = null;
-        if (!ev.altKey && startSel.length === 1) {
-          const c0 = centerOf({ ...hit, points: orig.get(hit.id) });
-          const near = nearestPath(this.paths().filter(p => p.id !== hit.id), c0[0] + dx, c0[1] + dy, this.radius());
-          if (near) { dx = near.hit.x - c0[0]; dy = near.hit.y - c0[1]; this.snap = { x: near.hit.x, y: near.hit.y }; }
+        this.snap = null; dropOn = null;
+        const c0 = centerOf({ ...hit, points: orig.get(hit.id) });
+        // A traveler moved off its line has no points of its own on the canvas: it starts from where it was drawn.
+        const from = !isEvent && tr ? (cv.travelerPos?.get(hit.id) || c0) : c0;
+        if (!isEvent && tr) { dx = mx - wx + (from[0] - c0[0]); dy = my - wy + (from[1] - c0[1]); }
+        if (startSel.length === 1) {
+          const near = nearestPath(this.paths().filter(p => p.id !== hit.id), from[0] + (isEvent || !tr ? dx : mx - wx), from[1] + (isEvent || !tr ? dy : my - wy), this.radius());
+          if (near && (hit.play?.travel || hit.play?.trigger)) { dropOn = { path: near.mark.id, u: near.hit.u }; this.snap = { x: near.hit.x, y: near.hit.y }; if (isEvent || !tr) { dx = near.hit.x - c0[0]; dy = near.hit.y - c0[1]; } }
+          else if (near && !ev.altKey) { dx = near.hit.x - c0[0]; dy = near.hit.y - c0[1]; this.snap = { x: near.hit.x, y: near.hit.y }; }
         }
         for (const el of this.doc.elements) { const o = orig.get(el.id); if (o) el.points = o.map(q => [q[0] + dx, q[1] + dy, ...q.slice(2)]); }
-        app.store.derive?.(app.store.doc);
+        if (!isEvent && tr) { const mxw = c0[0] + dx, myw = c0[1] + dy; this.slide = { id: hit.id, x: this.snap ? this.snap.x : mxw, y: this.snap ? this.snap.y : myw }; }
         cv.invalidate();
       } else {
         const target = this.hitAt(mx, my, x => x.id !== hit.id);
@@ -158,7 +180,15 @@ export class PlayTool {
           this.app.store.change('edge', draft => R.edge(draft, hit.id, el.id));
           cv.select([el.id]);
         }
-      } else this.app.store.commitFrom(before, mode === 'slide' ? 'traveler offset' : 'move');
+      } else if (mode === 'move' && (hit.play?.travel || hit.play?.trigger) && startSel.length === 1) {
+        // Let go: near a line, attach to it (a traveler starts from there, an event sits there); else it is free of any line.
+        const keep = dropOn, was = Boolean(line);
+        this.app.store.commitFrom(before, 'move');
+        const id = hit.id;
+        if (keep) this.app.store.change('attach', draft => (isEvent ? R.attachEvent(draft, id, keep.path, keep.u) : R.attachTraveler(draft, id, keep.path, keep.u, this.app.player.position() / 1000, this.app.player.settings)));
+        else if (was) this.app.store.change('detach', draft => R.detach(draft, id));
+        if (keep) cv.flash(`On ${(this.doc.elements.find(x => x.id === keep.path)?.label) || 'the line'}`); else if (was) cv.flash('Off the line');
+      } else this.app.store.commitFrom(before, mode === 'slide' ? (isEvent ? 'event slide' : 'traveler offset') : 'move');
     };
     window.addEventListener('pointermove', mv);
     window.addEventListener('pointerup', up);

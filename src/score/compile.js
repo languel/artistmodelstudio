@@ -175,7 +175,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
       else if (e.closed || e.role === 'plane') region = { kind: 'polygon', pts };
       else region = { kind: 'line', pts };
       const base = typeof trigger.emit === 'string' || trigger.emitExit ? wrap(trigger.emit, trigger.emitExit) : handlers[trigger.handler] || null;
-      const { emit, emitExit, handler, r, name, start, to, dir, ...opts } = trigger;
+      const { emit, emitExit, handler, r, name, start, to, dir, path: _path, at: _at, ...opts } = trigger;
       const id = triggerId(e);
       // Routes: when it fires, a traveler goes to each trigger it sends to and arrives there.
       const routes = [];

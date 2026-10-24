@@ -113,25 +113,26 @@ export const BRUSHES = {
 
   // ---- score markers: how a mark that plays looks (see src/score). Plain brushes: change them, or give a mark any other. ----
   traveler: {
-    label: 'Traveler', roles: ['point'], doc: 'The marker of a point that travels a path: a ring, a dot, and a faint outer ring.',
+    label: 'Traveler', roles: ['point'], doc: 'A point that travels a path. On a path it is drawn over the canvas while the score is shown (a ring and a dot); this mark is the faint dotted ring it leaves where it starts. With no path (or waiting for an event) it is the ring and dot itself.',
     params: [
-      param('size', 'Size', 4, 80, 1, 16, 'Diameter in artboard units.'),
+      param('size', 'Size', 4, 80, 1, 16, 'Size of its ring: the ring is 0.3 of this wide (a radius), in artboard units.'),
       param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
     ],
     draw(ctx, e, p, k) {
-      if (k.hideTravelers?.has?.(e.id)) return;   // (once it has left its place the moving one is drawn over the canvas: no copy is left behind)
       ctx.save();
       ctx.globalAlpha *= p.opacity;
-      const c = e.color || '#c8664f', w = 1.5 / k.scale;
-      const bar = e.play?.travel?.width > 0 ? e.play.travel.width : 0, ang = ((e.play?.travel?.angle ?? 90) * Math.PI) / 180;   // a traveler that is a bar across its path is drawn as one
+      const c = e.color || '#c8664f', w = 1.5 / k.scale, R = p.size * 0.3;
+      const attached = Boolean(e.play?.travel?.on) && !e.play.travel.cue;   // (a traveler on a path: the moving one is drawn over the canvas)
       for (const [x, y] of e.points) {
         ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = w;
-        if (bar) { ctx.globalAlpha = p.opacity * 0.8; ctx.lineWidth = 2.5 / k.scale; ctx.beginPath(); ctx.moveTo(x - Math.cos(ang) * bar / 2, y - Math.sin(ang) * bar / 2); ctx.lineTo(x + Math.cos(ang) * bar / 2, y + Math.sin(ang) * bar / 2); ctx.stroke(); ctx.lineWidth = w; }
-        ctx.globalAlpha = p.opacity * 0.35; ctx.setLineDash([2 / k.scale, 3 / k.scale]);
-        ctx.beginPath(); ctx.arc(x, y, p.size * 0.8, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        if (attached) {   // where it started: a dotted ghost of its ring
+          ctx.globalAlpha = p.opacity * 0.6; ctx.setLineDash([1.6 / k.scale, 2.4 / k.scale]);
+          ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+          continue;
+        }
         ctx.globalAlpha = p.opacity;
-        ctx.beginPath(); ctx.arc(x, y, p.size / 2, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.arc(x, y, p.size * 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
     }
