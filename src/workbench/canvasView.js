@@ -696,7 +696,8 @@ export class CanvasView {
       if (accept && !accept(e)) continue;
       const params = resolveParams(e.realize.brush, e.realize.params);
       if (e.role === 'point') {
-        if (e.points.some(([x, y]) => Math.hypot(x - wx, y - wy) < (params.size || 10) / 2 + tol)) return e;
+        const live = this.travelerPos?.get(e.id);   // (a traveler is where it is drawn, not where it began)
+        if ((live ? [live] : e.points).some(([x, y]) => Math.hypot(x - wx, y - wy) < (params.size || 10) / 2 + tol)) return e;
       } else if (e.role === 'note') {
         if (inside(noteCorners(e), wx, wy)) return e;
       } else if (e.role === 'image') {
@@ -899,6 +900,9 @@ export class CanvasView {
       if (tool === 'select') {
         const hd = this.handleAt(sx, sy);
         if (hd) return this.startTransform(e, hd);
+        // A traveler on a path is one mark: dragging it along the path sets where it begins (its phase).
+        const tv = this.hitTest(wx, wy);
+        if (tv?.play?.travel?.on && !e.metaKey && !e.ctrlKey && this.playTool) { if (!this.selected.has(tv.id)) this.select([tv.id], e.shiftKey); return this.playTool.pressMark(e, tv, wx, wy, { slide: true }); }
         return this.startSelect(e, wx, wy);
       }
       const stage = this.getStage();

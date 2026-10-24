@@ -151,7 +151,7 @@ export class ScoreOverlay {
     const app = this.app, p = app.player, score = app.score;
     const entries = score.view();
     const notes = app.scoreView?.names || app.canvas.pick || app.tool === 'play' || (app.canvas.selected?.size && app.store.doc.elements.some(e => e.play?.travel || e.play?.trigger?.to));
-    if (!entries.length && !notes) { if (this.cv) { this.cv.getContext('2d').clearRect(0, 0, this.cv.width, this.cv.height); } this.lit = false; this.setLive(new Set()); return; }
+    if (!entries.length && !notes) { if (this.cv) { this.cv.getContext('2d').clearRect(0, 0, this.cv.width, this.cv.height); } this.lit = false; this.setLive(new Set()); this.app.canvas.travelerPos = null; return; }
     if (!(app.canvas.cam?.z > 0) || !Number.isFinite(app.canvas.cam.x)) return;   // (a camera that is not set yet draws nothing)
     const cvw = app.canvas, cv = this.canvas(), ctx = cv.getContext('2d');
     const pos = p.position() / 1000;
@@ -163,7 +163,7 @@ export class ScoreOverlay {
     let moving = p.playing;
     this.annotate(ctx, cvw, score.doc(), accent);
 
-    const byEl = new Map(score.doc().elements.map(e => [e.id, e])), liveIds = new Set();
+    const byEl = new Map(score.doc().elements.map(e => [e.id, e])), liveIds = new Set(), posIds = new Map();
     for (const { board, world } of entries) {
       const at = (x, y) => cvw.toScreen(board.x + x, board.y + y);
       // Triggers that were just touched: a blip with an envelope (quick attack, exponential decay), a ring that opens as it fades.
@@ -219,8 +219,22 @@ export class ScoreOverlay {
       // Travelers: a soft glow, a trail that thins and fades, and a bar as a line that fades at its ends.
       ctx.globalAlpha = 1;
       const now = world.positions(pos).filter(q => p.playing || !q.r);
-      // A traveler that has left its place is drawn here alone: its own mark is not drawn too (the canvas hides it).
-      for (const q of now) if (!q.r) { const m = byEl.get(q.id)?.points?.[0]; if (m && Math.hypot(m[0] - board.x - q.x, m[1] - board.y - q.y) > 3) liveIds.add(q.id); }
+      // A traveler is one mark, drawn here wherever it is (also before it starts, and when stopped); the canvas leaves its own mark out.
+      // Being dragged along its path (the Play tool or Select), it is where the pointer has put it.
+      const slide = app.canvas.playTool?.slide;
+      const shown = new Set(now.map(q => q.id));
+      for (const t of world.travelers()) {
+        if (t.body || t.die || !t.path || shown.has(t.id)) continue;
+        const pt = t.pointAt(Math.max(pos, t.spec.start));
+        now.push({ id: t.id, tag: t.tag, ...pt });
+      }
+      for (const q of now) {
+        if (q.r) continue;
+        if (slide && slide.id === q.id) { q.x = slide.x - board.x; q.y = slide.y - board.y; }
+        const el = byEl.get(q.id);
+        if (!el?.play?.travel || el.play.travel.cue) continue;
+        liveIds.add(q.id); posIds.set(q.id, [board.x + q.x, board.y + q.y]);
+      }
       const widths = new Map(world.travelers().filter(t => t.width > 0).map(t => [t.id, t.width]));
       const look = { ...SCORE_LOOK, ...app.scoreView }, own = new Map();
       for (const e of score.doc().elements) if (e.play?.travel && (e.play.travel.glow !== undefined || e.play.travel.glowSize !== undefined || e.play.travel.trail !== undefined)) own.set(e.id, e.play.travel);
@@ -249,18 +263,27 @@ export class ScoreOverlay {
           ctx.globalAlpha = 0.25; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
           ctx.globalAlpha = 0.95; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.globalAlpha = 1;
         }
-        const rad = q.r ? Math.max(2.5, q.r * cvw.cam.z) : 4.5;   // (a body is as big as it is; a traveler is a small dot)
-        if (!q.r && glow > 0 && glowSize > 1) {   // glow
-          const gr = rad * glowSize, g = ctx.createRadialGradient(x, y, 0, x, y, gr);
+        const size = Number(byEl.get(q.id)?.realize?.params?.size) || 16;
+        const rad = q.r ? Math.max(2.5, q.r * cvw.cam.z) : Math.max(6, size * 0.5 * cvw.cam.z);   // (a body is as big as it is; a traveler is a ring with a dot)
+        if (!q.r && glow > 0 && glowSize > 1) {   // a small halo
+          const gr = rad * (1 + (glowSize - 1) * 0.45), g = ctx.createRadialGradient(x, y, rad * 0.5, x, y, gr);
           g.addColorStop(0, accent); g.addColorStop(1, 'transparent');
           ctx.globalAlpha = glow; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, gr, 0, Math.PI * 2); ctx.fill();
         }
-        ctx.globalAlpha = q.r ? 0.85 : 1; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.stroke();
+        if (q.r) {
+          ctx.globalAlpha = 0.85; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.stroke();
+        } else {
+          ctx.globalAlpha = 1; ctx.strokeStyle = accent; ctx.fillStyle = accent; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(x, y, Math.max(2, rad * 0.32), 0, Math.PI * 2); ctx.fill();
+          if (cvw.selected?.has(q.id)) { ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, rad + 3.5, 0, Math.PI * 2); ctx.stroke(); }
+        }
       }
     }
     ctx.globalAlpha = 1;
     this.setLive(liveIds);
+    cvw.travelerPos = posIds;   // (where each traveler is drawn: what a click on it hits)
     if (moving) this.poke();
   }
 }

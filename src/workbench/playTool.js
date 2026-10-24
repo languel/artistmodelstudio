@@ -84,7 +84,7 @@ export class PlayTool {
   }
 
   // ---- on a mark ------------------------------------------------------------------------------
-  pressMark(e, hit, wx, wy) {
+  pressMark(e, hit, wx, wy, { slide: forceSlide = false } = {}) {
     const cv = this.cv, app = this.app;
     const x0 = e.clientX, y0 = e.clientY;
     let mode = null;
@@ -93,7 +93,8 @@ export class PlayTool {
     const before = JSON.stringify(this.doc);
     const startSel = cv.selected.has(hit.id) ? [...cv.selected] : [hit.id];
     const orig = new Map(this.doc.elements.filter(x => startSel.includes(x.id)).map(x => [x.id, x.points.map(q => [...q])]));
-    let last = line ? nearestOn(outlineOf(line), hit.points[0][0], hit.points[0][1]).u : 0;
+    const here = cv.travelerPos?.get(hit.id) || hit.points[0];   // (where the traveler is drawn)
+    let last = line ? nearestOn(outlineOf(line), here[0], here[1]).u : 0;
     const at0 = tr?.at || 0;
 
     const mv = ev => {
@@ -101,12 +102,14 @@ export class PlayTool {
       if (!mode) {
         if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return;
         if (this.kind === 'path' && hit.role === 'point' && !hit.play?.trigger && !ev.shiftKey) { finish(); this.startLineFrom(e, hit); return; }
-        mode = ev.shiftKey ? 'move' : line && !ev.altKey ? 'slide' : 'link';
+        mode = line && (forceSlide || (!ev.shiftKey && !ev.altKey)) ? 'slide' : ev.shiftKey ? 'move' : 'link';
         if (!cv.selected.has(hit.id)) cv.select([hit.id]);
       }
       if (mode === 'slide') {
         const u = nearestOn(outlineOf(line), mx, my).u;
         R.offset(this.doc, hit.id, u, this.phaseFor(hit.id, u, at0));   // (live or paused: the traveler carries on from where it is dropped)
+        const q = pointAt(outlineOf(line), u);
+        this.slide = { id: hit.id, x: q[0], y: q[1] };   // (the overlay draws it there)
         app.score?.scrub(hit.id, last, u);
         last = u;
         cv.invalidate();
@@ -129,7 +132,7 @@ export class PlayTool {
         cv.invalidate();
       }
     };
-    const finish = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); this.drag = null; this.snap = null; app.score?.endScrub(); cv.invalidate(); };
+    const finish = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); this.drag = null; this.snap = null; this.slide = null; app.score?.endScrub(); cv.invalidate(); };
     const up = ev => {
       let d = this.drag;
       if (mode === 'link') {   // (what is under the pointer where it is let go: the last move may have been short of it)
