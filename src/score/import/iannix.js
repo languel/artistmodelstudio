@@ -114,6 +114,8 @@ export function createCollector() {
     if (cmd === 'setmessage' && id) return push({ type: 'message', value: args.slice(1).join(' ') });
     if (cmd === 'settriggeroff' && id) return push({ type: 'triggerOff', value: !['0', 'false', 'off'].includes(String(args[1]).toLowerCase()) });
     if (['center', 'zoom', 'rotate', 'setdepth', 'setcolorinactive', 'setoffset', 'setspeedf', 'setboundssourcemode', 'setboundstarget'].includes(cmd)) return true;   // (not used here)
+    if (cmd === 'registertexture') { st.unsupported.set(tk[0], 'background images are not imported'); return null; }
+    if (cmd === 'setpointstxt') { st.unsupported.set(tk[0], 'text as a curve (setPointsTxt) is not imported'); return null; }
     st.unsupported.set(tk[0], `unsupported command ${tk[0]}`);
     return null;
   };
@@ -350,7 +352,7 @@ export function iannixToScore(source, options = {}) {
     const pts = cpts.get(curve.id), len = ixLength(curve);
     const rate = run.speed || 1;
     const dur0 = o.speed == null ? Math.max(0.05, len) : ['auto', 'autolock'].includes(o.speedMode) ? o.speed : Math.max(0.05, len / Math.max(0.001, o.speed));
-    const dur = dur0 / rate;
+    const dur = Math.max(0.05, dur0 / rate);   // (a lap shorter than 50 ms is a cursor on a point-sized curve: it would send thousands of events a second)
     const w = (o.width ?? 1) * S;
     const bounds = o.bounds?.length === 4 ? o.bounds : (() => { const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), hw = (o.width ?? 1) / 2; return [Math.min(...xs) - hw, Math.max(...xs) + hw, Math.min(...ys) - hw, Math.max(...ys) + hw]; })();
     const start = pts[0];
