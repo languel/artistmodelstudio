@@ -5,9 +5,10 @@
  * Redrawn every frame while the transport runs, and when it moves or the drawing changes.
  */
 import { centerOf } from '../score/geometry.js';
+import { laserOutline, fillLaserOutline } from './laser.js';
 import { formatDuration } from '../time/sceneTransport.js';
 
-const FLASH = 0.4;   // seconds a trigger stays lit
+const FLASH = 0.55;   // seconds a trigger's blip lasts
 
 export class ScoreOverlay {
   constructor(app) {
@@ -150,36 +151,65 @@ export class ScoreOverlay {
 
     for (const { board, world } of entries) {
       const at = (x, y) => cvw.toScreen(board.x + x, board.y + y);
-      // Triggers that were just touched.
+      // Triggers that were just touched: a blip with an envelope (quick attack, exponential decay), a ring that opens as it fades.
       for (const trig of world.triggers()) {
         const age = pos - Math.max(...score.flashes.filter(f => f.board === board.id && f.trigger === trig.id && f.t <= pos).map(f => f.t), -Infinity);
         if (!(age >= 0 && age < FLASH)) continue;
-        const a = 1 - age / FLASH;
-        ctx.globalAlpha = 0.5 * a; ctx.fillStyle = accent; ctx.strokeStyle = accent; ctx.lineWidth = 2;
-        const d = trig.regionDef;
-        ctx.beginPath();
-        if (d.kind === 'circle') { const [x, y] = at(d.x, d.y); ctx.arc(x, y, d.r * cvw.cam.z, 0, Math.PI * 2); ctx.fill(); }
-        else if (d.kind === 'polygon') { d.pts.forEach(([x, y], i) => { const [sx, sy] = at(x, y); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); }); ctx.closePath(); ctx.fill(); }
-        else if (d.kind === 'line') { d.pts.forEach(([x, y], i) => { const [sx, sy] = at(x, y); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); }); ctx.stroke(); }
+        const k = age / FLASH, env = Math.min(1, age / 0.025) * Math.exp(-4 * k);   // 0..1
+        ctx.fillStyle = accent; ctx.strokeStyle = accent; ctx.lineJoin = 'round';
+        const d = trig.regionDef, z = cvw.cam.z;
+        const path = () => { ctx.beginPath(); d.pts.forEach(([x, y], i) => { const [sx, sy] = at(x, y); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); }); };
+        if (d.kind === 'circle') {
+          const [x, y] = at(d.x, d.y), r = d.r * z;
+          const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.8);
+          g.addColorStop(0, accent); g.addColorStop(0.55, accent); g.addColorStop(1, 'transparent');
+          ctx.globalAlpha = 0.55 * env; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 0.8 * (1 - k); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r * (1 + 1.2 * k), 0, Math.PI * 2); ctx.stroke();
+        } else if (d.kind === 'polygon') {
+          path(); ctx.closePath(); ctx.globalAlpha = 0.5 * env; ctx.fill();
+          ctx.globalAlpha = 0.7 * env; ctx.lineWidth = 2; ctx.stroke();
+        } else if (d.kind === 'line') {
+          path(); ctx.globalAlpha = 0.25 * env; ctx.lineWidth = 9; ctx.lineCap = 'round'; ctx.stroke();
+          path(); ctx.globalAlpha = 0.9 * env; ctx.lineWidth = 2.5; ctx.stroke();
+        }
         moving = true;
       }
-      // Travelers: a dot, and a short tail behind it.
+      // Travelers: a soft glow with a pulse on the beat, a trail that thins and fades, and a bar as a line that fades at its ends.
       ctx.globalAlpha = 1;
-      const now = world.positions(pos).filter(q => p.playing || !q.r), before = new Map(world.positions(Math.max(0, pos - 0.15)).map(q => [q.id, q]));
-      const widths = new Map(world.travelers().filter(t => t.width > 0).map(t => [t.id, t.width]));
+      const now = world.positions(pos).filter(q => p.playing || !q.r), widths = new Map(world.travelers().filter(t => t.width > 0).map(t => [t.id, t.width]));
+      const TRAIL = 0.6, steps = now.length > 40 ? 3 : 7;   // (seconds of trail; fewer looks when there are many)
+      const past = [];
+      if (p.playing) for (let i = 1; i <= steps; i++) past.push(new Map(world.positions(Math.max(0, pos - (TRAIL * i) / steps)).map(q => [q.id, q])));
+      const beat = ((pos * app.player.settings.tempo) / 60) % 1, pulse = Math.exp(-5 * beat);   // 1 on the beat, decaying
       for (const q of now) {
         const [x, y] = at(q.x, q.y);
         const bw = widths.get(q.id);
-        if (bw && q.tx !== undefined) {   // a bar across its path
-          const half = (bw / 2) * cvw.cam.z;
-          ctx.strokeStyle = accent; ctx.globalAlpha = 0.9; ctx.lineWidth = 3; ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.moveTo(x + q.ty * half, y - q.tx * half); ctx.lineTo(x - q.ty * half, y + q.tx * half); ctx.stroke(); ctx.globalAlpha = 1;
+        if (p.playing && !q.r) {   // the trail: the laser pointer's ribbon, one filled shape that tapers to nothing
+          const pts = [];
+          for (let i = past.length - 1; i >= 0; i--) {   // oldest first
+            const b = past[i].get(q.id);
+            if (!b || (b.u !== undefined && q.u !== undefined && Math.abs(b.u - q.u) > 0.5)) { pts.length = 0; continue; }   // (a wrap is a jump: the trail starts again after it)
+            const [bx, by] = at(b.x, b.y);
+            pts.push({ x: bx, y: by, t: (pos - (TRAIL * (i + 1)) / steps) * 1000 });
+          }
+          if (pts.length) { ctx.globalAlpha = 0.55; fillLaserOutline(ctx, laserOutline(pts, pos * 1000, TRAIL * 1000, { head: { x, y } }), accent); }
         }
-        const b = before.get(q.id);
-        if (b && p.playing && !q.r) { const [bx, by] = at(b.x, b.y); ctx.strokeStyle = accent; ctx.globalAlpha = 0.45; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(x, y); ctx.stroke(); }
-        const rad = q.r ? Math.max(2.5, q.r * cvw.cam.z) : 5;   // (a body is as big as it is; a traveler is a dot)
+        if (bw && q.tx !== undefined) {   // a bar across its path: a fine line, strongest in the middle
+          const half = (bw / 2) * cvw.cam.z, ax = x + q.ty * half, ay = y - q.tx * half, bx = x - q.ty * half, by = y + q.tx * half;
+          const g = ctx.createLinearGradient(ax, ay, bx, by);
+          g.addColorStop(0, 'transparent'); g.addColorStop(0.5, accent); g.addColorStop(1, 'transparent');
+          ctx.strokeStyle = g; ctx.lineCap = 'round';
+          ctx.globalAlpha = 0.25; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+          ctx.globalAlpha = 0.95; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.globalAlpha = 1;
+        }
+        const rad = q.r ? Math.max(2.5, q.r * cvw.cam.z) : 4.5;   // (a body is as big as it is; a traveler is a small dot)
+        if (!q.r) {   // glow
+          const gr = rad * (3.2 + 0.8 * (p.playing ? pulse : 0)), g = ctx.createRadialGradient(x, y, 0, x, y, gr);
+          g.addColorStop(0, accent); g.addColorStop(1, 'transparent');
+          ctx.globalAlpha = 0.4 + 0.15 * (p.playing ? pulse : 0); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, gr, 0, Math.PI * 2); ctx.fill();
+        }
         ctx.globalAlpha = q.r ? 0.85 : 1; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.stroke();
       }
     }
     ctx.globalAlpha = 1;
