@@ -11,6 +11,7 @@
  *
  * Mapping (IanniX is y-up; the board is y-down, scaled to fit; center/zoom/rotate are ignored):
  *   curve    a line that can be travelled (Bézier controls are sampled; ellipses, lines and equations too)
+ * Options: pitchRange [low, high] MIDI notes that notef's 0..1 pitch maps onto (default [36, 96]; null: all 128 notes).
  *   cursor   a point that travels its curve: setSpeed (auto N = N seconds a lap, otherwise units a second),
  *            setPattern (loop or ping-pong), setWidth (the cursor is a bar across the curve, and touches
  *            what its bar passes), setBoundsSource (what trigger values are measured in)
@@ -68,6 +69,7 @@ export function createCollector() {
     const tk = tokenize(raw);
     if (!tk.length) return null;
     const cmd = tk[0].toLowerCase(), args = tk.slice(1);
+    if (cmd === 'speed' && args.length === 1) { st.globalSpeed = Math.max(0.001, num(args[0], 1)); return true; }   // (the whole score's rate)
     if (cmd === 'add' && ['curve', 'cursor', 'trigger'].includes(args[0]?.toLowerCase())) {
       const role = args[0].toLowerCase();
       const id = String(args[1] ?? `${role}-${st.ops.length + 1}`);
@@ -157,7 +159,7 @@ export function runIannixScript(source, { seed = 1, files = {}, parameters = {} 
   const factory = new Function('scope', 'run', 'ask', 'title', 'load', 'loadJSON', 'sessionTime', 'Math', ...names,
     `with (scope) {\n${source}\nif (typeof askUserForParameters === "function") askUserForParameters();\nif (typeof makeWithScript === "function") makeWithScript();\nif (typeof madeThroughGUI === "function") madeThroughGUI();\n}`);
   factory(scope, collector.run, ask, v => { title = String(v || ''); return title; }, load, f => JSON.parse(load(f)), 0, math, ...names.map(n => h[n]));
-  return { ops: collector.state.ops, unsupported: collector.state.unsupported, title, asked };
+  return { ops: collector.state.ops, unsupported: collector.state.unsupported, title, asked, speed: collector.state.globalSpeed ?? 1 };
 }
 
 /** The objects the commands made. */
@@ -279,7 +281,7 @@ const DEFAULT_TRIGGER_MESSAGE = 'midi://midi_out/notef 1 trigger_value_y trigger
 const DEFAULT_DURATION = 0.35;
 
 /** The emit code for a trigger's messages. `warn(text)` hears what could not be carried over. */
-export function emitFor(messages, warn, { OX = 0, OY = 0, S = 1 } = {}) {
+export function emitFor(messages, warn, { OX = 0, OY = 0, S = 1, pitchRange = null } = {}) {
   const list = (messages?.length ? messages : [DEFAULT_TRIGGER_MESSAGE]).flatMap(m => String(m).replace(/^\s*\d+\s*,/, '').split(',')).map(s => s.trim()).filter(Boolean);
   const lines = [];
   const expr = t => ({ trigger_value_x: 'vx', trigger_value_y: 'vy', trigger_duration: String(DEFAULT_DURATION), cursor_value_x: 'vx', cursor_value_y: 'vy' }[t] ?? (Number.isFinite(Number(t)) ? String(Number(t)) : null));
@@ -288,6 +290,8 @@ export function emitFor(messages, warn, { OX = 0, OY = 0, S = 1 } = {}) {
     if (!match) { warn(`message not imported: ${m.slice(0, 60)}`); continue; }
     const args = match[2].trim().split(/\s+/).map(expr);
     if (args.includes(null)) { warn(`message has an unknown value: ${m.slice(0, 60)}`); continue; }
+    // notef's pitch runs 0..1 over all 128 notes; a range keeps it where an instrument sounds (IanniX leaves that to the synth)
+    if (match[1].toLowerCase() === 'notef' && pitchRange && args.length > 1) args[1] = `(${pitchRange[0]} + (${args[1]}) * ${pitchRange[1] - pitchRange[0]}) / 127`;
     lines.push(`${match[1].toLowerCase()}(${args.join(', ')})`);
   }
   if (!lines.length) return null;
@@ -344,7 +348,9 @@ export function iannixToScore(source, options = {}) {
     const curve = byId.get(o.curve);
     if (!o.active || !curve || !curveVar.has(curve.id)) { if (!curve) warnings.push(`cursor ${o.id}: no curve`); continue; }
     const pts = cpts.get(curve.id), len = ixLength(curve);
-    const dur = o.speed == null ? Math.max(0.05, len) : ['auto', 'autolock'].includes(o.speedMode) ? o.speed : Math.max(0.05, len / Math.max(0.001, o.speed));
+    const rate = run.speed || 1;
+    const dur0 = o.speed == null ? Math.max(0.05, len) : ['auto', 'autolock'].includes(o.speedMode) ? o.speed : Math.max(0.05, len / Math.max(0.001, o.speed));
+    const dur = dur0 / rate;
     const w = (o.width ?? 1) * S;
     const bounds = o.bounds?.length === 4 ? o.bounds : (() => { const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), hw = (o.width ?? 1) / 2; return [Math.min(...xs) - hw, Math.max(...xs) + hw, Math.min(...ys) - hw, Math.max(...ys) + hw]; })();
     const start = pts[0];
@@ -356,7 +362,7 @@ export function iannixToScore(source, options = {}) {
   const warnOnce = m => { if (!warned.has(m)) { warned.add(m); warnings.push(m); } };
   for (const o of triggers) {
     if (!o.active) continue;
-    const emit = emitFor(o.messages, warnOnce, { OX, OY, S: r(S, 4) });
+    const emit = emitFor(o.messages, warnOnce, { OX, OY, S: r(S, 4), pitchRange: options.pitchRange === undefined ? [36, 96] : options.pitchRange });
     if (!emit) continue;
     nTriggers++;
     const col = colorOf(o);

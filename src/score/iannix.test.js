@@ -59,7 +59,7 @@ describe('IanniX commands', () => {
 
 describe('an IanniX score as an AMS score', () => {
   it('writes score code that runs, and plays', () => {
-    const { code, stats, warnings } = iannixToScore(SIMPLE, { title: 'Test' });
+    const { code, stats, warnings } = iannixToScore(SIMPLE, { title: 'Test', pitchRange: null });
     expect(stats).toEqual({ curves: 3, cursors: 3, triggers: 1 });
     expect(warnings).toEqual([]);
     const res = runScoreInto(normalizeDocument(createDocument()), code, { board: 'main' });
@@ -96,4 +96,12 @@ describe.skipIf(!have)('the IanniX example scores', () => {
       expect(run.error, `${f}: ${run.error}`).toBeNull();
     });
   }
+  it('maps pitch into a range, and a global speed slows every cursor', () => {
+    const ranged = iannixToScore(SIMPLE, { title: 'T' }).code;
+    expect(ranged).toContain('(36 + (');
+    const a = iannixToScore(SIMPLE, { title: 'T' }).code;
+    const b = iannixToScore(`run("speed 0.5");\n${SIMPLE}`, { title: 'T' }).code;
+    const dur = c => Number(/dur: ([\d.]+)/.exec(c)?.[1]);
+    expect(dur(b)).toBeCloseTo(dur(a) * 2, 1);
+  });
 });
