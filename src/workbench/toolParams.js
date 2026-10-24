@@ -132,11 +132,12 @@ export function openGridParams(app, x, y) {
   const line = (label, control, doc) => h('label', { class: 'wb-tp-row wb-tp-row2', title: doc || '' }, h('span', { class: 'wb-tp-label' }, label), control);
   const snap = h('input', { type: 'checkbox', checked: Boolean(g.snap), onchange: e => app.canvas.setGrid({ snap: e.target.checked }) });
   pop.append(
-    h('div', { class: 'wb-tp-head' }, h('span', {}, 'Grid')),
+    h('div', { class: 'wb-tp-head' }, h('span', {}, 'Canvas')),
     line('Show', seg([['off', 'Off'], ['paper', 'Paper'], ['everywhere', 'All']], g.show || 'paper', v => app.canvas.setGrid({ show: v }))),
+    line('Names', (() => { const c = h('input', { type: 'checkbox', checked: Boolean(app.scoreView?.names), onchange: e => app.setScoreView({ names: e.target.checked }) }); return c; })(), 'Show the names of marks that play (the id when a mark has none) and the links between them (Alt+N)'),
     line('Style', seg([['lines', 'Lines'], ['dots', 'Dots']], g.style || 'lines', v => app.canvas.setGrid({ style: v }))),
     slider({ label: 'Spacing', min: 5, max: 400, step: 1, value: g.spacing, doc: 'Distance between major lines, in artboard units', onInput: v => app.canvas.setGrid({ spacing: v }) }),
-    line('Color', colorField(g.color, v => app.canvas.setGrid({ color: v }), { title: 'Grid color', fallback: '#8a837840', app })),
+    line('Grid', colorField(g.color, v => app.canvas.setGrid({ color: v }), { title: 'Grid color', fallback: '#8a837840', app })),
     line(board.main ? 'Paper' : `Paper · ${board.title || 'board'}`, colorField(board.ground, v => app.store.updateBoard(board.id, { ground: v }), { title: 'The paper of the board under the pointer (else the active one)', fallback: '#f3efe6', app })),
     line('Workspace', colorField(workspaceColor(), v => app.setBackground(v), { title: 'Workspace background (behind the boards)', fallback: '#1b1b1b', app })),
     slider({ label: 'Divisions', min: 1, max: 10, step: 1, value: g.subdivisions, doc: 'Minor lines between the major ones', onInput: v => app.canvas.setGrid({ subdivisions: v }) }),
