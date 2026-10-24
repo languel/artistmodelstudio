@@ -217,6 +217,11 @@ export class Workbench {
   }
 
   // ---- the Play tool ---------------------------------------------------------------------------
+  cyclePlayKind() {
+    const ids = PLAY_KINDS.map(k => k[0]), i = this.tool === 'play' ? ids.indexOf(this.playKind) : -1;
+    this.setPlayKind(ids[(i + 1) % ids.length]);
+    this.canvas.flash?.(PLAY_KINDS.find(k => k[0] === this.playKind)[1]);
+  }
   setPlayKind(k) {
     this.playKind = k;
     try { localStorage.setItem('ams_playkind', k); } catch { /* ignore */ }

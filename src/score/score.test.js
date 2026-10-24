@@ -100,6 +100,15 @@ describe('world', () => {
     near(ofType(ev, 'enter')[0].t, 0.05, 1e-4);
   });
 
+  it('a bar traveler touches areas and lines with the whole bar, not only the point on the path', () => {
+    const def = { travelers: [{ id: 'a', on: 'row', dur: 10, width: 10 }], triggers: [{ id: 'off', region: square(4, 3, 6, 4) }, { id: 'gate', region: { kind: 'line', pts: [[8, 2], [8, 4]] } }, { id: 'far', region: square(4, 9, 6, 10) }] };
+    const ev = run(def, 12);
+    expect(ofType(ev, 'enter').filter(e => e.trigger === 'off')).toHaveLength(1);
+    expect(ofType(ev, 'exit').filter(e => e.trigger === 'off')).toHaveLength(1);
+    expect(ofType(ev, 'cross').filter(e => e.trigger === 'gate')).toHaveLength(1);
+    expect(ev.filter(e => e.trigger === 'far')).toHaveLength(0);
+  });
+
   it('reports the place as fractions of the frame, y up, and the speed', () => {
     const ev = run({ bounds: { x: 0, y: 0, width: 10, height: 10 }, travelers: [{ on: 'row', dur: 10 }], triggers: [{ id: 't', region: square(4, -1, 6, 1) }] }, 12);
     const e = ofType(ev, 'enter')[0];

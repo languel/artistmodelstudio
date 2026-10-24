@@ -67,6 +67,17 @@ export class PlayTool {
     this.pressEmpty(e, wx, wy);
   }
 
+  /**
+   * The `at` that puts a traveler at u (0..1) of its path *now*, wherever the playhead is: the world that
+   * is playing says where it is (u now), and `at` moves by the difference.
+   */
+  phaseFor(id, u, at0) {
+    const w = this.app.score?.view?.().flatMap(en => en.world.travelers()).find(t => t.id === id);
+    if (!w) return u;
+    const here = w.pointAt(this.app.player.position() / 1000).u;
+    return at0 + (u - here);
+  }
+
   // ---- on a mark ------------------------------------------------------------------------------
   pressMark(e, hit, wx, wy) {
     const cv = this.cv, app = this.app;
@@ -78,6 +89,7 @@ export class PlayTool {
     const startSel = cv.selected.has(hit.id) ? [...cv.selected] : [hit.id];
     const orig = new Map(this.doc.elements.filter(x => startSel.includes(x.id)).map(x => [x.id, x.points.map(q => [...q])]));
     let last = line ? nearestOn(outlineOf(line), hit.points[0][0], hit.points[0][1]).u : 0;
+    const at0 = tr?.at || 0;
 
     const mv = ev => {
       const [mx, my] = cv.toWorld(...cv.local(ev));
@@ -89,7 +101,7 @@ export class PlayTool {
       }
       if (mode === 'slide') {
         const u = nearestOn(outlineOf(line), mx, my).u;
-        R.offset(this.doc, hit.id, u);
+        R.offset(this.doc, hit.id, u, this.phaseFor(hit.id, u, at0));   // (live or paused: the traveler carries on from where it is dropped)
         app.score?.scrub(hit.id, last, u);
         last = u;
         cv.invalidate();

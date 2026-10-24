@@ -199,7 +199,9 @@ export function mountTimeline(root, app) {
     if (rec) return;   // read-only until the recording stops
     // Scrub by clicking or dragging on the ruler or empty lanes.
     const at = ev => { const r = lanes.getBoundingClientRect(); return ((ev.clientX - r.left + lanes.scrollLeft) / pps) * 1000; };
-    const scrub = ev => p.seek(at(ev));
+    // Hold Ctrl while dragging the playhead: it falls on the ruler's subdivisions (beats and their parts in the beats ruler, frames, or seconds).
+    const sub = ev => snapTimelineTime(Math.max(0, at(ev)) / 1000, W / pps, RULER_MODE[st.ruler], { fps: st.fps, tempo: st.tempo, signature: st.signature }, 'minor') * 1000;
+    const scrub = ev => p.seek(ev.ctrlKey ? sub(ev) : at(ev));
     // Marks fall on the beat (or frame) in those rulers; hold Alt for any time.
     const snapped = ev => {
       const ms = Math.max(0, at(ev));
@@ -361,7 +363,7 @@ export function mountTimeline(root, app) {
 
   lanes.addEventListener('wheel', ev => { if (!(ev.metaKey || ev.ctrlKey)) return; ev.preventDefault(); pps = Math.max(2, Math.min(600, pps * Math.exp(-ev.deltaY * 0.004))); drawLanes(); }, { passive: false });
   lanes.addEventListener('keydown', ev => {
-    ev.stopPropagation();
+    if (ev.key === ' ' || ev.key === 'Delete' || ev.key === 'Backspace') ev.stopPropagation();   // (other keys, the transport's Home and End among them, reach the shortcuts)
     if (ev.key === ' ') { ev.preventDefault(); P().toggle(); }
     if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected) { ev.preventDefault(); deleteClip(selected); }
   });

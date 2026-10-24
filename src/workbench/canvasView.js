@@ -746,6 +746,9 @@ export class CanvasView {
       if (JSON.stringify(hd) !== JSON.stringify(this.hoverHandle)) { this.hoverHandle = hd; this.canvas.style.cursor = this.cursorFor(hd) || ''; if (!hd) this.updateCursor(); this.invalidate(); }
       const h = (tool === 'select' || tool === 'direct') && !hd ? this.hitTest(wx, wy)?.id || null : null;
       if (h !== this.hovered) { this.hovered = h; this.invalidate(); }
+      // Over a mark that can be moved: the move cursor (and back again).
+      const over = !hd && !this.space && (h || (tool === 'play' && !this.pick && this.hitTest(wx, wy)));
+      if (Boolean(over) !== Boolean(this.moveCursor)) { this.moveCursor = Boolean(over); if (over) this.canvas.style.cursor = 'move'; else if (!hd) this.updateCursor(); }
       const brush = tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length);
       if (brush || this.brushAt) { this.brushAt = brush ? [sx, sy] : null; this.invalidate(); }
       this.lastLocal = [sx, sy];

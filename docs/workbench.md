@@ -102,7 +102,7 @@ It is kept minimal.
   - Opt+right-click the canvas for the active tool's parameters.
 - **Icons:** every built-in brush and sculpt tool has an icon; the toolbar shows the active one. Custom tools take theirs from their preview (the camera button in Code → Brush / Sculpt). In menus the active item has a soft background.
 - **Names:** Shift+double-click renames anything with a name, in place: boards, scenes, stages, tracks, asset titles and folders, and marks, groups and stages in the Outliner. Enter keeps it, Esc puts it back. In the Outliner and the Boards panel a plain double-click frames the item.
-- **Framing:** Home frames the active board, Shift+Home the selection.
+- **Framing:** Alt+Home frames the active board, Alt+Shift+Home the selection (Home and Shift+Home are the transport's rewind and stop).
 - **Drawing:** Settings → Drawing (or right-click the grid button) has Smoothing and Simplify.
   - **Lazy** (Settings → Drawing, or the grid button's right-click) is the string length in screen pixels, and it applies to every drawing stroke. The Pen's Lazy on a tool (right-click Line, Plane, Gesture or Brush) switches the string on for that tool; with no editor Lazy set it uses the tool's own length (40 by default). Laziness in the Pen is the same setting as the editor's Lazy. The string runs between the cursor and the pen. Catch up (On by default, in the Pen) eases the pen to a still pointer, so the line reaches the cursor; Off leaves it where the string left it. Wobbles shorter than the string never reach the line, and corners get rounded.
   - **Smoothing** (0 to 0.95) is how much the pen holds back each step: 0.5 covers half the distance, so higher is smoother and lags more.

@@ -178,7 +178,7 @@ export function createWorld(def = {}) {
     const speed = dt > 0 ? Math.hypot(pb.x - pa.x, pb.y - pa.y) / dt : 0;
     for (const trig of w.triggers) {
       if (!passes(trig, tr)) continue;
-      if (tr.width > 0 && trig.regionDef.kind === 'circle' && pa.tx !== undefined) { wide(tr, trig, ta, tb, pa, pb, speed); continue; }
+      if (tr.width > 0 && pa.tx !== undefined) { if (trig.regionDef.kind === 'circle') wide(tr, trig, ta, tb, pa, pb, speed); else bar(tr, trig, ta, tb, pa, pb, speed); continue; }
       if (!overlaps(trig.region.bounds, pa.x, pa.y, pb.x, pb.y)) continue;
       const pair = trig.region.kind === 'area' ? pairOf(trig, tr) : null;
       let cs = trig.region.crossings(pa, pb, pair ? pair.geo : false);
@@ -220,6 +220,57 @@ export function createWorld(def = {}) {
     const pt = { x: cx, y: cy, u: at.u, p: at.p, lat };
     push({ type: 'enter', t, tr, trig, pt, speed });
     push({ type: 'exit', t, tr, trig, pt, speed });
+  }
+
+  /**
+   * A bar traveler against any other trigger: the whole bar touches, not only the point on the path.
+   * An area is entered while any part of the bar is inside it (looked at in steps no longer than half
+   * the area); a line is crossed once, by the first part of the bar that reaches it.
+   */
+  function bar(tr, trig, ta, tb, pa, pb, speed) {
+    const half = tr.width / 2, D = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+    const at = s => {
+      const p = lerpPt(pa, pb, s);
+      let tx = pa.tx + (pb.tx - pa.tx) * s, ty = pa.ty + (pb.ty - pa.ty) * s;
+      const m = Math.hypot(tx, ty) || 1; tx /= m; ty /= m;
+      return { ...p, tx, ty, a: { x: p.x - ty * half, y: p.y + tx * half }, b: { x: p.x + ty * half, y: p.y - tx * half } };
+    };
+    const lat = (p, q) => Math.max(-1, Math.min(1, ((q.x - p.x) * -p.ty + (q.y - p.y) * p.tx) / half));
+    if (trig.region.kind === 'area') {
+      const pair = pairOf(trig, tr), bb = trig.region.bounds;
+      const small = Math.max(1, Math.min(bb.x1 - bb.x0, bb.y1 - bb.y0) / 2);
+      const n = Math.min(64, Math.max(1, Math.ceil(D / small)));
+      for (let k = 1; k <= n; k++) {
+        const s = k / n, p = at(s);
+        let q = null;
+        if (trig.region.inside(p.a.x, p.a.y)) q = p.a;
+        else if (trig.region.inside(p.b.x, p.b.y)) q = p.b;
+        else if (trig.region.crossings(p.a, p.b, false).length) q = { x: p.x, y: p.y };
+        if (Boolean(q) === pair.geo) continue;
+        pair.geo = Boolean(q);
+        push({ type: q ? 'enter' : 'exit', t: ta + s * (tb - ta), tr, trig, pt: { x: q ? q.x : p.x, y: q ? q.y : p.y, u: p.u, p: p.p, lat: q ? lat(p, q) : 0 }, speed });
+      }
+      return;
+    }
+    // A line: in the bar's frame at the start of the move, the part of it inside the band across the path, and where along the path it is first.
+    const pts = trig.regionDef.pts;
+    let best = null;
+    for (let i = 1; i < pts.length; i++) {
+      const g0 = { f: (pts[i - 1][0] - pa.x) * pa.tx + (pts[i - 1][1] - pa.y) * pa.ty, l: -(pts[i - 1][0] - pa.x) * pa.ty + (pts[i - 1][1] - pa.y) * pa.tx };
+      const g1 = { f: (pts[i][0] - pa.x) * pa.tx + (pts[i][1] - pa.y) * pa.ty, l: -(pts[i][0] - pa.x) * pa.ty + (pts[i][1] - pa.y) * pa.tx };
+      let u0 = 0, u1 = 1;
+      const dl = g1.l - g0.l;
+      if (Math.abs(dl) < 1e-12) { if (Math.abs(g0.l) > half) continue; }
+      else { const ua = (-half - g0.l) / dl, ub = (half - g0.l) / dl; u0 = Math.max(0, Math.min(ua, ub)); u1 = Math.min(1, Math.max(ua, ub)); if (u0 > u1) continue; }
+      const f0 = g0.f + (g1.f - g0.f) * u0, f1 = g0.f + (g1.f - g0.f) * u1, fmin = Math.min(f0, f1);
+      if (fmin <= 0 || fmin > D + 1e-9 || (best && fmin >= best.f)) continue;
+      const uu = f0 <= f1 ? u0 : u1;
+      best = { f: fmin, x: pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * uu, y: pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * uu, dir: Math.sign((pts[i][0] - pts[i - 1][0]) * pa.ty - (pts[i][1] - pts[i - 1][1]) * pa.tx) || 1 };
+    }
+    if (best) {
+      const sc = D > 0 ? best.f / D : 1, p = at(sc);
+      push({ type: 'cross', t: ta + sc * (tb - ta), tr, trig, pt: { x: best.x, y: best.y, u: p.u, p: p.p, lat: lat(p, best) }, speed, dir: best.dir });
+    }
   }
 
   /** A jump (a loop wrap): no sweep, only who is inside afterwards. */

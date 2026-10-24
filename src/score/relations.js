@@ -95,12 +95,13 @@ export function place(d, markId, pathId) {
   return true;
 }
 
-export function offset(d, travelerId, u) {
+/** `phase` (default u): the traveler's `at`, which differs from u when the playhead is not at the start (see the Play tool). */
+export function offset(d, travelerId, u, phase = u) {
   const el = find(d, travelerId);
   const line = el?.play?.travel && d.elements.find(x => x.id === el.play.travel.on || x.label === el.play.travel.on);
   if (!line) return false;
-  const at = Math.max(0, Math.min(1, u));
-  withPlay(el, pl => { if (at > 0.0005) pl.travel.at = Math.round(at * 1000) / 1000; else delete pl.travel.at; });
+  const at = Math.max(0, Math.min(1, u)), ph = ((phase % 1) + 1) % 1;
+  withPlay(el, pl => { if (ph > 0.0005 && ph < 0.9995) pl.travel.at = Math.round(ph * 1000) / 1000; else delete pl.travel.at; });
   const q = pointAt(outlineOf(line), at);
   if (el.role === 'point') el.points = [[q[0], q[1], el.points[0]?.[2] ?? 0, el.points[0]?.[3] ?? 0.5]];
   return true;
