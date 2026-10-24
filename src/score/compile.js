@@ -5,7 +5,9 @@
  *     path:    true | 'name',                         a line that can be travelled (by its mark id, or by the name)
  *     travel:  { on: id, dur | speed, start, rate, loop, as, tag },   a point that travels line `on`
  *     body:    { v: [vx, vy] | speed: n | [min, max], angle, r, emit, tag },   a point that moves by itself, bounces, collides
- *     trigger: { on, gate, lockout, policy, filter, r, emit, name, start },   a plane, circle, line or point
+ *     trigger: { on, gate, lockout, policy, filter, r, emit, emitExit, name, start, dir, to },   a plane, circle, line or point
+ *              dir: -1 | 1 limits a crossing to one way; to: [ref | { to, dur }] sends a traveler on to those triggers (a route)
+ *     travel:  also { at: 0..1 (begins that far along), cue: a trigger that starts it (it waits until the trigger fires) }
  *              name: how others reach it (arrive, a traveler's data.to); start: a time at which a signal arrives from nowhere
  *   }
  *
@@ -24,19 +26,13 @@
  * Coordinates are the board's own (boardDoc), so a score does not depend on where its board sits.
  */
 import { boardDoc, MAIN } from '../process/boards.js';
-import { smoothPath } from '../process/walk.js';
+import { outlineOf as outline, centerOf } from './geometry.js';
 import { FIELDS, HELPER_NAMES } from './music.js';
 import { resolveTimeValue } from '../time/timeValue.js';
 import { DEFAULT_TRANSPORT, timeContext } from '../time/sceneTransport.js';
 
 const xy = pts => pts.map(q => [q[0], q[1]]);
 
-/**
- * The curve a mark is drawn along: its points joined by the smooth path the renderer uses (Catmull-Rom),
- * or straight when the mark says path: 'straight'. Travelers follow it and triggers cover it, so what is
- * seen is what plays.
- */
-const outline = e => (e.path === 'straight' ? e.points : smoothPath(e.points, e.closed));
 
 /** A small seeded random stream per body, so a score's gas is the same every run. */
 function rngFor(seed, n) {
@@ -89,6 +85,13 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
     paths[key] = { points: outline(e), closed: Boolean(e.closed) };
   }
 
+  // Triggers are reached by their name, label or id: from routes (`to`) and cues (`cue`).
+  const triggerId = e => e.play.trigger.name || e.label || e.id;
+  const trigKey = new Map();
+  for (const e of marks) if (e.play.trigger) { trigKey.set(e.id, triggerId(e)); if (e.label && !trigKey.has(e.label)) trigKey.set(e.label, triggerId(e)); }
+  const cues = new Map();   // trigger id → travelers it starts: [{ path, opts }]
+  const pending = [];       // triggers whose handlers are finished once everything is known
+
   for (const e of marks) {
     const { travel, trigger, body } = e.play;
     if (body && travel) info.skipped.push(`${e.label || e.id}: a mark travels a path or moves by itself, not both (it travels)`);
@@ -105,10 +108,16 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
     }
     if (travel) {
       const on = pathKey.get(travel.on) ?? travel.on;
-      if (!paths[on]) info.skipped.push(`${e.id}: no path "${travel.on}"`);
+      if (!paths[on]) info.skipped.push(`${e.label || e.id}: no path "${travel.on}"`);
       else {
-        const { emit, ...t } = travel;
-        travelers.push({ id: e.id, ...t, on, start: secs(t.start), dur: secs(t.dur), tag: t.tag ?? e.tag ?? null, handle: emit ? wrap(emit) : handlers[t.handler] || null });
+        const { emit, cue, angle, ...t } = travel;
+        const spec = { ...t, on, start: secs(t.start), dur: secs(t.dur), tag: t.tag ?? e.tag ?? null };
+        if (cue) {
+          // Started by a trigger: it waits, and each time the trigger fires it begins again.
+          const tk = trigKey.get(cue);
+          if (!tk) info.skipped.push(`${e.label || e.id}: no trigger "${cue}" to start it`);
+          else (cues.get(tk) || cues.set(tk, []).get(tk)).push(spec);
+        } else travelers.push({ id: e.id, ...spec, handle: emit ? wrap(emit) : handlers[t.handler] || null });
       }
     }
     if (trigger) {
@@ -117,12 +126,43 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
       if (e.role === 'point' || pts.length === 1) region = { kind: 'circle', x: e.points[0][0], y: e.points[0][1], r: trigger.r ?? Math.max(3, (e.realize?.params?.size || 16) / 2) };
       else if (e.closed || e.role === 'plane') region = { kind: 'polygon', pts };
       else region = { kind: 'line', pts };
-      const handle = typeof trigger.emit === 'string' || trigger.emitExit ? wrap(trigger.emit, trigger.emitExit) : handlers[trigger.handler] || null;
-      const { emit, emitExit, handler, r, name, start, ...opts } = trigger;
-      const id = name || e.label || e.id;
-      triggers.push({ id, region, ...opts, gate: secs(opts.gate), lockout: secs(opts.lockout), handle });
+      const base = typeof trigger.emit === 'string' || trigger.emitExit ? wrap(trigger.emit, trigger.emitExit) : handlers[trigger.handler] || null;
+      const { emit, emitExit, handler, r, name, start, to, dir, ...opts } = trigger;
+      const id = triggerId(e);
+      // Routes: when it fires, a traveler goes to each trigger it sends to and arrives there.
+      const routes = [];
+      for (const rel of [].concat(to || [])) {
+        const spec = typeof rel === 'string' ? { to: rel } : rel;
+        const target = d.elements.find(x => x.id === spec.to || x.label === spec.to);
+        const tk = target && trigKey.get(target.id);
+        if (!tk) { info.skipped.push(`${e.label || e.id}: no trigger "${spec.to}" to send to`); continue; }
+        const key = `route:${id}->${tk}:${routes.length}`;
+        paths[key] = { points: [centerOf(e), centerOf(target)], closed: false };
+        routes.push({ key, dur: secs(spec.dur ?? '1 beat'), to: tk });
+      }
+      const obj = { id, region, ...opts, gate: secs(opts.gate), lockout: secs(opts.lockout), handle: base };
+      triggers.push(obj);
+      pending.push({ obj, base, routes, dir });
       if (start !== undefined && start !== false) starts.push({ trigger: id, t: start === true ? 0 : secs(start), data: {} });
     }
+  }
+
+  // Handlers: the sound, then what it sends on and starts. A crossing can be limited to one direction.
+  for (const { obj, base, routes, dir } of pending) {
+    const cued = cues.get(obj.id) || [];
+    if (!base && !routes.length && !cued.length && !dir) continue;
+    obj.handle = (e, api) => {
+      if (dir && e.type === 'cross' && e.dir !== dir) return;
+      base?.(e, api);
+      if (e.type === 'exit') return;
+      for (const r of routes) api.launch(r.key, { dur: r.dur, data: { to: r.to } });
+      cued.forEach((c, i) => {
+        const prev = api.state._cued?.[i];
+        if (prev) api.kill(prev);
+        const { on, ...o } = c;
+        (api.state._cued ||= [])[i] = api.launch(on, o);
+      });
+    };
   }
 
   return { def: { paths, travelers, triggers, starts, bodies, bounds: { x: 0, y: 0, width: d.artboard.width, height: d.artboard.height }, seed }, info };

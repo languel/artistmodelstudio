@@ -123,6 +123,8 @@ export function createWorld(def = {}) {
       if (d.as === 'drawn' && path.drawn) dur = drawnDuration(path);
       else if (dur == null && d.speed > 0) dur = path.length / d.speed;
       spec = { start: d.start ?? 0, dur: dur ?? 1, rate: d.rate ?? 1, loop: d.loop || 'once' };
+      // `at`: it begins that far along (0..1 of a lap), as if it had started earlier.
+      if (d.at) spec.start -= (d.at * spec.dur) / Math.max(0.001, spec.rate);
     }
     const drawn = d.as === 'drawn' && path?.drawn;
     const totalMs = drawn ? drawnDuration(path) * 1000 : 0;
@@ -211,7 +213,8 @@ export function createWorld(def = {}) {
     const tx = pa.tx + (pb.tx - pa.tx) * s, ty = pa.ty + (pb.ty - pa.ty) * s;
     if (Math.abs(-(cx - at.x) * ty + (cy - at.y) * tx) > tr.width / 2 + r) return;
     const t = ta + s * (tb - ta);
-    const pt = { x: cx, y: cy, u: at.u, p: at.p };
+    const lat = Math.max(-1, Math.min(1, (-(cx - at.x) * ty + (cy - at.y) * tx) / (tr.width / 2)));   // across the bar: -1 to 1, 0 on the path
+    const pt = { x: cx, y: cy, u: at.u, p: at.p, lat };
     push({ type: 'enter', t, tr, trig, pt, speed });
     push({ type: 'exit', t, tr, trig, pt, speed });
   }
@@ -261,7 +264,7 @@ export function createWorld(def = {}) {
     const { nx, ny } = frame(ev.pt);
     return {
       t: ev.t, type, traveler: ev.tr?.id ?? null, trigger: ev.trig?.id ?? null, tag: ev.tr?.tag ?? null,
-      x: ev.pt.x, y: ev.pt.y, nx, ny, u: ev.pt.u, speed: ev.speed || 0, p: ev.pt.p ?? null, data: ev.data ?? ev.tr?.data, ...(extra || {})
+      x: ev.pt.x, y: ev.pt.y, nx, ny, u: ev.pt.u, speed: ev.speed || 0, p: ev.pt.p ?? null, lat: ev.pt.lat, data: ev.data ?? ev.tr?.data, ...(extra || {})
     };
   }
 
@@ -316,6 +319,8 @@ export function createWorld(def = {}) {
 
   function process(ev) {
     w.cur = ev.t;
+    // A traveler sent to a trigger (a route) is a message: it arrives there, and touches nothing on the way.
+    if (ev.tr?.data?.to != null && (ev.type === 'enter' || ev.type === 'exit' || ev.type === 'cross')) return;
     if (ev.type === 'enter') enter(ev);
     else if (ev.type === 'exit') exit(ev);
     else if (ev.type === 'cross') cross(ev);

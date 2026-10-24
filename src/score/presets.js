@@ -14,6 +14,7 @@ export const PRESETS = Object.freeze([
   { k: 'note', label: 'A fixed note', hint: 'The same note each time' },
   { k: 'height', label: 'Pitch by height', hint: 'Higher on the board, higher the note (in a scale)' },
   { k: 'along', label: 'Pitch by place on the path', hint: 'The note follows how far along its path the traveler is' },
+  { k: 'offset', label: 'Pitch by distance from the path', hint: 'IanniX style: a traveler that is a bar across its path sounds what it touches by how far to the side it is' },
   { k: 'cc', label: 'Controller by height', hint: 'A MIDI controller follows the height' },
   { k: 'collide', label: 'Note on collision', hint: 'For bodies: a note when two touch, louder when harder' }
 ]);
@@ -21,6 +22,7 @@ export const PRESETS = Object.freeze([
 export const DEFAULTS = Object.freeze({
   note: { k: 'note', ch: 1, pitch: 60, vel: 100, dur: 0.25 },
   height: { k: 'height', ch: 1, lo: 48, hi: 72, scale: 'dorian', root: 62, vel: 90, dur: 'gate' },
+  offset: { k: 'offset', ch: 1, lo: 48, hi: 72, scale: 'dorian', root: 62, vel: 90, dur: 0.25 },
   along: { k: 'along', ch: 1, lo: 48, hi: 72, scale: 'dorian', root: 62, vel: 90, dur: 0.25 },
   cc: { k: 'cc', ch: 1, cc: 1 },
   collide: { k: 'collide', ch: 1, lo: 36, hi: 84, scale: 'pentatonicminor', root: 60, dur: 0.2 }
@@ -48,14 +50,9 @@ export function clean(p) {
 export function emitFor(settings) {
   const p = clean(settings);
   const head = `// preset ${JSON.stringify(p)}\n`;
-  const pitch = (axis, n) => {
-    const raw = `${p.lo} + lane(${axis}, ${p.hi - p.lo + 1})`;
-    return p.scale ? `snap(${raw}, ${q(p.scale)}, ${p.root})` : raw;
-  };
-  void pitch;
   if (p.k === 'note') return `${head}note(${p.ch}, ${p.pitch}, ${p.vel}, ${dur(p.dur)})`;
   if (p.k === 'cc') return `${head}ccf(${p.ch}, ${p.cc}, ny)`;
-  const axis = p.k === 'along' ? 'u' : 'ny';
+  const axis = p.k === 'along' ? 'u' : p.k === 'offset' ? '((lat ?? 0) + 1) / 2' : 'ny';
   const raw = `${p.lo} + lane(${axis}, ${p.hi - p.lo + 1})`;
   const pit = p.scale ? `snap(${raw}, ${q(p.scale)}, ${p.root})` : raw;
   if (p.k === 'collide') return `${head}if (type === 'collide' && traveler < other) note(${p.ch}, ${pit}, clamp(30 + speed * 0.5, 30, 120), ${dur(p.dur)})`;
