@@ -47,6 +47,7 @@ export class ScorePlayer {
     this.runner = createRunner({
       getDoc: () => this.doc(),
       getSettings: () => app.player.settings,
+      lookahead: 0.2,   // (sent this far ahead, on the audio clock: a busy frame does not break the sound)
       boardFilter: b => this.plays(b),
       outputs: () => this.outputs(),
       onError: msg => { this.errors.push(msg); app.log?.(`Score: ${msg}`, 'error'); },

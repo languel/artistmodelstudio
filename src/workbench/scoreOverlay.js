@@ -153,8 +153,10 @@ export class ScoreOverlay {
     for (const { board, world } of entries) {
       const at = (x, y) => cvw.toScreen(board.x + x, board.y + y);
       // Triggers that were just touched: a blip with an envelope (quick attack, exponential decay), a ring that opens as it fades.
+      const lastHit = new Map();   // trigger → the latest time it went off, up to now (one pass over the flashes, not one per trigger)
+      for (const f of score.flashes) if (f.board === board.id && f.t <= pos && !(lastHit.get(f.trigger) >= f.t)) lastHit.set(f.trigger, f.t);
       for (const trig of world.triggers()) {
-        const age = pos - Math.max(...score.flashes.filter(f => f.board === board.id && f.trigger === trig.id && f.t <= pos).map(f => f.t), -Infinity);
+        const age = pos - (lastHit.get(trig.id) ?? -Infinity);
         if (!(age >= 0 && age < FLASH)) continue;
         const k = age / FLASH, env = Math.min(1, age / 0.025) * Math.exp(-4 * k);   // 0..1
         ctx.fillStyle = accent; ctx.strokeStyle = accent; ctx.lineJoin = 'round';

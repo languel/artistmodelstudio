@@ -43,7 +43,12 @@ export class TakePlayer {
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit() { for (const f of this.listeners) f(this); }
   /** The scene's transport settings (tempo, signature, fps, ruler, loop range), in seconds. */
-  get settings() { return normalizeTransport(this.app.store?.doc?.transport); }
+  get settings() {
+    // Read many times a frame (the sound, the mixer, the overlay): normalized once per change of the scene's transport.
+    const doc = this.app.store?.doc, tr = doc?.transport;
+    if (this._sDoc !== doc || this._sTr !== tr || !this._s) { this._sDoc = doc; this._sTr = tr; this._s = normalizeTransport(tr); }
+    return this._s;
+  }
   /** Change them; one undo step, saved with the scene. */
   setSettings(patch) {
     this.app.store.change('transport', d => { d.transport = normalizeTransport({ ...normalizeTransport(d.transport), ...patch }); });
@@ -120,16 +125,18 @@ export class TakePlayer {
     const tick = () => {
       if (!this.playing) return;
       const now = performance.now();
-      if (now - last < 8) return;   // (the frame and the timer below both call this)
+      if (now - last < 1) return;   // (the frame and the timer below both call this)
       const r = this.wrapRange();
       // Time is the wall clock's (not the frames'): a slow frame skips ahead, it does not slow the music.
       this.t = advanceTransportPlaybackTime(this.t / 1000, (now - last) / 1000, { rate: this.rate, loopEnabled: Boolean(r), loopStart: r ? r[0] / 1000 : 0, loopEnd: r ? r[1] / 1000 : 0 }) * 1000;
       last = now; this.at = now;
       if (this.take && !r && this.t >= this.duration) { this.t = this.duration; this.playing = false; }
       this.render(); this.syncAudio(); this.emit();
-      if (this.playing) this.raf = requestAnimationFrame(tick);
     };
-    this.raf = requestAnimationFrame(tick);
+    // Every frame (a skipped tick must not end the chain: on a 120 Hz screen frames come every 8 ms).
+    const frame = () => { this.raf = 0; tick(); if (this.playing) this.raf = requestAnimationFrame(frame); };
+    cancelAnimationFrame(this.raf);
+    this.raf = requestAnimationFrame(frame);
     // Frames stop in a hidden or unfocused pane; the transport (and what plays on it) must not.
     clearInterval(this.timer);
     this.timer = setInterval(() => { if (performance.now() - last > 60) tick(); }, 40);

@@ -1,6 +1,6 @@
 /**
- * The built-in sound: General MIDI through TinySynth (jzz + jzz-synth-tiny, both MIT; TinySynth is
- * g200kg's webaudio-tinysynth). A trimmed port of Underscores' internalMidiSynth.js, so a score can
+ * The built-in sound: General MIDI through TinySynth (jzz-synth-tiny, MIT; TinySynth is g200kg's
+ * webaudio-tinysynth), scheduled on the audio clock. A trimmed port of Underscores' internalMidiSynth.js, so a score can
  * be heard with no MIDI hardware. It takes raw MIDI bytes; both libraries load on the first use.
  *
  *   const gm = createGmOutput()
@@ -32,14 +32,38 @@ export const GM_PROGRAMS = Object.freeze([
 
 const PERCUSSION = 10;   // channel 10 (1-based) is drums
 
-/** TinySynth through jzz: { send(bytes), resume(), state() }. */
+/**
+ * TinySynth, scheduled on the audio clock: { send(bytes), sendAt(bytes, atMs), resume(), state() }.
+ * jzz-synth-tiny is given a small stand-in for JZZ, whose AudioContext reads its `currentTime` a little
+ * ahead while a message is sent: TinySynth then starts (or ends) the note at exactly that moment on the
+ * audio clock, so what the scheduler sends ahead plays in time however busy the page is.
+ */
 export async function loadTinySynth() {
-  const [{ default: JZZ }, { default: installTinySynth }] = await Promise.all([import('jzz'), import('jzz-synth-tiny')]);
-  installTinySynth(JZZ);
-  const port = await JZZ.synth.Tiny();
-  const ctx = JZZ.lib.getAudioContext();
-  if (!ctx) throw new Error('Web Audio is not available in this browser.');
-  return { send: data => port.send(data), resume: () => ctx.resume(), state: () => ctx.state, close: () => port.close?.() };
+  const { default: installTinySynth } = await import('jzz-synth-tiny');
+  const AC = globalThis.AudioContext || globalThis.webkitAudioContext;
+  if (!AC) throw new Error('Web Audio is not available in this browser.');
+  const real = loadTinySynth.ctx ||= new AC({ latencyHint: 'interactive' });   // (one context for the page: never closed)
+  let ahead = 0;
+  const ctx = new Proxy(real, {
+    get(t, k) {
+      if (k === 'currentTime') return t.currentTime + ahead;
+      const v = Reflect.get(t, k, t);
+      return typeof v === 'function' ? v.bind(t) : v;
+    }
+  });
+  const fake = { synth: {}, lib: {
+    getAudioContext: () => ctx,
+    openMidiOut: (name, engine) => { const port = { _crash: e => { throw new Error(String(e)); }, _resume() {} }; engine._openOut(port, name); return port; },
+    registerMidiOut: () => false
+  } };
+  installTinySynth(fake);
+  const port = fake.synth.Tiny();
+  const send = data => port._receive(data);
+  return {
+    send,
+    sendAt: (data, atMs) => { ahead = Math.max(0, (atMs - performance.now()) / 1000); try { send(data); } finally { ahead = 0; } },
+    resume: () => real.resume(), state: () => real.state, close: () => {}
+  };
 }
 
 export function createGmOutput({
@@ -65,6 +89,8 @@ export function createGmOutput({
     send(bytes, atMs) {
       if (!be) return;   // (not started: nothing sounds, nothing is queued)
       const delay = Number(atMs) - now();
+      // Soon (what the scheduler sends ahead): on the audio clock, exactly. Later (a long note's end): a timer.
+      if (be.sendAt && Number.isFinite(delay) && delay > 1 && delay < 3000) { be.sendAt(Array.from(bytes, v => Number(v) & 0xff), atMs); return; }
       if (Number.isFinite(delay) && delay > 1) {
         const t = setTimer(() => { timers.delete(t); now1(bytes); }, delay);
         timers.add(t);

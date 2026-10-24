@@ -395,7 +395,7 @@ export function mountTimeline(root, app) {
     raf = 0;
     const p = P(), rec = live();
     if (!p) return;
-    const t = rec ? R().now() : p.t;
+    const t = rec ? R().now() : p.position();   // (between the transport's ticks, where it is now)
     setHead(t);
     timeEl ||= bar.querySelector('.wb-tl-time');
     if (timeEl?.isConnected) timeEl.textContent = rec ? `● ${fmt(t)}` : stampOf(t, p.duration); else timeEl = null;

@@ -106,6 +106,8 @@ export function createVoiceTracker() {
       counts.delete(key);
       return true;
     },
-    reset() { counts.clear(); }
+    reset() { counts.clear(); },
+    /** The notes sounding now: [channel 0..15, pitch]. */
+    sounding() { return [...counts.keys()].map(k => [k >> 8, k & 0xff]); }
   };
 }

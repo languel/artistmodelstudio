@@ -58,12 +58,20 @@ export function createRunner({ getDoc, getSettings, outputs, now = () => perform
   };
 
   const silence = () => { queue = []; tracker.reset(); for (const o of outputs()) o.clear?.(); };
+  /** An edit or a loop: what is sounding is let ring (its note-offs stay queued), nothing is cut off. */
+  const isOff = b => (b[0] & 0xf0) === 0x80 || ((b[0] & 0xf0) === 0x90 && b[2] === 0);
+  const soften = t => {
+    queue = queue.filter(m => isOff(m.bytes));
+    // A note held open (a gate) has no note-off queued: the new score cannot end it, so it ends here.
+    const ends = new Set(queue.map(m => ((m.bytes[0] & 0x0f) << 8) | m.bytes[1]));
+    for (const [c, n] of tracker.sounding()) if (!ends.has((c << 8) | n)) push({ t, bytes: [0x80 | c, n, 0] });
+  };
 
-  function build(t, settings) {
+  function build(t, settings, from0) {
     const ctx = timeContext(settings);
     entries = buildEntries(getDoc(), settings, { helpers: (event, api) => musicHelpers({ out: push, ctx, event, api }), onError, boardFilter });
     // Playing from the very start begins at 0, so what is due at 0 (a start node, a traveler leaving) is not missed.
-    const from = t < 0.1 ? 0 : t;
+    const from = from0 ?? (t < 0.1 ? 0 : t);
     for (const e of entries) e.world.seek(from);
     stepped = from;
   }
@@ -79,10 +87,15 @@ export function createRunner({ getDoc, getSettings, outputs, now = () => perform
       const nowMs = now();
       const fullKey = `${key}|${settings.tempo}|${settings.signature.numerator}/${settings.signature.denominator}|${settings.fps}|${settings.beatUnits}|${settings.quant}`;
       const expected = lastT + ((nowMs - lastNow) / 1000) * rate;
-      if (!active || fullKey !== builtKey || Math.abs(t - expected) > 0.3 + lookahead * rate) {
-        silence();
+      const jumped = Math.abs(t - expected) > 0.3 + lookahead * rate;
+      const wrapped = active && jumped && limit !== Infinity && t < lastT;   // (a loop range came round)
+      if (!active || fullKey !== builtKey || jumped) {
+        // A start, a seek: silence. An edit while playing: rebuilt from where the sound has been sent up to (no note twice, none cut).
+        // A loop coming round: from its start, letting what sounds ring out.
+        const edit = active && !jumped && fullKey !== builtKey;
+        if (edit || wrapped) soften(t); else silence();
         builtKey = fullKey; active = true; failed.clear();
-        build(t, settings);
+        build(t, settings, edit ? Math.max(t, stepped) : undefined);
       }
       lastT = t; lastNow = nowMs;
       const horizon = Math.min(t + lookahead * rate, limit);

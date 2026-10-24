@@ -115,3 +115,17 @@ describe('muting a board', () => {
     expect(scoreSignature(normalizeDocument({ artboard: { width: 10, height: 10 }, elements: [] }))).toBe('');
   });
 });
+
+describe('the runner while you work', () => {
+  it('an edit while playing rebuilds without cutting the sound or playing a note twice', () => {
+    const { tick, log, bytes } = make();
+    for (let t = 0; t <= 4.5; t += 0.025) tick(t);   // inside the plane: the gated note is on
+    expect(bytes()).toEqual([[0x90, 64, 100]]);
+    const clears = log.sent.filter(s => s.clear).length;
+    for (let t = 4.525; t <= 5; t += 0.025) tick(t, { key: 'edited' });   // the score changed (a new key)
+    for (let t = 5.025; t <= 7; t += 0.025) tick(t, { key: 'edited' });
+    expect(log.sent.filter(s => s.clear).length).toBe(clears);
+    expect(bytes().filter(b => b[0] === 0x90)).toHaveLength(1);
+    expect(bytes().filter(b => b[0] === 0x80)).toHaveLength(1);   // the held note still ends
+  });
+});
