@@ -376,3 +376,17 @@ describe('path time quantized', () => {
     expect(pathTime({ ...e, play: { path: { len: '3.3 beats', quant: '1 beat' } } }, { beatUnits: 25 }).beats).toBeCloseTo(3.3, 3);
   });
 });
+
+describe('loops by default on closed paths', () => {
+  const doc = (closed, path = true, travel = {}) => normalizeDocument({ artboard: { width: 100, height: 100 }, elements: [
+    { id: 'p', role: 'line', points: [[10, 10], [90, 10], [90, 90]], closed, play: { path } },
+    { id: 't', role: 'point', points: [[10, 10]], play: { travel: { on: 'p', dur: 1, ...travel } } }] });
+  const loopOf = d => compileDoc(d).def.travelers[0].loop;
+  it('closed: loop; open: once; the path or the traveler can say otherwise', () => {
+    expect(loopOf(doc(true))).toBe('loop');
+    expect(loopOf(doc(false))).toBe('once');
+    expect(loopOf(doc(false, { loop: true }))).toBe('loop');
+    expect(loopOf(doc(true, { loop: false }))).toBe('once');
+    expect(loopOf(doc(true, true, { loop: 'pingpong' }))).toBe('pingpong');
+  });
+});

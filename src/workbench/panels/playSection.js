@@ -119,6 +119,7 @@ export function playBody(app, e) {
       mode === 'time' ? row('Takes', timeField(app, spec.len ?? '', v => setPath({ len: v ?? undefined }), { placeholder: '1 bar' })) : null,
       mode === 'speed' ? row('Speed', numberField({ value: spec.speed || 50, min: 1, max: 5000, step: 5, def: 50, title: 'Artboard units a second', onChange: (v, { final }) => { if (final) setPath({ speed: v }); } })) : null,
       mode === 'time' ? null : row('Round to', selectField([['', `Scene (${QUANT_CHOICES.find(c => c[0] === settings.quant)?.[1] || 'free'})`], ['off', 'Free'], ...QUANT_CHOICES.filter(c => c[0])], spec.quant == null ? '' : String(spec.quant), v => setPath({ quant: v === '' ? undefined : v }), 'Round how long it takes to a division: a beat, a bar, a second… (a time written out is exact)')),
+      row('Loops', h('input', { type: 'checkbox', checked: spec.loop !== undefined ? Boolean(spec.loop) : Boolean(e.closed), title: 'Travelers on it go round again (default: when the line is closed). Others can still choose their own', onchange: ev => setPath({ loop: ev.target.checked === Boolean(e.closed) ? undefined : ev.target.checked }, 'path loops') })),
       row('Is', h('span', { class: 'wb-muted', title: 'How long a traveler on it takes by default (in the Timeline\'s units)' }, formatDuration(time.seconds, settings)))
     );
   }
@@ -126,6 +127,8 @@ export function playBody(app, e) {
   // ---- a traveler ----
   if (play.travel) {
     const t = play.travel;
+    const onLine = app.store.doc.elements.find(x => x.id === t.on || (x.label && x.label === t.on));
+    const travelLoops = onLine ? (typeof onLine.play?.path === 'object' && onLine.play.path.loop !== undefined ? Boolean(onLine.play.path.loop) : Boolean(onLine.closed)) : false;
     const setT = (patch, label) => edit(pl => { pl.travel = { ...pl.travel, ...patch }; for (const k of Object.keys(pl.travel)) if (pl.travel[k] === undefined || pl.travel[k] === '' ) delete pl.travel[k]; pl.travel.on = pl.travel.on ?? ''; }, label || 'traveler');
     parts.push(
       row('Path', objectField({
@@ -147,7 +150,7 @@ export function playBody(app, e) {
         numberField({ value: (t.range || [0, 1])[1], min: 0, max: 1, step: 0.01, def: 1, title: 'Where it stops (smaller than the start: it runs backwards)', onChange: (v, { final }) => { if (final) { const r = [(t.range || [0, 1])[0], v]; setT({ range: r[0] === 0 && r[1] === 1 ? undefined : r }, 'traveler range'); } } }))),
       row('Ratio', numberField({ value: t.ratio || 1, min: 0.1, max: 16, step: 0.05, def: 1, title: 'How much longer than its path\'s time it takes: 2 is half as fast', onChange: (v, { final }) => { if (final) setT({ ratio: v === 1 ? undefined : v }, 'traveler ratio'); } })),
       row('Start', timeField(app, t.start ?? '', v => setT({ start: v }, 'traveler start'), { placeholder: '0' })),
-      row('Loop', h('span', { class: 'wb-row-inline' }, ...LOOPS.map(([k, g, name]) => h('button', { class: `wb-icon-btn${(t.loop || 'once') === k ? ' on' : ''}`, type: 'button', title: name, onclick: () => setT({ loop: k }, 'traveler loop') }, g)),
+      row('Loop', h('span', { class: 'wb-row-inline' }, ...LOOPS.map(([k, g, name]) => h('button', { class: `wb-icon-btn${(t.loop ?? (travelLoops ? 'loop' : 'once')) === k ? ' on' : ''}`, type: 'button', title: name, onclick: () => setT({ loop: k }, 'traveler loop') }, g)),
         h('label', { class: 'wb-row-inline', title: 'Replay the line at the speed it was drawn' }, h('input', { type: 'checkbox', checked: t.as === 'drawn', onchange: ev => setT({ as: ev.target.checked ? 'drawn' : undefined }, 'traveler as drawn') }), 'as drawn'))),
       row('Width', numberField({ value: t.width || 0, min: 0, max: 2000, step: 1, def: 0, title: 'A bar across the path (like an IanniX cursor): it touches what its bar passes. 0: a point', onChange: (v, { final }) => {
         if (!final) return;

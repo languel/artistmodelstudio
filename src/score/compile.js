@@ -62,6 +62,7 @@ export function compileEmit(src, names = HELPER_NAMES) {
  *   play: { path: { len: 'grid', metric } }      by the grid, measured 'arc' (along it), 'x', 'y' or 'manhattan'
  *   play: { path: { len: 'speed', speed: 50 } }  units a second
  *   play: { path: { len: 'drawn' } }             as long as it took to draw (when the points are timed)
+ *   play: { path: { loop: true } }               travelers on it loop (default: when the line is closed); a traveler's own `loop` wins
  *   play: { path: { quant: '1 beat' } }          rounded to a division ('1 bar', '0.5 beat', '1 s'; 'off' for none; else the scene's)
  * A traveler that does not say how long it takes runs its path in this time (times its range and ratio).
  */
@@ -109,6 +110,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
   // (names survive a mark being remade; ids do not).
   const pathKey = new Map();
   const pathTimes = new Map();   // path key → the seconds it takes
+  const pathLoops = new Map();   // path key → whether travelers on it loop (unless they say): `path.loop`, else the path is closed
   const wanted = new Set(marks.map(m => m.play.travel?.on).filter(Boolean));
   for (const e of d.elements) {
     const named = typeof e.play?.path === 'string' && e.play.path ? e.play.path : e.play?.path?.name || null;
@@ -119,6 +121,8 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
     paths[key] = { points: outline(e), closed: Boolean(e.closed) };
     const time = pathTime(e, { ctx, beatUnits, quant });
     pathTimes.set(key, time.seconds);
+    const pl = e.play?.path && typeof e.play.path === 'object' ? e.play.path.loop : undefined;
+    pathLoops.set(key, pl === undefined ? Boolean(e.closed) : Boolean(pl));
     info.paths.push({ id: e.id, key, ...time });
   }
 
@@ -151,7 +155,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
         // How long a lap takes: what it says, else its path's time (a fraction of it for a range), times its ratio.
         const span = Array.isArray(t.range) ? Math.max(0.001, Math.abs(t.range[1] - t.range[0])) : 1;
         const dur = secs(t.dur) ?? (t.speed > 0 ? undefined : pathTimes.get(on) * span * (ratio > 0 ? ratio : 1));
-        const spec = { ...t, on, start: secs(t.start), dur, tag: t.tag ?? e.tag ?? null };
+        const spec = { ...t, on, start: secs(t.start), dur, tag: t.tag ?? e.tag ?? null, loop: t.loop ?? (pathLoops.get(on) ? 'loop' : 'once') };
         if (cue) {
           // Started by a trigger: it waits, and each time the trigger fires it begins again.
           const tk = trigKey.get(cue);

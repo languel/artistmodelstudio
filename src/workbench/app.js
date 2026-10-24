@@ -277,7 +277,7 @@ export class Workbench {
     const set = (part, init) => () => edit(`play ${part}`, (d, e) => { e.play = { ...(e.play || {}) }; if (e.play[part]) delete e.play[part]; else e.play[part] = init(e, d); const r = realizeAfter(e, e.play); if (r !== e.realize) e.realize = { ...r }; if (!Object.keys(e.play).length) delete e.play; });
     const items = [
       { label: els.every(e => e.play?.path) ? 'Not a path' : 'Make a path', run: set('path', () => true) },
-      { label: els.every(e => e.play?.travel) ? 'Not a traveler' : 'Make a traveler', run: set('travel', () => ({ on: '', loop: 'once' })) },
+      { label: els.every(e => e.play?.travel) ? 'Not a traveler' : 'Make a traveler', run: set('travel', () => ({ on: '' })) },
       { label: els.every(e => e.play?.trigger) ? 'Not a trigger' : 'Make a trigger', run: set('trigger', () => ({ emit: soundCode(SOUND_DEFAULTS.height) })) },
       { label: els.every(e => e.play?.body) ? 'Not a body' : 'Make a body', run: set('body', () => ({ speed: [60, 200] })) },
       '-',
@@ -2150,6 +2150,7 @@ export class Workbench {
         { label: 'Send to back', run: () => this.store.arrange(ids, 'back') }
       ] },
       { label: 'Move to stage', items: this.store.doc.stages.map(st => ({ label: st.name, run: () => this.store.patchElements(ids, { stage: st.id }, 'stage') })) },
+      this.playMenuItems(ids) && { label: 'Convert to', hint: 'Make this a path, a traveler, a trigger or a body (again: undo it)', items: this.playMenuItems(ids).items.slice(0, 4) },
       this.playMenuItems(ids),
       brushes.length ? { label: 'Brush', items: brushes.map(b => ({ icon: brushIcon(b.id), label: b.label, run: () => this.store.change('brush', d => { for (const el of d.elements) if (ids.includes(el.id)) el.realize = { brush: b.id, params: {} }; }) })) } : null,
       lineish ? { label: 'Sculpt', hint: 'Brush the selected marks into shape (Shift+drag over a mark does it with any tool)', items: [
