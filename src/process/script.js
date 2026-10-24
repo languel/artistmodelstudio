@@ -19,6 +19,7 @@
  *
  * Helpers: random(a?, b?), noise(x, y?), seed(n), sin, cos, PI, TAU, lerp, map, range(n).
  */
+import { markerFor } from './playparts.js';
 import { createDocument, normalizeDocument, newId, STAGE_KINDS } from './document.js';
 import { BRUSHES, mulberry32, installLines, defSource, registerBrush, isBuiltin } from './brushes.js';
 import { findBoard, newBoardId, nextBoardPlace } from './boards.js';
@@ -129,7 +130,7 @@ function runOnce(source, { seed = 1, by = { kind: 'script', name: 'script' }, ba
         stageIds.set(el.stage, stage);
       }
     } else stage = ensureStage().id;
-    const brush = el.brush || defaultBrush;
+    const brush = el.brush || markerFor(role, el.play) || defaultBrush;   // (a mark that plays looks like what it is)
     // The drawing's own brushes: installed on the run's first mark, and again for one not known yet.
     if (!linesInstalled || !BRUSHES[brush]) { installLines(doc); linesInstalled = true; }
     if (!BRUSHES[brush]) throw new Error(`Unknown brush "${brush}" (have: ${Object.keys(BRUSHES).join(', ')})`);

@@ -37,10 +37,53 @@ export class ScoreOverlay {
     return this.cv;
   }
 
+  /** Names, the links between travelers and their paths, and the mark an eyedropper is over. */
+  annotate(ctx, cvw, doc, accent) {
+    const app = this.app, names = Boolean(app.scoreView?.names), sel = cvw.selected || new Set();
+    const byId = new Map(doc.elements.map(e => [e.id, e]));
+    const find = ref => byId.get(ref) || doc.elements.find(x => x.label === ref) || null;
+    const anchor = e => {
+      if (e.role === 'plane' && e.points.length > 2) return [e.points.reduce((a, q) => a + q[0], 0) / e.points.length, e.points.reduce((a, q) => a + q[1], 0) / e.points.length];
+      return e.points[0];
+    };
+    ctx.save();
+    ctx.font = '11px Inter, system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    for (const e of doc.elements) {
+      if (e.hidden || !e.points?.length) continue;
+      const travel = e.play?.travel;
+      if (travel && (names || sel.has(e.id))) {
+        const path = find(travel.on);
+        const [x, y] = cvw.toScreen(e.points[0][0], e.points[0][1]);
+        if (!path) { ctx.fillStyle = '#c0563f'; ctx.textAlign = 'center'; ctx.fillText('?', x + 12, y - 12); }
+        else if (names || sel.has(path.id)) {
+          const [px, py] = cvw.toScreen(path.points[0][0], path.points[0][1]);
+          if (Math.hypot(px - x, py - y) > 6) { ctx.strokeStyle = accent; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(px, py); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
+        }
+      }
+      if (names && (e.play || e.label)) {
+        const [ax, ay] = anchor(e), [x, y] = cvw.toScreen(ax, ay);
+        const text = e.label || e.id, w = ctx.measureText(text).width + 10;
+        ctx.globalAlpha = 0.78; ctx.fillStyle = '#17181b';
+        ctx.beginPath(); (ctx.roundRect ? ctx.roundRect(x + 8, y - 20, w, 16, 8) : ctx.rect(x + 8, y - 20, w, 16)); ctx.fill();
+        ctx.globalAlpha = e.label ? 1 : 0.65; ctx.fillStyle = '#f3efe6'; ctx.textAlign = 'left'; ctx.fillText(text, x + 13, y - 12);
+        ctx.globalAlpha = 1;
+      }
+    }
+    const hov = cvw.pickHover && byId.get(cvw.pickHover);
+    if (hov) {
+      ctx.strokeStyle = accent; ctx.lineWidth = 3; ctx.globalAlpha = 0.85; ctx.lineJoin = 'round'; ctx.beginPath();
+      if (hov.points.length === 1) { const [x, y] = cvw.toScreen(hov.points[0][0], hov.points[0][1]); ctx.arc(x, y, 14, 0, Math.PI * 2); }
+      else hov.points.forEach(([px, py], i) => { const [x, y] = cvw.toScreen(px, py); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   draw() {
     const app = this.app, p = app.player, score = app.score;
     const entries = score.view();
-    if (!entries.length) { if (this.cv) { this.cv.getContext('2d').clearRect(0, 0, this.cv.width, this.cv.height); } this.lit = false; return; }
+    const notes = app.scoreView?.names || app.canvas.pick || (app.canvas.selected?.size && app.store.doc.elements.some(e => e.play?.travel));
+    if (!entries.length && !notes) { if (this.cv) { this.cv.getContext('2d').clearRect(0, 0, this.cv.width, this.cv.height); } this.lit = false; return; }
     const cvw = app.canvas, cv = this.canvas(), ctx = cv.getContext('2d');
     const pos = p.position() / 1000;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -49,6 +92,7 @@ export class ScoreOverlay {
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--wb-accent-2').trim() || '#c8664f';
     score.flashes = score.flashes.filter(f => pos - f.t < FLASH + 0.5 && f.t - pos < 5);
     let moving = p.playing;
+    this.annotate(ctx, cvw, score.doc(), accent);
 
     for (const { board, world } of entries) {
       const at = (x, y) => cvw.toScreen(board.x + x, board.y + y);

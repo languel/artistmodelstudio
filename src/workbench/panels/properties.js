@@ -13,6 +13,7 @@ import { boardById, boardsOf, marksOf, trainBoard, rateOf } from '../../process/
 import { fxEditor } from './fxEditor.js';
 import { SCULPTS, sculptParams } from '../../process/sculpt.js';
 import { NOTE_STYLES, NOTE_FONTS, noteProps } from '../../process/notes.js';
+import { playSection, nameRow } from './playSection.js';
 
 export function mountProperties(el, app) {
   const render = () => {
@@ -41,6 +42,7 @@ export function mountProperties(el, app) {
         const brush = BRUSHES[e.realize.brush]?.roles.includes(v) ? e.realize.brush : brushesForRole(v, app.store.doc)[0]?.id || 'ink';
         patchAll({ role: v, realize: { brush, params: {} }, closed: v === 'plane' ? true : e.closed }, 'role');
       }), ROLES[e.role]),
+      multi ? null : nameRow(app, e),
       row('Stage', selectField(app.store.doc.stages.map(s => [s.id, s.name]), e.stage, v => patchAll({ stage: v }, 'stage'))),
       row('Color', colorField(e.color, v => { patchAll({ color: v }, 'color'); if (e.role === 'note') app.setDefaults('note', { color: v }); }, { app })),
       e.role === 'note' ? row('Text', noteText(e, v => patchAll({ text: v }, 'note'))) : null
@@ -55,6 +57,7 @@ export function mountProperties(el, app) {
     }, app));
     else el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc));
     el.append(lookSection(e, patch => patchAll(patch, 'look')));
+    if (!multi && e.role !== 'note' && e.role !== 'image') el.append(playSection(app, e));
     el.append(section('Reason', true,
       whyField(e.why, v => patchAll({ why: v }, 'why')),
       h('div', { class: 'wb-muted wb-small' }, multi ? '' : `By ${esc(e.by?.name || 'unknown')} (${esc(e.by?.kind || '')}) · seed ${e.seed}`)

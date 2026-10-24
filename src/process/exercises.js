@@ -177,7 +177,7 @@ note(20, 20, 'Verostko: the algorithm is the score, the pen is the performer.')`
 artboard(1000, 600, '#f3efe6')
 stage('Score', 'marks')
 
-const path = line([[60, 420], [260, 160], [480, 380], [700, 120], [940, 300]], { width: 2, why: 'the line the point travels: its length in time is the dur below' })
+const path = line([[60, 420], [260, 160], [480, 380], [700, 120], [940, 300]], { width: 1.5, play: { path: true }, why: 'the line the point travels: its length in time is the dur below' })
 point(60, 420, { size: 14, play: { travel: { on: path, dur: '16 beats', loop: 'pingpong' } }, why: 'the traveler' })
 
 // Three planes: each plays a note of D dorian by its height, for as long as the traveler is inside it.

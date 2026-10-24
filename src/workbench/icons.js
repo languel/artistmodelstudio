@@ -113,7 +113,11 @@ const BRUSH_ICONS = {
   oil: '<path d="M4 16c4-6 9-8 17-8M4.5 18.5c4-5.5 9-7.5 15.5-7.8M6 20c3.5-4 7.5-5.6 11-5.8" stroke-width="2.2" opacity=".8"/>',
   marker: '<path d="M4 17c4-6 9-8 16-8" stroke-width="4.6" stroke-linecap="butt" opacity=".65"/>',
   wash: `<path ${F} d="M5 9c4-4 11-4 14 0s1 8-4 9.5-10 0-10.5-4.5z" opacity=".3"/><path d="M5 9c4-4 11-4 14 0s1 8-4 9.5-10 0-10.5-4.5z" stroke-width="1.5" opacity=".75"/>`,
-  dot: `<circle cx="12" cy="12" r="5" ${F}/>`
+  dot: `<circle cx="12" cy="12" r="5" ${F}/>`,
+  traveler: `<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.4" ${F}/><circle cx="12" cy="12" r="9.4" stroke-dasharray="1.6 2.4" opacity=".5"/>`,
+  path: '<path d="M3 17c4-8 8-10 14-9"/><circle cx="3.6" cy="16.6" r="1.8"/><path d="M16 4.8l5 3.4-5.4 2.6z" fill="currentColor" stroke="none"/>',
+  trigger: '<circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="5.2" opacity=".75"/><circle cx="12" cy="12" r="8.6" opacity=".4"/>',
+  body: `<circle cx="12" cy="12" r="7" ${F}/><circle cx="9.6" cy="9.4" r="1.6" fill="#fff" stroke="none" opacity=".6"/>`
 };
 const SCULPT_ICONS = {
   push: '<path d="M3 16c4-2 6-6 9-6s5 4 9 6" opacity=".55"/><path d="M12 20v-6M9.5 16.5 12 14l2.5 2.5"/>',

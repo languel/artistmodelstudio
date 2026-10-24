@@ -76,12 +76,16 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
     };
   };
 
-  // A path is known by its mark id, or by the name given as `path: 'name'` (names survive a mark being remade).
+  // A path is known by its mark id, its label (the mark's name), or the name given as `path: 'name'`
+  // (names survive a mark being remade; ids do not).
   const pathKey = new Map();
+  const wanted = new Set(marks.map(m => m.play.travel?.on).filter(Boolean));
   for (const e of d.elements) {
-    if (!e.play?.path && !marks.some(m => m.play.travel?.on === e.id)) continue;
-    const key = typeof e.play?.path === 'string' && e.play.path ? e.play.path : e.id;
+    const named = typeof e.play?.path === 'string' && e.play.path ? e.play.path : null;
+    if (!e.play?.path && !wanted.has(e.id) && !(e.label && wanted.has(e.label))) continue;
+    const key = named || e.id;
     pathKey.set(e.id, key);
+    if (e.label && !pathKey.has(e.label)) pathKey.set(e.label, key);
     paths[key] = { points: outline(e), closed: Boolean(e.closed) };
   }
 
@@ -96,7 +100,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
         const sp = pick(body.speed ?? 100), an = body.angle !== undefined ? pick(body.angle) * Math.PI / 180 : rnd() * Math.PI * 2;
         vx = Math.cos(an) * sp; vy = Math.sin(an) * sp;
       }
-      bodies.push({ id: e.id, x: e.points[0][0], y: e.points[0][1], vx, vy, r: body.r ?? Math.max(2, (e.size || 12) / 2), tag: body.tag ?? e.tag ?? null, data: body.data, handle: body.emit ? wrap(body.emit) : null });
+      bodies.push({ id: e.id, x: e.points[0][0], y: e.points[0][1], vx, vy, r: body.r ?? Math.max(2, (e.realize?.params?.size || 12) / 2), tag: body.tag ?? e.tag ?? null, data: body.data, handle: body.emit ? wrap(body.emit) : null });
     }
     if (travel) {
       const on = pathKey.get(travel.on) ?? travel.on;
@@ -109,12 +113,12 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
     if (trigger) {
       const pts = xy(outline(e));
       let region;
-      if (e.role === 'point' || pts.length === 1) region = { kind: 'circle', x: e.points[0][0], y: e.points[0][1], r: trigger.r ?? 8 };
+      if (e.role === 'point' || pts.length === 1) region = { kind: 'circle', x: e.points[0][0], y: e.points[0][1], r: trigger.r ?? Math.max(3, (e.realize?.params?.size || 16) / 2) };
       else if (e.closed || e.role === 'plane') region = { kind: 'polygon', pts };
       else region = { kind: 'line', pts };
       const handle = typeof trigger.emit === 'string' || trigger.emitExit ? wrap(trigger.emit, trigger.emitExit) : handlers[trigger.handler] || null;
       const { emit, emitExit, handler, r, name, start, ...opts } = trigger;
-      const id = name || e.id;
+      const id = name || e.label || e.id;
       triggers.push({ id, region, ...opts, gate: secs(opts.gate), lockout: secs(opts.lockout), handle });
       if (start !== undefined && start !== false) starts.push({ trigger: id, t: start === true ? 0 : secs(start), data: {} });
     }

@@ -312,3 +312,32 @@ describe('smooth marks', () => {
     expect(inside(undefined, 50, 20)).toBe(false);
   });
 });
+
+describe('names', () => {
+  const doc = normalizeDocument({
+    artboard: { width: 100, height: 100 },
+    elements: [
+      { id: 'l1', role: 'line', label: 'melody', points: [[0, 50], [100, 50]], path: 'straight', play: { path: true } },
+      { id: 't1', role: 'point', points: [[0, 50]], play: { travel: { on: 'melody', dur: 4 } } },
+      { id: 't2', role: 'point', points: [[0, 50]], play: { travel: { on: 'l1', dur: 4 } } },
+      { id: 'z', role: 'plane', label: 'bell', path: 'straight', points: [[40, 40], [60, 40], [60, 60], [40, 60]], play: { trigger: {} } }
+    ]
+  });
+  it('a traveler finds its path by the line\'s label or its id; a trigger is known by its label', () => {
+    const { def, info } = compileDoc(doc);
+    expect(info.skipped).toEqual([]);
+    expect(def.travelers.map(t => t.on)).toEqual(['l1', 'l1']);
+    expect(def.triggers[0].id).toBe('bell');
+  });
+  it('a line only has to be named to be a path, when something travels it', () => {
+    const d2 = normalizeDocument({ artboard: { width: 10, height: 10 }, elements: [
+      { id: 'l', role: 'line', label: 'row', points: [[0, 5], [10, 5]] },
+      { id: 't', role: 'point', points: [[0, 5]], play: { travel: { on: 'row', dur: 1 } } }
+    ] });
+    expect(compileDoc(d2).info.skipped).toEqual([]);
+  });
+  it('a trigger point is as big as its brush', () => {
+    const d3 = normalizeDocument({ artboard: { width: 10, height: 10 }, elements: [{ id: 'p', role: 'point', points: [[5, 5]], realize: { brush: 'trigger', params: { size: 30 } }, play: { trigger: {} } }] });
+    expect(compileDoc(d3).def.triggers[0].region.r).toBe(15);
+  });
+});

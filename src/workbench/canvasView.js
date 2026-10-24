@@ -637,11 +637,35 @@ export class CanvasView {
     ctx.restore();
   }
 
-  hitTest(wx, wy) {
+  /**
+   * Pick a mark with the pointer (an eyedropper): the next click on a mark that `accept` allows calls
+   * onPick(mark); Esc, or a click on nothing, cancels. The mark under the pointer is lit meanwhile.
+   */
+  startPick({ accept = () => true, onPick, onEnd } = {}) {
+    this.endPick();
+    this.pick = { accept, onPick, onEnd };
+    this.canvas.style.cursor = 'crosshair';
+    const key = e => { if (e.key === 'Escape') { e.stopPropagation(); this.endPick(); } };
+    window.addEventListener('keydown', key, true);
+    this.pick.key = key;
+  }
+
+  endPick() {
+    const p = this.pick;
+    if (!p) return;
+    this.pick = null; this.pickHover = null;
+    window.removeEventListener('keydown', p.key, true);
+    this.updateCursor?.();
+    this.invalidate();
+    p.onEnd?.();
+  }
+
+  hitTest(wx, wy, accept) {
     const tol = 6 / this.cam.z;
     const els = this.store.ordered().filter(e => this.editable(e));
     for (let i = els.length - 1; i >= 0; i--) {
       const e = els[i];
+      if (accept && !accept(e)) continue;
       const params = resolveParams(e.realize.brush, e.realize.params);
       if (e.role === 'point') {
         if (e.points.some(([x, y]) => Math.hypot(x - wx, y - wy) < (params.size || 10) / 2 + tol)) return e;
@@ -793,7 +817,21 @@ export class CanvasView {
       return true;
     };
     this.host.addEventListener('pointerdown', e => { if (e.target !== c && e.target.closest?.('.wb-frames')) properties(e, e.target); }, true);
+    c.addEventListener('pointermove', e => {
+      if (!this.pick) return;
+      const [wx, wy] = this.toWorld(...this.local(e));
+      const hit = this.hitTest(wx, wy, this.pick.accept);
+      if ((hit?.id || null) !== this.pickHover) { this.pickHover = hit?.id || null; this.invalidate(); }
+    });
     c.addEventListener('pointerdown', e => {
+      if (this.pick && e.button === 0) {
+        e.preventDefault(); e.stopPropagation();
+        const [wx, wy] = this.toWorld(...this.local(e));
+        const hit = this.hitTest(wx, wy, this.pick.accept), pick = this.pick;
+        this.endPick();
+        if (hit) pick.onPick?.(hit);
+        return;
+      }
       if (properties(e, c)) return;
       // Working on the canvas takes the keyboard back from panel fields, so tool keys (V, H, P…) work.
       const f = document.activeElement;

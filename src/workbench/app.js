@@ -894,6 +894,14 @@ export class Workbench {
     return this.scoreToBoard(iannixToScore(text, { title: name, inBoard: true }), 'IanniX', r => `${r.stats.curves} curves, ${r.stats.cursors} cursors, ${r.stats.triggers} triggers`);
   }
 
+  /** How scores show in the picture: { names } (the names of marks that play, drawn beside them). */
+  setScoreView(patch) {
+    Object.assign(this.scoreView, patch);
+    try { localStorage.setItem('ams_scoreview_v1', JSON.stringify(this.scoreView)); } catch { /* ignore */ }
+    this.canvas.invalidate();
+    this.store.emit('score view');   // (Properties shows the switch)
+  }
+
   /** The score as a MIDI file, rendered ahead of time for `seconds` (the loop range, if one is set, else 60): downloaded. */
   async exportMidi(seconds) {
     const [{ renderScore }, { midiFile }, { download }] = await Promise.all([import('../score/runner.js'), import('../score/midifile.js'), import('./ui.js')]);
@@ -1071,6 +1079,7 @@ export class Workbench {
     this.recorder = new Recorder(this);
     this.player = new TakePlayer(this);
     this.score = new ScorePlayer(this);   // plays marks with `play` on the transport
+    try { this.scoreView = { names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { names: false }; }
     this.scoreOverlay = new ScoreOverlay(this);   // and shows them: travelers, lit triggers
     this.shortcuts = new Shortcuts(this);
     this.registerPanels();

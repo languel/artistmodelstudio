@@ -810,3 +810,14 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-fx-name { font-size: 12px; font-weight: 600; cursor: help; }
 .wb-fx-stops { flex-wrap: wrap; gap: 4px; }
 .wb-fx-add { width: 100%; margin-top: 4px; }
+
+/* Properties → Play */
+.wb-play-chips { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.wb-play-chip { opacity: 0.55; }
+.wb-play-chip.on { opacity: 1; color: var(--wb-accent-2); }
+.wb-play-tools { margin-left: auto; display: inline-flex; gap: 2px; }
+.wb-obj { display: inline-flex; align-items: center; gap: 2px; min-width: 0; flex: 1; }
+.wb-obj .wb-obj-input { flex: 1; min-width: 0; }
+.wb-time { width: 100%; }
+.wb-time.bad, .wb-select.bad { outline: 1px solid #c0563f; }
+.wb-play-code { font: 11px var(--font-mono, ui-monospace, monospace); width: 100%; box-sizing: border-box; margin-top: 4px; }

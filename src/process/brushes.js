@@ -111,6 +111,122 @@ export const BRUSHES = {
     }
   },
 
+  // ---- score markers: how a mark that plays looks (see src/score). Plain brushes: change them, or give a mark any other. ----
+  traveler: {
+    label: 'Traveler', roles: ['point'], doc: 'The marker of a point that travels a path: a ring, a dot, and a faint outer ring.',
+    params: [
+      param('size', 'Size', 4, 80, 1, 16, 'Diameter in artboard units.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
+    ],
+    draw(ctx, e, p, k) {
+      ctx.save();
+      ctx.globalAlpha *= p.opacity;
+      const c = e.color || '#c8664f', w = 1.5 / k.scale;
+      for (const [x, y] of e.points) {
+        ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = w;
+        ctx.globalAlpha = p.opacity * 0.35; ctx.setLineDash([2 / k.scale, 3 / k.scale]);
+        ctx.beginPath(); ctx.arc(x, y, p.size * 0.8, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.globalAlpha = p.opacity;
+        ctx.beginPath(); ctx.arc(x, y, p.size / 2, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, p.size * 0.2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  },
+
+  path: {
+    label: 'Path', roles: ['line'], doc: 'A line that can be travelled: thin, with a small ring where it starts and an arrowhead where it ends.',
+    params: [
+      param('width', 'Width', 0.25, 12, 0.25, 1.5, 'Stroke width.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 0.9, 'Paint opacity.'),
+      param('arrow', 'Arrow', 0, 30, 1, 9, 'Size of the arrowhead (0 = none).')
+    ],
+    draw(ctx, e, p, k) {
+      const pts = k.smoothPath(e.points, e.closed);
+      if (pts.length < 2) return;
+      ctx.save();
+      ctx.globalAlpha *= p.opacity;
+      const c = e.color || k.INK;
+      ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = p.width; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      k.tracePath(ctx, pts, e.closed); ctx.stroke();
+      if (!e.closed) {
+        const [sx, sy] = pts[0];
+        ctx.beginPath(); ctx.arc(sx, sy, 2.5 + p.width, 0, Math.PI * 2); ctx.stroke();
+        if (p.arrow > 0) {
+          const b = pts[pts.length - 1];
+          let a = pts[pts.length - 2], i = pts.length - 2;
+          while (i > 0 && Math.hypot(b[0] - a[0], b[1] - a[1]) < p.arrow * 0.6) a = pts[--i];
+          const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = p.arrow, W = p.arrow * 0.45;
+          ctx.beginPath();
+          ctx.moveTo(b[0], b[1]);
+          ctx.lineTo(b[0] - Math.cos(ang) * L + Math.sin(ang) * W, b[1] - Math.sin(ang) * L - Math.cos(ang) * W);
+          ctx.lineTo(b[0] - Math.cos(ang) * L - Math.sin(ang) * W, b[1] - Math.sin(ang) * L + Math.cos(ang) * W);
+          ctx.closePath(); ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+  },
+
+  trigger: {
+    label: 'Trigger', roles: ['plane', 'point', 'line'], doc: 'The look of what sounds when touched: a plane is a soft area with a dashed edge, a point is rings like a ripple, a line is a dashed gate with end ticks.',
+    params: [
+      param('size', 'Size', 4, 80, 1, 16, 'A point: diameter of its inner ring.'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.'),
+      param('fill', 'Fill', 0, 1, 0.02, 0.16, 'A plane: how strongly it is filled.'),
+      param('dash', 'Dash', 0, 30, 1, 6, 'Dash length of the edge (0 = solid).')
+    ],
+    draw(ctx, e, p, k) {
+      const c = e.color || '#3b8fa3', w = 1.5 / k.scale;
+      ctx.save();
+      ctx.globalAlpha *= p.opacity;
+      ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = w; ctx.lineJoin = 'round';
+      if (e.role === 'point') {
+        for (const [x, y] of e.points) {
+          [[0.5, 0.9], [0.85, 0.5], [1.2, 0.25]].forEach(([r, a]) => { ctx.globalAlpha = p.opacity * a; ctx.beginPath(); ctx.arc(x, y, p.size * r, 0, Math.PI * 2); ctx.stroke(); });
+          ctx.globalAlpha = p.opacity; ctx.beginPath(); ctx.arc(x, y, p.size * 0.12, 0, Math.PI * 2); ctx.fill();
+        }
+      } else if (e.role === 'line') {
+        const pts = k.smoothPath(e.points, false);
+        if (p.dash > 0) ctx.setLineDash([p.dash, p.dash * 0.7]);
+        ctx.lineWidth = 2 / k.scale; k.tracePath(ctx, pts, false); ctx.stroke(); ctx.setLineDash([]);
+        for (const [a, b] of [[pts[0], pts[1]], [pts[pts.length - 1], pts[pts.length - 2]]]) {
+          if (!a || !b) continue;
+          const ang = Math.atan2(a[1] - b[1], a[0] - b[0]) + Math.PI / 2, t = 6;
+          ctx.beginPath(); ctx.moveTo(a[0] - Math.cos(ang) * t, a[1] - Math.sin(ang) * t); ctx.lineTo(a[0] + Math.cos(ang) * t, a[1] + Math.sin(ang) * t); ctx.stroke();
+        }
+      } else {
+        if (e.points.length >= 3) {
+          const pts = k.smoothPath(e.points, true);
+          k.tracePath(ctx, pts, true);
+          ctx.globalAlpha = p.opacity * p.fill; ctx.fill();
+          ctx.globalAlpha = p.opacity; if (p.dash > 0) ctx.setLineDash([p.dash, p.dash * 0.7]); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+  },
+
+  body: {
+    label: 'Body', roles: ['point'], doc: 'A point that moves by itself and collides: a soft ball with a highlight.',
+    params: [
+      param('size', 'Size', 2, 80, 1, 12, 'Diameter in artboard units (also its size in collisions).'),
+      param('opacity', 'Opacity', 0, 1, 0.05, 0.95, 'Paint opacity.')
+    ],
+    draw(ctx, e, p, k) {
+      ctx.save();
+      ctx.globalAlpha *= p.opacity;
+      const c = e.color || '#d4a72c';
+      for (const [x, y] of e.points) {
+        ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, p.size / 2, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = p.opacity * 0.55; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x - p.size * 0.12, y - p.size * 0.14, p.size * 0.14, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = p.opacity; ctx.strokeStyle = k.INK; ctx.lineWidth = 0.8 / k.scale; ctx.globalAlpha = p.opacity * 0.4; ctx.beginPath(); ctx.arc(x, y, p.size / 2, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = p.opacity;
+      }
+      ctx.restore();
+    }
+  },
+
   ink: {
     label: 'Ink', roles: ['line', 'gesture', 'plane', 'guide'], doc: 'A pen line whose width follows pressure and tapers at the ends.',
     params: [
