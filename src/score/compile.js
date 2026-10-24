@@ -62,9 +62,10 @@ export function compileEmit(src, names = HELPER_NAMES) {
  *   play: { path: { len: 'grid', metric } }      by the grid, measured 'arc' (along it), 'x', 'y' or 'manhattan'
  *   play: { path: { len: 'speed', speed: 50 } }  units a second
  *   play: { path: { len: 'drawn' } }             as long as it took to draw (when the points are timed)
+ *   play: { path: { quant: '1 beat' } }          rounded to a division ('1 bar', '0.5 beat', '1 s'; 'off' for none; else the scene's)
  * A traveler that does not say how long it takes runs its path in this time (times its range and ratio).
  */
-export function pathTime(e, { ctx = timeContext(DEFAULT_TRANSPORT), beatUnits = DEFAULT_TRANSPORT.beatUnits } = {}) {
+export function pathTime(e, { ctx = timeContext(DEFAULT_TRANSPORT), beatUnits = DEFAULT_TRANSPORT.beatUnits, quant = '' } = {}) {
   const spec = e.play?.path && typeof e.play.path === 'object' ? e.play.path : {};
   const pts = outline(e);
   const beatSeconds = resolveTimeValue('1 beat', ctx);
@@ -75,13 +76,19 @@ export function pathTime(e, { ctx = timeContext(DEFAULT_TRANSPORT), beatUnits = 
   else if (len === 'drawn' && (e.points.at(-1)?.[2] ?? 0) > (e.points[0]?.[2] ?? 0)) { seconds = (e.points.at(-1)[2] - e.points[0][2]) / 1000; mode = 'drawn'; }
   else if (len != null && len !== 'grid' && len !== 'drawn' && len !== 'speed') { seconds = typeof len === 'number' ? len : resolveTimeValue(String(len), ctx); mode = 'time'; }
   else seconds = (units / Math.max(0.001, beatUnits)) * beatSeconds;
+  // Rounded to a division (the path's own `quant`, else the scene's; 'off' leaves it): not for a time written out, which is exact.
+  const q = spec.quant != null ? spec.quant : quant;
+  if (mode !== 'time' && q && q !== 'off') {
+    const quantum = typeof q === 'number' ? q : resolveTimeValue(String(q), ctx);
+    if (quantum > 0.001) seconds = Math.max(quantum, Math.round(seconds / quantum) * quantum);
+  }
   return { seconds: Math.max(0.001, seconds), beats: Math.max(0.001, seconds) / beatSeconds, units, mode };
 }
 
 /** The name a trigger is reached by: its `name`, else the mark's label, else its id. */
 export const triggerIdOf = e => e.play?.trigger?.name || e.label || e.id;
 
-export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, seed = 1, ctx = timeContext(DEFAULT_TRANSPORT), beatUnits = DEFAULT_TRANSPORT.beatUnits } = {}) {
+export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, seed = 1, ctx = timeContext(DEFAULT_TRANSPORT), beatUnits = DEFAULT_TRANSPORT.beatUnits, quant = '' } = {}) {
   const d = boardDoc(doc, board);
   const marks = d.elements.filter(e => e.play && e.points?.length);
   const paths = {}, travelers = [], triggers = [], starts = [], bodies = [];
@@ -110,7 +117,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
     pathKey.set(e.id, key);
     if (e.label && !pathKey.has(e.label)) pathKey.set(e.label, key);
     paths[key] = { points: outline(e), closed: Boolean(e.closed) };
-    const time = pathTime(e, { ctx, beatUnits });
+    const time = pathTime(e, { ctx, beatUnits, quant });
     pathTimes.set(key, time.seconds);
     info.paths.push({ id: e.id, key, ...time });
   }

@@ -3,7 +3,7 @@ import { makePath, sample, sampleDrawn, drawnDuration } from './paths.js';
 import { localTime, lapEnds } from './travel.js';
 import { prepare } from './regions.js';
 import { createWorld, renderEvents } from './world.js';
-import { compileDoc } from './compile.js';
+import { compileDoc, pathTime } from './compile.js';
 import { normalizeDocument } from '../process/document.js';
 
 const near = (a, b, eps = 1e-6) => expect(Math.abs(a - b)).toBeLessThan(eps);
@@ -361,5 +361,18 @@ describe('one way of moving', () => {
     expect(def.bodies).toEqual([]);
     expect(def.travelers.map(t => t.id)).toEqual(['a']);
     expect(info.skipped).toHaveLength(1);
+  });
+});
+
+describe('path time quantized', () => {
+  const e = { id: 'p', role: 'line', points: [[0, 0], [110, 0]], play: { path: true } };
+  it('rounds to a division, the path\'s own over the scene\'s; a written time is exact', () => {
+    const beat = pathTime(e, { beatUnits: 25 }).beats;
+    expect(beat).toBeCloseTo(4.4, 2);
+    expect(pathTime(e, { beatUnits: 25, quant: '1 beat' }).beats).toBeCloseTo(4, 3);
+    expect(pathTime(e, { beatUnits: 25, quant: '1 bar' }).beats).toBeCloseTo(4, 3);
+    expect(pathTime({ ...e, play: { path: { quant: 'off' } } }, { beatUnits: 25, quant: '1 beat' }).beats).toBeCloseTo(4.4, 2);
+    expect(pathTime({ ...e, play: { path: { quant: '0.5 beat' } } }, { beatUnits: 25 }).beats).toBeCloseTo(4.5, 3);
+    expect(pathTime({ ...e, play: { path: { len: '3.3 beats', quant: '1 beat' } } }, { beatUnits: 25 }).beats).toBeCloseTo(3.3, 3);
   });
 });

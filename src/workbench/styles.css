@@ -843,3 +843,7 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-mx-btn { flex: 1; border: 1px solid var(--line, #0003); background: transparent; color: inherit; border-radius: 4px; padding: 2px 0; cursor: pointer; }
 .wb-mx-btn.on { background: #c55; color: #fff; border-color: #c55; }
 .wb-mx-btn.solo.on { background: #db3; color: #000; border-color: #db3; }
+.wb-tl-loop-h { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; pointer-events: auto; z-index: 3; }
+.wb-tl-loop-h.in { left: -4px; }
+.wb-tl-loop-h.out { right: -4px; }
+.wb-tl-loop-h:hover { background: color-mix(in srgb, var(--wb-accent-2) 35%, transparent); }

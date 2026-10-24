@@ -13,7 +13,7 @@ import { PARTS, MARKER, realizeAfter, newPart, canBePath } from '../../process/p
 import { parseTimeValue } from '../../time/timeValue.js';
 import * as R from '../../score/relations.js';
 const barAngle = R.barAngle;
-import { timeContext, formatLength } from '../../time/sceneTransport.js';
+import { timeContext, formatDuration, QUANT_CHOICES } from '../../time/sceneTransport.js';
 import { pathTime } from '../../score/compile.js';
 
 const TITLES = {
@@ -112,13 +112,14 @@ export function playBody(app, e) {
       const keys = Object.keys(next);
       pl.path = !keys.length ? true : keys.length === 1 && keys[0] === 'name' ? next.name : next;
     }, lab || 'path length');
-    const time = pathTime(e, { ctx: timeContext(settings), beatUnits: settings.beatUnits });
+    const time = pathTime(e, { ctx: timeContext(settings), beatUnits: settings.beatUnits, quant: settings.quant });
     parts.push(
       row('Length', selectField([['grid', 'By the grid'], ['time', 'A time'], ['speed', 'A speed'], ['drawn', 'As drawn']], mode, v => setPath({ len: v === 'grid' ? undefined : v === 'time' ? (typeof spec.len === 'number' || (typeof spec.len === 'string' && !['grid', 'speed', 'drawn'].includes(spec.len)) ? spec.len : '1 bar') : v, speed: v === 'speed' ? spec.speed || 50 : undefined }), 'How the length of the line becomes time. By the grid: one beat for each beat-length of it (Timeline)')),
       mode === 'grid' ? row('Measured', selectField([['arc', 'Along it'], ['x', 'Across'], ['y', 'Up and down'], ['manhattan', 'Right angles']], spec.metric || 'arc', v => setPath({ metric: v }), 'How its length is measured')) : null,
       mode === 'time' ? row('Takes', timeField(app, spec.len ?? '', v => setPath({ len: v ?? undefined }), { placeholder: '1 bar' })) : null,
       mode === 'speed' ? row('Speed', numberField({ value: spec.speed || 50, min: 1, max: 5000, step: 5, def: 50, title: 'Artboard units a second', onChange: (v, { final }) => { if (final) setPath({ speed: v }); } })) : null,
-      row('Is', h('span', { class: 'wb-muted', title: 'How long a traveler on it takes by default' }, formatLength(time.beats, settings.signature.numerator)))
+      mode === 'time' ? null : row('Round to', selectField([['', `Scene (${QUANT_CHOICES.find(c => c[0] === settings.quant)?.[1] || 'free'})`], ['off', 'Free'], ...QUANT_CHOICES.filter(c => c[0])], spec.quant == null ? '' : String(spec.quant), v => setPath({ quant: v === '' ? undefined : v }), 'Round how long it takes to a division: a beat, a bar, a second… (a time written out is exact)')),
+      row('Is', h('span', { class: 'wb-muted', title: 'How long a traveler on it takes by default (in the Timeline\'s units)' }, formatDuration(time.seconds, settings)))
     );
   }
 

@@ -7,6 +7,7 @@
  *   fps         frames a second, for the frame ruler
  *   ruler       'time' | 'beats' | 'frames'
  *   loop        { start, end } seconds; end <= start means "no range" (the whole take)
+ *   quant       a time ('1 beat', '1 bar', '1 s', '0.5 beat'…) that path lengths are rounded to; '' for none
  *   mixer       the channel mixer and global scale (src/score/mixer.js)
  *   beatUnits   artboard units in one beat: a line this long takes a beat (25: one minor cell of the default grid)
  */
@@ -22,6 +23,7 @@ export const DEFAULT_TRANSPORT = Object.freeze({
   fps: 30,
   ruler: 'time',
   beatUnits: 25,
+  quant: '',
   mixer: Object.freeze(normalizeMixer(null)),
   loop: Object.freeze({ start: 0, end: 0 })
 });
@@ -38,6 +40,7 @@ export function normalizeTransport(t) {
     fps: FPS_CHOICES.includes(Number(s.fps)) ? Number(s.fps) : DEFAULT_TRANSPORT.fps,
     ruler: RULERS.includes(s.ruler) ? s.ruler : DEFAULT_TRANSPORT.ruler,
     beatUnits: num(s.beatUnits, 0) > 0 ? Math.min(10000, Math.max(0.01, num(s.beatUnits, 25))) : DEFAULT_TRANSPORT.beatUnits,
+    quant: typeof s.quant === 'string' && s.quant.length < 24 ? s.quant.trim() : '',
     mixer: normalizeMixer(s.mixer),
     loop: end > start ? { start, end } : { start: 0, end: 0 }
   };
@@ -56,3 +59,14 @@ export function formatLength(beats, perBar = 4) {
   const b = Math.round(beats * 100) / 100;
   return `${b} beat${b === 1 ? '' : 's'}`;
 }
+
+/** A length in seconds as the scene's ruler reads time: seconds, bars and beats, or frames. */
+export function formatDuration(seconds, t) {
+  if (t.ruler === 'beats') return formatLength((seconds * t.tempo) / 60, t.signature.numerator);
+  if (t.ruler === 'frames') return `${Math.round(seconds * t.fps)} f`;
+  if (seconds >= 60) { const m = Math.floor(seconds / 60); return `${m}:${(seconds - m * 60).toFixed(1).padStart(4, '0')}`; }
+  return `${Math.round(seconds * 100) / 100} s`;
+}
+
+/** The divisions a length can be rounded to: [value, label]. */
+export const QUANT_CHOICES = Object.freeze([['', 'Free'], ['1 bar', 'Bar'], ['1 beat', 'Beat'], ['0.5 beat', '½ beat'], ['0.25 beat', '¼ beat'], ['1 s', 'Second'], ['1 frame', 'Frame']]);

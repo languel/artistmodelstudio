@@ -37,7 +37,7 @@ export function buildEntries(doc, settings, { helpers = () => ({}), onError = ()
   for (const b of boardsOf(doc)) {
     if (!boards.has(b.id) || !boardFilter(b)) continue;
     try {
-      const { def, info } = compileDoc(doc, { board: b.id, ctx, helpers, beatUnits: settings.beatUnits });
+      const { def, info } = compileDoc(doc, { board: b.id, ctx, helpers, beatUnits: settings.beatUnits, quant: settings.quant });
       for (const s of info.skipped) onError(`${b.title || b.id}: ${s}`);
       // idle: nothing in it starts by itself (no traveler running, no body, no trigger set to start)
       out.push({ board: b, world: createWorld(def), idle: !(def.travelers.length || def.bodies.length || def.starts.length), paths: info.paths });
@@ -77,7 +77,7 @@ export function createRunner({ getDoc, getSettings, outputs, now = () => perform
       if (!playing || rate <= 0) { this.stop(); return; }
       const settings = getSettings();
       const nowMs = now();
-      const fullKey = `${key}|${settings.tempo}|${settings.signature.numerator}/${settings.signature.denominator}|${settings.fps}`;
+      const fullKey = `${key}|${settings.tempo}|${settings.signature.numerator}/${settings.signature.denominator}|${settings.fps}|${settings.beatUnits}|${settings.quant}`;
       const expected = lastT + ((nowMs - lastNow) / 1000) * rate;
       if (!active || fullKey !== builtKey || Math.abs(t - expected) > 0.3 + lookahead * rate) {
         silence();
