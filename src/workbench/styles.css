@@ -850,3 +850,9 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-tl { --wb-tl-grid: color-mix(in srgb, currentColor 7%, transparent); --wb-tl-grid-strong: color-mix(in srgb, currentColor 16%, transparent); }
 /* A row of choices as glyphs (a node's kind, how it sends on, a loop): the chosen one stands out. */
 .wb-row-inline .wb-icon-btn.on { color: var(--wb-accent-2); background: color-mix(in srgb, var(--wb-accent-2) 16%, transparent); border-radius: 5px; }
+/* What a tool just became: under its button, or (zen) its glyph at the pointer. */
+.wb-toollabel { position: fixed; z-index: 90; transform: translateX(-50%); pointer-events: none; background: var(--wb-panel); border: 1px solid var(--wb-line); color: var(--wb-text); font-size: 11px; padding: 3px 8px; border-radius: 6px; box-shadow: var(--wb-shadow); white-space: nowrap; transition: opacity .25s; }
+.wb-toollabel.glyph { transform: none; padding: 5px; display: flex; }
+.wb-toollabel.glyph svg { width: 20px; height: 20px; }
+.wb-toollabel.out { opacity: 0; }
+.wb-paint-key { position: absolute; right: -3px; bottom: -6px; font: 8px var(--font-mono); color: var(--wb-muted); pointer-events: none; }

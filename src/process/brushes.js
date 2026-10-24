@@ -119,6 +119,7 @@ export const BRUSHES = {
       param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
     ],
     draw(ctx, e, p, k) {
+      if (k.hideTravelers && e.play?.travel) return;   // (while it plays the moving one is drawn over the canvas: no copy is left behind)
       ctx.save();
       ctx.globalAlpha *= p.opacity;
       const c = e.color || '#c8664f', w = 1.5 / k.scale;
@@ -137,11 +138,12 @@ export const BRUSHES = {
   },
 
   path: {
-    label: 'Path', roles: ['line'], doc: 'A line that can be travelled: thin, with a small ring where it starts and an arrowhead where it ends.',
+    label: 'Path', roles: ['line'], doc: 'A line that can be travelled: thin, with a small ring where it starts and, by default, a solid dot where it ends (Properties → End: dot, snub arrow, bar or ring).',
     params: [
       param('width', 'Width', 0.25, 12, 0.25, 1.5, 'Stroke width.'),
       param('opacity', 'Opacity', 0, 1, 0.05, 0.9, 'Paint opacity.'),
-      param('arrow', 'Arrow', 0, 30, 1, 9, 'Size of the arrowhead (0 = none).')
+      param('arrow', 'End size', 0, 30, 1, 5, 'Size of what it ends in (0 = nothing).'),
+      param('end', 'End', 0, 3, 1, 0, 'What it ends in: 0 a solid dot, 1 a snub arrowhead, 2 a bar across, 3 a ring.')
     ],
     draw(ctx, e, p, k) {
       const pts = k.smoothPath(e.points, e.closed);
@@ -153,17 +155,19 @@ export const BRUSHES = {
       k.tracePath(ctx, pts, e.closed); ctx.stroke();
       if (!e.closed) {
         const [sx, sy] = pts[0];
-        if (!e.play?.path?.edge) { ctx.beginPath(); ctx.arc(sx, sy, 2.5 + p.width, 0, Math.PI * 2); ctx.stroke(); }   // (an edge starts at a node, which says so)
+        if (!e.play?.path?.edge) { ctx.beginPath(); ctx.arc(sx, sy, 1.2 + p.width * 0.6, 0, Math.PI * 2); ctx.stroke(); }   // (a small ring where it starts; an edge starts at a node, which says so)
         if (p.arrow > 0) {
-          const b = pts[pts.length - 1];
+          const b = pts[pts.length - 1], end = Math.round(p.end ?? 0);
           let a = pts[pts.length - 2], i = pts.length - 2;
-          while (i > 0 && Math.hypot(b[0] - a[0], b[1] - a[1]) < p.arrow * 0.6) a = pts[--i];
-          const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = p.arrow, W = p.arrow * 0.45;
+          while (i > 0 && Math.hypot(b[0] - a[0], b[1] - a[1]) < p.arrow * 0.5) a = pts[--i];
+          const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), cs = Math.cos(ang), sn = Math.sin(ang);
           ctx.beginPath();
-          ctx.moveTo(b[0], b[1]);
-          ctx.lineTo(b[0] - Math.cos(ang) * L + Math.sin(ang) * W, b[1] - Math.sin(ang) * L - Math.cos(ang) * W);
-          ctx.lineTo(b[0] - Math.cos(ang) * L - Math.sin(ang) * W, b[1] - Math.sin(ang) * L + Math.cos(ang) * W);
-          ctx.closePath(); ctx.fill();
+          if (end === 1) {   // a snub head: short and broad
+            const L = p.arrow * 0.8, W = p.arrow * 0.62;
+            ctx.moveTo(b[0], b[1]); ctx.lineTo(b[0] - cs * L + sn * W, b[1] - sn * L - cs * W); ctx.lineTo(b[0] - cs * L - sn * W, b[1] - sn * L + cs * W); ctx.closePath(); ctx.fill();
+          } else if (end === 2) { const h = p.arrow * 0.6; ctx.moveTo(b[0] + sn * h, b[1] - cs * h); ctx.lineTo(b[0] - sn * h, b[1] + cs * h); ctx.stroke(); }
+          else if (end === 3) { ctx.arc(b[0], b[1], p.arrow / 2, 0, Math.PI * 2); ctx.stroke(); }
+          else { ctx.arc(b[0], b[1], p.arrow / 2, 0, Math.PI * 2); ctx.fill(); }   // a solid dot
         }
       }
       ctx.restore();

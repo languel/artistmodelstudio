@@ -14,7 +14,7 @@ export class ScoreOverlay {
   constructor(app) {
     this.app = app;
     this.cv = null;
-    app.player.on(() => this.poke());
+    app.player.on(() => { const live = Boolean(app.player.playing && app.score && app.canvas); if (live !== Boolean(app.canvas.travelersLive)) { app.canvas.travelersLive = live; app.canvas.invalidate(); } this.poke(); });
     app.store.subscribe(() => this.poke());
     // Drawn with the canvas, so it follows every pan and zoom.
     const prev = app.canvas.onDrawn;

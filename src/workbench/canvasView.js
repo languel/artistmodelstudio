@@ -267,7 +267,7 @@ export class CanvasView {
     for (const b of boards) if (b.hidden || this.composedIds?.has(b.id)) skip.add(b.id);
     renderDocument(ctx, skip.size ? { ...doc, elements: doc.elements.filter(e => !skip.has(e.board || MAIN)) } : doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
-      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, now: this.frameNow, view: this.viewRect(),
+      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, now: this.frameNow, view: this.viewRect(), hideTravelers: Boolean(this.travelersLive),
       selectColor: css.getPropertyValue('--wb-select').trim() || '#8a8a8a'
     });
     if (composed.length) this.drawComposed(ctx, doc, composed, css);
@@ -942,13 +942,13 @@ export class CanvasView {
       // (only a few boards can be that close, and a huge picture costs more than it saves).
       if (Math.max(W, H) * s > 2 * Math.max(this.w, this.h) * dpr) { this.baked.delete(b.id); continue; }
       done.add(b.id);
-      const key = `${s.toFixed(4)}|${mode}|${this.upTo}`;
+      const key = `${s.toFixed(4)}|${mode}|${this.upTo}|${this.travelersLive ? 'live' : ''}`;
       let c = this.baked.get(b.id);
       if (!c || c.key !== key || !c.canvas.width || !c.canvas.height) {   // (a canvas the browser has emptied is baked again)
         if (!marks) { marks = new Map(); for (const e of doc.elements) { const k = e.board || MAIN; (marks.get(k) || marks.set(k, []).get(k)).push(e); } }
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(W * s)); canvas.height = Math.max(1, Math.round(H * s));
-        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, frozen: true, now: this.frameNow });
+        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, hideTravelers: Boolean(this.travelersLive), transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, frozen: true, now: this.frameNow });
         c = { key, canvas };
         this.baked.set(b.id, c);
       }

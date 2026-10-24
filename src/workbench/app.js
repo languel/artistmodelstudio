@@ -224,7 +224,24 @@ export class Workbench {
     const cur = this.playKind === 'node' ? `node:${this.playNodeKind}` : this.playKind;
     const next = ids[((this.tool === 'play' ? ids.indexOf(cur) : -1) + 1) % ids.length];
     if (next.startsWith('node:')) this.setPlayNodeKind(next.slice(5)); else this.setPlayKind(next);
-    this.canvas.flash?.(this.playKind === 'node' ? NODE_INFO[this.playNodeKind].label : PLAY_KINDS.find(k => k[0] === this.playKind)[1]);
+    this.toolLabel(this.playKind === 'node' ? NODE_INFO[this.playNodeKind].label : PLAY_KINDS.find(k => k[0] === this.playKind)[1], this.playKindIcon(this.playKind), 'tool:play');
+  }
+
+  /**
+   * Say what a tool just became: a small label under its button; with the tools hidden (zen), its glyph at the pointer.
+   * Replaced by the next one, gone after a moment.
+   */
+  toolLabel(text, glyphHtml, guide) {
+    this._toolLabel?.remove();
+    clearTimeout(this._toolLabelT);
+    const btn = this.ui?.tools === false ? null : document.querySelector(`[data-guide="${guide}"]`);
+    const r = btn?.getBoundingClientRect();
+    const tip = h('div', { class: `wb-toollabel${r && r.width ? '' : ' glyph'}`, html: r && r.width ? '' : glyphHtml });
+    if (r && r.width) { tip.textContent = text; Object.assign(tip.style, { left: `${r.left + r.width / 2}px`, top: `${r.bottom + 6}px` }); }
+    else { const [px, py] = this.pointerAt || [innerWidth / 2, innerHeight / 2]; Object.assign(tip.style, { left: `${px + 18}px`, top: `${py + 18}px` }); tip.title = text; }
+    document.body.append(tip);
+    this._toolLabel = tip;
+    this._toolLabelT = setTimeout(() => { tip.classList.add('out'); setTimeout(() => tip.remove(), 250); }, 1100);
   }
   /** The kind of node the Play tool places. */
   setPlayNodeKind(k) {
@@ -624,8 +641,9 @@ export class Workbench {
       return b;
     };
     return h('div', { class: 'wb-paint', 'data-guide': 'tool:paint' },
-      chip('fill', f, 'Fill (right-click: none)'), chip('stroke', s, 'Stroke (right-click: brush ink)'),
-      h('button', { class: 'wb-paint-swap', title: 'Swap stroke and fill', type: 'button', onclick: () => this.swapPaint() }, '⇄'));
+      chip('fill', f, 'Fill (right-click: none) · C: stroke and fill picker'), chip('stroke', s, 'Stroke (right-click: brush ink) · C: stroke and fill picker'),
+      h('button', { class: 'wb-paint-swap', title: 'Swap stroke and fill', type: 'button', onclick: () => this.swapPaint() }, '⇄'),
+      h('kbd', { class: 'wb-paint-key' }, 'C'));
   }
 
   swapPaint() {
@@ -1969,13 +1987,13 @@ export class Workbench {
     });
     // Play: author a score by pointing (click again, or right-click, for what it makes and for solo).
     const kind = PLAY_KINDS.find(k => k[0] === this.playKind) || PLAY_KINDS[0];
-    const playBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'play' ? ' on' : ''}`, 'data-guide': 'tool:play', title: `Play: ${kind[1]} (Y). ${kind[2]} Click again or right-click for the kinds`, html: `${this.playKindIcon(kind[0])}<kbd>Y</kbd>` });
+    const playBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'play' ? ' on' : ''}`, 'data-guide': 'tool:play', title: `Play: ${kind[1]} (Y). ${kind[2]} Click again or right-click for the kinds`, html: `${this.playKindIcon(kind[0])}<kbd>Y</kbd><span class="wb-tool-caret"></span>` });
     playBtn.addEventListener('click', () => { if (this.tool === 'play') { const r = playBtn.getBoundingClientRect(); this.playMenu(r.left, r.bottom + 4); } else this.setTool('play'); });
     playBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.playMenu(ev.clientX, ev.clientY); });
     tools.append(h('div', { class: 'wb-sep' }), brushBtn, sculptBtn, playBtn);
     // Snap to grid: on shows the grid at full strength; off, fainter.
     const snapKey = this.shortcuts?.label('view.snap') || '';
-    tools.append(h('div', { class: 'wb-sep' }), this.paintSwatches(), h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''} · right-click: grid and drawing settings`, html: icon('snap'), onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }), oncontextmenu: e => { e.preventDefault(); openGridParams(this, e.clientX, e.clientY + 8); } }));
+    tools.append(h('div', { class: 'wb-sep' }), this.paintSwatches(), h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''} · right-click or G: canvas settings (grid, names, drawing)`, html: `${icon('snap')}<kbd>G</kbd>`, onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }), oncontextmenu: e => { e.preventDefault(); openGridParams(this, e.clientX, e.clientY + 8); } }));
     { const [id, tip, key] = NOTE_TOOL; tools.append(h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) })); }
     const right = h('div', { class: 'wb-island wb-view-island' },
       h('button', { class: 'wb-tool', 'data-guide': 'menu', title: 'Menu', html: icon('menu'), onclick: e => this.openMenu(e.currentTarget) }),
