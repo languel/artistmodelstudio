@@ -13,6 +13,7 @@ import { timeContext } from '../time/sceneTransport.js';
 import { createGmOutput } from '../score/outputs/gm.js';
 import { createWebMidiOutput } from '../score/outputs/webmidi.js';
 import { createRouter, strips, patchMixer } from '../score/mixer.js';
+import { createBus, sampleFeatures } from '../score/bus.js';
 
 const PREFS = 'ams_sound_v1';
 
@@ -52,8 +53,9 @@ export class ScorePlayer {
       outputs: () => this.outputs(),
       onError: msg => { this.errors.push(msg); app.log?.(`Score: ${msg}`, 'error'); },
       onEffects: (fx, board) => this.applyEffects(fx, board),
-      onEvents: (evs, board) => { for (const e of evs) if (e.trigger) this.flashes.push({ board: board.id, trigger: e.trigger, t: e.t, type: e.type }); }
+      onEvents: (evs, board) => { for (const e of evs) if (e.trigger) this.flashes.push({ board: board.id, trigger: e.trigger, t: e.t, type: e.type }); this.bus.record(evs, board, this.rawDoc()); }
     });
+    this.bus = createBus();   // the score as named signals (src/score/bus.js): the embed's __, Poliplan's score messages
     this.flashes = [];   // what the overlay lights up: { board, trigger, t (s), type }
     app.player.on(() => this.onPlayer());
   }
@@ -242,9 +244,18 @@ export class ScorePlayer {
     }
   }
 
+  /** The features of the score now, for the bus's subscribers (sampled only when someone listens). */
+  features(t = this.app.player.position() / 1000) {
+    const entries = this.view();
+    return { t, playing: this.app.player.playing, ...sampleFeatures(entries, t, this.doc()) };
+  }
+
+  sample() { if (this.bus.hasFrameSubscribers()) this.bus.frame(() => this.features()); }
+
   tick() {
     const p = this.app.player;
     const wrap = p.wrapRange();
     this.runner.tick({ t: p.position() / 1000, playing: p.playing, rate: p.rate, limit: wrap ? wrap[1] / 1000 : Infinity, key: this.key() });
+    this.sample();
   }
 }

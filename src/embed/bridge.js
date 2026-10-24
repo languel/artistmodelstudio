@@ -127,7 +127,25 @@ export function startBridge(app, { origin = location.origin } = {}) {
   };
 
   let hostKey = false;
+  const scoreSubs = new Map();
+  // __ in the embed (the iframe's own window: the host's window.__ is never touched): the score as signals, the same names as the messages.
+  window.__ = { score: { read: name => app.score.bus.read(name, app.score.features()), subscribe: (opts) => app.score.bus.subscribe(opts), recent: (since, name) => app.score.bus.recent(since, name), features: t => app.score.features(t) } };
   const handlers = {
+    /** Score signals: subscribe { names?, hz? } → frames and events to the host until unsubscribed. */
+    'score-subscribe': m => {
+      const id = m.subId || `s${Math.random().toString(36).slice(2, 8)}`;
+      const unsub = app.score.bus.subscribe({
+        names: m.names, hz: m.hz,
+        onFrame: f => post({ type: 'score-frame', subId: id, ...f }),
+        onEvent: ev => post({ type: 'score-event', subId: id, ...ev })
+      });
+      scoreSubs.set(id, unsub);
+      return { subId: id, hz: m.hz || 25 };
+    },
+    'score-unsubscribe': m => { scoreSubs.get(m.subId)?.(); scoreSubs.delete(m.subId); return { ok: true }; },
+    /** The current value of signals (names are prefixes: 'lead' gives lead.x, lead.u…). */
+    'score-read': m => { const f = app.score.features(); return { t: f.t, features: app.score.bus.read(m.name, f) }; },
+    'score-recent': m => ({ events: app.score.bus.recent(m.since || 0, m.name || null) }),
     'host-key': m => {
       hostKey = true;
       const event=new KeyboardEvent(m.event==='keyup'?'keyup':'keydown',{

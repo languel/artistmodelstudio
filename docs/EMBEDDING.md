@@ -182,3 +182,25 @@ This lets an overlay host share box selection after a passed-through gesture.
 host keydown/keyup to the editor, returning `{handled}`. Hosts must exclude text
 editing and reserve their own shortcuts. Forwarded events do not emit `key`
 back to the host, preventing an input routing loop.
+
+
+## The score as signals (Poliplan, 25 Oct 2026)
+
+A drawing's score (paths, travelers, events: see `docs/notes/score-namespace-plan.md`) is readable from the host and from `__` inside the editor. Signals are board-normalized: `x` and `y` run 0..1 across the board (y up), `u` is 0..1 along the path; a name is a mark's label, else its id; a name used on two boards is prefixed with the board title.
+
+Host side (`ams-editor.js`):
+
+```js
+const stop = editor.subscribeScore({ names: ['lead', 'gate'], hz: 25 },
+  frame => frame.features['lead.u'],          // { t, playing, features } at hz
+  ev => console.log(ev.phase, ev.name, ev.x)); // entry | exit | cross | end | arrive | collide
+await editor.readScore('lead');               // { t, features } now
+await editor.recentEvents(0, 'gate');         // { events } since a sequence number
+stop();
+```
+
+Features: travelers `<name>.x .y .u .speed .lap .active`; bodies `.x .y .r .vx .vy`; events `<name>.active`. Events carry `seq t name phase x y u lat dir speed traveler other tag`. No MIDI is sent to the host.
+
+Inside the editor, `__.score` has the same: `read(name)`, `subscribe({names,hz,onFrame,onEvent})`, `recent(since,name)`, `features(t)`. The editor's `window.__` is in its own iframe window, so it never touches the host's.
+
+Not yet: the host clock (the host driving the playhead), host writes to designated inputs, designated output ports, and the standalone runtime (see the plan).
