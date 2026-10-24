@@ -374,7 +374,10 @@ plane(rect(450, 350, 100, 200), { play: { trigger: { emit: "note(1, snap(48 + la
 What you see is what plays: a traveler follows its line along the **drawn curve** (the smooth path through the points, not the straight segments between them), and a plane or circle covers its **drawn outline**. Give a mark \`path: 'straight'\` for straight segments and sharp corners.
 
 - **path**: \`play: { path: true }\`, or a name: \`path: 'melody'\`.
-- **traveler**: \`play: { travel: { on: path, dur | speed, start, rate, loop: 'once' | 'loop' | 'pingpong', as: 'drawn', width, tag } }\`. Times are seconds or times (\`'2 beats'\`, \`'1 bar'\`, \`'500ms'\`, \`'4n'\`). **as: 'drawn'** replays a line at the speed the hand drew it; \`width\` makes the traveler a bar across the path (an IanniX cursor).
+- **traveler**: \`play: { travel: { on: path, dur | speed, start, rate, loop: 'once' | 'loop' | 'pingpong', as: 'drawn', width, tag } }\`. Times are seconds or times (\`'2 beats'\`, \`'1 bar'\`, \`'500ms'\`, \`'4n'\
+<h4>Mixer and scale</h4>
+<p>The <b>Mixer</b> tab (beside the Timeline) has the sixteen MIDI channels: choose each one's instrument (General MIDI), where it is heard (built-in sound, a MIDI port, both, or off), volume, pan, transpose, and mute or solo it. The <b>Scale</b> at the top holds every note to a scale (Off: notes play as written), so an IanniX score that wanders across the whole keyboard becomes tonal; the score's code stays the same. The mixer is saved with the scene.</p>
+`). **as: 'drawn'** replays a line at the speed the hand drew it; \`width\` makes the traveler a bar across the path (an IanniX cursor).
 - **trigger**: \`play: { trigger: { emit, emitExit, on, gate, lockout, policy, filter, r, name, start } }\`. **emit** is code run on each touch; **policy** is \`latched\` (one voice however many travelers; the default), \`pair\` or \`every\`; **gate** holds it open at least that long; **lockout** is the time before it can fire again.
 - **body**: \`play: { body: { speed: [60, 220], r: 7, emit } }\`: a point that moves by itself, bounces off the board and other bodies (elastic), and touches triggers like a traveler. Many of them are a gas; \`spawn({ x, y, vx, vy, life })\` and \`effect({ type: 'mark', x, y })\` make more.
 

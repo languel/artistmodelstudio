@@ -1,7 +1,6 @@
 /** Settings: the artboard (size, paper), the workspace (theme, grid, reference), and the guide. */
 import { h, row, numberField, selectField, section } from '../ui.js';
 import { colorField } from '../colorPicker.js';
-import { GM_PROGRAMS } from '../../score/outputs/gm.js';
 
 const PRESETS = [
   ['square', 'Square', 1000, 1000], ['a4', 'A4', 794, 1123], ['letter', 'Letter', 816, 1056], ['4:3', '4 : 3', 1200, 900],
@@ -77,16 +76,12 @@ function soundSection(app) {
   const sc = app.score;
   if (!sc) return section('Sound', false);
   const ports = sc.midi.ports();
-  const ch = Number(sessionStorage.getItem('ams_sound_ch') || 1);
-  const prog = sc.prefs.programs[ch] ?? (ch === 3 ? 32 : 0);
   return section('Sound', false,
     row('Built-in', check(sc.prefs.gm, v => { sc.setSound({ gm: v }); }, 'Play scores with the built-in General MIDI sound'), 'The built-in General MIDI sound (no MIDI hardware needed)'),
     row('MIDI', h('span', { class: 'wb-row-inline' },
       selectField([['none', 'None'], ['all', 'All ports'], ...ports.map(p => [p.id, p.name])], sc.midi.selected, v => { sc.setSound({ midi: v }); app.store.emit('sound'); }, 'A MIDI output for scores'),
       h('button', { class: 'wb-btn', title: 'Ask the browser for MIDI access', onclick: () => sc.connectMidi().then(() => app.store.emit('sound')).catch(e => app.log(`MIDI: ${e.message}`, 'error')) }, sc.midi.connected ? 'Refresh' : 'Connect')), 'A MIDI output port, for real instruments'),
-    row('Channel', h('span', { class: 'wb-row-inline' },
-      selectField(Array.from({ length: 16 }, (_, i) => [String(i + 1), i === 9 ? '10 · drums' : String(i + 1)]), String(ch), v => { sessionStorage.setItem('ams_sound_ch', v); app.store.emit('sound'); }, 'The channel to set the instrument of'),
-      ch === 10 ? null : selectField(GM_PROGRAMS.map((n, i) => [String(i), `${i + 1} ${n}`]), String(prog), v => sc.setSound({ program: [ch, Number(v)] }), 'The built-in sound (and MIDI port) plays this instrument on the channel')), 'Which instrument a channel plays'),
+    row('Instruments', h('button', { class: 'wb-btn', title: 'Per-channel instruments, routes, volume, mute and solo, and the scale filter', onclick: () => app.docks.open('mixer') }, 'Open mixer')),
     h('div', { class: 'wb-row wb-row-actions' },
       h('button', { class: 'wb-btn', title: 'Play a short chord on the outputs', onclick: () => sc.test() }, 'Test'),
       h('button', { class: 'wb-btn', title: 'Everything off', onclick: () => sc.panic() }, 'Stop all')));

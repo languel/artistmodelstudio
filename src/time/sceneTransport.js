@@ -7,9 +7,11 @@
  *   fps         frames a second, for the frame ruler
  *   ruler       'time' | 'beats' | 'frames'
  *   loop        { start, end } seconds; end <= start means "no range" (the whole take)
+ *   mixer       the channel mixer and global scale (src/score/mixer.js)
  *   beatUnits   artboard units in one beat: a line this long takes a beat (25: one minor cell of the default grid)
  */
 import { clampTempo, normalizeTimeSignature } from './transport.js';
+import { normalizeMixer } from '../score/mixer.js';
 
 export const RULERS = Object.freeze(['time', 'beats', 'frames']);
 export const FPS_CHOICES = Object.freeze([24, 25, 30, 50, 60]);
@@ -20,6 +22,7 @@ export const DEFAULT_TRANSPORT = Object.freeze({
   fps: 30,
   ruler: 'time',
   beatUnits: 25,
+  mixer: Object.freeze(normalizeMixer(null)),
   loop: Object.freeze({ start: 0, end: 0 })
 });
 
@@ -35,6 +38,7 @@ export function normalizeTransport(t) {
     fps: FPS_CHOICES.includes(Number(s.fps)) ? Number(s.fps) : DEFAULT_TRANSPORT.fps,
     ruler: RULERS.includes(s.ruler) ? s.ruler : DEFAULT_TRANSPORT.ruler,
     beatUnits: num(s.beatUnits, 0) > 0 ? Math.min(10000, Math.max(0.01, num(s.beatUnits, 25))) : DEFAULT_TRANSPORT.beatUnits,
+    mixer: normalizeMixer(s.mixer),
     loop: end > start ? { start, end } : { start: 0, end: 0 }
   };
 }

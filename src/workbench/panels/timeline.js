@@ -386,7 +386,7 @@ export function mountTimeline(root, app) {
   let settingsKey = '';
   const checkSettings = () => {
     const p = P(); if (!p) return;
-    const key = JSON.stringify(p.settings);
+    const key = JSON.stringify({ ...p.settings, mixer: 0 });
     if (key === settingsKey) return;
     settingsKey = key; drawBar(); timeEl = null; drawLanes();
   };
@@ -396,7 +396,7 @@ export function mountTimeline(root, app) {
     if (lastPlaying !== p.playing) { lastPlaying = p.playing; drawBar(); timeEl = null; }   // redraw the bar only when play/pause flips
     if (p.playing) kick(); else { setHead(p.t); timeEl ||= bar.querySelector('.wb-tl-time'); if (timeEl) timeEl.textContent = stampOf(p.t, p.duration); }
   };
-  const attach = () => { if (!P() || !R()) return setTimeout(attach, 30); P().on(sync); app.store.subscribe(checkSettings); settingsKey = JSON.stringify(P().settings); drawBar(); drawLanes(); loadTakes(); };
+  const attach = () => { if (!P() || !R()) return setTimeout(attach, 30); P().on(sync); app.store.subscribe(checkSettings); settingsKey = JSON.stringify({ ...P().settings, mixer: 0 }); drawBar(); drawLanes(); loadTakes(); };
   // While recording, new clips redraw the lanes (at most every 250 ms); the loop moves the playhead.
   let liveQueued = false;
   const liveRedraw = () => { if (liveQueued) return; liveQueued = true; setTimeout(() => { liveQueued = false; if (live()) drawLanes(); }, 250); };

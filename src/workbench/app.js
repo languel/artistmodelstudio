@@ -43,6 +43,7 @@ import { mountSettings } from './panels/settings.js';
 import { mountShortcuts } from './panels/shortcuts.js';
 import { mountCode } from './panels/code.js';
 import { mountTimeline } from './panels/timeline.js';
+import { mountMixer } from './panels/mixer.js';
 import { Recorder } from './recorder.js';
 import { History } from './history.js';
 import { mountHistory } from './panels/history.js';
@@ -1221,6 +1222,7 @@ export class Workbench {
     reg('settings', 'Settings', 'gear', 'right', mountSettings);
     reg('shortcuts', 'Shortcuts', 'keyboard', 'right', mountShortcuts);
     reg('timeline', 'Timeline', 'film', 'bottom', mountTimeline);
+    reg('mixer', 'Mixer', 'mixer', 'bottom', mountMixer);
     reg('history', 'History', 'history', 'bottom', mountHistory);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }

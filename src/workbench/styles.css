@@ -822,3 +822,24 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-time { width: 100%; }
 .wb-time.bad, .wb-select.bad { outline: 1px solid #c0563f; }
 .wb-play-code { font: 11px var(--font-mono, ui-monospace, monospace); width: 100%; box-sizing: border-box; margin-top: 4px; }
+
+/* Mixer */
+.wb-mx { display: flex; flex-direction: column; height: 100%; min-height: 0; font-size: 11px; }
+.wb-mx-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 10px; border-bottom: 1px solid var(--line, #0002); }
+.wb-mx-group { display: inline-flex; align-items: center; gap: 5px; }
+.wb-mx-end { margin-left: auto; }
+.wb-mx-cap { opacity: .6; }
+.wb-mx-strips { display: flex; gap: 4px; padding: 6px 8px; overflow: auto; flex: 1; min-height: 0; }
+.wb-mx-strip { display: flex; flex-direction: column; gap: 4px; width: 112px; flex: 0 0 112px; padding: 4px; border: 1px solid var(--line, #0002); border-radius: 6px; }
+.wb-mx-strip.is-off { opacity: .45; }
+.wb-mx-strip .wb-select, .wb-mx-strip input[type=number] { width: 100%; min-width: 0; font-size: 11px; }
+.wb-mx-num { font-weight: 600; display: flex; justify-content: space-between; }
+.wb-mx-sub { font-weight: 400; opacity: .6; }
+.wb-mx-faders { display: flex; gap: 4px; align-items: center; }
+.wb-mx-faders .wb-range { flex: 1; min-width: 0; }
+.wb-mx-meter { width: 6px; height: 22px; background: #0002; border-radius: 3px; position: relative; overflow: hidden; flex: none; }
+.wb-mx-level { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: #3a9; }
+.wb-mx-ms { display: flex; gap: 4px; }
+.wb-mx-btn { flex: 1; border: 1px solid var(--line, #0003); background: transparent; color: inherit; border-radius: 4px; padding: 2px 0; cursor: pointer; }
+.wb-mx-btn.on { background: #c55; color: #fff; border-color: #c55; }
+.wb-mx-btn.solo.on { background: #db3; color: #000; border-color: #db3; }

@@ -12,6 +12,7 @@ import { soloDoc } from '../score/solo.js';
 import { timeContext } from '../time/sceneTransport.js';
 import { createGmOutput } from '../score/outputs/gm.js';
 import { createWebMidiOutput } from '../score/outputs/webmidi.js';
+import { createRouter, strips, patchMixer } from '../score/mixer.js';
 
 const PREFS = 'ams_sound_v1';
 
@@ -27,6 +28,19 @@ export class ScorePlayer {
     this.gm = createGmOutput({ programs: this.prefs.programs });
     this.midi = createWebMidiOutput();
     this.midi.select(this.prefs.midi || 'none');
+    /** Every message passes the scene's mixer (per-channel instrument, route, mute, solo, scale) on its way to the sound. */
+    this.router = createRouter(() => this.mixer());
+    this.mix = {
+      id: 'mix', name: 'Mixer',
+      send: (bytes, at) => {
+        const r = this.router.route(bytes);
+        if (!r) return;
+        const gm = this.prefs.gm && r.to !== 'midi', midi = this.midi.connected && r.to !== 'gm';
+        if (gm) this.gm.send(r.bytes, at);
+        if (midi) this.midi.send(r.bytes, at);
+      },
+      clear: () => { this.router.reset(); this.gm.clear(); this.midi.clear?.(); }
+    };
     this.extra = new Set();   // other outputs (a log, in tests)
     this.errors = [];
     this.sig = new WeakMap();
@@ -60,7 +74,29 @@ export class ScorePlayer {
     setTimeout(() => { if (!ids.length) return; this.app.store.change('score', d => { d.elements = d.elements.filter(e => !ids.includes(e.id)); }, { transient: true, by: 'score' }); }, 4000);
   }
 
-  outputs() { return [...(this.prefs.gm ? [this.gm] : []), ...(this.midi.connected ? [this.midi] : []), ...this.extra]; }
+  outputs() { return [this.mix, ...this.extra]; }
+
+  /** The scene's mixer. */
+  mixer() { return this.app.player.settings.mixer; }
+
+  /** Change the mixer ({ channel: { 3: { program: 40 } }, scale, transpose }): one undo step, and what it sets up is sent now. */
+  setMixer(patch) {
+    const before = this.mixer(), next = patchMixer(before, patch);
+    this.app.player.setSettings({ mixer: next });
+    this.applyMixer(patch.channel ? Object.keys(patch.channel).map(Number) : []);
+  }
+
+  /** Send the instrument, volume and pan of channels (all, when none are named) to the sound. */
+  applyMixer(channels = []) {
+    const m = this.mixer();
+    for (const ch of channels.length ? channels : Array.from({ length: 16 }, (_, i) => i + 1)) {
+      for (const b of strips(m, ch)) {
+        if (b[0] >> 4 === 0xc) this.gm.setProgram(ch, b[1]);
+        else if (this.prefs.gm) this.gm.send(b);
+        if (this.midi.connected) this.midi.send(b);
+      }
+    }
+  }
 
   savePrefs() { try { localStorage.setItem(PREFS, JSON.stringify({ ...this.prefs, midi: this.midi.selected })); } catch { /* ignore */ } }
 
@@ -75,11 +111,7 @@ export class ScorePlayer {
   setSound(patch = {}) {
     if ('gm' in patch) { this.prefs.gm = Boolean(patch.gm); if (!patch.gm) this.gm.clear(); }
     if ('midi' in patch) { this.midi.clear(); this.midi.select(patch.midi); }
-    if (patch.program) {
-      const [ch, n] = patch.program;
-      this.prefs.programs[ch] = n; this.gm.setProgram(ch, n);
-      for (const p of this.midi.connected ? [this.midi] : []) p.send([0xc0 | (ch - 1), n]);
-    }
+    if (patch.program) this.setMixer({ channel: { [patch.program[0]]: { program: patch.program[1] } } });   // (instruments are the mixer's)
     this.savePrefs();
   }
 
@@ -190,7 +222,7 @@ export class ScorePlayer {
   /** The worlds to draw: the runner's while it plays, else ones built just to show where things are. */
   view() {
     if (this.runner.active) return this.runner.entries;
-    const key = `${this.key()}|${JSON.stringify(this.app.player.settings)}`;
+    const key = `${this.key()}|${JSON.stringify({ ...this.app.player.settings, mixer: 0 })}`;
     if (this.viewKey !== key) { this.viewKey = key; this.viewEntries = hasScore(this.doc()) ? buildEntries(this.doc(), this.app.player.settings, { boardFilter: b => this.plays(b) }) : []; }
     return this.viewEntries;
   }
@@ -198,7 +230,7 @@ export class ScorePlayer {
   onPlayer() {
     const p = this.app.player;
     if (p.playing && !this.timer && hasScore(this.doc())) {
-      this.gm.resume().catch(e => this.app.log?.(`Sound: ${e.message}`, 'error'));
+      this.gm.resume().then(() => this.applyMixer()).catch(e => this.app.log?.(`Sound: ${e.message}`, 'error'));
       const v = this.view();
       if (v.length && v.every(e => e.idle)) this.app.canvas.flash('Nothing starts this score: give a trigger a Start, or a traveler a path');
       this.timer = setInterval(() => this.tick(), TICK_MS);
