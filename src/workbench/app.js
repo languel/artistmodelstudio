@@ -206,6 +206,11 @@ export class Workbench {
     if (PLANES.some(c => c[0] === t)) return stack(PLANES);
     if (t === 'brush') return this.brushIds().map(id => ({ id, label: BRUSHES[id].label, icon: brushIcon(id), active: id === this.brush.id, run: () => { this.pickBrush(id, { apply: false }); this.setTool('brush'); } }));
     if (t === 'sculpt') return Object.entries(SCULPTS).map(([id, st]) => ({ id, label: st.label, icon: sculptIcon(id), active: id === this.sculpt.tool, run: () => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } }));
+    // Play: its kinds (point at things, path, traveler, trigger, gate, body, node); with Node chosen, the kinds of node.
+    if (t === 'play') {
+      if (this.playKind === 'node') return NODE_KINDS.map(k => ({ id: k, label: NODE_INFO[k].label, icon: nodeIcon(k), active: k === this.playNodeKind, run: () => this.setPlayNodeKind(k) }));
+      return PLAY_KINDS.map(([id, label]) => ({ id, label, icon: this.playKindIcon(id), active: id === this.playKind, run: () => (id === 'node' ? this.setPlayNodeKind(this.playNodeKind || 'note') : this.setPlayKind(id)) }));
+    }
     // Pan, laser, board, point, note: the top-level tools.
     const top = [['select', 'Select'], ['hand', 'Pan'], ['laser', 'Laser'], ['board', 'Board'], ['point', 'Point'], ['line', 'Line'], ['plane', 'Plane'], ['brush', 'Brush'], ['sculpt', 'Sculpt'], ['play', 'Play'], ['note', 'Note']];
     return top.map(([id, label]) => ({ id, label, icon: this.pathIcon(id), active: id === t, run: () => this.setTool(id) }));
