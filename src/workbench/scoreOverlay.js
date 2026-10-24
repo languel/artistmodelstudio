@@ -4,12 +4,14 @@
  * same worlds the sound uses (ScorePlayer.view), so what is seen and what is heard are one thing.
  * Redrawn every frame while the transport runs, and when it moves or the drawing changes.
  */
-import { centerOf } from '../score/geometry.js';
+import { centerOf, outlineOf, pointAt } from '../score/geometry.js';
+import { snapStep } from '../time/sceneTransport.js';
 import { laserOutline, fillLaserOutline } from './laser.js';
 import { formatDuration } from '../time/sceneTransport.js';
 
 /** How a score is drawn over the canvas (Canvas menu; a traveler can say its own: travel.glow, travel.glowSize, travel.trail). */
 export const SCORE_LOOK = Object.freeze({ glow: 0.4, glowSize: 3.2, trail: 0.6, trailAlpha: 0.55, blip: 1, color: '' });   // (color: the highlight of everything lit; empty: the theme's accent)
+const pathLen = pts => { let t = 0; for (let i = 1; i < pts.length; i++) t += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return t; };
 const FLASH = 0.55;   // seconds an event's blip lasts
 
 export class ScoreOverlay {
@@ -21,6 +23,47 @@ export class ScoreOverlay {
     // Drawn with the canvas, so it follows every pan and zoom.
     const prev = app.canvas.onDrawn;
     app.canvas.onDrawn = () => { prev?.(); this.draw(); };
+  }
+
+  /**
+   * The Timeline's divisions along a path: ticks at every step of time (longer on the beats), for the paths of what is
+   * selected (a path, a traveler on one, an event on one). Held Ctrl shows them; sliding a traveler shows them too.
+   */
+  divisions(ctx, cvw, score, entries, accent) {
+    const doc = score.doc(), st = this.app.player.settings;
+    const slide = this.app.canvas.playTool?.slide;
+    const ids = new Set([...(cvw.selected || []), ...(slide ? [slide.id] : [])]);
+    const find = ref => doc.elements.find(x => x.id === ref || x.label === ref);
+    const secs = new Map(entries.flatMap(en => (en.paths || []).map(p => [p.id, p.seconds])));
+    const base = snapStep({ ...st, snap: st.snap === 'off' ? 'auto' : st.snap }, 100);
+    if (!(base > 0)) return;
+    const beat = (60 / st.tempo) * (4 / st.signature.denominator);
+    ctx.save();
+    ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    const done = new Set();
+    for (const id of ids) {
+      const e = doc.elements.find(x => x.id === id);
+      if (!e) continue;
+      const line = e.play?.travel ? find(e.play.travel.on) : e.play?.trigger?.path ? find(e.play.trigger.path) : e.play?.path ? e : null;
+      if (!line || done.has(line.id + ':' + id) || !(line.points?.length >= 2)) continue;
+      done.add(line.id + ':' + id);
+      const total = (e.play?.travel && typeof e.play.travel.dur === 'number' ? e.play.travel.dur : null) ?? secs.get(line.id) ?? 0;
+      if (!(total > 0)) continue;
+      const pts = outlineOf(line);
+      let step = base;
+      const len = pathLen(pts) * cvw.cam.z;
+      while (step > 0 && (len / (total / step)) < 5 && step < total) step *= 2;   // (never denser than a tick every 5 px)
+      const n = Math.floor(total / step + 1e-9);
+      for (let k = 0; k <= n; k++) {
+        const q = pointAt(pts, Math.min(1, (k * step) / total));
+        const [x, y] = cvw.toScreen(q[0], q[1]);
+        const major = Math.abs((k * step) / beat - Math.round((k * step) / beat)) < 1e-6;
+        const L = (Number(line.realize?.params?.width) || 1.5) / 2 * cvw.cam.z + (major ? 8 : 5);   // (reaching out past the stroke)
+        ctx.globalAlpha = major ? 0.9 : 0.6;
+        ctx.beginPath(); ctx.moveTo(x - q[3] * L, y + q[2] * L); ctx.lineTo(x + q[3] * L, y - q[2] * L); ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
 
   poke() {
@@ -152,6 +195,7 @@ export class ScoreOverlay {
     score.flashes = score.flashes.filter(f => pos - f.t < FLASH + 0.5 && f.t - pos < 5);
     let moving = p.playing;
     this.annotate(ctx, cvw, score.doc(), accent);
+    if (cvw.ctrlHeld || cvw.playTool?.slide) this.divisions(ctx, cvw, score, entries, accent);
 
     const byEl = new Map(score.doc().elements.map(e => [e.id, e])), posIds = new Map();
     for (const { board, world } of entries) {

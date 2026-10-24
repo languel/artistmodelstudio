@@ -136,10 +136,11 @@ export class PlayTool {
         this.snap = null; dropOn = null;
         const c0 = centerOf({ ...hit, points: orig.get(hit.id) });
         // A traveler moved off its line has no points of its own on the canvas: it starts from where it was drawn.
-        const from = !isEvent && tr ? (cv.travelerPos?.get(hit.id) || c0) : c0;
+        const from = !isEvent && tr ? here : c0;   // (`here`: where it was drawn when pressed; the drawn place follows the drag, so it is not read again)
         if (!isEvent && tr) { dx = mx - wx + (from[0] - c0[0]); dy = my - wy + (from[1] - c0[1]); }
         if (startSel.length === 1) {
-          const near = nearestPath(this.paths().filter(p => p.id !== hit.id), from[0] + (isEvent || !tr ? dx : mx - wx), from[1] + (isEvent || !tr ? dy : my - wy), this.radius());
+          // Alt takes it off its own line (so it can be let go free, or on another line); Shift may come back to any.
+          const near = nearestPath(this.paths().filter(p => p.id !== hit.id && !(ev.altKey && !ev.shiftKey && p.id === line?.id)), from[0] + (isEvent || !tr ? dx : mx - wx), from[1] + (isEvent || !tr ? dy : my - wy), this.radius() * 0.75);
           if (near && (hit.play?.travel || hit.play?.trigger)) { dropOn = { path: near.mark.id, u: near.hit.u }; this.snap = { x: near.hit.x, y: near.hit.y }; if (isEvent || !tr) { dx = near.hit.x - c0[0]; dy = near.hit.y - c0[1]; } }
           else if (near && !ev.altKey) { dx = near.hit.x - c0[0]; dy = near.hit.y - c0[1]; this.snap = { x: near.hit.x, y: near.hit.y }; }
         }
@@ -182,11 +183,11 @@ export class PlayTool {
         }
       } else if (mode === 'move' && (hit.play?.travel || hit.play?.trigger) && startSel.length === 1) {
         // Let go: near a line, attach to it (a traveler starts from there, an event sits there); else it is free of any line.
-        const keep = dropOn, was = Boolean(line);
-        this.app.store.commitFrom(before, 'move');
-        const id = hit.id;
-        if (keep) this.app.store.change('attach', draft => (isEvent ? R.attachEvent(draft, id, keep.path, keep.u) : R.attachTraveler(draft, id, keep.path, keep.u, this.app.player.position() / 1000, this.app.player.settings)));
-        else if (was) this.app.store.change('detach', draft => R.detach(draft, id));
+        const keep = dropOn, was = Boolean(line), id = hit.id;
+        // The move, and what follows from it (on a line now, or free), are one undo step.
+        if (keep) (isEvent ? R.attachEvent(this.doc, id, keep.path, keep.u) : R.attachTraveler(this.doc, id, keep.path, keep.u, this.app.player.position() / 1000, this.app.player.settings));
+        else if (was) R.detach(this.doc, id);
+        this.app.store.commitFrom(before, keep ? 'attach' : was ? 'detach' : 'move');
         if (keep) cv.flash(`On ${(this.doc.elements.find(x => x.id === keep.path)?.label) || 'the line'}`); else if (was) cv.flash('Off the line');
       } else this.app.store.commitFrom(before, mode === 'slide' ? (isEvent ? 'event slide' : 'traveler offset') : 'move');
     };

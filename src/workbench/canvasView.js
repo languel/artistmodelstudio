@@ -730,6 +730,11 @@ export class CanvasView {
     const altState = e => { const on = Boolean(e.altKey); if (on !== this.altHeld) { this.altHeld = on; this.paintAffected(); } };
     window.addEventListener('keydown', altState);
     window.addEventListener('keyup', altState);
+    // Ctrl held: a selected path, traveler or event shows the Timeline's divisions along its path (see the score overlay).
+    const ctrlState = e => { const on = Boolean(e.ctrlKey); if (on !== Boolean(this.ctrlHeld)) { this.ctrlHeld = on; this.invalidate(); } };
+    window.addEventListener('keydown', ctrlState);
+    window.addEventListener('keyup', ctrlState);
+    window.addEventListener('blur', () => { if (this.ctrlHeld) { this.ctrlHeld = false; this.invalidate(); } });
     // While drawing, a point-by-point path takes
     // Enter or Esc (finish) and Backspace (remove the last point).
     // Double-tap CapsLock (it ends as it was, so typing is unchanged): flips the path between smooth
@@ -1358,6 +1363,9 @@ export class CanvasView {
   /** Direct is active, or Option is held: the sculpt brush's preview shows (not while dragging, pan or the laser). */
   affectedShown() {
     const t = this.getTool();
+    if (t === 'play') return false;   // (the Play tool uses Alt to take a traveler or event off its line)
+    const over = this.hovered && this.store.doc.elements.find(e => e.id === this.hovered);
+    if (over?.play?.travel || over?.play?.trigger) return false;   // (and so does the Select tool, over one)
     return Boolean(this.lastLocal) && (!this.pointer || Boolean(this.sculptDrag)) && !this.space && (t === 'direct' || Boolean(this.altHeld)) && !['hand', 'laser', 'note', 'point', 'board'].includes(t);
   }
 
