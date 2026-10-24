@@ -174,3 +174,40 @@ describe('solo', () => {
     expect(ids(['Z'])).toEqual(['Z', 'plain']);
   });
 });
+
+import { pathTime } from './compile.js';
+import { lengthBy } from './geometry.js';
+describe('how long a path takes', () => {
+  const line = (len, play = { path: true }) => ({ id: 'p', role: 'line', label: 'row', path: 'straight', points: [[0, 50, 0, 0.5], [100, 50, 1000, 0.5]], play: typeof play === 'object' && play.path === true && len ? { path: { len } } : play });
+  const ctx = settings;
+  it('is by the grid unless it says: a line four cells long is a bar', () => {
+    const t = pathTime(line(), { ctx, beatUnits: 25 });
+    expect(t.beats).toBeCloseTo(4); expect(t.seconds).toBeCloseTo(2); expect(t.mode).toBe('grid');   // 100 units / 25 = 4 beats = a bar of 4/4, 2 s at 120
+    expect(pathTime(line(), { ctx, beatUnits: 50 }).beats).toBeCloseTo(2);
+  });
+  it('can be a time, a speed, or as long as it took to draw', () => {
+    expect(pathTime(line('1 bar'), { ctx }).seconds).toBeCloseTo(2);
+    expect(pathTime(line(3), { ctx }).seconds).toBe(3);
+    expect(pathTime(line(undefined, { path: { len: 'speed', speed: 25 } }), { ctx }).seconds).toBeCloseTo(4);
+    expect(pathTime(line(undefined, { path: { len: 'drawn' } }), { ctx }).seconds).toBeCloseTo(1);
+  });
+  it('is measured along it, across, up and down, or at right angles', () => {
+    const pts = [[0, 0], [30, 0], [30, 40]];
+    expect([lengthBy(pts), lengthBy(pts, 'x'), lengthBy(pts, 'y'), lengthBy(pts, 'manhattan')]).toEqual([70, 30, 40, 70]);
+  });
+
+  const travel = (extra = {}) => normalizeDocument({ artboard: { width: 200, height: 100 }, elements: [
+    line(), { id: 't', role: 'point', points: [[0, 50]], play: { travel: { on: 'row', ...extra } } },
+    { id: 'z', role: 'point', points: [[50, 50]], play: { trigger: { r: 0.5, emit: 'note(1, 60, 100, 0.1)' } } }
+  ] });
+  const at = d => notes(renderScore(d, settings, 6))[0]?.[0];
+  it('a traveler with no time of its own runs its path in the path\'s time', () => {
+    expect(at(travel())).toBeCloseTo(1, 1);   // 2 s for the whole line, half way (x = 50) after 1 s
+    expect(at(travel({ ratio: 2 }))).toBeCloseTo(2, 1);   // twice as long
+    expect(at(travel({ dur: 1 }))).toBeCloseTo(0.5, 1);   // it says: 1 s
+  });
+  it('a traveler can run just part of the path, in a fraction of its time', () => {
+    // From a quarter to the end (75 % of the line) takes 1.5 s; x = 50 is a third of the way into that range.
+    expect(at(travel({ range: [0.25, 1] }))).toBeCloseTo(0.5, 1);
+  });
+});

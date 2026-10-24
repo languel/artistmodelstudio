@@ -37,10 +37,10 @@ export function buildEntries(doc, settings, { helpers = () => ({}), onError = ()
   for (const b of boardsOf(doc)) {
     if (!boards.has(b.id) || !boardFilter(b)) continue;
     try {
-      const { def, info } = compileDoc(doc, { board: b.id, ctx, helpers });
+      const { def, info } = compileDoc(doc, { board: b.id, ctx, helpers, beatUnits: settings.beatUnits });
       for (const s of info.skipped) onError(`${b.title || b.id}: ${s}`);
       // idle: nothing in it starts by itself (no traveler running, no body, no trigger set to start)
-      out.push({ board: b, world: createWorld(def), idle: !(def.travelers.length || def.bodies.length || def.starts.length) });
+      out.push({ board: b, world: createWorld(def), idle: !(def.travelers.length || def.bodies.length || def.starts.length), paths: info.paths });
     } catch (e) { onError(`${b.title || b.id}: ${e.message}`); }
   }
   return out;

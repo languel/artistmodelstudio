@@ -64,3 +64,15 @@ export function nearestPath(marks, x, y, radius, accept = () => true) {
   }
   return best;
 }
+
+/**
+ * How long a curve is for a score, by how it is measured: 'arc' along it (the default), 'x' across (its
+ * width: a timeline drawn left to right), 'y' up and down, 'manhattan' (right angles only, as on a grid).
+ */
+export function lengthBy(pts, metric = 'arc') {
+  if (!pts?.length) return 0;
+  if (metric === 'x') return Math.max(...pts.map(q => q[0])) - Math.min(...pts.map(q => q[0]));
+  if (metric === 'y') return Math.max(...pts.map(q => q[1])) - Math.min(...pts.map(q => q[1]));
+  if (metric === 'manhattan') return pts.reduce((s, q, i) => (i ? s + Math.abs(q[0] - pts[i - 1][0]) + Math.abs(q[1] - pts[i - 1][1]) : 0), 0);
+  return lengthOf(pts);
+}

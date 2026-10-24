@@ -61,6 +61,10 @@ export function mountTimeline(root, app) {
     tempo.addEventListener('keydown', ev => ev.stopPropagation());
     const sig = h('select', { class: 'wb-select', title: 'Meter' }, ...['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '9/8', '12/8'].map(m => h('option', { value: m, selected: m === `${st.signature.numerator}/${st.signature.denominator}` }, m)));
     sig.addEventListener('change', () => { const [numerator, denominator] = sig.value.split('/').map(Number); p.setSettings({ signature: { numerator, denominator } }); sig.blur(); });
+    const units = h('input', { class: 'wb-select wb-tl-units', type: 'number', min: 0.01, step: 1, value: st.beatUnits, title: 'Artboard units in one beat: a path this long takes a beat (the default grid\'s minor cell is 25), so a line of four cells is a bar' });
+    units.addEventListener('change', () => p.setSettings({ beatUnits: Number(units.value) }));
+    units.addEventListener('keydown', ev => ev.stopPropagation());
+    const cell = h('button', { class: 'wb-icon-btn', type: 'button', title: 'A beat is one minor cell of the canvas grid', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h16v16H4zM4 12h16M12 4v16"/></svg>', onclick: () => { const g = app.canvas.grid; p.setSettings({ beatUnits: Math.round((g.spacing / Math.max(1, g.subdivisions)) * 100) / 100 }); } });
     const fps = h('select', { class: 'wb-select', title: 'Frames a second' }, ...FPS_CHOICES.map(f => h('option', { value: f, selected: f === st.fps }, `${f} fps`)));
     fps.addEventListener('change', () => { p.setSettings({ fps: Number(fps.value) }); fps.blur(); });
     const rate = h('select', { class: 'wb-select', title: 'Playback rate' }, ...[0.5, 1, 2, 4, 8].map(r => h('option', { value: r, selected: r === (p?.rate || 1) }, `${r}×`)));
@@ -72,6 +76,7 @@ export function mountTimeline(root, app) {
       ruler,
       st.ruler === 'frames' ? fps : tempo,
       st.ruler === 'frames' ? null : sig,
+      units, cell,
       rate,
       h('button', { class: `wb-icon-btn${p?.loop ? ' on' : ''}`, title: p.loopRange ? 'Loop the marked range (Shift-drag the ruler to mark one; right-click it to clear)' : 'Loop (Shift-drag the ruler to mark a range)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a6 6 0 016-6h8l-3-3M20 12a6 6 0 01-6 6H6l3 3"/></svg>', onclick: () => { p.loop = !p.loop; drawBar(); drawLanes(); } }),
       sel,

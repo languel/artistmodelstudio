@@ -153,5 +153,6 @@ export function nousToScore(input, options = {}) {
     L.push(`point(${px(n)}, ${py(n)}, { size: ${size}, color: ${q(colour)}${n.label ? `, label: ${q(n.label)}` : ''}, play: { trigger: { name: ${q(`n${n.id}`)}, on: [], r: 6${n.start ? ', start: true' : ''}${emit ? `, emit: ${q(emit)}` : ''} } } })`);
   }
   if (!nodes.some(n => n.start)) warnings.push('Midinous: no start node, so nothing plays (mark one as a start)');
-  return { code: `${L.join('\n')}\n`, title, size: { width, height }, settings, warnings, stats: { nodes: nodes.length, paths } };
+  // A grid cell is a beat: the scene's beat is as long as a cell is on this board.
+  return { code: `${L.join('\n')}\n`, title, size: { width, height }, settings: { ...settings, beatUnits: r(cell, 2) }, warnings, stats: { nodes: nodes.length, paths } };
 }

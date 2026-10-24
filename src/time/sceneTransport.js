@@ -7,6 +7,7 @@
  *   fps         frames a second, for the frame ruler
  *   ruler       'time' | 'beats' | 'frames'
  *   loop        { start, end } seconds; end <= start means "no range" (the whole take)
+ *   beatUnits   artboard units in one beat: a line this long takes a beat (25: one minor cell of the default grid)
  */
 import { clampTempo, normalizeTimeSignature } from './transport.js';
 
@@ -18,6 +19,7 @@ export const DEFAULT_TRANSPORT = Object.freeze({
   signature: Object.freeze({ numerator: 4, denominator: 4 }),
   fps: 30,
   ruler: 'time',
+  beatUnits: 25,
   loop: Object.freeze({ start: 0, end: 0 })
 });
 
@@ -32,6 +34,7 @@ export function normalizeTransport(t) {
     signature: normalizeTimeSignature(s.signature),
     fps: FPS_CHOICES.includes(Number(s.fps)) ? Number(s.fps) : DEFAULT_TRANSPORT.fps,
     ruler: RULERS.includes(s.ruler) ? s.ruler : DEFAULT_TRANSPORT.ruler,
+    beatUnits: num(s.beatUnits, 0) > 0 ? Math.min(10000, Math.max(0.01, num(s.beatUnits, 25))) : DEFAULT_TRANSPORT.beatUnits,
     loop: end > start ? { start, end } : { start: 0, end: 0 }
   };
 }
@@ -41,3 +44,11 @@ export const loopRange = t => (t.loop.end > t.loop.start ? [t.loop.start, t.loop
 
 /** The time context the expression parser and the ruler need. */
 export const timeContext = t => ({ tempo: t.tempo, signature: t.signature, fps: t.fps });
+
+/** A length in beats as people say it: '1 bar', '2 bars', '3 beats', '1.5 beats'. */
+export function formatLength(beats, perBar = 4) {
+  const bars = beats / perBar;
+  if (beats >= perBar - 1e-6 && Math.abs(bars - Math.round(bars)) < 1e-3) return `${Math.round(bars)} bar${Math.round(bars) === 1 ? '' : 's'}`;
+  const b = Math.round(beats * 100) / 100;
+  return `${b} beat${b === 1 ? '' : 's'}`;
+}

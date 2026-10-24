@@ -26,7 +26,7 @@
  * Coordinates are the board's own (boardDoc), so a score does not depend on where its board sits.
  */
 import { boardDoc, MAIN } from '../process/boards.js';
-import { outlineOf as outline, centerOf } from './geometry.js';
+import { outlineOf as outline, centerOf, lengthBy } from './geometry.js';
 import { FIELDS, HELPER_NAMES } from './music.js';
 import { resolveTimeValue } from '../time/timeValue.js';
 import { DEFAULT_TRANSPORT, timeContext } from '../time/sceneTransport.js';
@@ -55,14 +55,37 @@ export function compileEmit(src, names = HELPER_NAMES) {
   return (h, e, api) => fn(h, api, ...FIELDS.map(f => e[f]));
 }
 
+/**
+ * How long a path takes: its length read as time. By default a length in the grid: one beat for each
+ * `beatUnits` of it (so a line four minor grid cells long is a bar of 4/4). A path can say otherwise:
+ *   play: { path: { len: '1 bar' } }             a time
+ *   play: { path: { len: 'grid', metric } }      by the grid, measured 'arc' (along it), 'x', 'y' or 'manhattan'
+ *   play: { path: { len: 'speed', speed: 50 } }  units a second
+ *   play: { path: { len: 'drawn' } }             as long as it took to draw (when the points are timed)
+ * A traveler that does not say how long it takes runs its path in this time (times its range and ratio).
+ */
+export function pathTime(e, { ctx = timeContext(DEFAULT_TRANSPORT), beatUnits = DEFAULT_TRANSPORT.beatUnits } = {}) {
+  const spec = e.play?.path && typeof e.play.path === 'object' ? e.play.path : {};
+  const pts = outline(e);
+  const beatSeconds = resolveTimeValue('1 beat', ctx);
+  const units = lengthBy(pts, spec.metric || 'arc');
+  const len = spec.len;
+  let seconds, mode = 'grid';
+  if (len === 'speed' && spec.speed > 0) { seconds = lengthBy(pts, 'arc') / spec.speed; mode = 'speed'; }
+  else if (len === 'drawn' && (e.points.at(-1)?.[2] ?? 0) > (e.points[0]?.[2] ?? 0)) { seconds = (e.points.at(-1)[2] - e.points[0][2]) / 1000; mode = 'drawn'; }
+  else if (len != null && len !== 'grid' && len !== 'drawn' && len !== 'speed') { seconds = typeof len === 'number' ? len : resolveTimeValue(String(len), ctx); mode = 'time'; }
+  else seconds = (units / Math.max(0.001, beatUnits)) * beatSeconds;
+  return { seconds: Math.max(0.001, seconds), beats: Math.max(0.001, seconds) / beatSeconds, units, mode };
+}
+
 /** The name a trigger is reached by: its `name`, else the mark's label, else its id. */
 export const triggerIdOf = e => e.play?.trigger?.name || e.label || e.id;
 
-export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, seed = 1, ctx = timeContext(DEFAULT_TRANSPORT) } = {}) {
+export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, seed = 1, ctx = timeContext(DEFAULT_TRANSPORT), beatUnits = DEFAULT_TRANSPORT.beatUnits } = {}) {
   const d = boardDoc(doc, board);
   const marks = d.elements.filter(e => e.play && e.points?.length);
   const paths = {}, travelers = [], triggers = [], starts = [], bodies = [];
-  const info = { skipped: [] };
+  const info = { skipped: [], paths: [] };
   const make = typeof helpers === 'function' ? helpers : () => helpers;
   const names = typeof helpers === 'function' ? HELPER_NAMES : Object.keys(helpers);
   const secs = v => (typeof v === 'number' || v == null ? v : resolveTimeValue(String(v), ctx));
@@ -78,14 +101,18 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
   // A path is known by its mark id, its label (the mark's name), or the name given as `path: 'name'`
   // (names survive a mark being remade; ids do not).
   const pathKey = new Map();
+  const pathTimes = new Map();   // path key → the seconds it takes
   const wanted = new Set(marks.map(m => m.play.travel?.on).filter(Boolean));
   for (const e of d.elements) {
-    const named = typeof e.play?.path === 'string' && e.play.path ? e.play.path : null;
+    const named = typeof e.play?.path === 'string' && e.play.path ? e.play.path : e.play?.path?.name || null;
     if (!e.play?.path && !wanted.has(e.id) && !(e.label && wanted.has(e.label))) continue;
     const key = named || e.id;
     pathKey.set(e.id, key);
     if (e.label && !pathKey.has(e.label)) pathKey.set(e.label, key);
     paths[key] = { points: outline(e), closed: Boolean(e.closed) };
+    const time = pathTime(e, { ctx, beatUnits });
+    pathTimes.set(key, time.seconds);
+    info.paths.push({ id: e.id, key, ...time });
   }
 
   // Triggers are reached by their name, label or id: from routes (`to`) and cues (`cue`).
@@ -113,8 +140,11 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
       const on = pathKey.get(travel.on) ?? travel.on;
       if (!paths[on]) info.skipped.push(`${e.label || e.id}: no path "${travel.on}"`);
       else {
-        const { emit, cue, angle, ...t } = travel;
-        const spec = { ...t, on, start: secs(t.start), dur: secs(t.dur), tag: t.tag ?? e.tag ?? null };
+        const { emit, cue, angle, ratio, ...t } = travel;
+        // How long a lap takes: what it says, else its path's time (a fraction of it for a range), times its ratio.
+        const span = Array.isArray(t.range) ? Math.max(0.001, Math.abs(t.range[1] - t.range[0])) : 1;
+        const dur = secs(t.dur) ?? (t.speed > 0 ? undefined : pathTimes.get(on) * span * (ratio > 0 ? ratio : 1));
+        const spec = { ...t, on, start: secs(t.start), dur, tag: t.tag ?? e.tag ?? null };
         if (cue) {
           // Started by a trigger: it waits, and each time the trigger fires it begins again.
           const tk = trigKey.get(cue);

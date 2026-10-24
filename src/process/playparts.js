@@ -35,7 +35,7 @@ export function realizeAfter(el, play) {
 /** The starting `play` of a part. */
 export function newPart(kind, { path = '' } = {}) {
   if (kind === 'path') return true;
-  if (kind === 'travel') return { on: path, dur: '8 beats', loop: 'once' };
+  if (kind === 'travel') return { on: path, loop: 'once' };   // (how long it takes: its path's time, unless it says)
   if (kind === 'trigger') return {};
   if (kind === 'body') return { speed: [60, 200] };
   return null;

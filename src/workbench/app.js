@@ -271,7 +271,7 @@ export class Workbench {
     const set = (part, init) => () => edit(`play ${part}`, (d, e) => { e.play = { ...(e.play || {}) }; if (e.play[part]) delete e.play[part]; else e.play[part] = init(e, d); const r = realizeAfter(e, e.play); if (r !== e.realize) e.realize = { ...r }; if (!Object.keys(e.play).length) delete e.play; });
     const items = [
       { label: els.every(e => e.play?.path) ? 'Not a path' : 'Make a path', run: set('path', () => true) },
-      { label: els.every(e => e.play?.travel) ? 'Not a traveler' : 'Make a traveler', run: set('travel', () => ({ on: '', dur: '8 beats', loop: 'once' })) },
+      { label: els.every(e => e.play?.travel) ? 'Not a traveler' : 'Make a traveler', run: set('travel', () => ({ on: '', loop: 'once' })) },
       { label: els.every(e => e.play?.trigger) ? 'Not a trigger' : 'Make a trigger', run: set('trigger', () => ({ emit: soundCode(SOUND_DEFAULTS.height) })) },
       { label: els.every(e => e.play?.body) ? 'Not a body' : 'Make a body', run: set('body', () => ({ speed: [60, 200] })) },
       '-',
@@ -1011,7 +1011,7 @@ export class Workbench {
     const { nousToScore } = await import('../score/import/nous.js');
     const res = nousToScore(text, { title: name, inBoard: true });
     const board = this.scoreToBoard(res, 'Midinous', r => `${r.stats.nodes} nodes, ${r.stats.paths} paths`);
-    if (board && res.settings?.tempo) this.player.setSettings({ tempo: res.settings.tempo });
+    if (board && res.settings?.tempo) this.player.setSettings({ tempo: res.settings.tempo, ...(res.settings.beatUnits ? { beatUnits: res.settings.beatUnits } : {}) });
     return board;
   }
 

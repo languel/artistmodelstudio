@@ -21,7 +21,7 @@ describe('play parts', () => {
     expect(realizeAfter(custom, undefined)).toBe(custom.realize);
   });
   it('start parts sensibly', () => {
-    expect(newPart('travel', { path: 'row' })).toEqual({ on: 'row', dur: '8 beats', loop: 'once' });
+    expect(newPart('travel', { path: 'row' })).toEqual({ on: 'row', loop: 'once' });
     expect(canBePath({ role: 'line', points: [[0, 0], [1, 1]] })).toBe(true);
     expect(canBePath({ role: 'point', points: [[0, 0]] })).toBe(false);
   });

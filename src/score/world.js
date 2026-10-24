@@ -127,11 +127,14 @@ export function createWorld(def = {}) {
       if (d.at) spec.start -= (d.at * spec.dur) / Math.max(0.001, spec.rate);
     }
     const drawn = d.as === 'drawn' && path?.drawn;
+    // `range`: it runs only this part of the path, [from, to] as fractions of its length (to < from: backwards).
+    const range = Array.isArray(d.range) ? [Math.max(0, Math.min(1, d.range[0])), Math.max(0, Math.min(1, d.range[1]))] : null;
     const totalMs = drawn ? drawnDuration(path) * 1000 : 0;
     const tr = {
       id, spec, path, tag: d.tag ?? null, data: d.data, width: Math.max(0, Number(d.width) || 0), state: d.state || {}, handle: d.handle || null,
       die: d.die ?? die, silent, seeded: false, done: false, lastT: 0, fn: d.pos || null,
-      atProgress(u) {
+      atProgress(u0) {
+        const u = range ? range[0] + (range[1] - range[0]) * u0 : u0;
         const s = drawn ? sampleDrawn(path, u * totalMs) : sample(path, u);
         return { x: s.x, y: s.y, p: s.p, u, tx: s.tx, ty: s.ty };
       },

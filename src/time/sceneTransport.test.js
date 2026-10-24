@@ -20,3 +20,11 @@ describe('scene transport', () => {
     expect(d.transport).toMatchObject({ tempo: 90, ruler: 'beats' });
   });
 });
+
+import { formatLength } from './sceneTransport.js';
+describe('length in words', () => {
+  it('says bars when it is whole bars', () => {
+    expect(formatLength(4)).toBe('1 bar'); expect(formatLength(8)).toBe('2 bars'); expect(formatLength(3)).toBe('3 beats');
+    expect(formatLength(1)).toBe('1 beat'); expect(formatLength(1.5)).toBe('1.5 beats'); expect(formatLength(6, 3)).toBe('2 bars');
+  });
+});

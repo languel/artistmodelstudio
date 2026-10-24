@@ -13,7 +13,8 @@ import { PARTS, MARKER, realizeAfter, newPart, canBePath } from '../../process/p
 import { parseTimeValue } from '../../time/timeValue.js';
 import * as R from '../../score/relations.js';
 const barAngle = R.barAngle;
-import { timeContext } from '../../time/sceneTransport.js';
+import { timeContext, formatLength } from '../../time/sceneTransport.js';
+import { pathTime } from '../../score/compile.js';
 
 const TITLES = {
   path: 'A path: a line that can be travelled',
@@ -97,6 +98,30 @@ export function playBody(app, e) {
 
   const parts = [chips];
 
+  // ---- a path: how long it takes ----
+  if (play.path) {
+    const settings = app.player.settings;
+    const spec = typeof play.path === 'object' ? play.path : {};
+    const mode = spec.len == null || spec.len === 'grid' ? 'grid' : ['speed', 'drawn'].includes(spec.len) ? spec.len : 'time';
+    const setPath = (patch, lab) => edit(pl => {
+      const cur = typeof pl.path === 'object' ? { ...pl.path } : typeof pl.path === 'string' ? { name: pl.path } : {};
+      const next = { ...cur, ...patch };
+      for (const k of Object.keys(next)) if (next[k] === undefined || next[k] === '') delete next[k];
+      if (next.len === 'grid') delete next.len;
+      if (next.metric === 'arc') delete next.metric;
+      const keys = Object.keys(next);
+      pl.path = !keys.length ? true : keys.length === 1 && keys[0] === 'name' ? next.name : next;
+    }, lab || 'path length');
+    const time = pathTime(e, { ctx: timeContext(settings), beatUnits: settings.beatUnits });
+    parts.push(
+      row('Length', selectField([['grid', 'By the grid'], ['time', 'A time'], ['speed', 'A speed'], ['drawn', 'As drawn']], mode, v => setPath({ len: v === 'grid' ? undefined : v === 'time' ? (typeof spec.len === 'number' || (typeof spec.len === 'string' && !['grid', 'speed', 'drawn'].includes(spec.len)) ? spec.len : '1 bar') : v, speed: v === 'speed' ? spec.speed || 50 : undefined }), 'How the length of the line becomes time. By the grid: one beat for each beat-length of it (Timeline)')),
+      mode === 'grid' ? row('Measured', selectField([['arc', 'Along it'], ['x', 'Across'], ['y', 'Up and down'], ['manhattan', 'Right angles']], spec.metric || 'arc', v => setPath({ metric: v }), 'How its length is measured')) : null,
+      mode === 'time' ? row('Takes', timeField(app, spec.len ?? '', v => setPath({ len: v ?? undefined }), { placeholder: '1 bar' })) : null,
+      mode === 'speed' ? row('Speed', numberField({ value: spec.speed || 50, min: 1, max: 5000, step: 5, def: 50, title: 'Artboard units a second', onChange: (v, { final }) => { if (final) setPath({ speed: v }); } })) : null,
+      row('Is', h('span', { class: 'wb-muted', title: 'How long a traveler on it takes by default' }, formatLength(time.beats, settings.signature.numerator)))
+    );
+  }
+
   // ---- a traveler ----
   if (play.travel) {
     const t = play.travel;
@@ -115,7 +140,11 @@ export function playBody(app, e) {
           }, 'traveler path');
         }
       })),
-      row('Takes', timeField(app, t.dur ?? '', v => setT({ dur: v, speed: undefined }, 'traveler time'), { placeholder: '8 beats' })),
+      row('Takes', timeField(app, t.dur ?? '', v => setT({ dur: v, speed: undefined }, 'traveler time'), { placeholder: (() => { const line = resolveMark(app.store.doc, t.on); if (!line) return 'its path\'s time'; const pt = pathTime(line, { ctx: timeContext(app.player.settings), beatUnits: app.player.settings.beatUnits }); const span = Array.isArray(t.range) ? Math.abs(t.range[1] - t.range[0]) : 1; return formatLength(pt.beats * span * (t.ratio > 0 ? t.ratio : 1), app.player.settings.signature.numerator); })() })),
+      row('Part', h('span', { class: 'wb-row-inline' },
+        numberField({ value: (t.range || [0, 1])[0], min: 0, max: 1, step: 0.01, def: 0, title: 'Where on its path it starts (0 to 1 of its length)', onChange: (v, { final }) => { if (final) { const r = [v, (t.range || [0, 1])[1]]; setT({ range: r[0] === 0 && r[1] === 1 ? undefined : r }, 'traveler range'); } } }),
+        numberField({ value: (t.range || [0, 1])[1], min: 0, max: 1, step: 0.01, def: 1, title: 'Where it stops (smaller than the start: it runs backwards)', onChange: (v, { final }) => { if (final) { const r = [(t.range || [0, 1])[0], v]; setT({ range: r[0] === 0 && r[1] === 1 ? undefined : r }, 'traveler range'); } } }))),
+      row('Ratio', numberField({ value: t.ratio || 1, min: 0.1, max: 16, step: 0.05, def: 1, title: 'How much longer than its path\'s time it takes: 2 is half as fast', onChange: (v, { final }) => { if (final) setT({ ratio: v === 1 ? undefined : v }, 'traveler ratio'); } })),
       row('Start', timeField(app, t.start ?? '', v => setT({ start: v }, 'traveler start'), { placeholder: '0' })),
       row('Loop', h('span', { class: 'wb-row-inline' }, ...LOOPS.map(([k, g, name]) => h('button', { class: `wb-icon-btn${(t.loop || 'once') === k ? ' on' : ''}`, type: 'button', title: name, onclick: () => setT({ loop: k }, 'traveler loop') }, g)),
         h('label', { class: 'wb-row-inline', title: 'Replay the line at the speed it was drawn' }, h('input', { type: 'checkbox', checked: t.as === 'drawn', onchange: ev => setT({ as: ev.target.checked ? 'drawn' : undefined }, 'traveler as drawn') }), 'as drawn'))),

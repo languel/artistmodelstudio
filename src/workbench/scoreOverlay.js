@@ -5,6 +5,7 @@
  * Redrawn every frame while the transport runs, and when it moves or the drawing changes.
  */
 import { centerOf } from '../score/geometry.js';
+import { formatLength } from '../time/sceneTransport.js';
 
 const FLASH = 0.4;   // seconds a trigger stays lit
 
@@ -107,6 +108,20 @@ export class ScoreOverlay {
     if (pt?.snap) {
       const [sx, sy] = cvw.toScreen(pt.snap.x, pt.snap.y);
       ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, 8, 0, Math.PI * 2); ctx.stroke();
+    }
+    // How long each path takes (at its end), for marks shown by name or selected.
+    if (names || sel.size) {
+      const per = app.player.settings.signature.numerator;
+      for (const { paths } of app.score.view()) for (const pi of paths || []) {
+        if (!names && !sel.has(pi.id)) continue;
+        const m = byId.get(pi.id);
+        if (!m?.points?.length) continue;
+        const end = m.points.at(-1), [x, y] = cvw.toScreen(end[0], end[1]);
+        const text = formatLength(pi.beats, per);
+        const w = ctx.measureText(text).width + 8;
+        ctx.globalAlpha = 0.7; ctx.fillStyle = '#17181b'; ctx.beginPath(); (ctx.roundRect ? ctx.roundRect(x - w / 2, y + 7, w, 15, 7) : ctx.rect(x - w / 2, y + 7, w, 15)); ctx.fill();
+        ctx.globalAlpha = 0.9; ctx.fillStyle = '#f3efe6'; ctx.textAlign = 'center'; ctx.fillText(text, x, y + 15); ctx.globalAlpha = 1;
+      }
     }
     const hov = cvw.pickHover && byId.get(cvw.pickHover);
     if (hov) {

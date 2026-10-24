@@ -203,7 +203,7 @@ export class PlayTool {
   /** A point that travels: on the path near the click (it goes to the path's start), else alone, waiting for a path. */
   makeTraveler(wx, wy, width, reach = 1) {
     const near = nearestPath(this.paths(), wx, wy, this.radius() * reach);
-    const el = this.cv.commitNew('point', [[wx, wy, 0, 0.5]], this.playExtra('point', { travel: { on: near?.mark.id || '', dur: '8 beats', loop: 'once', ...(width ? { width } : {}) } }));
+    const el = this.cv.commitNew('point', [[wx, wy, 0, 0.5]], this.playExtra('point', { travel: { on: near?.mark.id || '', loop: 'once', ...(width ? { width } : {}) } }));
     if (near) { this.app.store.change('travel', d => R.travel(d, el.id, near.mark.id)); this.cv.select([el.id]); }
     else this.cv.flash('Point it at a path: drag from it to a line');
     return el;
