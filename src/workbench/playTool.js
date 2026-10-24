@@ -105,7 +105,8 @@ export class PlayTool {
     const line = ref && this.doc.elements.find(x => (x.id === ref || x.label === ref) && x.points?.length >= 2);
     const isEvent = Boolean(ev0) && !tr;
     const before = JSON.stringify(this.doc);
-    const startSel = cv.selected.has(hit.id) ? [...cv.selected] : [hit.id];
+    // Cmd-drag of a traveler or an event is about that one mark, whatever else is selected.
+    const startSel = !e.metaKey && cv.selected.has(hit.id) ? [...cv.selected] : [hit.id];
     const orig = new Map(this.doc.elements.filter(x => startSel.includes(x.id)).map(x => [x.id, x.points.map(q => [...q])]));
     const here = cv.travelerPos?.get(hit.id) || hit.points[0];   // (where the traveler is drawn)
     let last = line ? nearestOn(outlineOf(line), here[0], here[1]).u : 0;
@@ -119,9 +120,9 @@ export class PlayTool {
         if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return;
         if (this.kind === 'path' && hit.role === 'point' && !hit.play?.trigger && !ev.shiftKey) { finish(); this.startLineFrom(e, hit); return; }
         // On a line: dragging slides along it. Alt (or Shift) takes it off the line: it moves freely, and where it is let go near a line it attaches to that one, else it is free.
-        // Alt: take the mark off (or leave it off) any line: it moves freely, and let go over a line it attaches there, else it is free.
+        // Cmd: take the mark off (or leave it off) any line: it moves freely, and let go over a line it attaches there, else it is free.
         // Plain: on a line it slides along it. Shift (Play tool, a mark with no line): a free move that snaps to lines near it.
-        altMove = Boolean(ev.altKey) && Boolean(hit.play?.travel || hit.play?.trigger);
+        altMove = Boolean(ev.metaKey) && Boolean(hit.play?.travel || hit.play?.trigger);   // (Cmd: Option-drag already duplicates)
         mode = altMove ? 'move' : line ? 'slide' : ev.shiftKey || forceSlide ? 'move' : 'link';
         if (!cv.selected.has(hit.id)) cv.select([hit.id]);
       }

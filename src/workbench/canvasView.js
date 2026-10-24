@@ -899,10 +899,10 @@ export class CanvasView {
         if (this.selectedBoard && !this.hitTest(wx, wy) && !e.shiftKey) this.selectBoard(null);
       }
       // A traveler or an event on a path is one mark: dragging it slides it along the path (a traveler: where it begins).
-      // Alt takes it off the path, or (on a free one) moves it: let go over a path it attaches there, else it is free.
-      if (tool === 'select' && !this.handleAt(sx, sy)) {
+      // Cmd takes it off the path, or (on a free one) moves it: let go over a path it attaches there, else it is free.
+      if ((tool === 'select' || tool === 'direct') && !this.handleAt(sx, sy)) {
         const tv = this.hitTest(wx, wy), playish = tv?.play?.travel || tv?.play?.trigger, onPath = tv?.play?.travel?.on || tv?.play?.trigger?.path;
-        if (tv && playish && !e.metaKey && this.playTool && (onPath || e.altKey)) { if (!this.selected.has(tv.id) && !e.shiftKey) this.select([tv.id]); return this.playTool.pressMark(e, tv, wx, wy, { slide: true }); }
+        if (tv && playish && this.playTool && (onPath || e.metaKey)) { if (!this.selected.has(tv.id) && !e.shiftKey) this.select([tv.id]); return this.playTool.pressMark(e, tv, wx, wy, { slide: true }); }
       }
       // Sculpt: the Sculpt tool, or Shift+drag over a mark with most tools.
       if (tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length && !(tool === 'select' && this.handleAt(sx, sy)))) {
@@ -1363,7 +1363,7 @@ export class CanvasView {
   /** Direct is active, or Option is held: the sculpt brush's preview shows (not while dragging, pan or the laser). */
   affectedShown() {
     const t = this.getTool();
-    if (t === 'play') return false;   // (the Play tool uses Alt to take a traveler or event off its line)
+    if (t === 'play') return false;   // (the Play tool has no use for the sculpt points)
     const over = this.hovered && this.store.doc.elements.find(e => e.id === this.hovered);
     if (over?.play?.travel || over?.play?.trigger) return false;   // (and so does the Select tool, over one)
     return Boolean(this.lastLocal) && (!this.pointer || Boolean(this.sculptDrag)) && !this.space && (t === 'direct' || Boolean(this.altHeld)) && !['hand', 'laser', 'note', 'point', 'board'].includes(t);
