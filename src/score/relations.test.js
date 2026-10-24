@@ -155,3 +155,22 @@ describe('relations by pointing', () => {
     expect(out.messages.filter(m => (m.bytes[0] & 0xf0) === 0x90).length).toBe(1);
   });
 });
+
+import { soloDoc } from './solo.js';
+describe('solo', () => {
+  it('keeps what the asked-for marks need', () => {
+    const d = doc([
+      { id: 'p', role: 'line', label: 'row', path: 'straight', points: [[0, 80], [200, 80]], play: { path: true } },
+      { id: 'q', role: 'line', label: 'other', path: 'straight', points: [[0, 20], [200, 20]], play: { path: true } },
+      { id: 't', role: 'point', points: [[0, 80]], play: { travel: { on: 'row', dur: 2 } } },
+      { id: 'u', role: 'point', points: [[0, 20]], play: { travel: { on: 'other', dur: 2 } } },
+      trig('A', 20, { to: ['B'] }), trig('B', 120), trig('Z', 180),
+      { id: 'plain', role: 'point', points: [[1, 1]] }
+    ]);
+    const ids = s => soloDoc(d, s).elements.map(e => e.id).sort();
+    expect(ids(['t'])).toEqual(['p', 'plain', 't']);              // the traveler and its path (marks that do not play stay)
+    expect(ids(['q'])).toEqual(['plain', 'q', 'u']);               // a path brings its travelers
+    expect(ids(['A'])).toEqual(['A', 'B', 'plain']);               // a trigger brings what it sends to
+    expect(ids(['Z'])).toEqual(['Z', 'plain']);
+  });
+});

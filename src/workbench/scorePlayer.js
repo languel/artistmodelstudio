@@ -6,6 +6,10 @@
  */
 import { normalizeElement } from '../process/document.js';
 import { createRunner, buildEntries, hasScore, scoreSignature } from '../score/runner.js';
+import { musicHelpers } from '../score/music.js';
+import { triggerIdOf } from '../score/compile.js';
+import { soloDoc } from '../score/solo.js';
+import { timeContext } from '../time/sceneTransport.js';
 import { createGmOutput } from '../score/outputs/gm.js';
 import { createWebMidiOutput } from '../score/outputs/webmidi.js';
 
@@ -86,26 +90,101 @@ export class ScorePlayer {
     [60, 64, 67].forEach((n, i) => { for (const o of this.outputs()) { o.send([0x90, n, 96], t + i * 140); o.send([0x80, n, 0], t + i * 140 + 500); } });
   }
 
+  /** What a trigger sounds like, now: it is touched once (from a click). Nothing needs to be playing. */
+  async audition(id) {
+    const doc = this.rawDoc(), mark = doc.elements.find(e => e.id === id);
+    if (!mark?.play?.trigger) return false;
+    this.gm.resume().catch(() => {});
+    const settings = this.app.player.settings, ctx = timeContext(settings), msgs = [];
+    const entries = buildEntries(doc, settings, { helpers: (event, api) => musicHelpers({ out: m => msgs.push(m), ctx, event, api }), onError: m => this.app.log?.(`Score: ${m}`, 'error') });
+    const key = triggerIdOf(mark);
+    const entry = entries.find(e => e.world.triggers().some(t => t.id === key));
+    if (!entry) return false;
+    entry.world.arrive(key, {}, 0);
+    entry.world.step(3);   // (what it sends on arrives a little later: it is heard too)
+    this.play(msgs.filter(m => m.t <= 3), 0, 3);
+    return msgs.length > 0;
+  }
+
+  /** Send messages (times in seconds from `from`) to the outputs, from now, squeezed into at most `span` seconds. */
+  play(msgs, from, span = 1.2) {
+    const now = performance.now();
+    for (const m of msgs) {
+      const at = now + 20 + Math.min(span, Math.max(0, m.t - from)) * 1000;
+      for (const o of this.outputs()) o.send(m.bytes, at);
+    }
+  }
+
+  /**
+   * Dragging a traveler's marker along its path: what it passes sounds. `u0` to `u1` are places along the
+   * path (0..1); the traveler is taken from its start (no offset, no loop) for this.
+   */
+  scrub(id, u0, u1) {
+    if (Math.abs(u1 - u0) < 1e-4) return;
+    this.gm.resume().catch(() => {});
+    const raw = this.rawDoc(), mark = raw.elements.find(e => e.id === id);
+    if (!mark?.play?.travel) return;
+    const settings = this.app.player.settings, ctx = timeContext(settings);
+    let c = this.scrubCache;
+    if (!c || c.id !== id || c.rev !== this.app.store.rev) {
+      const msgs = [];
+      const elements = raw.elements.map(e => (e.id === id ? { ...e, play: { ...e.play, travel: { ...e.play.travel, at: undefined, start: undefined, loop: 'once', cue: undefined } } } : e));
+      const entries = buildEntries({ ...raw, elements }, settings, { helpers: (event, api) => musicHelpers({ out: m => msgs.push(m), ctx, event, api }) });
+      const entry = entries.find(x => x.world.travelers().some(t => t.id === id));
+      const tr = entry?.world.travelers().find(t => t.id === id);
+      c = this.scrubCache = { id, rev: this.app.store.rev, msgs, world: entry?.world, dur: tr?.spec.dur || 1 };
+    }
+    if (!c.world) return;
+    const [a, b] = u0 < u1 ? [u0, u1] : [u1, u0];
+    c.msgs.length = 0;
+    c.world.seek(a * c.dur);
+    c.world.step(b * c.dur);
+    c.world.take();
+    if (c.msgs.length) this.play(c.msgs, a * c.dur);
+  }
+
+  /** The drag is over. */
+  endScrub() { this.scrubCache = null; }
+
   /** Everything off, now. */
   panic() { for (const o of this.outputs()) o.clear?.(); }
 
   /** The drawing the transport is showing: a take's at the playhead, or the scene's own. */
-  doc() { return this.app.canvas?.previewDoc || this.app.store.doc; }
+  rawDoc() { return this.app.canvas?.previewDoc || this.app.store.doc; }
+
+  /** What plays: that drawing, or (with a solo) only the soloed marks and what they need. */
+  doc() {
+    const base = this.rawDoc();
+    if (!this.solo) return base;
+    const c = this.soloCache;
+    if (c && c.base === base && c.rev === this.app.store.rev && c.token === this.soloToken) return c.doc;
+    this.soloCache = { base, rev: this.app.store.rev, token: this.soloToken, doc: soloDoc(base, [...this.solo]) };
+    return this.soloCache.doc;
+  }
+
+  /** Solo some marks (their ids), or everything again (null). */
+  setSolo(ids) {
+    this.solo = ids?.length ? new Set(ids) : null;
+    this.soloToken = (this.soloToken || 0) + 1;
+    this.app.canvas.invalidate();
+    this.app.store.emit('solo');
+  }
 
   /** A board's score plays unless the board is paused (the Boards panel's play button; Opt+click solos) or hidden. */
   plays(b) { return !b.paused && !b.hidden; }
 
   /** What the worlds are built from, as text: changes when a mark that plays does, or a board is paused. */
   key() {
-    const d = this.doc();
+    const d = this.rawDoc();
+    const solo = this.solo ? `|solo:${[...this.solo].sort().join(',')}` : '';
     if (d !== this.app.store.doc) {   // (a take's drawing at the playhead: a new object when it changes)
       let s = this.sig.get(d);
       if (s === undefined) { s = scoreSignature(d); this.sig.set(d, s); }
-      return s;
+      return s + solo;
     }
     // The live drawing is edited in place: look again whenever it has changed (a count of changes), rebuild only if the text differs.
     if (this.keyVal === undefined || this.keyRev !== this.app.store.rev) { this.keyRev = this.app.store.rev; this.keyVal = scoreSignature(d); }
-    return this.keyVal;
+    return this.keyVal + solo;
   }
 
   /** The worlds to draw: the runner's while it plays, else ones built just to show where things are. */

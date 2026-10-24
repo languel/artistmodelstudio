@@ -15,6 +15,7 @@ import { rdp } from '../process/sculpt.js';
 import { renderDocument, nextTimed, drawOutlines } from '../process/render.js';
 import { smoothPath } from '../process/walk.js';
 import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
+import { realizeAfter } from '../process/playparts.js';
 import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
 import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
 import { shapePoints } from './shapes.js';
@@ -26,7 +27,7 @@ export const TOOL_KEYS = { v: 'select', h: 'hand', '1': 'line', '2': 'plane', '0
 /** Tools where Shift+drag over a mark sculpts it (Guide keeps Shift for angle snapping). */
 const SHIFT_SCULPT = new Set(['select', 'line', 'plane', 'gesture', 'brush']);
 /** Tools that draw (and the laser, and sculpt, where Cmd is a modifier): Ctrl/Cmd there is not Properties or a right-click. */
-const DRAW_TOOLS = new Set(['point', 'note', 'line', 'plane', 'circle', 'rect', 'gesture', 'guide', 'brush', 'laser', 'sculpt']);
+const DRAW_TOOLS = new Set(['point', 'note', 'line', 'plane', 'circle', 'rect', 'gesture', 'guide', 'brush', 'laser', 'sculpt', 'play']);
 
 const LASER_LIFE = 1000;            // ms a laser trail takes to fade out
 const LASER_FALLBACK = '#e5484d';   // when there is no stroke color to use
@@ -696,7 +697,7 @@ export class CanvasView {
       if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
       if (e.code === 'Space' && !e.shiftKey) { this.space = true; c.style.cursor = 'grab'; e.preventDefault(); }   // (Shift+Space: the radial menu)
     });
-    window.addEventListener('keyup', e => { if (e.code === 'Space') { this.space = false; this.updateCursor(); } });
+    window.addEventListener('keyup', e => { if (e.code === 'Space') { const tap = this.space && !this.spaceUsed && this.getTool() === 'play'; this.space = false; this.spaceUsed = false; this.updateCursor(); if (tap) this.onSpaceTap?.(); } });   // (in the Play tool a tap of Space is play / pause; held, it pans)
     // Option (Alt) held: the sculpt brush shows the control points it would move, in any tool.
     const altState = e => { const on = Boolean(e.altKey); if (on !== this.altHeld) { this.altHeld = on; this.paintAffected(); } };
     window.addEventListener('keydown', altState);
@@ -818,6 +819,7 @@ export class CanvasView {
     };
     this.host.addEventListener('pointerdown', e => { if (e.target !== c && e.target.closest?.('.wb-frames')) properties(e, e.target); }, true);
     c.addEventListener('pointermove', e => {
+      if (!this.pick && this.getTool() === 'play' && !this.pointer) this.playTool?.hover(e);
       if (!this.pick) return;
       const [wx, wy] = this.toWorld(...this.local(e));
       const hit = this.hitTest(wx, wy, this.pick.accept);
@@ -836,6 +838,7 @@ export class CanvasView {
       // Working on the canvas takes the keyboard back from panel fields, so tool keys (V, H, P…) work.
       const f = document.activeElement;
       if (f && f !== document.body && f.closest?.('input, textarea, select, [contenteditable]') && !f.classList.contains('wb-note-input')) f.blur();
+      if (this.space) this.spaceUsed = true;
       if (e.button === 1 || this.space || this.getTool() === 'hand' || this.previewDoc) return this.startPan(e);
       if (e.button !== 0) return;
       if (this.clickPath) { this.clickPathClick(e); return; }
@@ -844,12 +847,13 @@ export class CanvasView {
       const [wx, wy] = this.toWorld(sx, sy);
       // The board being worked on is drawn live (not baked) while the pointer is down.
       this.workBoard = boardAt(this.store.doc, wx, wy)?.id || BLACKBOARD;
-      const tool = this.getTool();
+      let tool = this.getTool();
       // A board's play / pause button works with any tool.
       const run = this.runButtonAt(sx, sy);
       if (run) { this.pointer = false; this.onToggleRun?.(run, e); return; }
       // The laser pointer works anywhere: on locked stages and boards too, since it leaves no mark.
       if (tool === 'laser') return this.startLaser(e, wx, wy);
+      if (tool === 'play') return this.playTool?.down(e, wx, wy);
       // Boards: their titles (and the selected board's corner) work with Select and the Board tool.
       if (tool === 'direct') return this.startDirect(e, sx, sy, wx, wy);
       if (tool === 'select' || tool === 'board') {
@@ -1759,7 +1763,15 @@ export class CanvasView {
     ta.addEventListener('blur', () => finish(true));
   }
 
+  /** What a mark made by the Play tool carries: its `play`, and the marker brush that goes with it. */
+  playExtraFor(role, play) {
+    const d = this.getDefaults(role);
+    return { play, realize: realizeAfter({ role, realize: structuredClone(d.realize || DEFAULT_REALIZE[role]) }, play) };
+  }
+
   commitNew(role, points, extra = {}, dkey = role) {
+    const pn = this.playNew; this.playNew = null;   // (set by the Play tool for the mark being drawn)
+    if (pn?.play && !extra.play) extra = { ...this.playExtraFor(role, pn.play), ...extra };
     const d = this.getDefaults(dkey);
     const stage = this.getStage();
     const e = this.store.addElement({
@@ -1770,6 +1782,7 @@ export class CanvasView {
     });
     if (d.sticky === false || role === 'note') this.onTool?.('select');
     this.select([e.id]);
+    if (pn?.after) this.onPlayAfter?.(e, pn.after);
     return e;
   }
 

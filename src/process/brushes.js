@@ -122,8 +122,10 @@ export const BRUSHES = {
       ctx.save();
       ctx.globalAlpha *= p.opacity;
       const c = e.color || '#c8664f', w = 1.5 / k.scale;
+      const bar = e.play?.travel?.width > 0 ? e.play.travel.width : 0, ang = ((e.play?.travel?.angle ?? 90) * Math.PI) / 180;   // a traveler that is a bar across its path is drawn as one
       for (const [x, y] of e.points) {
         ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = w;
+        if (bar) { ctx.globalAlpha = p.opacity * 0.8; ctx.lineWidth = 2.5 / k.scale; ctx.beginPath(); ctx.moveTo(x - Math.cos(ang) * bar / 2, y - Math.sin(ang) * bar / 2); ctx.lineTo(x + Math.cos(ang) * bar / 2, y + Math.sin(ang) * bar / 2); ctx.stroke(); ctx.lineWidth = w; }
         ctx.globalAlpha = p.opacity * 0.35; ctx.setLineDash([2 / k.scale, 3 / k.scale]);
         ctx.beginPath(); ctx.arc(x, y, p.size * 0.8, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
         ctx.globalAlpha = p.opacity;

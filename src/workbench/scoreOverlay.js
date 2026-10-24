@@ -4,6 +4,8 @@
  * same worlds the sound uses (ScorePlayer.view), so what is seen and what is heard are one thing.
  * Redrawn every frame while the transport runs, and when it moves or the drawing changes.
  */
+import { centerOf } from '../score/geometry.js';
+
 const FLASH = 0.4;   // seconds a trigger stays lit
 
 export class ScoreOverlay {
@@ -69,6 +71,43 @@ export class ScoreOverlay {
         ctx.globalAlpha = 1;
       }
     }
+    // Routes (a trigger sends to another) and cues (a trigger starts a traveler): arrows between them.
+    const showLinks = names || app.tool === 'play';
+    const arrow = (a, b, dashed) => {
+      const [x0, y0] = cvw.toScreen(a[0], a[1]), [x1, y1] = cvw.toScreen(b[0], b[1]);
+      const ang = Math.atan2(y1 - y0, x1 - x0), mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      ctx.strokeStyle = accent; ctx.fillStyle = accent; ctx.globalAlpha = 0.7; ctx.lineWidth = 1.4;
+      ctx.setLineDash(dashed ? [3, 3] : []); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(mx + Math.cos(ang) * 6, my + Math.sin(ang) * 6); ctx.lineTo(mx - Math.cos(ang) * 5 + Math.sin(ang) * 4, my - Math.sin(ang) * 5 - Math.cos(ang) * 4); ctx.lineTo(mx - Math.cos(ang) * 5 - Math.sin(ang) * 4, my - Math.sin(ang) * 5 + Math.cos(ang) * 4); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+    };
+    for (const e of doc.elements) {
+      if (e.hidden || !e.points?.length) continue;
+      const tg = e.play?.trigger;
+      if (tg?.to && (showLinks || sel.has(e.id))) for (const r of [].concat(tg.to)) { const t = find(typeof r === 'string' ? r : r.to); if (t?.points?.length) arrow(centerOf(e), centerOf(t), false); }
+      const cue = e.play?.travel?.cue;
+      if (cue && (showLinks || sel.has(e.id))) { const t = find(cue); if (t?.points?.length) arrow(centerOf(t), centerOf(e), true); }
+    }
+    // The Play tool's gesture in progress: the band between two marks (and what it would make), a bar, a throw; a snap.
+    const pt = app.canvas.playTool, dr = pt?.drag;
+    if (dr) {
+      const [x0, y0] = cvw.toScreen(dr.x0, dr.y0), [x1, y1] = cvw.toScreen(dr.x1, dr.y1);
+      ctx.strokeStyle = accent; ctx.fillStyle = accent; ctx.lineCap = 'round';
+      ctx.globalAlpha = 0.85; ctx.lineWidth = dr.kind === 'bar' ? 3 : 1.6; ctx.setLineDash(dr.kind === 'band' ? [4, 3] : []);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+      if (dr.kind === 'throw') { const a = Math.atan2(y1 - y0, x1 - x0); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - Math.cos(a) * 9 + Math.sin(a) * 5, y1 - Math.sin(a) * 9 - Math.cos(a) * 5); ctx.lineTo(x1 - Math.cos(a) * 9 - Math.sin(a) * 5, y1 - Math.sin(a) * 9 + Math.cos(a) * 5); ctx.closePath(); ctx.fill(); }
+      const label = dr.kind === 'band' ? (dr.rel?.label || (dr.target ? 'nothing to make here' : '')) : dr.kind === 'bar' ? 'a bar across a path' : 'throw';
+      if (label) {
+        const w = ctx.measureText(label).width + 12;
+        ctx.globalAlpha = 0.85; ctx.fillStyle = '#17181b'; ctx.beginPath(); (ctx.roundRect ? ctx.roundRect(x1 + 10, y1 - 22, w, 17, 8) : ctx.rect(x1 + 10, y1 - 22, w, 17)); ctx.fill();
+        ctx.globalAlpha = 1; ctx.fillStyle = dr.rel || dr.kind !== 'band' ? '#f3efe6' : '#c9a5a0'; ctx.textAlign = 'left'; ctx.fillText(label, x1 + 16, y1 - 13);
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (pt?.snap) {
+      const [sx, sy] = cvw.toScreen(pt.snap.x, pt.snap.y);
+      ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, 8, 0, Math.PI * 2); ctx.stroke();
+    }
     const hov = cvw.pickHover && byId.get(cvw.pickHover);
     if (hov) {
       ctx.strokeStyle = accent; ctx.lineWidth = 3; ctx.globalAlpha = 0.85; ctx.lineJoin = 'round'; ctx.beginPath();
@@ -82,7 +121,7 @@ export class ScoreOverlay {
   draw() {
     const app = this.app, p = app.player, score = app.score;
     const entries = score.view();
-    const notes = app.scoreView?.names || app.canvas.pick || (app.canvas.selected?.size && app.store.doc.elements.some(e => e.play?.travel));
+    const notes = app.scoreView?.names || app.canvas.pick || app.tool === 'play' || (app.canvas.selected?.size && app.store.doc.elements.some(e => e.play?.travel || e.play?.trigger?.to));
     if (!entries.length && !notes) { if (this.cv) { this.cv.getContext('2d').clearRect(0, 0, this.cv.width, this.cv.height); } this.lit = false; return; }
     const cvw = app.canvas, cv = this.canvas(), ctx = cv.getContext('2d');
     const pos = p.position() / 1000;
@@ -112,8 +151,15 @@ export class ScoreOverlay {
       // Travelers: a dot, and a short tail behind it.
       ctx.globalAlpha = 1;
       const now = world.positions(pos).filter(q => p.playing || !q.r), before = new Map(world.positions(Math.max(0, pos - 0.15)).map(q => [q.id, q]));
+      const widths = new Map(world.travelers().filter(t => t.width > 0).map(t => [t.id, t.width]));
       for (const q of now) {
         const [x, y] = at(q.x, q.y);
+        const bw = widths.get(q.id);
+        if (bw && q.tx !== undefined) {   // a bar across its path
+          const half = (bw / 2) * cvw.cam.z;
+          ctx.strokeStyle = accent; ctx.globalAlpha = 0.9; ctx.lineWidth = 3; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(x + q.ty * half, y - q.tx * half); ctx.lineTo(x - q.ty * half, y + q.tx * half); ctx.stroke(); ctx.globalAlpha = 1;
+        }
         const b = before.get(q.id);
         if (b && p.playing && !q.r) { const [bx, by] = at(b.x, b.y); ctx.strokeStyle = accent; ctx.globalAlpha = 0.45; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(x, y); ctx.stroke(); }
         const rad = q.r ? Math.max(2.5, q.r * cvw.cam.z) : 5;   // (a body is as big as it is; a traveler is a dot)

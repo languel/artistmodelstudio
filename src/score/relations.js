@@ -44,7 +44,7 @@ const withPlay = (el, fn) => { const play = structuredClone(el.play || {}); fn(p
 const moveTo = (el, x, y) => { const [cx, cy] = centerOf(el); const dx = x - cx, dy = y - cy; el.points = el.points.map(q => [q[0] + dx, q[1] + dy, ...q.slice(2)]); };
 
 /** A line's own angle at u, for a bar across it (perpendicular). */
-const barAngle = (line, u) => { const q = pointAt(outlineOf(line), u); return Math.round((Math.atan2(q[3], q[2]) * 180) / Math.PI + 90); };
+export const barAngle = (line, u) => { const q = pointAt(outlineOf(line), u); return Math.round((Math.atan2(q[3], q[2]) * 180) / Math.PI + 90); };
 
 export function travel(d, moverId, pathId) {
   const el = find(d, moverId), line = find(d, pathId);
@@ -118,3 +118,6 @@ export function apply(d, rel) {
 }
 
 export { canBePath };
+
+/** The middle of a mark, as [x, y]. */
+export const centerPoint = centerOf;

@@ -34,6 +34,8 @@ export function defaultCommands(app) {
     cmd('view.points', 'View', "Show marks' points", ["'"], () => app.togglePoints()),
     cmd('tool.brush', 'Tools', 'Brush', ['b'], () => app.setTool('brush')),
     cmd('tool.sculpt', 'Tools', 'Sculpt', ['s'], () => app.setTool('sculpt')),
+    cmd('tool.play', 'Tools', 'Play: author a score by pointing and placing (Space taps play / pause in it)', ['y'], () => app.setTool('play')),
+    cmd('score.solo', 'Tools', 'Solo the selected marks of a score (again: all sound)', ['alt+s'], () => app.toggleSolo()),
     cmd('path.straight', 'Tools', 'Straight path (the stroke being drawn, the selection, or the tool)', ['`'], () => app.setPathChoice('straight')),
     cmd('path.smooth', 'Tools', 'Smooth path (the stroke being drawn, the selection, or the tool)', ['~'], () => app.setPathChoice('smooth')),
     cmd('sculpt.smaller', 'Tools', 'Sculpt radius smaller', ['['], () => app.setSculpt({ radius: app.sculpt.radius / 1.2 })),

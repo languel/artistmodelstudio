@@ -11,6 +11,8 @@ import { PRESETS, DEFAULTS, emitFor, readPreset } from '../../score/presets.js';
 import { scaleNames } from '../../score/scale.js';
 import { PARTS, MARKER, realizeAfter, newPart, canBePath } from '../../process/playparts.js';
 import { parseTimeValue } from '../../time/timeValue.js';
+import * as R from '../../score/relations.js';
+const barAngle = R.barAngle;
 import { timeContext } from '../../time/sceneTransport.js';
 
 const TITLES = {
@@ -63,6 +65,11 @@ export function nameRow(app, e) {
 }
 
 export function playSection(app, e) {
+  return section('Play', Boolean(e.play), ...playBody(app, e));
+}
+
+/** The controls of Play, as a list of nodes (a section in Properties, a popover at the pointer). */
+export function playBody(app, e) {
   const doc = app.store.doc;
   const play = e.play || {};
   const edit = (fn, label) => editPlay(app, e.id, fn, label);
@@ -112,57 +119,93 @@ export function playSection(app, e) {
       row('Start', timeField(app, t.start ?? '', v => setT({ start: v }, 'traveler start'), { placeholder: '0' })),
       row('Loop', h('span', { class: 'wb-row-inline' }, ...LOOPS.map(([k, g, name]) => h('button', { class: `wb-icon-btn${(t.loop || 'once') === k ? ' on' : ''}`, type: 'button', title: name, onclick: () => setT({ loop: k }, 'traveler loop') }, g)),
         h('label', { class: 'wb-row-inline', title: 'Replay the line at the speed it was drawn' }, h('input', { type: 'checkbox', checked: t.as === 'drawn', onchange: ev => setT({ as: ev.target.checked ? 'drawn' : undefined }, 'traveler as drawn') }), 'as drawn'))),
-      row('Width', numberField({ value: t.width || 0, min: 0, max: 2000, step: 1, def: 0, title: 'A bar across the path (like an IanniX cursor): it touches what its bar passes. 0: a point', onChange: (v, { final }) => { if (final) setT({ width: v || undefined }, 'traveler width'); } }))
+      row('Width', numberField({ value: t.width || 0, min: 0, max: 2000, step: 1, def: 0, title: 'A bar across the path (like an IanniX cursor): it touches what its bar passes. 0: a point', onChange: (v, { final }) => {
+        if (!final) return;
+        const line = resolveMark(app.store.doc, t.on);
+        setT({ width: v || undefined, angle: v && line ? barAngle(line, t.at || 0) : undefined }, 'traveler width');
+      } })),
+      row('Offset', numberField({ value: t.at || 0, min: 0, max: 1, step: 0.01, def: 0, title: 'How far along its path it begins (0 to 1). Drag the marker along the path with the Play tool to set it', onChange: (v, { final }) => { if (final) app.store.change('traveler offset', d => R.offset(d, e.id, v)); } })),
+      row('Starts on', objectField({ app, value: t.cue || '', accept: x => x.id !== e.id && x.play?.trigger, placeholder: 'when play starts', title: 'A trigger that starts it: it waits until that trigger sounds. Empty: it runs from the start', onChange: v => setT({ cue: v || undefined }, 'traveler cue') }))
     );
   }
 
   // ---- a trigger or a body: what it sounds ----
   const sounding = play.trigger ? ['trigger', 'Sound', PRESETS.filter(p => p.k !== 'collide')] : null;
   const bodied = play.body ? ['body', 'On collision', PRESETS.filter(p => p.k === 'collide')] : null;
-  for (const [key, label, presets] of [sounding, bodied].filter(Boolean)) {
+
+  /** A sound as controls: a preset menu, its settings, and the code (field: 'emit', or 'emitExit' for leaving). */
+  const soundBlock = (key, field, label, presets, { code: showCode = true } = {}) => {
     const part = play[key];
     const setPart = (patch, lab) => edit(pl => { pl[key] = { ...pl[key], ...patch }; for (const k of Object.keys(pl[key])) if (pl[key][k] === undefined) delete pl[key][k]; }, lab || key);
-    const code = part.emit || '';
+    const code = part[field] || '';
     const s = readPreset(code);
     const current = !code ? 'none' : s ? s.k : 'custom';
-    parts.push(row(label, selectField([['none', 'Silent'], ...presets.map(p => [p.k, p.label]), ...(current === 'custom' ? [['custom', 'Custom code']] : [])], current, v => {
-      if (v === 'none') setPart({ emit: undefined }, 'sound');
-      else if (v !== 'custom') setPart({ emit: emitFor({ ...DEFAULTS[v], ch: s?.ch ?? 1 }) }, 'sound');
-    }, presets.find(p => p.k === current)?.hint || '')));
+    const out = [row(label, selectField([['none', field === 'emitExit' ? 'Nothing more' : 'Silent'], ...presets.map(p => [p.k, p.label]), ...(current === 'custom' ? [['custom', 'Custom code']] : [])], current, v => {
+      if (v === 'none') setPart({ [field]: undefined }, 'sound');
+      else if (v !== 'custom') setPart({ [field]: emitFor({ ...DEFAULTS[v], ch: s?.ch ?? 1 }) }, 'sound');
+    }, presets.find(p => p.k === current)?.hint || ''))];
     if (s) {
-      const set = (k, v) => setPart({ emit: emitFor({ ...s, [k]: v }) }, 'sound');
+      const set = (k, v) => setPart({ [field]: emitFor({ ...s, [k]: v }) }, 'sound');
       const num = (k, lab, min, max, title) => row(lab, numberField({ value: s[k], min, max, step: 1, def: DEFAULTS[s.k][k], title, onChange: (v, { final }) => { if (final) set(k, v); } }));
-      parts.push(num('ch', 'Channel', 1, 16, 'MIDI channel (10 is drums)'));
-      if (s.k === 'note') parts.push(num('pitch', 'Note', 0, 127, 'MIDI note number (60 is middle C)'), num('vel', 'Velocity', 1, 127, ''));
-      if (s.k === 'cc') parts.push(num('cc', 'Controller', 0, 127, 'Controller number (1 is the mod wheel)'));
-      if (s.k === 'height' || s.k === 'along' || s.k === 'collide') {
-        parts.push(num('lo', 'Lowest', 0, 127, 'The note at the bottom of the board (or the start of the path)'), num('hi', 'Highest', 0, 127, 'The note at the top (or the end)'),
+      out.push(num('ch', 'Channel', 1, 16, 'MIDI channel (10 is drums)'));
+      if (s.k === 'note') out.push(num('pitch', 'Note', 0, 127, 'MIDI note number (60 is middle C)'), num('vel', 'Velocity', 1, 127, ''));
+      if (s.k === 'cc') out.push(num('cc', 'Controller', 0, 127, 'Controller number (1 is the mod wheel)'));
+      if (s.k === 'height' || s.k === 'along' || s.k === 'offset' || s.k === 'collide') {
+        out.push(num('lo', 'Lowest', 0, 127, 'The lowest note: the bottom of the board, the start of the path, or the far left of a bar'), num('hi', 'Highest', 0, 127, 'The highest note'),
           row('Scale', selectField(SCALES, s.scale, v => set('scale', v), 'Notes are moved to the nearest note of this scale')), num('root', 'Root', 0, 127, 'The scale\'s root note'));
-        if (s.k !== 'collide') parts.push(num('vel', 'Velocity', 1, 127, ''));
+        if (s.k !== 'collide') out.push(num('vel', 'Velocity', 1, 127, ''));
       }
-      if (s.k !== 'cc') parts.push(row('Length', timeField(app, s.dur, v => set('dur', v ?? 0.25), { allow: ['gate'], placeholder: 'gate or 0.25' })));
+      if (s.k !== 'cc') out.push(row('Length', timeField(app, s.dur, v => set('dur', v ?? 0.25), { allow: ['gate'], placeholder: 'gate or 0.25' })));
     }
-    if (key === 'trigger') {
-      parts.push(
-        row('Policy', selectField([['latched', 'One voice (latched)'], ['pair', 'One per traveler'], ['every', 'Every touch']], part.policy || 'latched', v => setPart({ policy: v === 'latched' ? undefined : v }, 'trigger policy'), 'How many voices touching it makes')),
-        row('Hold', timeField(app, part.gate ?? '', v => setPart({ gate: v }, 'trigger hold'), { placeholder: '0' })),
-        row('Rest', timeField(app, part.lockout ?? '', v => setPart({ lockout: v }, 'trigger rest'), { placeholder: '0' })),
-        row('Hears', textField(typeof part.filter === 'string' ? part.filter : '', v => setPart({ filter: v || undefined }, 'trigger filter'), { placeholder: 'any traveler', title: 'Only travelers with this tag' }))
-      );
+    if (showCode) {
+      const ta = h('textarea', { class: 'wb-why wb-play-code', rows: Math.min(8, Math.max(2, code.split('\n').length)), spellcheck: 'false', placeholder: `${field === 'emitExit' ? 'on leaving' : 'emit'} code: note(1, 60, 100, 0.25)`, title: 'What happens, as code: note(), cc(), snap(), lane(ny, n)… (see Docs → Scores that play)' });
+      ta.value = code;
+      ta.addEventListener('keydown', ev => ev.stopPropagation());
+      ta.addEventListener('change', () => setPart({ [field]: ta.value.trim() ? ta.value : undefined }, 'emit code'));
+      out.push(ta);
     }
-    if (key === 'body') {
-      const sp = Array.isArray(part.speed) ? part.speed : [part.speed ?? 100, part.speed ?? 100];
-      parts.push(row('Speed', h('span', { class: 'wb-row-inline' },
-        numberField({ value: sp[0], min: 0, max: 2000, step: 5, def: 60, title: 'Slowest (units a second)', onChange: (v, { final }) => { if (final) setPart({ speed: [v, Math.max(v, sp[1])] }, 'body speed'); } }),
-        numberField({ value: sp[1], min: 0, max: 2000, step: 5, def: 200, title: 'Fastest', onChange: (v, { final }) => { if (final) setPart({ speed: [Math.min(v, sp[0]), v] }, 'body speed'); } }))));
-    }
-    // The code itself: what the controls write, and what you may write instead.
-    const ta = h('textarea', { class: 'wb-why wb-play-code', rows: Math.min(8, Math.max(2, code.split('\n').length)), spellcheck: 'false', placeholder: 'emit code: note(1, 60, 100, 0.25)', title: 'What happens on each touch, as code: note(), cc(), snap(), lane(ny, n)… (see Docs → Scores that play)' });
-    ta.value = code;
-    ta.addEventListener('keydown', ev => ev.stopPropagation());
-    ta.addEventListener('change', () => setPart({ emit: ta.value.trim() ? ta.value : undefined }, 'emit code'));
-    parts.push(ta);
+    return out;
+  };
+
+  if (sounding) {
+    const part = play.trigger;
+    const setPart = (patch, lab) => edit(pl => { pl.trigger = { ...pl.trigger, ...patch }; for (const k of Object.keys(pl.trigger)) if (pl.trigger[k] === undefined) delete pl.trigger[k]; }, lab || 'trigger');
+    const isLine = e.role === 'line';
+    const on = part.on || (isLine ? ['cross'] : ['enter', 'exit']);
+    const toggle = ev => { const next = on.includes(ev) ? on.filter(x => x !== ev) : [...on, ev]; setPart({ on: next.length === (isLine ? 1 : 2) && next.every(x => (isLine ? ['cross'] : ['enter', 'exit']).includes(x)) ? undefined : next }, 'trigger events'); };
+    parts.push(
+      row('When', isLine
+        ? h('span', { class: 'wb-row-inline' },
+          ...[[undefined, '↔', 'Crossed either way'], [-1, '→', 'Crossed from its left to its right (looking along it from its start)'], [1, '←', 'Crossed from its right to its left']].map(([dv, g, tip]) => h('button', { class: `wb-icon-btn${part.dir === dv ? ' on' : ''}`, type: 'button', title: tip, onclick: () => setPart({ dir: dv }, 'trigger direction') }, g)))
+        : h('span', { class: 'wb-row-inline' },
+          h('button', { class: `wb-icon-btn${on.includes('enter') ? ' on' : ''}`, type: 'button', title: 'When something enters it', onclick: () => toggle('enter') }, '⇥'),
+          h('button', { class: `wb-icon-btn${on.includes('exit') ? ' on' : ''}`, type: 'button', title: 'When something leaves it', onclick: () => toggle('exit') }, '⇤'))),
+      ...soundBlock('trigger', 'emit', 'Sound', sounding[2])
+    );
+    if (!isLine) parts.push(...soundBlock('trigger', 'emitExit', 'On leaving', sounding[2].filter(p => ['note', 'cc'].includes(p.k)), { code: Boolean(part.emitExit) }));
+    // What it sends on: a traveler goes to each of these and sounds them there.
+    const to = [].concat(part.to || []).map(r => (typeof r === 'string' ? { to: r } : r));
+    const setTo = (list, lab) => setPart({ to: list.length ? list : undefined }, lab);
+    to.forEach((r, i) => parts.push(row(i ? '' : 'Sends to', h('span', { class: 'wb-row-inline wb-obj' },
+      objectField({ app, value: r.to, accept: x => x.id !== e.id && (x.play?.trigger || x.role === 'point' || x.role === 'plane'), title: 'A trigger this one sends a traveler to', onChange: v => { if (v) setTo(to.map((q, k) => (k === i ? { ...q, to: v } : q)), 'route'); else setTo(to.filter((_, k) => k !== i), 'route'); } }),
+      timeField(app, r.dur ?? '', v => setTo(to.map((q, k) => (k === i ? { ...q, dur: v } : q)), 'route time'), { placeholder: '1 beat' })))));
+    parts.push(row(to.length ? '' : 'Sends to', objectField({ app, value: '', accept: x => x.id !== e.id && (x.play?.trigger || x.role === 'point' || x.role === 'plane'), placeholder: 'add: a name, or pick', title: 'Add a trigger to send a traveler to', onChange: v => { if (v) { const m = resolveMark(app.store.doc, v); app.store.change('route', d => R.send(d, e.id, m ? m.id : v)); } } })));
+    parts.push(
+      row('Policy', selectField([['latched', 'One voice (latched)'], ['pair', 'One per traveler'], ['every', 'Every touch']], part.policy || 'latched', v => setPart({ policy: v === 'latched' ? undefined : v }, 'trigger policy'), 'How many voices touching it makes')),
+      row('Hold', timeField(app, part.gate ?? '', v => setPart({ gate: v }, 'trigger hold'), { placeholder: '0' })),
+      row('Rest', timeField(app, part.lockout ?? '', v => setPart({ lockout: v }, 'trigger rest'), { placeholder: '0' })),
+      row('Hears', textField(typeof part.filter === 'string' ? part.filter : '', v => setPart({ filter: v || undefined }, 'trigger filter'), { placeholder: 'any traveler', title: 'Only travelers with this tag' }))
+    );
+  }
+  if (bodied) {
+    const part = play.body;
+    const setPart = (patch, lab) => edit(pl => { pl.body = { ...pl.body, ...patch }; for (const k of Object.keys(pl.body)) if (pl.body[k] === undefined) delete pl.body[k]; }, lab || 'body');
+    parts.push(...soundBlock('body', 'emit', 'On collision', bodied[2]));
+    const sp = Array.isArray(part.speed) ? part.speed : [part.speed ?? 100, part.speed ?? 100];
+    parts.push(row('Speed', h('span', { class: 'wb-row-inline' },
+      numberField({ value: sp[0], min: 0, max: 2000, step: 5, def: 60, title: 'Slowest (units a second)', onChange: (v, { final }) => { if (final) setPart({ speed: [v, Math.max(v, sp[1])], v: undefined }, 'body speed'); } }),
+      numberField({ value: sp[1], min: 0, max: 2000, step: 5, def: 200, title: 'Fastest', onChange: (v, { final }) => { if (final) setPart({ speed: [Math.min(v, sp[0]), v], v: undefined }, 'body speed'); } }))));
   }
 
-  return section('Play', Boolean(e.play), ...parts);
+  return parts;
 }

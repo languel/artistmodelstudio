@@ -49,6 +49,12 @@ import { mountHistory } from './panels/history.js';
 import { TakePlayer } from './takePlayer.js';
 import { ScorePlayer } from './scorePlayer.js';
 import { ScoreOverlay } from './scoreOverlay.js';
+import { PlayTool, PLAY_KINDS } from './playTool.js';
+import { openPlayPopover } from './playPopover.js';
+import * as Rel from '../score/relations.js';
+import { nearestPath } from '../score/geometry.js';
+import { realizeAfter } from '../process/playparts.js';
+import { PRESETS as SOUNDS, DEFAULTS as SOUND_DEFAULTS, emitFor as soundCode, readPreset as readSound } from '../score/presets.js';
 import { loadLibrary } from '../process/brushes.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
@@ -198,7 +204,7 @@ export class Workbench {
     if (t === 'brush') return this.brushIds().map(id => ({ id, label: BRUSHES[id].label, icon: brushIcon(id), active: id === this.brush.id, run: () => { this.pickBrush(id, { apply: false }); this.setTool('brush'); } }));
     if (t === 'sculpt') return Object.entries(SCULPTS).map(([id, st]) => ({ id, label: st.label, icon: sculptIcon(id), active: id === this.sculpt.tool, run: () => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } }));
     // Pan, laser, board, point, note: the top-level tools.
-    const top = [['select', 'Select'], ['hand', 'Pan'], ['laser', 'Laser'], ['board', 'Board'], ['point', 'Point'], ['line', 'Line'], ['plane', 'Plane'], ['brush', 'Brush'], ['sculpt', 'Sculpt'], ['note', 'Note']];
+    const top = [['select', 'Select'], ['hand', 'Pan'], ['laser', 'Laser'], ['board', 'Board'], ['point', 'Point'], ['line', 'Line'], ['plane', 'Plane'], ['brush', 'Brush'], ['sculpt', 'Sculpt'], ['play', 'Play'], ['note', 'Note']];
     return top.map(([id, label]) => ({ id, label, icon: this.pathIcon(id), active: id === t, run: () => this.setTool(id) }));
   }
 
@@ -207,6 +213,77 @@ export class Workbench {
     if (this.radial) return;
     const [x, y] = this.pointerAt || [window.innerWidth / 2, window.innerHeight / 2];
     this.radial = openRadial({ items: this.radialItems(), x, y, onClose: () => { this.radial = null; } });
+  }
+
+  // ---- the Play tool ---------------------------------------------------------------------------
+  setPlayKind(k) {
+    this.playKind = k;
+    try { localStorage.setItem('ams_playkind', k); } catch { /* ignore */ }
+    this.canvas.endPick?.();
+    if (this.tool !== 'play') this.setTool('play'); else this.renderChrome();
+  }
+
+  /** The Play tool's kinds, solo and the rest, as a menu (click its button again, or right-click it). */
+  playMenu(x, y) {
+    const solo = Boolean(this.score?.solo);
+    showMenu([{ label: 'Play' },
+      ...PLAY_KINDS.map(([id, label, hint]) => ({ icon: this.playKindIcon(id), active: id === this.playKind, label, hint, run: () => this.setPlayKind(id) })),
+      '-',
+      { label: solo ? 'Solo off (all marks sound)' : 'Solo the selection', hint: 'Only the selected marks sound, with what they need (their path, what they send to)', keys: this.shortcuts?.label('score.solo'), run: () => this.toggleSolo() },
+      { label: this.scoreView.names ? 'Hide names' : 'Show names', hint: 'The names of marks that play (the id when a mark has none), and the links between them', run: () => this.setScoreView({ names: !this.scoreView.names }) },
+      { label: 'Stop all sound', run: () => this.score?.panic() }], x, y);
+  }
+
+  playKindIcon(id) { return ({ link: icon('score'), path: brushIcon('path'), traveler: brushIcon('traveler'), trigger: brushIcon('trigger'), gate: icon('gate'), body: brushIcon('body') })[id]; }
+
+  /** Solo the selected marks that play (again: everything sounds). */
+  toggleSolo() {
+    if (this.score.solo) { this.score.setSolo(null); this.canvas.flash('All marks sound'); return; }
+    const ids = this.selectedElements().filter(e => e.play).map(e => e.id);
+    if (!ids.length) { this.canvas.flash('Select marks that play, then solo them'); return; }
+    this.score.setSolo(ids);
+    this.canvas.flash(`Solo: ${ids.length} mark${ids.length === 1 ? '' : 's'}`);
+  }
+
+  /** The Play submenu of the selection's right-click menu: make marks play, attach and link them. */
+  playMenuItems(ids) {
+    const doc = this.store.doc, els = doc.elements.filter(e => ids.includes(e.id));
+    if (!els.length || els.every(e => e.role === 'note' || e.role === 'image')) return null;
+    const one = els.length === 1 ? els[0] : null;
+    const edit = (label, fn) => this.store.change(label, d => { for (const e of d.elements) if (ids.includes(e.id)) fn(d, e); });
+    const paths = doc.elements.filter(e => e.points?.length >= 2 && ['line', 'gesture', 'guide'].includes(e.role));
+    const link = () => {
+      if (!one) return;
+      this.canvas.startPick({ accept: x => x.id !== one.id, onPick: t => {
+        const rel = Rel.infer(one, t);
+        if (!rel) { this.canvas.flash('Nothing to make between those'); return; }
+        this.store.change('link', d => Rel.apply(d, rel)); this.canvas.flash(rel.label);
+      } });
+      this.log('Click the mark to link to (Esc cancels).');
+    };
+    const attach = () => {
+      const m = els.filter(e => e.id !== els[0].id)[0] || els[0];
+      const near = nearestPath(paths.filter(p => !ids.includes(p.id)), ...Rel.centerPoint(m), Infinity);
+      if (!near) { this.canvas.flash('There is no line to attach to'); return; }
+      this.store.change('attach', d => { for (const e of els) { if (e.role === 'point' && !e.play?.trigger) Rel.travel(d, e.id, near.mark.id); else Rel.place(d, e.id, near.mark.id); } });
+      this.canvas.flash(`On ${near.mark.label || near.mark.id}`);
+    };
+    const set = (part, init) => () => edit(`play ${part}`, (d, e) => { e.play = { ...(e.play || {}) }; if (e.play[part]) delete e.play[part]; else e.play[part] = init(e, d); const r = realizeAfter(e, e.play); if (r !== e.realize) e.realize = { ...r }; if (!Object.keys(e.play).length) delete e.play; });
+    const items = [
+      { label: els.every(e => e.play?.path) ? 'Not a path' : 'Make a path', run: set('path', () => true) },
+      { label: els.every(e => e.play?.travel) ? 'Not a traveler' : 'Make a traveler', run: set('travel', () => ({ on: '', dur: '8 beats', loop: 'once' })) },
+      { label: els.every(e => e.play?.trigger) ? 'Not a trigger' : 'Make a trigger', run: set('trigger', () => ({ emit: soundCode(SOUND_DEFAULTS.height) })) },
+      { label: els.every(e => e.play?.body) ? 'Not a body' : 'Make a body', run: set('body', () => ({ speed: [60, 200] })) },
+      '-',
+      { label: 'Attach to the nearest line', hint: 'A point travels it, from its start; anything else moves onto it', run: attach },
+      one ? { label: 'Link to…', hint: 'Click another mark: what they are decides the relation (travels, sends to, starts)', run: link } : null,
+      one?.play?.travel?.on ? { label: 'Detach from its path', run: () => edit('detach', (d, e) => { if (e.play?.travel) e.play.travel = { ...e.play.travel, on: '' }; }) } : null,
+      one?.play?.trigger ? { label: 'Sound', items: SOUNDS.filter(p => p.k !== 'collide').map(p => ({ label: p.label, hint: p.hint, active: readSound(one.play.trigger.emit)?.k === p.k, run: () => edit('sound', (d, e) => { e.play.trigger = { ...e.play.trigger, emit: soundCode({ ...SOUND_DEFAULTS[p.k], ch: readSound(e.play.trigger.emit)?.ch ?? 1 }) }; }) })) } : null,
+      { label: this.score?.solo ? 'Solo off' : 'Solo', run: () => this.toggleSolo() },
+      '-',
+      { label: 'Remove play', disabled: !els.some(e => e.play), run: () => edit('remove play', (d, e) => { delete e.play; const r = realizeAfter(e, undefined); if (r !== e.realize) e.realize = { ...r }; }) }
+    ].filter(Boolean);
+    return { label: 'Play', items };
   }
 
   /** Shift+right-click: the current tool's settings at the pointer (the same popups as the toolbar's right-click). */
@@ -993,6 +1070,7 @@ export class Workbench {
     try { const bg = localStorage.getItem('ams_workspace_bg'); if (bg && bg !== 'default') { const log = this.log; this.log = () => {}; this.setBackground(bg); this.log = log; } } catch { /* ignore */ }
     this.canvas.onContext = (e, hit, at) => {
       if (!e.altKey) return showMenu(this.contextItems(hit, at), e.clientX, e.clientY);
+      if (hit && (hit.play || this.tool === 'play')) return openPlayPopover(this, e.clientX, e.clientY, hit.id);   // Opt+right-click a mark that plays: its Play controls
       // Opt+right-click: a mark's or tool's parameters; on bare paper, the board's.
       const b = !hit && !this.canvas.selected.size && this.boardAtClient(e.clientX, e.clientY);
       return b ? openBoardParams(this, b.id, e.clientX, e.clientY) : openToolParams(this, e.clientX, e.clientY);
@@ -1035,6 +1113,10 @@ export class Workbench {
     // The score runner, for code outside the app (lesson builders): the app's own, with its sources.
     this.runScript = runScript;
     this.canvas.onDrawn = () => this.frames.update();
+    try { this.playKind = localStorage.getItem('ams_playkind') || 'link'; } catch { this.playKind = 'link'; }
+    this.canvas.playTool = new PlayTool(this, this.canvas);
+    this.canvas.onSpaceTap = () => this.player?.toggle();
+    this.canvas.onPlayAfter = (el, after) => { if (after.travel) this.store.change('travel', d => Rel.travel(d, after.travel, el.id)); };
     this.canvas.onCamera = () => { const t = `${Math.round(this.canvas.cam.z * 100)}%`; const z = this.zoomIsland?.querySelector('span'); if (z) z.textContent = t; const b = this.topbar?.querySelector('.wb-zoom-pct'); if (b) b.textContent = t; };
     this.topbar = h('div', { class: 'wb-topbar' });
     this.zoomIsland = h('div', { class: 'wb-island wb-zoom' });
@@ -1856,7 +1938,12 @@ export class Workbench {
       if (this.tool !== 'sculpt') this.setTool('sculpt');
       openToolParams(this, r.left, r.bottom + 6);
     });
-    tools.append(h('div', { class: 'wb-sep' }), brushBtn, sculptBtn);
+    // Play: author a score by pointing (click again, or right-click, for what it makes and for solo).
+    const kind = PLAY_KINDS.find(k => k[0] === this.playKind) || PLAY_KINDS[0];
+    const playBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'play' ? ' on' : ''}`, 'data-guide': 'tool:play', title: `Play: ${kind[1]} (Y). ${kind[2]} Click again or right-click for the kinds`, html: `${this.playKindIcon(kind[0])}<kbd>Y</kbd>` });
+    playBtn.addEventListener('click', () => { if (this.tool === 'play') { const r = playBtn.getBoundingClientRect(); this.playMenu(r.left, r.bottom + 4); } else this.setTool('play'); });
+    playBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.playMenu(ev.clientX, ev.clientY); });
+    tools.append(h('div', { class: 'wb-sep' }), brushBtn, sculptBtn, playBtn);
     // Snap to grid: on shows the grid at full strength; off, fainter.
     const snapKey = this.shortcuts?.label('view.snap') || '';
     tools.append(h('div', { class: 'wb-sep' }), this.paintSwatches(), h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''} · right-click: grid and drawing settings`, html: icon('snap'), onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }), oncontextmenu: e => { e.preventDefault(); openGridParams(this, e.clientX, e.clientY + 8); } }));
@@ -2055,6 +2142,7 @@ export class Workbench {
         { label: 'Send to back', run: () => this.store.arrange(ids, 'back') }
       ] },
       { label: 'Move to stage', items: this.store.doc.stages.map(st => ({ label: st.name, run: () => this.store.patchElements(ids, { stage: st.id }, 'stage') })) },
+      this.playMenuItems(ids),
       brushes.length ? { label: 'Brush', items: brushes.map(b => ({ icon: brushIcon(b.id), label: b.label, run: () => this.store.change('brush', d => { for (const el of d.elements) if (ids.includes(el.id)) el.realize = { brush: b.id, params: {} }; }) })) } : null,
       lineish ? { label: 'Sculpt', hint: 'Brush the selected marks into shape (Shift+drag over a mark does it with any tool)', items: [
         ...Object.entries(SCULPTS).map(([id, t]) => ({ icon: sculptIcon(id), active: id === this.sculpt.tool, label: `${t.label}`, hint: t.doc, run: () => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } })),

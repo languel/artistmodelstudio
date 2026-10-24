@@ -103,7 +103,7 @@ export class Recorder {
   }
 
   onTool(name, args, { replay = false, summary = '' } = {}) {
-    if (!this.take && this.settings.autoAgents && !replay && !/^ams_(record|timeline|wb_state|vocabulary|get|snapshot|candidates|pending|sessions|show|decision_pending|decision_labels|layout)$/.test(name)) {
+    if (!this.take && this.settings.autoAgents && !replay && !/^ams_(record|timeline|wb_state|vocabulary|get|snapshot|candidates|pending|sessions|show|decision_pending|decision_labels|layout|score)$/.test(name)) {
       this.start({ title: `Agent run ${new Date().toLocaleString()}`, source: 'agent' });
     }
     if (!this.take) return;

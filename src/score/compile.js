@@ -55,6 +55,9 @@ export function compileEmit(src, names = HELPER_NAMES) {
   return (h, e, api) => fn(h, api, ...FIELDS.map(f => e[f]));
 }
 
+/** The name a trigger is reached by: its `name`, else the mark's label, else its id. */
+export const triggerIdOf = e => e.play?.trigger?.name || e.label || e.id;
+
 export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, seed = 1, ctx = timeContext(DEFAULT_TRANSPORT) } = {}) {
   const d = boardDoc(doc, board);
   const marks = d.elements.filter(e => e.play && e.points?.length);
@@ -86,7 +89,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
   }
 
   // Triggers are reached by their name, label or id: from routes (`to`) and cues (`cue`).
-  const triggerId = e => e.play.trigger.name || e.label || e.id;
+  const triggerId = triggerIdOf;
   const trigKey = new Map();
   for (const e of marks) if (e.play.trigger) { trigKey.set(e.id, triggerId(e)); if (e.label && !trigKey.has(e.label)) trigKey.set(e.label, triggerId(e)); }
   const cues = new Map();   // trigger id → travelers it starts: [{ path, opts }]

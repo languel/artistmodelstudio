@@ -2,6 +2,8 @@
 const svg = (d, extra = '') => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
 
 export const ICONS = {
+  score: svg('<path d="M3.5 17c3-8 7-10.5 12-8.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="15.5" cy="8.6" r="2.2" fill="currentColor"/><circle cx="19" cy="17" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="19" cy="17" r="0.8" fill="currentColor"/>'),
+  gate: svg('<path d="M4 18 20 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="2.4 2.2" stroke-linecap="round"/><path d="M10 8l4 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'),
   select: svg('<path d="M5 3l14 8-6 1.5L10 19z" fill="currentColor"/>'),
   direct: svg('<path d="M5 3l14 8-6 1.5L10 19z"/><rect x="15.5" y="15.5" width="4" height="4" fill="currentColor" stroke="none"/>'),
   hand: svg('<path d="M8 13V5.5a1.5 1.5 0 013 0V12m0-1V4.5a1.5 1.5 0 013 0V12m0-1.5a1.5 1.5 0 013 0V15a6 6 0 01-6 6h-1a6 6 0 01-5-2.7L3.6 15a1.6 1.6 0 012.6-1.9L8 15"/>'),
