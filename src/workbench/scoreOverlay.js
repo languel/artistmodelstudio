@@ -8,6 +8,8 @@ import { centerOf } from '../score/geometry.js';
 import { laserOutline, fillLaserOutline } from './laser.js';
 import { formatDuration } from '../time/sceneTransport.js';
 
+/** How a score is drawn over the canvas (Canvas menu; a traveler can say its own: travel.glow, travel.glowSize, travel.trail). */
+export const SCORE_LOOK = Object.freeze({ glow: 0.4, glowSize: 3.2, trail: 0.6, trailAlpha: 0.55, blip: 1 });
 const FLASH = 0.55;   // seconds a trigger's blip lasts
 
 export class ScoreOverlay {
@@ -140,6 +142,7 @@ export class ScoreOverlay {
     const entries = score.view();
     const notes = app.scoreView?.names || app.canvas.pick || app.tool === 'play' || (app.canvas.selected?.size && app.store.doc.elements.some(e => e.play?.travel || e.play?.trigger?.to));
     if (!entries.length && !notes) { if (this.cv) { this.cv.getContext('2d').clearRect(0, 0, this.cv.width, this.cv.height); } this.lit = false; return; }
+    if (!(app.canvas.cam?.z > 0) || !Number.isFinite(app.canvas.cam.x)) return;   // (a camera that is not set yet draws nothing)
     const cvw = app.canvas, cv = this.canvas(), ctx = cv.getContext('2d');
     const pos = p.position() / 1000;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -157,7 +160,7 @@ export class ScoreOverlay {
       for (const f of score.flashes) if (f.board === board.id && f.t <= pos && !(lastHit.get(f.trigger) >= f.t)) lastHit.set(f.trigger, f.t);
       for (const trig of world.triggers()) {
         const age = pos - (lastHit.get(trig.id) ?? -Infinity);
-        if (!(age >= 0 && age < FLASH)) continue;
+        if (!(age >= 0 && age < FLASH) || !(app.scoreView?.blip ?? 1)) continue;
         const k = age / FLASH, env = Math.min(1, age / 0.025) * Math.exp(-4 * k);   // 0..1
         ctx.fillStyle = accent; ctx.strokeStyle = accent; ctx.lineJoin = 'round';
         const d = trig.regionDef, z = cvw.cam.z;
@@ -205,13 +208,16 @@ export class ScoreOverlay {
       // Travelers: a soft glow, a trail that thins and fades, and a bar as a line that fades at its ends.
       ctx.globalAlpha = 1;
       const now = world.positions(pos).filter(q => p.playing || !q.r), widths = new Map(world.travelers().filter(t => t.width > 0).map(t => [t.id, t.width]));
-      const TRAIL = 0.6, steps = now.length > 40 ? 3 : 7;   // (seconds of trail; fewer looks when there are many)
+      const look = { ...SCORE_LOOK, ...app.scoreView }, own = new Map();
+      for (const e of score.doc().elements) if (e.play?.travel && (e.play.travel.glow !== undefined || e.play.travel.glowSize !== undefined || e.play.travel.trail !== undefined)) own.set(e.id, e.play.travel);
+      const TRAIL = Math.max(0.05, Math.max(look.trail, ...[...own.values()].map(t => t.trail ?? 0))), steps = now.length > 40 ? 3 : 7;   // (seconds of the longest trail; fewer looks when there are many)
       const past = [];
-      if (p.playing) for (let i = 1; i <= steps; i++) past.push(new Map(world.positions(Math.max(0, pos - (TRAIL * i) / steps)).map(q => [q.id, q])));
+      if (p.playing && TRAIL > 0.05) for (let i = 1; i <= steps; i++) past.push(new Map(world.positions(Math.max(0, pos - (TRAIL * i) / steps)).map(q => [q.id, q])));
       for (const q of now) {
         const [x, y] = at(q.x, q.y);
-        const bw = widths.get(q.id);
-        if (p.playing && !q.r) {   // the trail: the laser pointer's ribbon, one filled shape that tapers to nothing
+        const bw = widths.get(q.id), mine = own.get(q.id) || {};
+        const trailLen = mine.trail ?? look.trail, glow = mine.glow ?? look.glow, glowSize = mine.glowSize ?? look.glowSize;
+        if (p.playing && !q.r && trailLen > 0.05) {   // the trail: the laser pointer's ribbon, one filled shape that tapers to nothing
           const pts = [];
           for (let i = past.length - 1; i >= 0; i--) {   // oldest first
             const b = past[i].get(q.id);
@@ -219,7 +225,7 @@ export class ScoreOverlay {
             const [bx, by] = at(b.x, b.y);
             pts.push({ x: bx, y: by, t: (pos - (TRAIL * (i + 1)) / steps) * 1000 });
           }
-          if (pts.length) { ctx.globalAlpha = 0.55; fillLaserOutline(ctx, laserOutline(pts, pos * 1000, TRAIL * 1000, { head: { x, y } }), accent); }
+          if (pts.length) { ctx.globalAlpha = look.trailAlpha; fillLaserOutline(ctx, laserOutline(pts.filter(q => q.t >= (pos - trailLen) * 1000), pos * 1000, trailLen * 1000, { head: { x, y } }), accent); }
         }
         if (bw && q.tx !== undefined) {   // a bar across its path: a fine line, strongest in the middle
           const half = (bw / 2) * cvw.cam.z, ax = x + q.ty * half, ay = y - q.tx * half, bx = x - q.ty * half, by = y + q.tx * half;
@@ -230,10 +236,10 @@ export class ScoreOverlay {
           ctx.globalAlpha = 0.95; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.globalAlpha = 1;
         }
         const rad = q.r ? Math.max(2.5, q.r * cvw.cam.z) : 4.5;   // (a body is as big as it is; a traveler is a small dot)
-        if (!q.r) {   // glow
-          const gr = rad * 3.2, g = ctx.createRadialGradient(x, y, 0, x, y, gr);
+        if (!q.r && glow > 0 && glowSize > 1) {   // glow
+          const gr = rad * glowSize, g = ctx.createRadialGradient(x, y, 0, x, y, gr);
           g.addColorStop(0, accent); g.addColorStop(1, 'transparent');
-          ctx.globalAlpha = 0.4; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, gr, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = glow; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, gr, 0, Math.PI * 2); ctx.fill();
         }
         ctx.globalAlpha = q.r ? 0.85 : 1; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.stroke();

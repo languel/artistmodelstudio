@@ -28,6 +28,7 @@ import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
 import { icon, brushIcon, sculptIcon, nodeIcon } from './icons.js';
 import { NODE_KINDS, NODE_INFO, MODES } from '../score/nodes.js';
+import { SCORE_LOOK } from './scoreOverlay.js';
 import { h, download, editInPlace } from './ui.js';
 import { mountScenes } from './panels/scenes.js';
 import { mountBoards } from './panels/boards.js';
@@ -1207,7 +1208,7 @@ export class Workbench {
     this.recorder = new Recorder(this);
     this.player = new TakePlayer(this);
     this.score = new ScorePlayer(this);   // plays marks with `play` on the transport
-    try { this.scoreView = { names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { names: false }; }
+    try { this.scoreView = { ...SCORE_LOOK, names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { ...SCORE_LOOK, names: false }; }
     this.scoreOverlay = new ScoreOverlay(this);   // and shows them: travelers, lit triggers
     this.shortcuts = new Shortcuts(this);
     this.registerPanels();

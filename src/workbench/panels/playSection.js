@@ -155,6 +155,10 @@ export function playBody(app, e) {
       row('Start', timeField(app, t.start ?? '', v => setT({ start: v }, 'traveler start'), { placeholder: '0' })),
       row('Loop', h('span', { class: 'wb-row-inline' }, ...LOOPS.map(([k, g, name]) => h('button', { class: `wb-icon-btn${(t.loop ?? (travelLoops ? 'loop' : 'once')) === k ? ' on' : ''}`, type: 'button', title: name, onclick: () => setT({ loop: k }, 'traveler loop') }, g)),
         h('label', { class: 'wb-row-inline', title: 'Replay the line at the speed it was drawn' }, h('input', { type: 'checkbox', checked: t.as === 'drawn', onchange: ev => setT({ as: ev.target.checked ? 'drawn' : undefined }, 'traveler as drawn') }), 'as drawn'))),
+      row('Glow', h('span', { class: 'wb-row-inline' },
+        numberField({ value: t.glow ?? app.scoreView.glow, min: 0, max: 1, step: 0.05, def: app.scoreView.glow, title: 'Strength of its halo while it plays (0: none). Empty: the Canvas menu\'s', onChange: (v, { final }) => { if (final) setT({ glow: v }, 'traveler glow'); } }),
+        numberField({ value: t.glowSize ?? app.scoreView.glowSize, min: 1, max: 8, step: 0.1, def: app.scoreView.glowSize, title: 'How far the halo reaches (in dots)', onChange: (v, { final }) => { if (final) setT({ glowSize: v }, 'traveler glow size'); } }))),
+      row('Tail', numberField({ value: t.trail ?? app.scoreView.trail, min: 0, max: 3, step: 0.05, def: app.scoreView.trail, title: 'Seconds of tail behind it (0: none)', onChange: (v, { final }) => { if (final) setT({ trail: v }, 'traveler tail'); } })),
       row('Width', numberField({ value: t.width || 0, min: 0, max: 2000, step: 1, def: 0, title: 'A bar across the path (like an IanniX cursor): it touches what its bar passes. 0: a point', onChange: (v, { final }) => {
         if (!final) return;
         const line = resolveMark(app.store.doc, t.on);
