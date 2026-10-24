@@ -51,11 +51,15 @@ Nothing needs to be declared to be readable: every path, traveler, event and nod
 4. `out(name, value)`, writes (7).
 5. Standalone runtime and export (6).
 
+## Decisions (24 Oct 2026)
+
+- **Coordinates:** normalized by default (`x y` 0..1 of the board, y up). Pixel size (`w h`) is available as separate features for hosts that want it.
+- **Board prefix:** optional. A name alone resolves when it is unique; `ams/<board>/<name>` disambiguates.
+- **Rate:** 25 Hz by default (Genereti's control rate), adjustable per subscription (`subscribe-score { hz }`) and per project (`init { score: { hz } }`).
+- **Score-only boards:** fine: a board may hold only marks that play (no picture) and still be a full source of signals.
+- **Event code:** internal use for now; no sandboxing beyond the iframe. Checking drawings from others is the user's responsibility.
+- **MIDI:** Poliplan does not generate MIDI. AMS does, through its own MIDI system (the mixer and Web MIDI out), when it is the one running the score. The host does not receive MIDI messages as events for now.
+
 ## Open questions
 
-- **Coordinates.** `x y` in 0..1 of the *board* (y up) is proposed so a score is resolution-independent; a stream may also want the board's pixel size (`w h`). OK to give both?
-- **Names across boards.** Prefix with the board title always, or only when two marks share a name?
-- **Rates.** 30 Hz frames are plenty for control; sample-accurate timing needs events carrying `t` (they do) and the host clock agreeing (phase 3). Is 25 Hz (Genereti's CHOP rate) the right default?
-- **Who owns the document.** Genereti owns the saved drawing today; the score would travel inside it (marks with `play`), so no change, but a workflow that *only* wants the score (no picture) may want a score-only board type.
-- **Security of `emit` code in hosts.** Event code is JavaScript. A host loading someone else's drawing runs it inside the iframe (sandboxed), but `out()` values then reach host code: treat them as data (numbers, short strings), cap sizes as `__.data` does.
-- **MIDI.** Keep MIDI out through the browser (Web MIDI in the iframe, needs the permission policy `midi`) or also expose the *messages* as an event stream (`score-event` with `name: 'midi'`) so the host can route them?
+None blocking phase 1. To revisit when the host clock (phase 3) is built: how a host's seek should treat notes that are sounding in AMS's own MIDI output (let ring, as an edit does today, or cut).
