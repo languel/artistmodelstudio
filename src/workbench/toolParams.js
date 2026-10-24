@@ -145,6 +145,7 @@ export function openGridParams(app, x, y) {
     line('Snap', snap, 'Marks snap to the grid (Shift+Tab); Ctrl snaps while drawing, moving and scaling'),
     line('Snap to', seg([['points', 'Grid'], ['increments', 'Steps'], ['objects', 'Objects']], ['increments', 'objects'].includes(g.snapMode) ? g.snapMode : 'points', v => app.canvas.setGrid({ snapMode: v })), 'Grid: the grabbed point (or the dragged edge) lands on a grid point. Steps: moves in whole grid steps from where it started. Objects: the grabbed (or drawn) point lands on the nearest point of another mark'),
     h('div', { class: 'wb-tp-sub' }, 'Scores (glow, trails, blips)'),
+    line('Highlight', colorField(app.scoreView.color || '', v => app.setScoreView({ color: v || '' }), { title: 'The colour of everything lit: travelers, trails, blips, nodes (empty: the theme\'s accent)', fallback: '#c8664f', app }), 'The colour of everything lit by a score'),
     slider({ label: 'Glow', min: 0, max: 1, step: 0.05, value: app.scoreView.glow, doc: 'The halo around a traveler: how strong (0 = off). A traveler can have its own in Properties', onInput: v => app.setScoreView({ glow: v }) }),
     slider({ label: 'Glow size', min: 1, max: 8, step: 0.1, value: app.scoreView.glowSize, doc: 'How far the halo reaches, in dots', onInput: v => app.setScoreView({ glowSize: v }) }),
     slider({ label: 'Trail', min: 0, max: 3, step: 0.05, value: app.scoreView.trail, doc: 'Seconds of tail behind a traveler (0 = none)', onInput: v => app.setScoreView({ trail: v }) }),

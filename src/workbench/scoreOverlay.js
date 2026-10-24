@@ -9,7 +9,7 @@ import { laserOutline, fillLaserOutline } from './laser.js';
 import { formatDuration } from '../time/sceneTransport.js';
 
 /** How a score is drawn over the canvas (Canvas menu; a traveler can say its own: travel.glow, travel.glowSize, travel.trail). */
-export const SCORE_LOOK = Object.freeze({ glow: 0.4, glowSize: 3.2, trail: 0.6, trailAlpha: 0.55, blip: 1 });
+export const SCORE_LOOK = Object.freeze({ glow: 0.4, glowSize: 3.2, trail: 0.6, trailAlpha: 0.55, blip: 1, color: '' });   // (color: the highlight of everything lit; empty: the theme's accent)
 const FLASH = 0.55;   // seconds a trigger's blip lasts
 
 export class ScoreOverlay {
@@ -148,7 +148,7 @@ export class ScoreOverlay {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.setTransform(cvw.dpr, 0, 0, cvw.dpr, 0, 0);
-    const accent = getComputedStyle(document.documentElement).getPropertyValue('--wb-accent-2').trim() || '#c8664f';
+    const accent = app.scoreView?.color || getComputedStyle(document.documentElement).getPropertyValue('--wb-accent-2').trim() || '#c8664f';
     score.flashes = score.flashes.filter(f => pos - f.t < FLASH + 0.5 && f.t - pos < 5);
     let moving = p.playing;
     this.annotate(ctx, cvw, score.doc(), accent);
