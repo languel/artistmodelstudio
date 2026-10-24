@@ -371,6 +371,8 @@ plane(rect(450, 350, 100, 200), { play: { trigger: { emit: "note(1, snap(48 + la
 \`\`\`
 
 ## The three parts
+What you see is what plays: a traveler follows its line along the **drawn curve** (the smooth path through the points, not the straight segments between them), and a plane or circle covers its **drawn outline**. Give a mark \`path: 'straight'\` for straight segments and sharp corners.
+
 - **path**: \`play: { path: true }\`, or a name: \`path: 'melody'\`.
 - **traveler**: \`play: { travel: { on: path, dur | speed, start, rate, loop: 'once' | 'loop' | 'pingpong', as: 'drawn', width, tag } }\`. Times are seconds or times (\`'2 beats'\`, \`'1 bar'\`, \`'500ms'\`, \`'4n'\`). **as: 'drawn'** replays a line at the speed the hand drew it; \`width\` makes the traveler a bar across the path (an IanniX cursor).
 - **trigger**: \`play: { trigger: { emit, emitExit, on, gate, lockout, policy, filter, r, name, start } }\`. **emit** is code run on each touch; **policy** is \`latched\` (one voice however many travelers; the default), \`pair\` or \`every\`; **gate** holds it open at least that long; **lockout** is the time before it can fire again.

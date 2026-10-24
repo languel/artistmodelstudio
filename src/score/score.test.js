@@ -253,7 +253,7 @@ describe('compile', () => {
     elements: [
       { id: 'p', role: 'line', points: [[0, 50], [100, 50]], path: 'straight', play: { path: true } },
       { id: 'dot', role: 'point', points: [[0, 50]], play: { travel: { on: 'p', dur: 10, tag: 'a' } } },
-      { id: 'zone', role: 'plane', points: [[40, 40], [60, 40], [60, 60], [40, 60]], play: { trigger: { emit: 'seen.push([type, +t.toFixed(2), +ny.toFixed(2), tag])', emitExit: 'seen.push([type, +t.toFixed(2), +ny.toFixed(2), tag])' } } }
+      { id: 'zone', role: 'plane', path: 'straight', points: [[40, 40], [60, 40], [60, 60], [40, 60]], play: { trigger: { emit: 'seen.push([type, +t.toFixed(2), +ny.toFixed(2), tag])', emitExit: 'seen.push([type, +t.toFixed(2), +ny.toFixed(2), tag])' } } }
     ]
   });
 
@@ -284,5 +284,31 @@ describe('emit code', () => {
     compileEmit("const k = 5;\nnote(k, 6)", names)(h, {}, {});
     expect(got).toEqual([[1, 2], [3, 4], [5, 6]]);
     expect(() => compileEmit('note(', names)).toThrow();
+  });
+});
+
+describe('smooth marks', () => {
+  const make = path => normalizeDocument({
+    artboard: { width: 100, height: 100 },
+    elements: [
+      { id: 'p', role: 'line', points: [[0, 50], [50, 0], [100, 50]], ...(path ? { path } : {}), play: { path: true } },
+      { id: 'z', role: 'plane', points: [[40, 40], [60, 40], [60, 60], [40, 60]], ...(path ? { path } : {}), play: { trigger: {} } }
+    ]
+  });
+  it('a traveler follows the curve as drawn, not the polyline through its points', () => {
+    const at = (path, u) => { const { def } = compileDoc(make(path)); return sample(makePath(def.paths.p.points, { closed: false }), u); };
+    // The middle control point is [50, 0]: a straight polyline passes through it; the smooth curve does too (Catmull-Rom is interpolating),
+    // but a quarter of the way along they differ: the smooth curve bulges.
+    const straight = at('straight', 0.25), smooth = at(undefined, 0.25);
+    expect(straight.y).toBeCloseTo(25, 0);
+    expect(smooth.y).toBeLessThan(straight.y - 0.5);   // the curve is not the chord
+    expect(compileDoc(make()).def.paths.p.points.length).toBeGreaterThan(10);
+  });
+  it('a plane covers its drawn outline: the curve through its corners, which bulges past the straight edges', () => {
+    const inside = (path, x, y) => prepare(compileDoc(make(path)).def.triggers[0].region).inside(x, y);
+    expect(inside('straight', 50, 39)).toBe(false);    // above the top edge of the rectangle
+    expect(inside(undefined, 50, 39)).toBe(true);      // the drawn outline bulges there
+    expect(inside(undefined, 50, 50)).toBe(true);
+    expect(inside(undefined, 50, 20)).toBe(false);
   });
 });

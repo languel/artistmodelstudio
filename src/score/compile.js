@@ -18,14 +18,25 @@
  * Times (start, dur, gate, lockout) are seconds or times ('2 beats', '1 bar', '500ms') read with
  * the scene's tempo (`ctx`).
  *
+ * Lines and planes are followed and covered along their drawn (smooth) curve, not their control points,
+ * unless the mark is path: 'straight'.
+ *
  * Coordinates are the board's own (boardDoc), so a score does not depend on where its board sits.
  */
 import { boardDoc, MAIN } from '../process/boards.js';
+import { smoothPath } from '../process/walk.js';
 import { FIELDS, HELPER_NAMES } from './music.js';
 import { resolveTimeValue } from '../time/timeValue.js';
 import { DEFAULT_TRANSPORT, timeContext } from '../time/sceneTransport.js';
 
 const xy = pts => pts.map(q => [q[0], q[1]]);
+
+/**
+ * The curve a mark is drawn along: its points joined by the smooth path the renderer uses (Catmull-Rom),
+ * or straight when the mark says path: 'straight'. Travelers follow it and triggers cover it, so what is
+ * seen is what plays.
+ */
+const outline = e => (e.path === 'straight' ? e.points : smoothPath(e.points, e.closed));
 
 /** A small seeded random stream per body, so a score's gas is the same every run. */
 function rngFor(seed, n) {
@@ -71,7 +82,7 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
     if (!e.play?.path && !marks.some(m => m.play.travel?.on === e.id)) continue;
     const key = typeof e.play?.path === 'string' && e.play.path ? e.play.path : e.id;
     pathKey.set(e.id, key);
-    paths[key] = { points: e.points, closed: Boolean(e.closed) };
+    paths[key] = { points: outline(e), closed: Boolean(e.closed) };
   }
 
   for (const e of marks) {
@@ -96,9 +107,9 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
       }
     }
     if (trigger) {
-      const pts = xy(e.points);
+      const pts = xy(outline(e));
       let region;
-      if (e.role === 'point' || pts.length === 1) region = { kind: 'circle', x: pts[0][0], y: pts[0][1], r: trigger.r ?? 8 };
+      if (e.role === 'point' || pts.length === 1) region = { kind: 'circle', x: e.points[0][0], y: e.points[0][1], r: trigger.r ?? 8 };
       else if (e.closed || e.role === 'plane') region = { kind: 'polygon', pts };
       else region = { kind: 'line', pts };
       const handle = typeof trigger.emit === 'string' || trigger.emitExit ? wrap(trigger.emit, trigger.emitExit) : handlers[trigger.handler] || null;

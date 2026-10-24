@@ -9,7 +9,7 @@ const doc = (emit = "note(1, snap(60 + lane(ny, 8), 'ionian', 60), 100, 'gate')"
   elements: [
     { id: 'p', role: 'line', points: [[0, 50], [100, 50]], path: 'straight', play: { path: true } },
     { id: 'dot', role: 'point', points: [[0, 50]], play: { travel: { on: 'p', dur: '20 beats' } } },
-    { id: 'zone', role: 'plane', points: [[40, 40], [60, 40], [60, 60], [40, 60]], play: { trigger: { emit } } }
+    { id: 'zone', role: 'plane', path: 'straight', points: [[40, 40], [60, 40], [60, 60], [40, 60]], play: { trigger: { emit } } }
   ]
 });
 
