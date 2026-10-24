@@ -16,11 +16,21 @@ export class ScoreOverlay {
   constructor(app) {
     this.app = app;
     this.cv = null;
-    app.player.on(() => { const live = Boolean(app.player.playing && app.score && app.canvas); if (live !== Boolean(app.canvas.travelersLive)) { app.canvas.travelersLive = live; app.canvas.invalidate(); } this.poke(); });
+    app.player.on(() => this.poke());
     app.store.subscribe(() => this.poke());
     // Drawn with the canvas, so it follows every pan and zoom.
     const prev = app.canvas.onDrawn;
     app.canvas.onDrawn = () => { prev?.(); this.draw(); };
+  }
+
+  /** Tell the canvas which travelers are drawn here (it leaves their own marks out); redraw it only when that changes. */
+  setLive(ids) {
+    const key = [...ids].sort().join(',');
+    if (key === (this.cv2key || '')) return;
+    this.cv2key = key;
+    const c = this.app.canvas;
+    c.travelersLive = ids.size ? ids : null; c.travelersKey = key;
+    c.invalidate();
   }
 
   poke() {
@@ -141,7 +151,7 @@ export class ScoreOverlay {
     const app = this.app, p = app.player, score = app.score;
     const entries = score.view();
     const notes = app.scoreView?.names || app.canvas.pick || app.tool === 'play' || (app.canvas.selected?.size && app.store.doc.elements.some(e => e.play?.travel || e.play?.trigger?.to));
-    if (!entries.length && !notes) { if (this.cv) { this.cv.getContext('2d').clearRect(0, 0, this.cv.width, this.cv.height); } this.lit = false; return; }
+    if (!entries.length && !notes) { if (this.cv) { this.cv.getContext('2d').clearRect(0, 0, this.cv.width, this.cv.height); } this.lit = false; this.setLive(new Set()); return; }
     if (!(app.canvas.cam?.z > 0) || !Number.isFinite(app.canvas.cam.x)) return;   // (a camera that is not set yet draws nothing)
     const cvw = app.canvas, cv = this.canvas(), ctx = cv.getContext('2d');
     const pos = p.position() / 1000;
@@ -153,6 +163,7 @@ export class ScoreOverlay {
     let moving = p.playing;
     this.annotate(ctx, cvw, score.doc(), accent);
 
+    const byEl = new Map(score.doc().elements.map(e => [e.id, e])), liveIds = new Set();
     for (const { board, world } of entries) {
       const at = (x, y) => cvw.toScreen(board.x + x, board.y + y);
       // Triggers that were just touched: a blip with an envelope (quick attack, exponential decay), a ring that opens as it fades.
@@ -207,7 +218,10 @@ export class ScoreOverlay {
       }
       // Travelers: a soft glow, a trail that thins and fades, and a bar as a line that fades at its ends.
       ctx.globalAlpha = 1;
-      const now = world.positions(pos).filter(q => p.playing || !q.r), widths = new Map(world.travelers().filter(t => t.width > 0).map(t => [t.id, t.width]));
+      const now = world.positions(pos).filter(q => p.playing || !q.r);
+      // A traveler that has left its place is drawn here alone: its own mark is not drawn too (the canvas hides it).
+      for (const q of now) if (!q.r) { const m = byEl.get(q.id)?.points?.[0]; if (m && Math.hypot(m[0] - board.x - q.x, m[1] - board.y - q.y) > 3) liveIds.add(q.id); }
+      const widths = new Map(world.travelers().filter(t => t.width > 0).map(t => [t.id, t.width]));
       const look = { ...SCORE_LOOK, ...app.scoreView }, own = new Map();
       for (const e of score.doc().elements) if (e.play?.travel && (e.play.travel.glow !== undefined || e.play.travel.glowSize !== undefined || e.play.travel.trail !== undefined)) own.set(e.id, e.play.travel);
       const TRAIL = Math.max(0.05, Math.max(look.trail, ...[...own.values()].map(t => t.trail ?? 0))), steps = now.length > 40 ? 3 : 7;   // (seconds of the longest trail; fewer looks when there are many)
@@ -246,6 +260,7 @@ export class ScoreOverlay {
       }
     }
     ctx.globalAlpha = 1;
+    this.setLive(liveIds);
     if (moving) this.poke();
   }
 }

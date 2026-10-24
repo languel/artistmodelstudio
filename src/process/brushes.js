@@ -119,7 +119,7 @@ export const BRUSHES = {
       param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Paint opacity.')
     ],
     draw(ctx, e, p, k) {
-      if (k.hideTravelers && e.play?.travel) return;   // (while it plays the moving one is drawn over the canvas: no copy is left behind)
+      if (k.hideTravelers?.has?.(e.id)) return;   // (once it has left its place the moving one is drawn over the canvas: no copy is left behind)
       ctx.save();
       ctx.globalAlpha *= p.opacity;
       const c = e.color || '#c8664f', w = 1.5 / k.scale;
