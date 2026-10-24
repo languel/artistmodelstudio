@@ -24,6 +24,15 @@ Everything is addressed by **name** (the mark's label, else its id; the same rul
 
 Event *code* gets one more helper, `out(name, value)`: an event can publish a number or object under its own name (`ams/main/gate.value`). That is how a drawn gesture becomes a control signal without MIDI (a plane that outputs `ny` as `filterCutoff`).
 
+## Everything is in the namespace; a few are *designated*
+
+Nothing needs to be declared to be readable: every path, traveler, event and node is in `__` (and in the `ams` stream) under its name. On top of that, a mark can be **designated** as a favored output or input, which makes it a first-class port for hosts instead of one feature among hundreds:
+
+- **Outputs** (`play.out: 'name'`, or a flag in Properties → Play → *Port*): the mark's main value is published under that short name, always, at the stream rate, even when nobody subscribed: a traveler's `u` (or `x y`), an event's `active` and `value`, a path's playhead. Hosts list them first (`__.streams.read('ams').ports`), Genereti shows them as the node's output sockets / CHOP channels, `ams_score {ports}` lists them. Typical use: three or four named signals (`lead`, `gate`, `cutoff`) rather than the whole score.
+- **Inputs** (`play.in: 'name'`): the mark accepts a value from the host under that name and says what it does with it: a traveler's `phase` or `rate`, an event's `fire` (a pulse starts it, a number scales it), a path's `len`. Hosts write them with `__.data.set('ams.in.name', v)` / `editor.score.set(name, v)`; they are the only writes that need no `score.write` permission, because a designated input is the author's own statement that it may be driven.
+- Designation is data on the mark (`play.out`, `play.in`), so it travels with the drawing, shows as a small port glyph on the mark, and is visible to agents.
+- Everything else stays readable by full name (`ams/main/lead.u`); designated ports also answer to their short name.
+
 ## Pieces
 
 1. **`src/score/bus.js` (pure).** After each runner step the worlds' state is sampled into a `ScoreFrame { t, playing, travelers[], events[], paths[] }` and the world events (`enter exit cross end arrive collide`) are queued as `ScoreEvent { t, name, phase: 'entry'|'exit'|'pulse', data }`. Sampling is on demand (readers ask for `frame(t)`, no cost when nobody listens), events are always recorded into a small ring (last 256). Tests against `renderScore`.
@@ -32,7 +41,7 @@ Event *code* gets one more helper, `out(name, value)`: an event can publish a nu
 4. **Genereti bridge** (their side, small): the Poliplan node registers `ams` as a stream in `__.streams` (`features` flattened as `lead.x`, `lead.u`, `gate.active`…, stale after 500 ms like every stream), forwards `score-event` into `__.events` (`entry`/`exit`), and maps `__.commands.play/pause/seek` and the project clock onto `transport`. A Livecode node then reads `__.streams.read('ams')?.features['lead.x']`, a CHOP node gets channels, a GLSL node gets uniforms. No new concept for Genereti users.
 5. **One clock.** Two modes, chosen by `init { clock: 'own' | 'host' }`. `own` (today): AMS's transport runs, the host *reads*. `host`: `app.player` follows the host's `transport` messages (position = host time, rate/loop from the host) and never runs its own timer; the runner already tolerates jumps (rebuilds on a seek, no cut notes) and the score is deterministic from time alone, so scrubbing in the host scrubs the drawing. Latency: the host sends `transport` at ≥ 30 Hz and AMS extrapolates between (same trick as `player.position()`).
 6. **Standalone export.** The p5 export of scores (not built yet) and the Poliplan JSON export carry the score marks; a tiny runtime (`score-runtime.js`: kernel + compile, ~25 KB) plays them in any page and exposes the same frame/event API without the editor, so "export the score as an automation" means: JSON + runtime, host feeds it a clock.
-7. **Writes are opt-in and safe.** Host → AMS writes (`score-call`) are limited to `launch`, `fire`, `seek`, `phase`, and attach/detach through the existing tools, each one undo step marked `by: 'host'`, and refused unless `init { score: { write: true } }`.
+7. **Writes are opt-in and safe.** Designated inputs are always writable; any other host → AMS write (`score-call`) is limited to `launch`, `fire`, `seek`, `phase`, and attach/detach through the existing tools, each one undo step marked `by: 'host'`, and refused unless `init { score: { write: true } }`.
 
 ## Phases
 
