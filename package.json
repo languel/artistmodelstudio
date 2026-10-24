@@ -10,7 +10,7 @@
     "test": "vitest run",
     "mcp": "node src/mcp/mcpServer.js",
     "build:single": "vite build --config vite.single.config.js && mv dist-single/index.html dist-single/ams.html 2>/dev/null || true",
-    "build:embed": "vite build --config vite.embed.config.js && esbuild src/score/runtime.js --bundle --format=esm --minify --outfile=dist-embed/score-runtime.js",
+    "build:embed": "vite build --config vite.embed.config.js && esbuild src/score/runtime.js --bundle --format=esm --minify --outfile=dist-embed/score-runtime.js && mkdir -p dist-embed/score-sequencer && esbuild src/demo/sequencer.js --bundle --format=esm --minify --outfile=dist-embed/score-sequencer/sequencer.js && cp src/demo/index.html dist-embed/score-sequencer/index.html",
     "build:embed:full": "AMS_EMBED_FULL=1 vite build --config vite.embed.config.js",
     "build:poliplan": "vite build --config vite.embed.config.js"
   },
