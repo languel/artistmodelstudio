@@ -111,6 +111,7 @@ export class PlayTool {
     let last = line ? nearestOn(outlineOf(line), here[0], here[1]).u : 0;
     const at0 = tr?.at || 0;
     let dropOn = null;   // where a mark dragged free would attach: { path, u }
+    let altMove = false;
 
     const mv = ev => {
       const [mx, my] = cv.toWorld(...cv.local(ev));
@@ -118,7 +119,10 @@ export class PlayTool {
         if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return;
         if (this.kind === 'path' && hit.role === 'point' && !hit.play?.trigger && !ev.shiftKey) { finish(); this.startLineFrom(e, hit); return; }
         // On a line: dragging slides along it. Alt (or Shift) takes it off the line: it moves freely, and where it is let go near a line it attaches to that one, else it is free.
-        mode = line && !ev.shiftKey && !ev.altKey ? 'slide' : ev.shiftKey || (line && ev.altKey) ? 'move' : forceSlide ? 'move' : 'link';
+        // Alt: take the mark off (or leave it off) any line: it moves freely, and let go over a line it attaches there, else it is free.
+        // Plain: on a line it slides along it. Shift (Play tool, a mark with no line): a free move that snaps to lines near it.
+        altMove = Boolean(ev.altKey) && Boolean(hit.play?.travel || hit.play?.trigger);
+        mode = altMove ? 'move' : line ? 'slide' : ev.shiftKey || forceSlide ? 'move' : 'link';
         if (!cv.selected.has(hit.id)) cv.select([hit.id]);
       }
       if (mode === 'slide') {
@@ -140,9 +144,9 @@ export class PlayTool {
         if (!isEvent && tr) { dx = mx - wx + (from[0] - c0[0]); dy = my - wy + (from[1] - c0[1]); }
         if (startSel.length === 1) {
           // Alt takes it off its own line (so it can be let go free, or on another line); Shift may come back to any.
-          const near = nearestPath(this.paths().filter(p => p.id !== hit.id && !(ev.altKey && !ev.shiftKey && p.id === line?.id)), from[0] + (isEvent || !tr ? dx : mx - wx), from[1] + (isEvent || !tr ? dy : my - wy), this.radius() * 0.75);
-          if (near && (hit.play?.travel || hit.play?.trigger)) { dropOn = { path: near.mark.id, u: near.hit.u }; this.snap = { x: near.hit.x, y: near.hit.y }; if (isEvent || !tr) { dx = near.hit.x - c0[0]; dy = near.hit.y - c0[1]; } }
-          else if (near && !ev.altKey) { dx = near.hit.x - c0[0]; dy = near.hit.y - c0[1]; this.snap = { x: near.hit.x, y: near.hit.y }; }
+          const near = nearestPath(this.paths().filter(p => p.id !== hit.id && !(altMove && p.id === line?.id)), from[0] + (isEvent || !tr ? dx : mx - wx), from[1] + (isEvent || !tr ? dy : my - wy), this.radius() * 0.75);
+          if (near && altMove) { dropOn = { path: near.mark.id, u: near.hit.u }; this.snap = { x: near.hit.x, y: near.hit.y }; if (isEvent || !tr) { dx = near.hit.x - c0[0]; dy = near.hit.y - c0[1]; } }
+          else if (near && !altMove) { dx = near.hit.x - c0[0]; dy = near.hit.y - c0[1]; this.snap = { x: near.hit.x, y: near.hit.y }; }
         }
         for (const el of this.doc.elements) { const o = orig.get(el.id); if (o) el.points = o.map(q => [q[0] + dx, q[1] + dy, ...q.slice(2)]); }
         if (!isEvent && tr) { const mxw = c0[0] + dx, myw = c0[1] + dy; this.slide = { id: hit.id, x: this.snap ? this.snap.x : mxw, y: this.snap ? this.snap.y : myw }; }
@@ -181,7 +185,7 @@ export class PlayTool {
           this.app.store.change('edge', draft => R.edge(draft, hit.id, el.id));
           cv.select([el.id]);
         }
-      } else if (mode === 'move' && (hit.play?.travel || hit.play?.trigger) && startSel.length === 1) {
+      } else if (mode === 'move' && altMove && startSel.length === 1) {
         // Let go: near a line, attach to it (a traveler starts from there, an event sits there); else it is free of any line.
         const keep = dropOn, was = Boolean(line), id = hit.id;
         // The move, and what follows from it (on a line now, or free), are one undo step.

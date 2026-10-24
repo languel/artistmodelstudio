@@ -899,10 +899,10 @@ export class CanvasView {
         if (this.selectedBoard && !this.hitTest(wx, wy) && !e.shiftKey) this.selectBoard(null);
       }
       // A traveler or an event on a path is one mark: dragging it slides it along the path (a traveler: where it begins).
-      // Alt takes it off the path; Shift-dragging a traveler or an event over a path attaches it (before Shift+drag sculpts).
+      // Alt takes it off the path, or (on a free one) moves it: let go over a path it attaches there, else it is free.
       if (tool === 'select' && !this.handleAt(sx, sy)) {
         const tv = this.hitTest(wx, wy), playish = tv?.play?.travel || tv?.play?.trigger, onPath = tv?.play?.travel?.on || tv?.play?.trigger?.path;
-        if (tv && playish && !e.metaKey && this.playTool && (onPath || e.shiftKey || e.altKey)) { if (!this.selected.has(tv.id) && !e.shiftKey) this.select([tv.id]); return this.playTool.pressMark(e, tv, wx, wy, { slide: true }); }
+        if (tv && playish && !e.metaKey && this.playTool && (onPath || e.altKey)) { if (!this.selected.has(tv.id) && !e.shiftKey) this.select([tv.id]); return this.playTool.pressMark(e, tv, wx, wy, { slide: true }); }
       }
       // Sculpt: the Sculpt tool, or Shift+drag over a mark with most tools.
       if (tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length && !(tool === 'select' && this.handleAt(sx, sy)))) {
