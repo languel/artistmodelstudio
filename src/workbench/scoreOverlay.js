@@ -12,6 +12,9 @@ export class ScoreOverlay {
     this.cv = null;
     app.player.on(() => this.poke());
     app.store.subscribe(() => this.poke());
+    // Drawn with the canvas, so it follows every pan and zoom.
+    const prev = app.canvas.onDrawn;
+    app.canvas.onDrawn = () => { prev?.(); this.draw(); };
   }
 
   poke() {
@@ -64,7 +67,7 @@ export class ScoreOverlay {
       }
       // Travelers: a dot, and a short tail behind it.
       ctx.globalAlpha = 1;
-      const now = world.positions(pos), before = new Map(world.positions(Math.max(0, pos - 0.15)).map(q => [q.id, q]));
+      const now = world.positions(pos).filter(q => p.playing || !q.r), before = new Map(world.positions(Math.max(0, pos - 0.15)).map(q => [q.id, q]));
       for (const q of now) {
         const [x, y] = at(q.x, q.y);
         const b = before.get(q.id);

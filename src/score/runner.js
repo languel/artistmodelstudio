@@ -19,6 +19,7 @@ import { timeContext } from '../time/sceneTransport.js';
 /** What decides whether the worlds need rebuilding: the marks that play, as text. */
 export function scoreSignature(doc) {
   const out = [];
+  for (const b of boardsOf(doc)) if (b.paused || b.hidden) out.push(`muted:${b.id}`);   // (a paused or hidden board does not play)
   for (const e of doc?.elements || []) if (e.play) out.push(e.id, e.board || '', JSON.stringify(e.play), JSON.stringify(e.points));
   return out.join('|');
 }
@@ -29,12 +30,12 @@ export const hasScore = doc => (doc?.elements || []).some(e => e.play);
  * The worlds of a document, one per board that has a score: [{ board, world }]. `helpers(event, api)`
  * makes the music helpers handlers use (none are needed just to look at positions).
  */
-export function buildEntries(doc, settings, { helpers = () => ({}), onError = () => {} } = {}) {
+export function buildEntries(doc, settings, { helpers = () => ({}), onError = () => {}, boardFilter = () => true } = {}) {
   const ctx = timeContext(settings);
   const boards = new Set((doc?.elements || []).filter(e => e.play).map(e => e.board || MAIN));
   const out = [];
   for (const b of boardsOf(doc)) {
-    if (!boards.has(b.id)) continue;
+    if (!boards.has(b.id) || !boardFilter(b)) continue;
     try {
       const { def, info } = compileDoc(doc, { board: b.id, ctx, helpers });
       for (const s of info.skipped) onError(`${b.title || b.id}: ${s}`);
@@ -44,7 +45,7 @@ export function buildEntries(doc, settings, { helpers = () => ({}), onError = ()
   return out;
 }
 
-export function createRunner({ getDoc, getSettings, outputs, now = () => performance.now(), lookahead = 0.12, step = 1 / 240, onError = () => {}, onEvents = () => {}, onEffects = () => {} }) {
+export function createRunner({ getDoc, getSettings, outputs, now = () => performance.now(), lookahead = 0.12, step = 1 / 240, onError = () => {}, onEvents = () => {}, onEffects = () => {}, boardFilter = () => true }) {
   let entries = [], queue = [], stepped = 0, active = false, builtKey = '', lastT = 0, lastNow = 0;
   const tracker = createVoiceTracker();
   const failed = new Set();
@@ -59,7 +60,7 @@ export function createRunner({ getDoc, getSettings, outputs, now = () => perform
 
   function build(t, settings) {
     const ctx = timeContext(settings);
-    entries = buildEntries(getDoc(), settings, { helpers: (event, api) => musicHelpers({ out: push, ctx, event, api }), onError });
+    entries = buildEntries(getDoc(), settings, { helpers: (event, api) => musicHelpers({ out: push, ctx, event, api }), onError, boardFilter });
     // Playing from the very start begins at 0, so what is due at 0 (a start node, a traveler leaving) is not missed.
     const from = t < 0.1 ? 0 : t;
     for (const e of entries) e.world.seek(from);

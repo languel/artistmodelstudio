@@ -1432,9 +1432,20 @@ export class Workbench {
    * drawn every frame. The board you are on is always live; others when switched on (board.live).
    * The rest are paused: baked into a picture (see canvasView.drawBaked) and left as they were.
    */
+  /** The boards whose marks play (cached by the count of changes). */
+  scoreBoards() {
+    const doc = this.store.doc;
+    if (!this._scoreBoards || this._scoreBoardsRev !== this.store.rev) {
+      this._scoreBoardsRev = this.store.rev;
+      this._scoreBoards = new Set(doc.elements.filter(e => e.play).map(e => e.board || MAIN));
+    }
+    return this._scoreBoards;
+  }
+
   isBoardLive(id) {
     const doc = this.store.doc, b = boardById(doc, id);
     if (!b || b.paused || b.hidden) return false;   // paused by hand (or hidden): stays paused, even while you are on it
+    if (this.scoreBoards().has(b.id)) return true;   // a board with a score runs (and sounds) unless paused: the play button is its mute, Opt+click its solo
     if (b.id === (this.activeBoard || MAIN) || b.live) return true;
     // On a frame (a slide): the boards it holds are live together.
     const active = boardById(doc, this.activeBoard || MAIN);

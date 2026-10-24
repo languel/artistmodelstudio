@@ -29,6 +29,7 @@ export class ScorePlayer {
     this.runner = createRunner({
       getDoc: () => this.doc(),
       getSettings: () => app.player.settings,
+      boardFilter: b => this.plays(b),
       outputs: () => this.outputs(),
       onError: msg => { this.errors.push(msg); app.log?.(`Score: ${msg}`, 'error'); },
       onEffects: (fx, board) => this.applyEffects(fx, board),
@@ -91,18 +92,27 @@ export class ScorePlayer {
   /** The drawing the transport is showing: a take's at the playhead, or the scene's own. */
   doc() { return this.app.canvas?.previewDoc || this.app.store.doc; }
 
+  /** A board's score plays unless the board is paused (the Boards panel's play button; Opt+click solos) or hidden. */
+  plays(b) { return !b.paused && !b.hidden; }
+
+  /** What the worlds are built from, as text: changes when a mark that plays does, or a board is paused. */
   key() {
     const d = this.doc();
-    let s = this.sig.get(d);
-    if (s === undefined) { s = scoreSignature(d); this.sig.set(d, s); }
-    return s;
+    if (d !== this.app.store.doc) {   // (a take's drawing at the playhead: a new object when it changes)
+      let s = this.sig.get(d);
+      if (s === undefined) { s = scoreSignature(d); this.sig.set(d, s); }
+      return s;
+    }
+    // The live drawing is edited in place: look again whenever it has changed (a count of changes), rebuild only if the text differs.
+    if (this.keyVal === undefined || this.keyRev !== this.app.store.rev) { this.keyRev = this.app.store.rev; this.keyVal = scoreSignature(d); }
+    return this.keyVal;
   }
 
   /** The worlds to draw: the runner's while it plays, else ones built just to show where things are. */
   view() {
     if (this.runner.active) return this.runner.entries;
     const key = `${this.key()}|${JSON.stringify(this.app.player.settings)}`;
-    if (this.viewKey !== key) { this.viewKey = key; this.viewEntries = hasScore(this.doc()) ? buildEntries(this.doc(), this.app.player.settings) : []; }
+    if (this.viewKey !== key) { this.viewKey = key; this.viewEntries = hasScore(this.doc()) ? buildEntries(this.doc(), this.app.player.settings, { boardFilter: b => this.plays(b) }) : []; }
     return this.viewEntries;
   }
 

@@ -100,3 +100,18 @@ describe('rendering a score ahead of time', () => {
     expect(out.events.every(e => e.board === 'main')).toBe(true);
   });
 });
+
+describe('muting a board', () => {
+  it('a paused board plays nothing, and pausing is a change that rebuilds', () => {
+    const d = doc();
+    const log = createLogOutput();
+    let clock = 0, muted = false;
+    const r = createRunner({ getDoc: () => d, getSettings: () => ({ tempo: 120, signature: { numerator: 4, denominator: 4 }, fps: 30 }), outputs: () => [log], now: () => clock, boardFilter: () => !muted });
+    for (let t = 3.8; t <= 4.2; t += 0.025) { clock += 25; r.tick({ t, playing: true, rate: 1, key: String(muted) }); }
+    expect(log.sent.filter(s => s.bytes && s.bytes[0] === 0x90)).toHaveLength(1);
+    muted = true;
+    r.tick({ t: 4.2, playing: true, rate: 1, key: 'true' });
+    expect(r.entries).toHaveLength(0);
+    expect(scoreSignature(normalizeDocument({ artboard: { width: 10, height: 10 }, elements: [] }))).toBe('');
+  });
+});
