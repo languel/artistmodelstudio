@@ -184,7 +184,7 @@ point(60, 420, { size: 14, play: { travel: { on: path, dur: '16 beats', loop: 'p
 for (const [x, y, w, h] of [[200, 180, 110, 150], [430, 230, 120, 190], [650, 90, 110, 140]]) {
   plane(rect(x, y, w, h), {
     color: '#9db4c0', opacity: 0.5,
-    play: { trigger: { emit: "note(1, snap(50 + lane(ny, 24), 'dorian', 62), 90, 'gate')" } },
+    play: { event: { emit: "note(1, snap(50 + lane(ny, 24), 'dorian', 62), 90, 'gate')" } },
     why: 'it sounds while the traveler is inside'
   })
 }

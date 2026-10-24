@@ -1,4 +1,6 @@
-# Paths, travelers and triggers: a plan for scores in AMS
+> Terminology (24 Oct 2026): what this note calls an event was a *trigger* when it was written; the stored key in `play` is still `trigger` (`event` is accepted as a synonym).
+
+# Paths, travelers and events: a plan for scores in AMS
 
 Status: **built** 23 Oct 2026 (M0 to M7; see the end of docs/HANDOFF.md item 66 for what is and is not done). Written as a plan; where the build differs: no separate `Clock` (the Timeline's playhead is the transport, §3), imports write AMS score code instead of marks (§7), bodies and effects are in the kernel (§5), tempo and loop range live in `doc.transport`. Written after reading IanniX in `~/dev/underscores` (`notes/iannix.md`, `src/iannixEngine.js`, `iannixScript.js`, `iannixMidi.js`, `scoreTiming.js`, `transport.js`) and the original C++ in `~/dev/IanniX`.
 
@@ -10,25 +12,25 @@ IanniX has three object kinds and one rule.
 | --- | --- | --- |
 | curve | a support path: geometry, with a length | **path** |
 | cursor | a playhead that moves along one curve over time | **traveler** |
-| trigger | a region (a point, a shape) that reacts when a cursor touches it | **trigger** |
+| event | a region (a point, a shape) that reacts when a cursor touches it | **event** |
 
-The rule: *a cursor's contact with a trigger is an event; the event is turned into a message* (a MIDI note, an OSC packet). Everything else (scripts, groups, colors, 3D, bounds) is scaffolding around that.
+The rule: *a cursor's contact with an event is an event; the event is turned into a message* (a MIDI note, an OSC packet). Everything else (scripts, groups, colors, 3D, bounds) is scaffolding around that.
 
 What Underscores learned the hard way (worth keeping, in code form):
 
-1. **Detection must be swept.** A fast cursor skips a thin trigger between two frames unless the segment it moved along is tested, not just where it is now. Loop wraps must not create a false sweep.
+1. **Detection must be swept.** A fast cursor skips a thin event between two frames unless the segment it moved along is tested, not just where it is now. Loop wraps must not create a false sweep.
 2. **Event timing is separate from display.** Smoothing a cursor on screen must never change when notes fire.
-3. **Entry policy matters.** IanniX's reference scores do not re-trigger: a trigger is *latched* until the cursor leaves, plus a minimum lockout. Make it a policy, default latched.
+3. **Entry policy matters.** IanniX's reference scores do not re-trigger: an event is *latched* until the cursor leaves, plus a minimum lockout. Make it a policy, default latched.
 4. **A note has a gate.** Enter = note on, exit = note off; the nominal duration is the minimum. Overlapping notes of one pitch need a voice counter, or the first note-off cuts the second note.
 5. **Local time is derived, not owned.** Global `T` → per object `start`, `duration`, `rate`, `loopMode` (`once | loop | pingPong`) → progress. One function, no second animation loop.
-6. **Values come from geometry.** `trigger_value_x/y` is the trigger's place mapped through the cursor's bounds. It works, but it hides the mapping in a template string. We make the mapping explicit code instead.
+6. **Values come from geometry.** `trigger_value_x/y` is the event's place mapped through the cursor's bounds. It works, but it hides the mapping in a template string. We make the mapping explicit code instead.
 7. The main-thread `setTimeout` scheduling is imprecise. We schedule against the audio clock with a short look-ahead.
 
 What we do **not** take: the OSC layer, 3D, bounds-source modes, grid-bound durations, MIDI clock sync, the trusted-JS command language as the native format, the 7 000-line UI. Those can come later or never.
 
 ## 2. The AMS model
 
-Three nouns, all ordinary AMS marks. **A mark's `role` stays what it is (point, line, plane…); playing is a separate, optional property.** One mark can be several things (a plane that is both a trigger and a path; a traveler that is also a trigger), which IanniX cannot do.
+Three nouns, all ordinary AMS marks. **A mark's `role` stays what it is (point, line, plane…); playing is a separate, optional property.** One mark can be several things (a plane that is both an event and a path; a traveler that is also an event), which IanniX cannot do.
 
 ```js
 mark.play = {
@@ -42,8 +44,8 @@ mark.play = {
 
 - **path**: any line mark (`e.points` are `[x, y, t, p]`). Its parameter `u ∈ [0,1]` is arc length, sampled with the existing smooth/straight choice (`e.path`), so a path travelled is the path drawn.
 - **traveler**: anything with a position over time. The first kind is `travel` along a path (analytic). The second kind is a *free* traveler whose position is pushed each step by a process (§5).
-- **trigger**: any mark with area (plane, circle, rectangle) or none (a point, with a radius). Also a *line* can be a trigger that fires on **crossing**, with a direction.
-- **event**: `{ t, type, traveler, trigger, at: {x, y}, u, speed, pressure, dir }`. `type` is `enter | exit | cross | hold`.
+- **event**: any mark with area (plane, circle, rectangle) or none (a point, with a radius). Also a *line* can be an event that fires on **crossing**, with a direction.
+- **event**: `{ t, type, traveler, event, at: {x, y}, u, speed, pressure, dir }`. `type` is `enter | exit | cross | hold`.
 - **handler / output**: where an event goes. A handler is code that turns an event into effects: music messages (§6), `launch`/`kill` travelers (§6b), `spawn` (make or change marks, §5), or anything else. Outputs (`gm`, `webmidi`, `log`) only ever see MIDI bytes, never geometry.
 
 "Everything is code" here means two things. First, the score language (`src/process/script.js`, Code → Score) gets verbs that produce exactly the `play` data above, so a drawn mark and a coded mark are the same thing and *Show code* works on both:
@@ -61,7 +63,7 @@ Mapping helpers available to `emit`: `x, y, u, speed, pressure, dir` (board-norm
 **Two things only AMS can offer, so they are the defaults worth showing off:**
 
 - **Play the walk as drawn.** Every point carries `t` (ms) and `p` (pressure). A traveler with `as: 'drawn'` replays the line at the speed the hand drew it, and pressure becomes velocity. The line is already a recording.
-- **Process planes.** Planes and brushes are already realized by code; a trigger region can be a *field* (any `inside(x, y)` function), not only a polygon.
+- **Process planes.** Planes and brushes are already realized by code; an event region can be a *field* (any `inside(x, y)` function), not only a polygon.
 
 ## 3. Time: one transport, not two
 
@@ -118,9 +120,9 @@ outputs/      gm.js (jzz + TinySynth), webmidi.js, log.js
 import/       iannix.js (parse + convert), nous.js (Midinous)
 ```
 
-Algorithm per step, per traveler: its swept segment `p0→p1` is tested against each trigger's prepared region after a **broad phase** (bounds, then a uniform grid or hash once there are hundreds of entities). For a polygon: segment/edge intersections give entry and exit parameters, so `t = t0 + s·(t1−t0)` is exact within the step. The traveler may have a radius (a disc swept = capsule). A loop wrap or a seek splits the segment so no false sweep is made.
+Algorithm per step, per traveler: its swept segment `p0→p1` is tested against each event's prepared region after a **broad phase** (bounds, then a uniform grid or hash once there are hundreds of entities). For a polygon: segment/edge intersections give entry and exit parameters, so `t = t0 + s·(t1−t0)` is exact within the step. The traveler may have a radius (a disc swept = capsule). A loop wrap or a seek splits the segment so no false sweep is made.
 
-State per `(traveler, trigger)` pair: `inside`, `since`, `lockedUntil`, with the **policy**: `latched` (default: one voice per trigger until all travelers have left), `pair` (each pair retriggers independently), `every` (every entry). `gate: true` emits `exit` at actual exit, no earlier than the minimum duration.
+State per `(traveler, event)` pair: `inside`, `since`, `lockedUntil`, with the **policy**: `latched` (default: one voice per event until all travelers have left), `pair` (each pair retriggers independently), `every` (every entry). `gate: true` emits `exit` at actual exit, no earlier than the minimum duration.
 
 Generalization comes for free: the detector knows only `entity.pos(t)` and `entity.region`. A traveler on a path and a gas particle are the same thing to it.
 
@@ -132,7 +134,7 @@ Same kernel, different source of position. A **world** is a board (or a group) w
 world({ step: (dt, ents) => { for (const e of ents) { e.x += e.vx * dt; e.y += e.vy * dt; bounce(e, box) } } })
 ```
 
-- Entities are points with a radius. `play.trigger` on a traveler makes it a trigger too; the detector then tests traveler-vs-traveler pairs through the spatial hash (this is the gas case). A pair's event has `a` and `b`, with the contact point and relative speed.
+- Entities are points with a radius. `play.event` on a traveler makes it an event too; the detector then tests traveler-vs-traveler pairs through the spatial hash (this is the gas case). A pair's event has `a` and `b`, with the contact point and relative speed.
 - `spawn` sink: create a mark at the contact point, change a mark's color or size, add a traveler, remove one. Because spawning modifies the document, events from a live world are `transient` changes (no undo steps), as live boards already are.
 - Physics beyond bounce and elastic collisions is out of scope; Underscores uses Rapier and AMS can too later, behind the same `pos(t)` interface.
 - Randomness uses the seeded `rng()` so a world run is reproducible.
@@ -165,7 +167,7 @@ event ──emit/handler──▶ music helpers ──▶ messages [bytes, t] �
 
 | Midinous | Here |
 | --- | --- |
-| point / node (note, CC, gate, counter, switch, terminator, anchor) | a **trigger** (a point mark) whose handler is a node type |
+| point / node (note, CC, gate, counter, switch, terminator, anchor) | a **event** (a point mark) whose handler is a node type |
 | connection (an L-shaped or straight edge between two nodes) | a **path** (a 2-point line, or a polyline with the L corner) |
 | traveler running along an edge | a **traveler** with `speed` in cells per beat (1 cell = 1 beat; the original ticks at 1/16) |
 | arriving at a node | an **`end`** event of the traveler (it finished its path) plus `enter` on the node's region |
@@ -194,20 +196,20 @@ Format: a JavaScript file with `makeWithScript()` that calls `run("add curve 100
 Plan (`src/score/iannix/`):
 
 1. **Parse**: run the file in a `Function` with `run`, `ask`, `title`, `load`, math helpers and seeded random stubs; collect the command stream. `iannixScript.js` in Underscores already does this (tokenizer, `current`/`lastCurve`, `setPointAt`, controls, `ellipse`, `setSpeed auto N`, `setPattern`, `setBoundsSource`, `setMessage`); port the pure parts rather than rewrite them, and cut everything that touches Excalidraw.
-2. **Model**: `{ curves, cursors, triggers, groups, viewport }` in IanniX units, Y up.
+2. **Model**: `{ curves, cursors, events, groups, viewport }` in IanniX units, Y up.
 3. **Convert** to AMS marks:
    - curve → `line` with `play.path`. Points with Bézier controls are sampled to points (destination-point semantics: for `p1→p2`, `c1 = p1 + p2.c1`, `c2 = p2 + p2.c2`); `ellipse` becomes a closed polyline.
    - cursor → `point` with `play.travel { on, dur | speed, loop }`. IanniX's pattern `0 0 1 0` once, `0 0 1` loop, negative values pingpong (the Underscores reading).
-   - trigger → small `plane`/circle or `point`, with `play.trigger` and an `emit` built from the IanniX message (`notef 1 trigger_value_y trigger_value_x trigger_duration` becomes the equivalent mapping code, with the bounds written out).
+   - event → small `plane`/circle or `point`, with `play.event` and an `emit` built from the IanniX message (`notef 1 trigger_value_y trigger_value_x trigger_duration` becomes the equivalent mapping code, with the bounds written out).
    - Y is flipped, units are scaled to the board (`viewport.zoom/center`), `setGroup` becomes a stage, colors are kept.
-4. **Test corpus**: `~/Documents/IanniX/Examples/*.iannix` (CC BY-NC-SA, so *not* copied into the repo; the tests read them from there and skip when absent). Order of difficulty: `Simple Javascript example (basic)`, `Grid`, `Xenakis Metastaseis linear`, `Rosette`/`Spirographe` (ellipses and math), `IanniX logo`, then the performance scores. Success per file: counts of curves/cursors/triggers match the command stream; the first N seconds' event list matches a fixture generated by hand for the simple ones; Underscores' own `iannixEngine.test.js` fixtures can be a cross-check on trigger times.
-5. A direction for later: **export** to `.iannix` is cheap for the path/cursor/trigger subset and makes AMS scores playable in IanniX.
+4. **Test corpus**: `~/Documents/IanniX/Examples/*.iannix` (CC BY-NC-SA, so *not* copied into the repo; the tests read them from there and skip when absent). Order of difficulty: `Simple Javascript example (basic)`, `Grid`, `Xenakis Metastaseis linear`, `Rosette`/`Spirographe` (ellipses and math), `IanniX logo`, then the performance scores. Success per file: counts of curves/cursors/events match the command stream; the first N seconds' event list matches a fixture generated by hand for the simple ones; Underscores' own `iannixEngine.test.js` fixtures can be a cross-check on event times.
+5. A direction for later: **export** to `.iannix` is cheap for the path/cursor/event subset and makes AMS scores playable in IanniX.
 
 ### 7b. Midinous import
 
 `.nous` files are JSON (`~/dev/midinojs/docs/midinous-schema.md`; no sample files are on this machine, so the first test files are written by hand from the schema or exported from midinojs). Conversion is simpler than IanniX's, with no script to run:
 
-- `_note_points`, `_cc_points`, `_counter_points`, `_switch_points`… → point marks at `Origin` (the 144 px grid scaled to the board), each with `play.trigger` and a handler from its node type (note: `Primary` note, `Secondary` velocity, `Channel`, `Duration` in beats, `Repeat`, probability; relative-note fields become `step(...)` and `snap(...)` calls);
+- `_note_points`, `_cc_points`, `_counter_points`, `_switch_points`… → point marks at `Origin` (the 144 px grid scaled to the board), each with `play.event` and a handler from its node type (note: `Primary` note, `Secondary` velocity, `Channel`, `Duration` in beats, `Repeat`, probability; relative-note fields become `step(...)` and `snap(...)` calls);
 - each `SerializablePathTo` entry → a 2-point line (with the L corner when `PathMode` is horizontal or vertical) with `play.path`;
 - starters (`isStart`) → travelers launched at play;
 - play mode → `out` routing; label, color → mark label and color.
@@ -229,12 +231,12 @@ Each step ends with tests and a visible result, and `npm run build` before any c
 | M0 | Kernel in tests | `paths`, `travel`, `regions`, `detect`, `events` (incl. `end`, `launch`, `state`), with swept and wrap cases; offline `renderEvents(doc, seconds)` |
 | M1a | One transport | `src/time/` port with its tests; `TakePlayer` plays without a take, tempo/signature/loop range in `doc.transport`, beats ruler in the Timeline; no score code yet |
 | M1 | Hear it | scheduler on `app.player`, `music.js` + `scale.js`, `gm` output (fake backend in tests), `play` in the score language; a score that draws a line, a traveler and three planes and plays them |
-| M2 | See it | overlay (travelers, trigger flashes), transport glyph, Space, Properties → Play with glyphs |
+| M2 | See it | overlay (travelers, event flashes), transport glyph, Space, Properties → Play with glyphs |
 | M3 | IanniX in | importer, first three example files playing through `gm` |
 | M4 | Grid music | `nous.js` importer, node/edge presets, robin/split/random/portal, counter/switch; a `.nous` project plays |
 | M4b | MIDI | `webmidi` output, ports in Settings |
 | M5 | Record | events and audio into a Take; render a Take with sound to the video export; `ams_play` MCP verbs |
-| M6 | Worlds | free travelers, spatial hash, traveler-as-trigger, `spawn`; the gas demo |
+| M6 | Worlds | free travelers, spatial hash, traveler-as-event, `spawn`; the gas demo |
 | M7 | Reach | p5 export of a score (kernel embedded as `envelope.js` is), MIDI file export, `.iannix` export |
 
 M0 to M3 is the minimum that proves the idea; M0 is also what keeps everything else honest.
@@ -242,10 +244,10 @@ M0 to M3 is the minimum that proves the idea; M0 is also what keeps everything e
 ## 10. Decisions I would like from you
 
 1. **Clock and Space.** Settled: no separate clock. The Timeline's playhead (`app.player`), promoted to work without a take, is the one transport (§3).
-2. **Roles.** Playing as a separate `play` property (above) versus new roles `traveler`/`trigger`. I recommend the property; roles stay about drawing.
+2. **Roles.** Playing as a separate `play` property (above) versus new roles `traveler`/`event`. I recommend the property; roles stay about drawing.
 3. **Scope of a score.** A board (so a lesson board can have its own piece) or the whole scene? I recommend per board, with a scene-level clock.
-4. **Default trigger policy**: latched with a small lockout (matches the reference scores) or retrigger on every entry.
-5. **Names on screen.** Path, traveler, trigger as proposed, or something nearer to the drawing vocabulary (line, point, plane are already the roles: *walker*? *marker*?).
+4. **Default event policy**: latched with a small lockout (matches the reference scores) or retrigger on every entry.
+5. **Names on screen.** Path, traveler, event as proposed, or something nearer to the drawing vocabulary (line, point, plane are already the roles: *walker*? *marker*?).
 6. **Importer trust.** Running `.iannix` as JS in the page (as board code is) behind a confirm, or a stricter command-only parser that refuses scripts with loops? Several examples depend on JS loops, so I recommend the former.
 7. **Sound dependency.** Add `jzz` and `jzz-synth-tiny` (MIT, 320 KB, lazy) for the built-in GM sound, as Underscores does. The single-file build inlines dynamic imports, so it grows by that much; I'd accept it. The alternative is ~60 lines of oscillator voices (like midinojs's `SynthService`) with no GM instruments.
 8. **Midinous scope.** Nodes note/CC/counter/switch and the four routing modes in M4; logic gates and logic paths later. OK?

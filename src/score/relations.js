@@ -72,7 +72,7 @@ export function travel(d, moverId, pathId) {
   return true;
 }
 
-/** A mark made a trigger gets a sound to start with. */
+/** A mark made an event gets a sound to start with. */
 const makeTrigger = el => withPlay(el, pl => { pl.trigger ||= { emit: emitFor(DEFAULTS.height) }; delete pl.body; delete pl.travel; });
 
 export function trigger(d, id) { const el = find(d, id); if (!el) return false; makeTrigger(el); return true; }

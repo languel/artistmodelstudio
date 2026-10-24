@@ -367,7 +367,7 @@ export function workbenchTools(app) {
         if (!from || !to) throw new Error('link: from and to are marks (an id or a name)');
         const Rel = await import('../score/relations.js');
         const rel = Rel.infer(from, to);
-        if (!rel) return { linked: false, why: 'Nothing to make between those two (a point and a line: it travels; two triggers: one sends to the other; a trigger and a traveler: it starts it)' };
+        if (!rel) return { linked: false, why: 'Nothing to make between those two (a point and a line: it travels; two events: one sends to the other; an event and a traveler: it starts it)' };
         app.store.change('link', d => Rel.apply(d, rel), { by: 'agent' });
         return { linked: true, relation: rel.kind, from: rel.from, to: rel.to, label: rel.label };
       }

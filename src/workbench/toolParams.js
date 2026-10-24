@@ -150,7 +150,7 @@ export function openGridParams(app, x, y) {
     slider({ label: 'Glow size', min: 1, max: 8, step: 0.1, value: app.scoreView.glowSize, doc: 'How far the halo reaches, in dots', onInput: v => app.setScoreView({ glowSize: v }) }),
     slider({ label: 'Trail', min: 0, max: 3, step: 0.05, value: app.scoreView.trail, doc: 'Seconds of tail behind a traveler (0 = none)', onInput: v => app.setScoreView({ trail: v }) }),
     slider({ label: 'Trail strength', min: 0, max: 1, step: 0.05, value: app.scoreView.trailAlpha, doc: 'How strong the tail is', onInput: v => app.setScoreView({ trailAlpha: v }) }),
-    line('Blips', h('input', { type: 'checkbox', checked: Boolean(app.scoreView.blip), onchange: e => app.setScoreView({ blip: e.target.checked ? 1 : 0 }) }), 'A trigger swells and glows when it goes off'),
+    line('Blips', h('input', { type: 'checkbox', checked: Boolean(app.scoreView.blip), onchange: e => app.setScoreView({ blip: e.target.checked ? 1 : 0 }) }), 'An event swells and glows when it goes off'),
     h('div', { class: 'wb-tp-sub' }, 'Drawing'),
     slider({ label: 'Lazy', min: 0, max: 120, step: 1, value: app.lazy.radius, doc: 'The pen trails the cursor on a string this long (screen px). Small wobbles inside it never reach the line; corners get rounded. 0 = off', onInput: v => app.setLazy({ radius: v }) }),
     slider({ label: 'Smoothing', min: 0, max: 0.95, step: 0.01, value: app.lazy.smoothing, doc: 'Each step the pen covers only part of the way to where it is pulled (0.5 = half). Higher is smoother and lags more. 0 = off', onInput: v => app.setLazy({ smoothing: v }) }),

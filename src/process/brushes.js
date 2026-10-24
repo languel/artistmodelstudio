@@ -175,7 +175,7 @@ export const BRUSHES = {
   },
 
   trigger: {
-    label: 'Trigger', roles: ['plane', 'point', 'line'], doc: 'The look of what sounds when touched: a plane is a soft area with a dashed edge, a point is a square (travelers are round), a line is a dashed gate with end ticks.',
+    label: 'Event', roles: ['plane', 'point', 'line'], doc: 'The look of what sounds when touched: a plane is a soft area with a dashed edge, a point is a square (travelers are round), a line is a dashed gate with end ticks.',
     params: [
       param('size', 'Size', 4, 80, 1, 16, 'A point: the width of its square.'),
       param('shape', 'Shape', 0, 2, 1, 0, 'A point: 0 a square, 1 a diamond, 2 rings like a ripple.'),

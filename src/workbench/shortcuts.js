@@ -37,7 +37,7 @@ export function defaultCommands(app) {
     cmd('transport.toggle', 'Transport', 'Play / pause the transport (a tap of Space does it in the Play tool, and in the Timeline)', ['end', 'alt+space'], () => app.player.toggle(), { global: true }),
     cmd('transport.rewind', 'Transport', 'Rewind to the start (or the loop range\'s)', ['home'], () => app.player.rewind(), { global: true }),
     cmd('transport.stop', 'Transport', 'Stop: pause and go back to the start', ['shift+home', 'alt+shift+space'], () => app.player.stop(), { global: true }),
-    cmd('tool.playKind', 'Tools', 'Cycle the Play tool: point, path, traveler, trigger, gate, body (Shift+Y)', ['shift+y'], () => app.cyclePlayKind()),
+    cmd('tool.playKind', 'Tools', 'Cycle the Play tool: point, path, traveler, event, gate, body, node (Shift+Y)', ['shift+y'], () => app.cyclePlayKind()),
     cmd('tool.play', 'Tools', 'Play: author a score by pointing and placing (Space taps play / pause in it)', ['y'], () => app.setTool('play')),
     cmd('score.solo', 'Tools', 'Solo the selected marks of a score (again: all sound)', ['alt+s'], () => app.toggleSolo()),
     cmd('path.straight', 'Tools', 'Straight path (the stroke being drawn, the selection, or the tool)', ['`'], () => app.setPathChoice('straight')),

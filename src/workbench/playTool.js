@@ -3,11 +3,11 @@
  * from what you touch and the kind chosen (right-click the tool):
  *
  *   Press a mark and drag to another: a relation by what the two are (a point and a line: it travels it;
- *     two triggers: one sends to the other; a trigger and a traveler: it starts it). The band says which.
+ *     two events: one sends to the other; an event and a traveler: it starts it). The band says which.
  *   Drag a traveler's marker: it slides along its path (its offset), and what it passes sounds.
  *   Shift+drag a mark: it moves, and snaps onto a path that is near. Click a trigger: you hear it.
  *   On empty paper, by kind: path (draw a line), traveler (click: a point; click near a path: on it; drag: a
- *     bar across it), trigger (click: a point; drag: an area), gate (click on a path: a gate across it; drag:
+ *     bar across it), event (click: a point; drag: an area), gate (click on a path: a gate across it; drag:
  *     a line), body (click: a point that moves by itself; drag: throw it), node (click: a node of the kind
  *     chosen, on the path it is near; drag from a node to another: an edge, to empty paper: an edge and a new node).
  *
@@ -22,7 +22,7 @@ export const PLAY_KINDS = [
   ['link', 'Point at things', 'Press a mark and drag to another: what they are decides the relation. Drag a traveler along its path. Shift+drag moves a mark, snapping to paths.'],
   ['path', 'Path', 'Draw a line that can be travelled. Start on a point and it travels the new line.'],
   ['traveler', 'Traveler', 'Click: a point that travels (click near a path to put it on that path). Drag: a bar across a path.'],
-  ['trigger', 'Trigger', 'Click: a point that sounds when touched. Drag: an area.'],
+  ['trigger', 'Event', 'Click: a point that sounds when touched. Drag: an area.'],
   ['gate', 'Gate', 'Click on a path: a gate across it. Drag: a line that sounds when crossed.'],
   ['body', 'Body', 'Click: a point that moves by itself. Drag: throw it.'],
   ['node', 'Node', 'Click: a node (Midinous) of the chosen kind; near a path it sits on it. Drag from a node: an edge to another node, or to a new one where you let go.']
@@ -50,7 +50,7 @@ export class PlayTool {
     return true;
   }
 
-  /** The mark under a place: a point (a node, a traveler, a trigger) before a line drawn over it. */
+  /** The mark under a place: a point (a node, a traveler, an event) before a line drawn over it. */
   hitAt(wx, wy, accept = () => true) { return this.cv.hitTest(wx, wy, x => x.role === 'point' && accept(x)) || this.cv.hitTest(wx, wy, accept); }
 
   hover(e) {
@@ -64,7 +64,7 @@ export class PlayTool {
     this.cv.playNew = null;
     this.cv.pickHover = null;
     let hit = this.hitAt(wx, wy);
-    // A click on a plain line, when making a traveler, gate, trigger or body, is a click on the paper beside it: what you make is placed there.
+    // A click on a plain line, when making a traveler, gate, event or body, is a click on the paper beside it: what you make is placed there.
     if (hit && !['link', 'path'].includes(this.kind) && ['line', 'gesture', 'guide'].includes(hit.role) && !hit.play?.trigger) hit = null;
     if (hit) return this.pressMark(e, hit, wx, wy);
     if (this.kind === 'link') { this.cv.select([]); return; }
@@ -140,7 +140,7 @@ export class PlayTool {
         d = { ...(d || {}), x1: ux, y1: uy, target: target?.id || null, rel: target ? R.infer(hit, target) : null };
       }
       finish();
-      if (!mode) {   // a click: select; a trigger sounds
+      if (!mode) {   // a click: select; an event sounds
         if (ev.shiftKey) cv.select(cv.selected.has(hit.id) ? [...cv.selected].filter(i => i !== hit.id) : [...cv.selected, hit.id]); else cv.select([hit.id]);
         if (hit.play?.trigger || hit.play?.node) app.score?.audition(hit.id);
         return;
@@ -187,7 +187,7 @@ export class PlayTool {
     window.addEventListener('pointerup', up);
   }
 
-  /** A drag on paper: draw (path, trigger area, gate line) or stretch (a bar, a throw). */
+  /** A drag on paper: draw (path, event area, gate line) or stretch (a bar, a throw). */
   dragNew(e, kind, wx, wy) {
     const cv = this.cv;
     if (kind === 'path') { cv.playNew = { play: { path: true } }; return cv.startStroke(e, 'line', wx, wy); }

@@ -126,8 +126,8 @@ export function normalizeElement(e, stage) {
     ...(e.src ? { src: String(e.src) } : {}),
     ...(e.asset ? { asset: String(e.asset) } : {}),
     ...(e.bake && typeof e.bake === 'object' ? { bake: { ...e.bake } } : {}),
-    // How a mark plays: a path, a traveler, a trigger (src/score/compile.js). Plain data; `emit` is code in a string.
-    ...(e.play && typeof e.play === 'object' ? { play: JSON.parse(JSON.stringify(e.play)) } : {}),
+    // How a mark plays: a path, a traveler, an event (stored as `trigger`; src/score/compile.js). Plain data; `emit` is code in a string.
+    ...(e.play && typeof e.play === 'object' ? { play: (pl => { if (pl.event && !pl.trigger) { pl.trigger = pl.event; } delete pl.event; return pl; })(JSON.parse(JSON.stringify(e.play))) } : {}),   // (`event` is the name people use; the stored key stays `trigger`)
     ...(Number.isFinite(Number(e.opacity)) && Number(e.opacity) < 1 ? { opacity: Math.max(0, Number(e.opacity)) } : {}),
     ...(e.blend && e.blend !== 'normal' ? { blend: String(e.blend) } : {}),
     ...(e.path === 'straight' ? { path: 'straight' } : {}),

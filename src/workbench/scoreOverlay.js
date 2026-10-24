@@ -1,6 +1,6 @@
 /**
  * What a score does, drawn over the canvas: each traveler where it is at the playhead (with a short
- * tail), and the triggers it touches lighting up as the sound is due. It reads the playhead and the
+ * tail), and the events it touches lighting up as the sound is due. It reads the playhead and the
  * same worlds the sound uses (ScorePlayer.view), so what is seen and what is heard are one thing.
  * Redrawn every frame while the transport runs, and when it moves or the drawing changes.
  */
@@ -10,7 +10,7 @@ import { formatDuration } from '../time/sceneTransport.js';
 
 /** How a score is drawn over the canvas (Canvas menu; a traveler can say its own: travel.glow, travel.glowSize, travel.trail). */
 export const SCORE_LOOK = Object.freeze({ glow: 0.4, glowSize: 3.2, trail: 0.6, trailAlpha: 0.55, blip: 1, color: '' });   // (color: the highlight of everything lit; empty: the theme's accent)
-const FLASH = 0.55;   // seconds a trigger's blip lasts
+const FLASH = 0.55;   // seconds an event's blip lasts
 
 export class ScoreOverlay {
   constructor(app) {
@@ -85,7 +85,7 @@ export class ScoreOverlay {
         ctx.globalAlpha = 1;
       }
     }
-    // Routes (a trigger sends to another) and cues (a trigger starts a traveler): arrows between them.
+    // Routes (an event sends to another) and cues (an event starts a traveler): arrows between them.
     const showLinks = names || app.tool === 'play';
     const arrow = (a, b, dashed) => {
       const [x0, y0] = cvw.toScreen(a[0], a[1]), [x1, y1] = cvw.toScreen(b[0], b[1]);
@@ -166,8 +166,8 @@ export class ScoreOverlay {
     const byEl = new Map(score.doc().elements.map(e => [e.id, e])), liveIds = new Set(), posIds = new Map();
     for (const { board, world } of entries) {
       const at = (x, y) => cvw.toScreen(board.x + x, board.y + y);
-      // Triggers that were just touched: a blip with an envelope (quick attack, exponential decay), a ring that opens as it fades.
-      const lastHit = new Map();   // trigger → the latest time it went off, up to now (one pass over the flashes, not one per trigger)
+      // Events that were just touched: a blip with an envelope (quick attack, exponential decay), a ring that opens as it fades.
+      const lastHit = new Map();   // event → the latest time it went off, up to now (one pass over the flashes, not one per event)
       for (const f of score.flashes) if (f.board === board.id && f.t <= pos && !(lastHit.get(f.trigger) >= f.t)) lastHit.set(f.trigger, f.t);
       for (const trig of world.triggers()) {
         const age = pos - (lastHit.get(trig.id) ?? -Infinity);

@@ -206,7 +206,7 @@ export class Workbench {
     if (PLANES.some(c => c[0] === t)) return stack(PLANES);
     if (t === 'brush') return this.brushIds().map(id => ({ id, label: BRUSHES[id].label, icon: brushIcon(id), active: id === this.brush.id, run: () => { this.pickBrush(id, { apply: false }); this.setTool('brush'); } }));
     if (t === 'sculpt') return Object.entries(SCULPTS).map(([id, st]) => ({ id, label: st.label, icon: sculptIcon(id), active: id === this.sculpt.tool, run: () => { this.setSculpt({ tool: id }); this.setTool('sculpt'); } }));
-    // Play: its kinds (point at things, path, traveler, trigger, gate, body, node); with Node chosen, the kinds of node.
+    // Play: its kinds (point at things, path, traveler, event, gate, body, node); with Node chosen, the kinds of node.
     if (t === 'play') {
       if (this.playKind === 'node') return NODE_KINDS.map(k => ({ id: k, label: NODE_INFO[k].label, icon: nodeIcon(k), active: k === this.playNodeKind, run: () => this.setPlayNodeKind(k) }));
       return PLAY_KINDS.map(([id, label]) => ({ id, label, icon: this.playKindIcon(id), active: id === this.playKind, run: () => (id === 'node' ? this.setPlayNodeKind(this.playNodeKind || 'note') : this.setPlayKind(id)) }));
@@ -313,7 +313,7 @@ export class Workbench {
     const items = [
       { label: els.every(e => e.play?.path) ? 'Not a path' : 'Make a path', run: set('path', () => true) },
       { label: els.every(e => e.play?.travel) ? 'Not a traveler' : 'Make a traveler', run: set('travel', () => ({ on: '' })) },
-      { label: els.every(e => e.play?.trigger) ? 'Not a trigger' : 'Make a trigger', run: set('trigger', () => ({ emit: soundCode(SOUND_DEFAULTS.height) })) },
+      { label: els.every(e => e.play?.trigger) ? 'Not an event' : 'Make an event', run: set('trigger', () => ({ emit: soundCode(SOUND_DEFAULTS.height) })) },
       { label: els.every(e => e.play?.body) ? 'Not a body' : 'Make a body', run: set('body', () => ({ speed: [60, 200] })) },
       { label: els.every(e => e.play?.node) ? 'Not a node' : 'Make a node', hint: 'A Midinous node: it plays, counts or decides when a traveler reaches it, and sends the signal on', run: set('node', () => ({ kind: this.playNodeKind || 'note' })) },
       '-',
@@ -1002,7 +1002,7 @@ export class Workbench {
 
   /**
    * Open an IanniX score (.iannix: JavaScript that makes a score) as a new board whose code is the AMS
-   * score it comes to: curves are lines, cursors travel them, triggers play. Plays on the transport.
+   * score it comes to: curves are lines, cursors travel them, events play. Plays on the transport.
    */
   async importIannix(file, { confirmed = false, title } = {}) {
     if (!file) {
@@ -1018,7 +1018,7 @@ export class Workbench {
     const name = title || (typeof file === 'string' ? 'IanniX score' : file.name.replace(/\.[^.]+$/, ''));
     if (!confirmed && !(await askConfirm('An IanniX score is a program, and it runs as one here. Open scores you trust only.', { ok: 'Run it' }))) return null;
     const { iannixToScore } = await import('../score/import/iannix.js');
-    return this.scoreToBoard(iannixToScore(text, { title: name, inBoard: true }), 'IanniX', r => `${r.stats.curves} curves, ${r.stats.cursors} cursors, ${r.stats.triggers} triggers`);
+    return this.scoreToBoard(iannixToScore(text, { title: name, inBoard: true }), 'IanniX', r => `${r.stats.curves} curves, ${r.stats.cursors} cursors, ${r.stats.triggers} events`);
   }
 
   /** How scores show in the picture: { names } (the names of marks that play, drawn beside them). */
@@ -1214,7 +1214,7 @@ export class Workbench {
     this.player = new TakePlayer(this);
     this.score = new ScorePlayer(this);   // plays marks with `play` on the transport
     try { this.scoreView = { ...SCORE_LOOK, names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { ...SCORE_LOOK, names: false }; }
-    this.scoreOverlay = new ScoreOverlay(this);   // and shows them: travelers, lit triggers
+    this.scoreOverlay = new ScoreOverlay(this);   // and shows them: travelers, lit events
     this.shortcuts = new Shortcuts(this);
     this.registerPanels();
     const hadCamera = Boolean(localStorage.getItem('ams_workbench_camera_v1'));
@@ -2195,7 +2195,7 @@ export class Workbench {
         { label: 'Send to back', run: () => this.store.arrange(ids, 'back') }
       ] },
       { label: 'Move to stage', items: this.store.doc.stages.map(st => ({ label: st.name, run: () => this.store.patchElements(ids, { stage: st.id }, 'stage') })) },
-      this.playMenuItems(ids) && { label: 'Convert to', hint: 'Make this a path, a traveler, a trigger, a body or a node (again: undo it)', items: this.playMenuItems(ids).items.slice(0, 5) },
+      this.playMenuItems(ids) && { label: 'Convert to', hint: 'Make this a path, a traveler, an event, a body or a node (again: undo it)', items: this.playMenuItems(ids).items.slice(0, 5) },
       this.playMenuItems(ids),
       brushes.length ? { label: 'Brush', items: brushes.map(b => ({ icon: brushIcon(b.id), label: b.label, run: () => this.store.change('brush', d => { for (const el of d.elements) if (ids.includes(el.id)) el.realize = { brush: b.id, params: {} }; }) })) } : null,
       lineish ? { label: 'Sculpt', hint: 'Brush the selected marks into shape (Shift+drag over a mark does it with any tool)', items: [

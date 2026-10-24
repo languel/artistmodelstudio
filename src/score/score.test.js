@@ -390,3 +390,11 @@ describe('loops by default on closed paths', () => {
     expect(loopOf(doc(true, true, { loop: 'pingpong' }))).toBe('pingpong');
   });
 });
+
+describe('event is the name of a trigger', () => {
+  it('play.event is stored as play.trigger and plays', () => {
+    const d = normalizeDocument({ artboard: { width: 100, height: 100 }, elements: [{ id: 'z', role: 'plane', points: [[10, 10], [20, 10], [20, 20], [10, 20]], play: { event: { emit: 'note(1, 60)' } } }] });
+    expect(d.elements[0].play.trigger.emit).toBe('note(1, 60)');
+    expect(d.elements[0].play.event).toBeUndefined();
+  });
+});

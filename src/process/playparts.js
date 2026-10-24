@@ -1,6 +1,6 @@
 /**
  * What a mark's `play` says it is, and how it should look. Pure: used by the Properties editor and tests.
- * A mark that plays gets the marker brush for what it is (a traveler's ring, a trigger's ripple…), unless
+ * A mark that plays gets the marker brush for what it is (a traveler's ring, an event's ripple…), unless
  * it already has a brush of its own choosing; take the play away and it goes back to its role's brush.
  */
 import { BRUSHES } from './brushes.js';

@@ -21,7 +21,7 @@ import { noteName } from '../../score/scale.js';
 const TITLES = {
   path: 'A path: a line that can be travelled',
   travel: 'A traveler: a point that runs a path',
-  trigger: 'A trigger: it sounds when something touches it',
+  trigger: 'An event: it sounds when something touches it',
   body: 'A body: a point that moves by itself, bounces and collides',
   node: 'A node (Midinous): a note, a controller, a logic gate, a counter… that a traveler reaches on a path, and that sends the signal on'
 };
@@ -165,7 +165,7 @@ export function playBody(app, e) {
         setT({ width: v || undefined, angle: v && line ? barAngle(line, t.at || 0) : undefined }, 'traveler width');
       } })),
       row('Offset', numberField({ value: t.at || 0, min: 0, max: 1, step: 0.01, def: 0, title: 'How far along its path it begins (0 to 1). Drag the marker along the path with the Play tool to set it', onChange: (v, { final }) => { if (final) app.store.change('traveler offset', d => R.offset(d, e.id, v)); } })),
-      row('Starts on', objectField({ app, value: t.cue || '', accept: x => x.id !== e.id && x.play?.trigger, placeholder: 'when play starts', title: 'A trigger that starts it: it waits until that trigger sounds. Empty: it runs from the start', onChange: v => setT({ cue: v || undefined }, 'traveler cue') }))
+      row('Starts on', objectField({ app, value: t.cue || '', accept: x => x.id !== e.id && x.play?.trigger, placeholder: 'when play starts', title: 'An event that starts it: it waits until that event sounds. Empty: it runs from the start', onChange: v => setT({ cue: v || undefined }, 'traveler cue') }))
     );
   }
 
@@ -227,7 +227,7 @@ export function playBody(app, e) {
       row('Edges', selectField([['line', 'Straight'], ['horz', 'Across, then up or down'], ['vert', 'Up or down, then across']], n.shape, v => setN({ shape: v === 'line' ? undefined : v }, 'node edges'), 'How a path drawn from this node to another is made (the Play tool)')));
   }
 
-  // ---- a trigger or a body: what it sounds ----
+  // ---- an event or a body: what it sounds ----
   const sounding = play.trigger ? ['trigger', 'Sound', PRESETS.filter(p => p.k !== 'collide')] : null;
   const bodied = play.body ? ['body', 'On collision', PRESETS.filter(p => p.k === 'collide')] : null;
 
@@ -270,7 +270,7 @@ export function playBody(app, e) {
     const setPart = (patch, lab) => edit(pl => { pl.trigger = { ...pl.trigger, ...patch }; for (const k of Object.keys(pl.trigger)) if (pl.trigger[k] === undefined) delete pl.trigger[k]; }, lab || 'trigger');
     const isLine = e.role === 'line';
     const on = part.on || (isLine ? ['cross'] : ['enter', 'exit']);
-    const toggle = ev => { const next = on.includes(ev) ? on.filter(x => x !== ev) : [...on, ev]; setPart({ on: next.length === (isLine ? 1 : 2) && next.every(x => (isLine ? ['cross'] : ['enter', 'exit']).includes(x)) ? undefined : next }, 'trigger events'); };
+    const toggle = ev => { const next = on.includes(ev) ? on.filter(x => x !== ev) : [...on, ev]; setPart({ on: next.length === (isLine ? 1 : 2) && next.every(x => (isLine ? ['cross'] : ['enter', 'exit']).includes(x)) ? undefined : next }, 'event kinds'); };
     parts.push(
       row('When', isLine
         ? h('span', { class: 'wb-row-inline' },
@@ -285,15 +285,15 @@ export function playBody(app, e) {
     const to = [].concat(part.to || []).map(r => (typeof r === 'string' ? { to: r } : r));
     const setTo = (list, lab) => setPart({ to: list.length ? list : undefined }, lab);
     to.forEach((r, i) => parts.push(row(i ? '' : 'Sends to', h('span', { class: 'wb-row-inline wb-obj' },
-      objectField({ app, value: r.to, accept: x => x.id !== e.id && (x.play?.trigger || x.role === 'point' || x.role === 'plane'), title: 'A trigger this one sends a traveler to', onChange: v => { if (v) setTo(to.map((q, k) => (k === i ? { ...q, to: v } : q)), 'route'); else setTo(to.filter((_, k) => k !== i), 'route'); } }),
+      objectField({ app, value: r.to, accept: x => x.id !== e.id && (x.play?.trigger || x.role === 'point' || x.role === 'plane'), title: 'An event this one sends a traveler to', onChange: v => { if (v) setTo(to.map((q, k) => (k === i ? { ...q, to: v } : q)), 'route'); else setTo(to.filter((_, k) => k !== i), 'route'); } }),
       timeField(app, r.dur ?? '', v => setTo(to.map((q, k) => (k === i ? { ...q, dur: v } : q)), 'route time'), { placeholder: '1 beat' })))));
-    parts.push(row(to.length ? '' : 'Sends to', objectField({ app, value: '', accept: x => x.id !== e.id && (x.play?.trigger || x.role === 'point' || x.role === 'plane'), placeholder: 'add: a name, or pick', title: 'Add a trigger to send a traveler to', onChange: v => { if (v) { const m = resolveMark(app.store.doc, v); app.store.change('route', d => R.send(d, e.id, m ? m.id : v)); } } })));
+    parts.push(row(to.length ? '' : 'Sends to', objectField({ app, value: '', accept: x => x.id !== e.id && (x.play?.trigger || x.role === 'point' || x.role === 'plane'), placeholder: 'add: a name, or pick', title: 'Add an event to send a traveler to', onChange: v => { if (v) { const m = resolveMark(app.store.doc, v); app.store.change('route', d => R.send(d, e.id, m ? m.id : v)); } } })));
     parts.push(
-      row('Starts', timeField(app, part.start === true ? 0 : part.start ?? '', v => setPart({ start: v }, 'trigger start'), { placeholder: 'when touched' })),
+      row('Starts', timeField(app, part.start === true ? 0 : part.start ?? '', v => setPart({ start: v }, 'event start'), { placeholder: 'when touched' })),
       row('Policy', selectField([['latched', 'One voice (latched)'], ['pair', 'One per traveler'], ['every', 'Every touch']], part.policy || 'latched', v => setPart({ policy: v === 'latched' ? undefined : v }, 'trigger policy'), 'How many voices touching it makes')),
-      row('Hold', timeField(app, part.gate ?? '', v => setPart({ gate: v }, 'trigger hold'), { placeholder: '0' })),
-      row('Rest', timeField(app, part.lockout ?? '', v => setPart({ lockout: v }, 'trigger rest'), { placeholder: '0' })),
-      row('Hears', textField(typeof part.filter === 'string' ? part.filter : '', v => setPart({ filter: v || undefined }, 'trigger filter'), { placeholder: 'any traveler', title: 'Only travelers with this tag' }))
+      row('Hold', timeField(app, part.gate ?? '', v => setPart({ gate: v }, 'event hold'), { placeholder: '0' })),
+      row('Rest', timeField(app, part.lockout ?? '', v => setPart({ lockout: v }, 'event rest'), { placeholder: '0' })),
+      row('Hears', textField(typeof part.filter === 'string' ? part.filter : '', v => setPart({ filter: v || undefined }, 'event filter'), { placeholder: 'any traveler', title: 'Only travelers with this tag' }))
     );
   }
   if (bodied) {

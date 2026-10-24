@@ -1,5 +1,5 @@
 /**
- * What a trigger (or body) plays, as a few settings that write the `emit` code, and back. The
+ * What an event (or body) plays, as a few settings that write the `emit` code, and back. The
  * Properties editor is a view of the code: a preset's code starts with a comment that holds its settings
  * (`// preset {"k":"height",…}`), and `readPreset` gives the settings back only while the code is exactly
  * what the settings would write. Edit the code by hand and it is "custom": the settings step aside, the

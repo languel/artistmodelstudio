@@ -123,7 +123,7 @@ export class ScorePlayer {
     [60, 64, 67].forEach((n, i) => { for (const o of this.outputs()) { o.send([0x90, n, 96], t + i * 140); o.send([0x80, n, 0], t + i * 140 + 500); } });
   }
 
-  /** What a trigger sounds like, now: it is touched once (from a click). Nothing needs to be playing. */
+  /** What an event sounds like, now: it is touched once (from a click). Nothing needs to be playing. */
   async audition(id) {
     const doc = this.rawDoc(), mark = doc.elements.find(e => e.id === id);
     if (!mark?.play?.trigger && !mark?.play?.node) return false;
@@ -233,7 +233,7 @@ export class ScorePlayer {
     if (p.playing && !this.timer && hasScore(this.doc())) {
       this.gm.resume().then(() => this.applyMixer()).catch(e => this.app.log?.(`Sound: ${e.message}`, 'error'));
       const v = this.view();
-      if (v.length && v.every(e => e.idle)) this.app.canvas.flash('Nothing starts this score: give a trigger a Start, or a traveler a path');
+      if (v.length && v.every(e => e.idle)) this.app.canvas.flash('Nothing starts this score: give an event a Start, or a traveler a path');
       this.timer = setInterval(() => this.tick(), TICK_MS);
       this.tick();
     } else if (!p.playing && this.timer) {
