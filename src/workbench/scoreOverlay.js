@@ -159,6 +159,9 @@ export class ScoreOverlay {
         ctx.fillStyle = accent; ctx.strokeStyle = accent; ctx.lineJoin = 'round';
         const d = trig.regionDef, z = cvw.cam.z;
         const path = () => { ctx.beginPath(); d.pts.forEach(([x, y], i) => { const [sx, sy] = at(x, y); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); }); };
+        // The object itself swells and settles with the envelope (about its centre).
+        const swell = 1 + 0.3 * env, c0 = d.kind === 'circle' ? at(d.x, d.y) : at(d.pts.reduce((m, q) => m + q[0], 0) / d.pts.length, d.pts.reduce((m, q) => m + q[1], 0) / d.pts.length);
+        ctx.save(); ctx.translate(c0[0], c0[1]); ctx.scale(swell, swell); ctx.translate(-c0[0], -c0[1]);
         if (d.kind === 'circle') {
           const [x, y] = at(d.x, d.y), r = d.r * z;
           const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.8);
@@ -172,15 +175,15 @@ export class ScoreOverlay {
           path(); ctx.globalAlpha = 0.25 * env; ctx.lineWidth = 9; ctx.lineCap = 'round'; ctx.stroke();
           path(); ctx.globalAlpha = 0.9 * env; ctx.lineWidth = 2.5; ctx.stroke();
         }
+        ctx.restore();
         moving = true;
       }
-      // Travelers: a soft glow with a pulse on the beat, a trail that thins and fades, and a bar as a line that fades at its ends.
+      // Travelers: a soft glow, a trail that thins and fades, and a bar as a line that fades at its ends.
       ctx.globalAlpha = 1;
       const now = world.positions(pos).filter(q => p.playing || !q.r), widths = new Map(world.travelers().filter(t => t.width > 0).map(t => [t.id, t.width]));
       const TRAIL = 0.6, steps = now.length > 40 ? 3 : 7;   // (seconds of trail; fewer looks when there are many)
       const past = [];
       if (p.playing) for (let i = 1; i <= steps; i++) past.push(new Map(world.positions(Math.max(0, pos - (TRAIL * i) / steps)).map(q => [q.id, q])));
-      const beat = ((pos * app.player.settings.tempo) / 60) % 1, pulse = Math.exp(-5 * beat);   // 1 on the beat, decaying
       for (const q of now) {
         const [x, y] = at(q.x, q.y);
         const bw = widths.get(q.id);
@@ -204,9 +207,9 @@ export class ScoreOverlay {
         }
         const rad = q.r ? Math.max(2.5, q.r * cvw.cam.z) : 4.5;   // (a body is as big as it is; a traveler is a small dot)
         if (!q.r) {   // glow
-          const gr = rad * (3.2 + 0.8 * (p.playing ? pulse : 0)), g = ctx.createRadialGradient(x, y, 0, x, y, gr);
+          const gr = rad * 3.2, g = ctx.createRadialGradient(x, y, 0, x, y, gr);
           g.addColorStop(0, accent); g.addColorStop(1, 'transparent');
-          ctx.globalAlpha = 0.4 + 0.15 * (p.playing ? pulse : 0); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, gr, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 0.4; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, gr, 0, Math.PI * 2); ctx.fill();
         }
         ctx.globalAlpha = q.r ? 0.85 : 1; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.stroke();
