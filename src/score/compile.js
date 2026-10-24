@@ -91,7 +91,8 @@ export function compileDoc(doc, { board = MAIN, helpers = {}, handlers = {}, see
 
   for (const e of marks) {
     const { travel, trigger, body } = e.play;
-    if (body) {
+    if (body && travel) info.skipped.push(`${e.label || e.id}: a mark travels a path or moves by itself, not both (it travels)`);
+    if (body && !travel) {
       // A mover with a velocity: `v: [vx, vy]`, or `speed` (a number or [min, max]) and `angle` (degrees; omitted: any way, by the seed).
       const rnd = rngFor(seed, bodies.length);
       const pick = v => (Array.isArray(v) ? v[0] + rnd() * (v[1] - v[0]) : v);

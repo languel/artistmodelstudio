@@ -341,3 +341,16 @@ describe('names', () => {
     expect(compileDoc(d3).def.triggers[0].region.r).toBe(15);
   });
 });
+
+describe('one way of moving', () => {
+  it('a mark that is both a traveler and a body travels', () => {
+    const d = normalizeDocument({ artboard: { width: 100, height: 100 }, elements: [
+      { id: 'l', role: 'line', label: 'row', points: [[0, 5], [100, 5]], path: 'straight', play: { path: true } },
+      { id: 'a', role: 'point', label: 'A', points: [[10, 50]], play: { travel: { on: 'row', dur: 2 }, body: { speed: 50 } } }
+    ] });
+    const { def, info } = compileDoc(d);
+    expect(def.bodies).toEqual([]);
+    expect(def.travelers.map(t => t.id)).toEqual(['a']);
+    expect(info.skipped).toHaveLength(1);
+  });
+});

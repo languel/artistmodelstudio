@@ -78,6 +78,8 @@ export function playSection(app, e) {
         else {
           const path = k === 'travel' ? doc.elements.find(x => x.id !== e.id && x.play?.path && canBePath(x)) : null;
           pl[k] = newPart(k, { path: path ? path.id : '' });
+          // A mark moves along a path or by itself, not both.
+          if (k === 'travel') delete pl.body; else if (k === 'body') delete pl.travel;
         }
       }, `play ${k}`)
     });
@@ -100,6 +102,8 @@ export function playSection(app, e) {
           edit((pl, el, d) => {
             pl.travel = { ...pl.travel, on: v };
             const line = target && d.elements.find(x => x.id === target.id);
+            // The traveler starts where its path does: its marker goes there.
+            if (line && el.role === 'point' && line.points.length) el.points = [[line.points[0][0], line.points[0][1], el.points[0]?.[2] ?? 0, el.points[0]?.[3] ?? 0.5]];
             if (line && !line.play?.path) { line.play = { ...(line.play || {}), path: true }; const r = realizeAfter(line, line.play); if (r !== line.realize) line.realize = { ...r }; }
           }, 'traveler path');
         }
