@@ -14,3 +14,13 @@ html.ams-embed.dock-left .wb-topbar .wb-topbar-spacer { display: none; }
 html.ams-embed.dock-left .wb-topbar .wb-island { flex-direction: column; margin: 0; flex: none; }
 html.ams-embed.dock-left .wb-island > .wb-grip { display: none; }
 html.ams-embed.dock-left .wb-sep { width: 20px; height: 1px; margin: 3px 0; }
+
+/* The transport: a strip at the bottom centre (Poliplan plays a score). */
+.ams-transport { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 4px; padding: 4px 8px; }
+.ams-tp-btn { width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--wb-text); cursor: pointer; font-size: 14px; }
+.ams-tp-btn:hover { background: color-mix(in srgb, var(--wb-text) 10%, transparent); }
+.ams-tp-btn.on { color: var(--wb-accent-2); }
+.ams-tp-time { font: 12px var(--font-mono, monospace); min-width: 5.2em; text-align: center; color: var(--wb-text); }
+.ams-tp-num { width: 50px; font: 12px var(--font-mono, monospace); background: transparent; color: var(--wb-text); border: 1px solid var(--wb-line); border-radius: 5px; padding: 2px 4px; }
+.ams-tp-sel { font: 12px var(--font-mono, monospace); background: transparent; color: var(--wb-text); border: 1px solid var(--wb-line); border-radius: 5px; padding: 2px 4px; }
+.ams-tp-sep { width: 1px; height: 18px; background: var(--wb-line); margin: 0 4px; }

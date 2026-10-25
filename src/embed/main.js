@@ -4,6 +4,7 @@ import './embed.css';
 import { Workbench } from '../workbench/app.js';
 import { setDefaultNoteFont } from '../process/notes.js';
 import { startBridge } from './bridge.js';
+import { mountTransport } from './transport.js';
 
 const q = new URLSearchParams(location.search);
 // The hand fonts are webfonts the embed does not load (the system's script font stands in); notes start in sans.
@@ -39,4 +40,5 @@ for (const m of ['open', 'toggleDock']) {
 if (q.get('guide') !== '1') app.guide.enabled = false;   // no agent cursor or captions over the host's drawing, unless asked
 app.hostSetUI({ view: false, panels: false, tools: q.get('tools') !== '0', zoom: q.get('zoom') !== '0' });
 startBridge(app, { origin: q.get('origin') || location.origin });
+mountTransport(app, { shown: q.get('transport') !== '0' });   // Poliplan plays a score: the transport is part of it (a host with its own clock hides it)
 if (import.meta.env?.DEV) window.__ams = app;

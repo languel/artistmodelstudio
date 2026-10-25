@@ -76,8 +76,25 @@ export function startBridge(app, { origin = location.origin } = {}) {
     if ('panels' in p || 'all' in p) document.documentElement.classList.toggle('ams-panels', Boolean('all' in p ? p.all : p.panels));
     app.hostSetUI(p);
   };
+  // Alt+Z (or the host's `zen` message) hides the editor's tools, zoom and transport, leaving the drawing; again to bring them back.
+  // Every shortcut keeps working while they are hidden (undo, End to play, Home to rewind…). The `zen` event tells the host.
+  // Alt+Z works whether the editor or the host page has the keyboard.
+  let zen = false, transportWanted = new URLSearchParams(location.search).get('transport') !== '0';
+  const setZen = on => {
+    zen = Boolean(on);
+    ui({ tools: !zen, zoom: !zen });
+    app.embedTransport?.show(transportWanted && !zen);
+    post({ type: 'zen', on: zen });
+    return zen;
+  };
+  window.addEventListener('keydown', e => {
+    if (e.altKey && e.code === 'KeyZ' && !e.metaKey && !e.ctrlKey && !hostKey) { e.preventDefault(); e.stopImmediatePropagation(); setZen(!zen); }
+  }, true);
   const configure = cfg => {
     if (cfg.passthrough != null) passthrough = !!cfg.passthrough;
+    if (cfg.transport != null) { transportWanted = !!cfg.transport; app.embedTransport?.show(transportWanted); }
+    // The host owns the sound: the built-in General MIDI sound is switched off (the score still makes signals and events).
+    if (cfg.sound === false) app.score?.setSound({ gm: false });
     if (cfg.actions) app.hostActions = cfg.actions.filter(a => a?.id && a?.label);
     if (cfg.dock) document.documentElement.classList.toggle('dock-left', cfg.dock === 'left');
     if (cfg.ui) ui(cfg.ui);
@@ -158,6 +175,8 @@ export function startBridge(app, { origin = location.origin } = {}) {
     'score-input': m => ({ accepted: app.score.setInput(String(m.name), m.value) }),
     /** The score as a standalone export: JSON that src/score/runtime.js plays anywhere. */
     'score-export': () => ({ score: app.score.exportScore() }),
+    /** Hide the tools and the transport on or off (no argument: toggle); sends a `zen` event. */
+    'zen': m => ({ on: setZen(m.on ?? !zen) }),
     'score-unsubscribe': m => { scoreSubs.get(m.subId)?.(); scoreSubs.delete(m.subId); return { ok: true }; },
     /** The current value of signals (names are prefixes: 'lead' gives lead.x, lead.u…). */
     'score-read': m => { const f = app.score.features(); return { t: f.t, features: app.score.bus.read(m.name, f) }; },

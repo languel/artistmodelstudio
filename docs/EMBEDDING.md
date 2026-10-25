@@ -213,3 +213,11 @@ Not yet: the host clock (the host driving the playhead), host writes to designat
 - **Designated inputs:** a mark with `play.in = 'name'` takes a value from the host: `editor.setScoreInput('name', value)`. A traveler's value is its place on its path (0 to 1 of a lap, live, the same as dragging it); an event fires when the value is above zero. Inputs are the one kind of write a host may make without a permission, since the drawing's author named them.
 - **Standalone score:** `editor.exportScore()` returns the score as plain JSON (`format: 'ams-score/1'`). `score-runtime.js` (next to `ams-editor.js` in the embed build, 50 KB) plays that JSON in any page with no editor: `createScoreRuntime(json)`, then `features(t)`, `seek(t)`, `recent(since, name)`, `setInput(name, value)`. It gives the same names and values as the editor.
 - Not built: host writes to travelers and events other than designated inputs (the plan's permission-gated `score-call`).
+
+### Transport, sound and zen (25 Oct 2026)
+
+Poliplan is a graphic score editor and a playback system, and a host chooses how much of the playback it owns:
+
+- **Batteries included** (`score-sequencer/index.html`): the editor's own transport strip (play, rewind, bars and beats, tempo, speed, loop, sound) and the built-in General MIDI sound. Nothing to set up.
+- **Host-owned** (`score-sequencer/host-owned.html`): `init({ clock: 'host', transport: false, sound: false })`. The host runs the clock and sends `transport({ time, playing, rate })`; it makes its own sound from `subscribeScore` (events become notes, traveler positions become a tone). That page is the template for wiring Poliplan to any engine.
+- **Alt+Z** hides the editor's tools, zoom and transport (again to bring them back), from the editor or the host page; every shortcut keeps working while they are hidden. `editor.zen()` and the `zen` event are the same for hosts.
