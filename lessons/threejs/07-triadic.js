@@ -1,0 +1,94 @@
+// Lesson 07: geometric costumes on a moving body. Source -> pose -> Body (metres, hips at the origin) -> Costume (parts hung on
+// body segments, sized by the body's measurements) -> a lit stage with shadows. No depth needed.
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createTracker } from './lib/tracker.js';
+import { Body, Playback, J } from './lib/body.js';
+import { BodyView } from './lib/bodyview.js';
+import { Costume, COSTUMES, PALETTES, segments } from './lib/costume.js';
+import { bindSources } from './lib/sources.js';
+
+const $ = id => document.getElementById(id), num = id => +$(id).value, status = t => $('status').textContent = t;
+const stage = $('stage'), video = $('video');
+
+// ---- the stage: a room, a key light that casts shadows ---------------------------------------------------------------
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(devicePixelRatio); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 60); camera.position.set(1.4, 0.4, 4.2);
+const orbit = new OrbitControls(camera, renderer.domElement); orbit.target.set(0, -0.05, 0);
+const FLOOR_Y = -0.95;
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshStandardMaterial({ color: 0xe6e1d6, roughness: 0.9 })); floor.rotation.x = -Math.PI / 2; floor.position.y = FLOOR_Y; floor.receiveShadow = true; scene.add(floor);
+const grid = new THREE.GridHelper(12, 24, 0x9a958a, 0xbdb8ad); grid.position.y = FLOOR_Y + 0.002; scene.add(grid);
+const hemi = new THREE.HemisphereLight(0xffffff, 0x8a857a, 1.1); scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(-2.5, 4, 3); key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -2.5, right: 2.5, top: 2.5, bottom: -2.5, near: 0.5, far: 12 }); key.shadow.bias = -0.0004; scene.add(key);
+const resize = () => { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+new ResizeObserver(resize).observe(stage); resize();
+function setRoom(light) {
+  scene.background = new THREE.Color(light ? 0xefebe2 : 0x0d0e11); floor.material.color.setHex(light ? 0xe6e1d6 : 0x1a1b20);
+  grid.material.color.setHex(light ? 0x9a958a : 0x444650); hemi.intensity = light ? 1.1 : 0.55; key.intensity = light ? 2.4 : 2.8;
+}
+$('room').onchange = () => setRoom($('room').value === 'light'); setRoom(true);
+
+// ---- the body and its costume -------------------------------------------------------------------------------------------
+const body = new Body(), skeleton = new BodyView(body); skeleton.show({ face: false, hands: false }); scene.add(skeleton);
+let costume = null, palette = 'yellow';
+function dress(name) {
+  if (costume) { scene.remove(costume); costume.traverse(o => { o.geometry?.dispose(); }); }
+  costume = new Costume(COSTUMES[name].parts); costume.setPalette(palette); costume.volume = num('volume'); scene.add(costume);
+  costume.frustumCulled = false; for (const g of Object.keys(costume.show)) costume.show[g] = $('g_' + g)?.checked ?? true;
+}
+for (const [k, c] of Object.entries(COSTUMES)) $('costume').add(new Option(c.label, k));
+$('costume').onchange = () => dress($('costume').value);
+for (const [k, p] of Object.entries(PALETTES)) {
+  const b = document.createElement('button'); b.style.background = '#' + p.primary.toString(16).padStart(6, '0'); b.title = k; b.setAttribute('aria-pressed', k === palette);
+  b.onclick = () => { palette = k; costume.setPalette(k); [...$('sw').children].forEach(x => x.setAttribute('aria-pressed', x === b)); }; $('sw').append(b);
+}
+$('volume').oninput = () => { costume.volume = num('volume'); $('volumeo').textContent = num('volume').toFixed(2) + '×'; };
+for (const g of ['head', 'torso', 'arms', 'legs']) {
+  const l = document.createElement('label'); l.className = 'chk'; const c = Object.assign(document.createElement('input'), { type: 'checkbox', checked: true, id: 'g_' + g, onchange: () => costume.show[g] = c.checked }); l.append(c, g); $('groups').append(l);
+}
+const show = { shadows: true, 'space lines': true, skeleton: false, wire: false };
+for (const k of Object.keys(show)) {
+  const l = document.createElement('label'); l.className = 'chk'; const c = Object.assign(document.createElement('input'), { type: 'checkbox', checked: show[k], onchange: () => { show[k] = c.checked; if (k === 'wire') costume.wireframe = c.checked; if (k === 'shadows') { key.castShadow = c.checked; floor.receiveShadow = c.checked; } } }); l.append(c, k); $('layers').append(l);
+}
+dress('spiral');
+
+// space lines, after Schlemmer's figures in the circle: a ring on the floor around the dancer, and plumb lines from head, hands and feet down to it
+const ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 96 }, (_, i) => new THREE.Vector3(Math.cos(i / 96 * 6.2832), 0, Math.sin(i / 96 * 6.2832)))), new THREE.LineBasicMaterial({ color: 0x6f6a60 }));
+const plumb = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x6f6a60, transparent: true, opacity: 0.55 })); scene.add(ring, plumb);
+
+// ---- sources ------------------------------------------------------------------------------------------------------------------
+let tracker = null, live = false, playback = null, t0 = 0, lastVT = -1, frames = 0, fps = 0, fpsT = performance.now();
+async function load() { if (tracker) return; status('loading the pose model…'); tracker = await createTracker({ pose: true, hands: false, face: false }); }
+bindSources({ video, camBtn: $('cam'), clipSel: $('clip'), load, status, onStart(mirror, name) { body.mirror = mirror; body.reset(); live = true; playback = null; t0 = performance.now(); status(name); } });
+$('rec').add(new Option('recorded…', ''));
+fetch('data/index.json').then(r => r.json()).then(l => l.forEach(n => $('rec').add(new Option(n.replace('.pose.json', ''), n)))).catch(() => {});
+$('rec').onchange = async () => {
+  if (!$('rec').value) return; const data = await (await fetch('data/' + $('rec').value)).json();
+  video.pause(); live = false; playback = new Playback(data); t0 = performance.now(); body.mirror = !!data.mirror; body.aspect = data.aspect ?? 4 / 3; body.reset(); status(`recorded: ${playback.frames.length} frames`);
+};
+
+// ---- loop ---------------------------------------------------------------------------------------------------------------------
+let readT = 0;
+renderer.setAnimationLoop(now => {
+  if (live && video.readyState >= 2) {
+    const vt = video.srcObject ? (now - t0) / 1000 : video.currentTime;
+    if (video.srcObject || vt !== lastVT) { lastVT = vt; body.update(tracker.detect(video, vt)); frames++; }
+  } else if (playback) { body.update(playback.at((now - t0) / 1000)); frames++; }
+  const on = body.present;
+  costume.visible = on; skeleton.visible = on && show.skeleton; ring.visible = plumb.visible = on && show['space lines'];
+  if (on) {
+    const S = segments(body); costume.update(body, S); if (skeleton.visible) skeleton.update('world');
+    // @key Space lines | A ring on the floor as wide as the dancer's reach, and a plumb line from the head, hands and feet straight down to the floor.
+    const hips = S.torso.a, R = Math.max(0.45, (S.measure.arm * 2 + S.measure.shoulders) * 0.5);
+    ring.position.set(hips.x, FLOOR_Y + 0.004, hips.z); ring.scale.setScalar(R);
+    const pts = []; for (const n of ['nose', 'leftWrist', 'rightWrist', 'leftAnkle', 'rightAnkle']) { const p = body.w[J[n]]; if (!body.frame || body.frame.pose[J[n]][3] > 0.5) pts.push(p.clone(), new THREE.Vector3(p.x, FLOOR_Y + 0.004, p.z)); }
+    plumb.geometry.setFromPoints(pts);
+    // @/key
+    if (now - readT > 200) { readT = now; const m = S.measure; $('read').textContent = `shoulders  ${(m.shoulders * 100).toFixed(0)} cm\ntorso      ${(m.torso * 100).toFixed(0)} cm\narm        ${(m.arm * 100).toFixed(0)} cm\nleg        ${(m.leg * 100).toFixed(0)} cm\nhead radius ${(m.headR * 100).toFixed(1)} cm\nscale      ${m.scale.toFixed(2)}`; }
+  }
+  orbit.update(); renderer.render(scene, camera);
+  if (now - fpsT > 1000) { fps = frames; frames = 0; fpsT = now; }
+  $('hud').textContent = live || playback ? `${fps} body frames/s${on ? '' : ' · no body found'}` : 'choose a source';
+});

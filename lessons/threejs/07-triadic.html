@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three.js 07 · Triadic costumes</title>
+<link rel="stylesheet" href="lesson.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/","mediapipe":"./vendor/mediapipe/vision_bundle.mjs"}}</script>
+<style>#status{color:var(--dim);font-size:13px;min-height:20px} video{display:none} .chk{display:flex;gap:4px;align-items:center;min-width:0;margin-right:8px} .row input[type=checkbox]{accent-color:var(--accent)}
+#read{font:12.5px/1.6 ui-monospace,Menlo,monospace;white-space:pre;color:var(--dim);margin:6px 0} .sw{display:flex;gap:8px} .sw button{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0} .sw button[aria-pressed=true]{border-color:var(--accent)}</style>
+</head><body>
+<div class="split">
+<aside>
+  <nav class="crumbs"><a href="index.html">Three.js</a> · <a href="06-body-drum.html">06</a> · 07</nav>
+  <h1>Triadic costumes</h1>
+  <p class="dim">Spheres, cones, discs, hoops and wire spirals hung on a moving body, after Oskar Schlemmer's Triadic Ballet. Your body is the mannequin.</p>
+  <h2>Source</h2>
+  <div class="row"><button id="cam" title="Your camera, mirrored. Nothing leaves your machine">webcam</button><select id="clip" title="Public-domain films from the Mediathèque"></select><select id="rec" title="Recorded landmarks: no camera needed"></select></div>
+  <div id="status"></div>
+  <h2>Costume</h2>
+  <div class="row"><label>costume</label><select id="costume"></select></div>
+  <div class="row"><label>colour</label><div class="sw" id="sw"></div></div>
+  <div class="row"><label>volume</label><input type="range" id="volume" min="0.5" max="1.7" step="0.05" value="1" title="Thickness of every part. Parts are already sized to your shoulder width"><output id="volumeo">1.00×</output></div>
+  <div class="row" id="groups"></div>
+  <h2>Stage</h2>
+  <div class="row"><label>room</label><select id="room"><option value="light">white room</option><option value="dark">dark room</option></select></div>
+  <div class="row" id="layers"></div>
+  <h2>Measured</h2>
+  <div id="read">choose a source</div>
+  <h2>What it is</h2>
+  <p>Each part hangs on a <b>segment</b> of the body: the shoulder-to-elbow bone, the torso, the head. A segment gives the part its position, direction and length; the part's thickness comes from your <b>shoulder width</b>, and the head's size from the distance between your ears. So the same costume fits a child, an adult, or a dancer far from the camera.</p>
+  <p>Schlemmer's Triadic Ballet (1922) dressed three dancers in geometry: spheres, spirals, discs and cones, in yellow, pink and black. These are studies in that spirit, not reconstructions of the costumes. A part on a joint the camera cannot see is hidden, not guessed.</p>
+</aside>
+<main id="stage"><div class="hud" id="hud"></div></main>
+</div>
+<video id="video" playsinline muted loop crossorigin="anonymous"></video>
+<script type="module" src="07-triadic.js"></script>
+<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'07-triadic.js',label:'07-triadic.js'},{path:'lib/costume.js',label:'lib/costume.js'},{path:'lib/body.js',label:'lib/body.js'},{path:'lib/tracker.js',label:'lib/tracker.js'}], exportAssets: ["vendor/mediapipe/wasm/vision_wasm_internal.js", "vendor/mediapipe/wasm/vision_wasm_internal.wasm", "vendor/mediapipe/models/pose_landmarker_full.task", "data/index.json", "data/lancement-du-disque-par-l-athlete-americain-mccraken-1900.pose.json"] });</script>
+</body></html>
