@@ -44,7 +44,8 @@ for (const id of ['attack', 'release', 'sustain', 'cutLow', 'cutHigh', 'q', 'rev
 $('wave').onchange = () => synth.set('wave', $('wave').value);
 $('thick').oninput = () => { harp.enter = num('thick'); harp.leave = num('thick') * 1.8; $('thicko').textContent = fmt.thick(num('thick')); };
 $('grab').oninput = () => { harp.grab = num('grab'); $('grabo').textContent = fmt.grab(num('grab')); };
-$('bloom').oninput = () => { bloom.strength = num('bloom'); bloom.enabled = num('bloom') > 0; };
+$('bloom').oninput = () => { bloom.strength = num('bloom'); bloom.enabled = num('bloom') > 0; $('bloomo').textContent = num('bloom').toFixed(2); };
+$('bloom').oninput();   // start from the slider's value
 $('snd').onclick = () => synth.resume().then(() => $('snd').textContent = 'sound on');
 document.addEventListener('click', () => synth.resume().then(() => $('snd').textContent = 'sound on'), { once: true });
 

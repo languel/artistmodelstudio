@@ -16,6 +16,11 @@
   <div id="status"></div>
   <div id="note">&nbsp;</div>
   <div id="read">choose a source</div>
+  <h2>Look</h2>
+  <div class="row"><label>laser</label><select id="color"><option value="0x38ff6a">green</option><option value="0xff3030">red</option><option value="0x30e0ff">cyan</option><option value="0xb070ff">violet</option></select></div>
+  <div class="row"><label>bloom</label><input type="range" id="bloom" min="0" max="2.5" step="0.05" value="0.45" title="Glow around the bright beams. 0 turns it off"><output id="bloomo">0.45</output></div>
+  <div class="row"><label>haze</label><input type="range" id="haze" min="0" max="1" step="0.05" value="0.7" title="Dust in the air, lit where the beams are"></div>
+  <div class="row" id="layers"></div>
   <h2>Voice</h2>
   <div class="row"><label>attack</label><input type="range" id="attack" min="0.005" max="2" step="0.005" value="0.25" title="Seconds to fade in once a beam is interrupted"><output id="attacko">0.25 s</output></div>
   <div class="row"><label>release</label><input type="range" id="release" min="0.05" max="4" step="0.05" value="0.9" title="Seconds to fade out after the beam is released"><output id="releaseo">0.9 s</output></div>
@@ -35,11 +40,6 @@
   <div class="row"><label>grab</label><input type="range" id="grab" min="0.02" max="0.15" step="0.01" value="0.06" title="How far from the beam, sideways, a hand still holds it"><output id="grabo">6 cm</output></div>
   <div class="row"><label>fingers</label><select id="tips" title="Which points interrupt the beams"><option value="index">index fingertips</option><option value="wrist">wrists</option><option value="both">both</option></select>
     <button id="place" title="Stand the harp here: in front of your chest as you are now">place</button><label class="chk" title="Keep the harp in front of you as you move"><input type="checkbox" id="follow"> follow</label></div>
-  <h2>Look</h2>
-  <div class="row"><label>laser</label><select id="color"><option value="0x38ff6a">green</option><option value="0xff3030">red</option><option value="0x30e0ff">cyan</option><option value="0xb070ff">violet</option></select></div>
-  <div class="row"><label>bloom</label><input type="range" id="bloom" min="0" max="2.5" step="0.05" value="0.9"></div>
-  <div class="row"><label>haze</label><input type="range" id="haze" min="0" max="1" step="0.05" value="0.7" title="Dust in the air, lit where the beams are"></div>
-  <div class="row" id="layers"></div>
   <h2>What it is</h2>
   <p>Each beam is a line from an emitter on the floor, in <b>metres</b> from the camera. A hand <i>interrupts</i> a beam when it is at the plane in depth and on the beam sideways. The camera alone cannot tell touching the plane from being in front of it; the metric depth of lesson 04 can.</p>
   <p>The note starts when the beam is cut and stays while it is held, fading in over the attack and out over the release. The height of the cut along the beam moves the filter.</p>
