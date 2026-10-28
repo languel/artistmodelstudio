@@ -12,7 +12,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 
 // @key One Euro filter | A low-pass filter whose cutoff rises with speed: hard smoothing while a joint is still (no jitter), light smoothing while it moves fast (no lag). minCutoff sets the stillness smoothing, beta how quickly it opens up.
-class OneEuro {
+export class OneEuro {
   constructor() { this.x = null; this.dx = [0, 0, 0]; }
   reset(v) { this.x = [v.x, v.y, v.z]; this.dx = [0, 0, 0]; }
   filter(v, dt, minCutoff, beta, dCutoff = 1.5) {
@@ -27,7 +27,7 @@ class OneEuro {
 // @/key
 
 // @key A spring with inertia | Second-order dynamics: the output is pulled toward the input like a mass on a spring. frequency = how tightly it follows, damping = overshoot (1 is none), response = anticipation (above 1 it leans into the motion, which cancels lag).
-class Spring {
+export class Spring {
   constructor() { this.y = null; this.yd = [0, 0, 0]; this.xp = null; }
   reset(x) { this.y = [...x]; this.yd = [0, 0, 0]; this.xp = [...x]; }
   update(x, dt, f, z, r) {

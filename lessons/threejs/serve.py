@@ -5,7 +5,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 class H(http.server.SimpleHTTPRequestHandler):
     def __init__(s, *a, **k): super().__init__(*a, directory=ROOT, **k)
     def end_headers(s):  # cross-origin isolation: lets onnxruntime use several wasm threads
-        s.send_header('Cross-Origin-Opener-Policy', 'same-origin'); s.send_header('Cross-Origin-Embedder-Policy', 'require-corp'); super().end_headers()
+        s.send_header('Cache-Control', 'no-cache'); s.send_header('Cross-Origin-Opener-Policy', 'same-origin'); s.send_header('Cross-Origin-Embedder-Policy', 'require-corp'); super().end_headers()
     def do_POST(s):
         m = re.fullmatch(r'/save/([a-z0-9._-]+\.(json|html))', s.path)
         if not m: s.send_error(400); return
