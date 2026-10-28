@@ -41,7 +41,8 @@ function placePicture() {
   if (img < 1e-3) return;
   const k = real / img, e = 0.25;
   align.k += (k - align.k) * e; align.x += (-hip.x * k - align.x) * e; align.y += (-hip.y * k - align.y) * e;
-  screen.scale.set(2 * body.aspect * align.k * (body.mirror ? -1 : 1), 2 * align.k, 1); screen.position.set(align.x, align.y, -0.7);
+  const root = show['clean motion'] ? cleanOut.root : { x: 0, y: 0, z: 0 };   // the costume travels, so the picture travels with it
+  screen.scale.set(2 * body.aspect * align.k * (body.mirror ? -1 : 1), 2 * align.k, 1); screen.position.set(align.x + root.x, align.y + root.y, -0.7 + root.z);
 }
 // @/key
 const body = new Body(), skeleton = new BodyView(body); skeleton.show({ face: false, hands: false }); scene.add(skeleton);
