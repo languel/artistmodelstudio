@@ -113,45 +113,10 @@ function amsRelayPlugin() {
 }
 
 
-/**
- * The three.js lessons (lessons/threejs) are plain static pages with their own import map, so they are served and copied
- * as they are, not transformed. Served at <base>/lessons/threejs/; the build copies the folder, without the model files
- * (git-ignored, fetched with `npm run lessons:models`).
- */
-function lessonsStaticPlugin() {
-  const dir = path.resolve('lessons/threejs');
-  const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.md': 'text/markdown', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.mp4': 'video/mp4', '.webm': 'video/webm', '.task': 'application/octet-stream', '.onnx': 'application/octet-stream' };
-  const skip = rel => /^exports\//.test(rel) || /^vendor\/(mediapipe\/(wasm|models)|depth)\//.test(rel) || /\.(sh|py|md)$/.test(rel);
-  let base = '/', outDir = 'dist';
-  return {
-    name: 'ams-lessons-static',
-    configResolved(c) { base = c.base; outDir = c.build.outDir; },
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        const u = new URL(req.url, 'http://x');
-        const m = /^\/lessons\/threejs(\/.*)?$/.exec(decodeURIComponent(u.pathname));
-        if (!m) return next();
-        const file = path.join(dir, m[1] && m[1] !== '/' ? m[1] : 'index.html');
-        if (!file.startsWith(dir) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return next();
-        res.setHeader('Content-Type', types[path.extname(file)] || 'application/octet-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        fs.createReadStream(file).pipe(res);
-      });
-    },
-    closeBundle() {
-      const out = path.resolve(outDir, 'lessons/threejs');
-      const walk = (d, rel = '') => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-        const r = rel + e.name; if (e.isDirectory()) walk(path.join(d, e.name), r + '/');
-        else if (!skip(r) || r === 'index.html') { fs.mkdirSync(path.dirname(path.join(out, r)), { recursive: true }); fs.copyFileSync(path.join(d, e.name), path.join(out, r)); } } };
-      if (fs.existsSync(dir)) walk(dir);
-    }
-  };
-}
-
 export default defineConfig({
   // GitHub Pages serves the site under /<repo>/ (the deploy workflow sets BASE_PATH); locally it is /.
   base: process.env.BASE_PATH || '/',
-  plugins: [probeSavePlugin(), amsRelayPlugin(), lessonsStaticPlugin()],
+  plugins: [probeSavePlugin(), amsRelayPlugin()],
   server: {
     port: 3000,
     // Files written to exports/ (pages, reports, sketches) are outputs: writing them must not reload the studio.

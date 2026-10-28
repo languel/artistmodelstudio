@@ -12,8 +12,7 @@
     "build:single": "vite build --config vite.single.config.js && mv dist-single/index.html dist-single/ams.html 2>/dev/null || true",
     "build:embed": "vite build --config vite.embed.config.js && esbuild src/score/runtime.js --bundle --format=esm --minify --outfile=dist-embed/score-runtime.js && mkdir -p dist-embed/score-sequencer && esbuild src/demo/sequencer.js --bundle --format=esm --minify --outfile=dist-embed/score-sequencer/sequencer.js && esbuild src/demo/host-owned.js --bundle --format=esm --minify --outfile=dist-embed/score-sequencer/host-owned.js && cp src/demo/index.html src/demo/host-owned.html dist-embed/score-sequencer/",
     "build:embed:full": "AMS_EMBED_FULL=1 vite build --config vite.embed.config.js",
-    "build:poliplan": "vite build --config vite.embed.config.js",
-    "lessons:models": "sh lessons/threejs/fetch-mediapipe.sh"
+    "build:poliplan": "vite build --config vite.embed.config.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

@@ -270,23 +270,23 @@ A diffusion model is trained to undo a simple process: adding noise to a picture
 The networks are replaced by the ideal denoiser, a formula for these toy data. A trained network only approximates it, and the difference is where real models go wrong. The bibliography (two frames, ids checked) runs from Sohl-Dickstein 2015 and score matching through DDPM, DDIM, the SDE view, latent diffusion, guidance and transformers. **Flow matching is the next lecture.**`),
       lessonButtons(app, 'diffusion', { tour: 'lesson-diffusion' }))),
 
-    T('lesson-threejs', 'Lessons', 'Three.js for body and sound', 'Ten pages, from a spinning cube to Ghostcatching-style paint marks: MediaPipe, depth, a laser harp, a body drum, Schlemmer costumes, Picasso one-line drawings.', () => h('div', {},
+    T('lesson-threejs', 'Lessons', 'Three.js: boards and the body-and-sound lessons', 'A board that runs a three.js sketch, and a ten-lesson course (its own repository) from a spinning cube to body tracking, a laser harp, costumes and paint marks.', () => h('div', {},
       prose(`
-A series of small, readable three.js programs you can run, change and export. Each page has the live scene on the right, controls on the left, key code highlighted, and a code view of the whole commented source. **Source** can be your webcam, a public-domain film from the Mediathèque, or recorded landmarks, so no camera is needed.
+## A three.js board
 
-Every page has the same numbered menu at its top, so any lesson is one click away.
+A board can hold a **three.js sketch**, on the same footing as a p5.js sketch or studio code: Code panel → the board's kind menu → *three.js*. The code is an ES module; it runs in a sandboxed frame while the board is live and on screen, and leaves its last picture when paused.
 
-**Models are not stored in the repository.** Lessons 02–09 use MediaPipe pose, hand and face models; 03–05 also a depth model (about 145 MB in all). Fetch them once from the project folder:
+- \`import * as THREE from 'three'\` and addons such as \`import { OrbitControls } from 'three/addons/controls/OrbitControls.js'\`. three.js (r186) is bundled with the studio, so there is no network and no bundler. Controls, postprocessing (bloom), shaders, geometries, lines, utils, helpers, and the GLTF, OBJ, MTL, STL and PLY loaders and exporters are included.
+- \`ams.width\`, \`ams.height\` are the board's size; \`await ams.frame('cam')\` is a source's current picture (an ImageBitmap you can make a \`THREE.Texture\` of); \`await ams.call(tool, args)\` and \`ams.mark(...)\` reach the studio, as in p5 boards.
+- Click the board to orbit and interact; it keeps its drawing buffer so a paused board shows its last frame.
 
-\`\`\`
-npm run lessons:models
-\`\`\`
+## The lessons
 
-The series index lists each file, where it goes, where it comes from, and a green or red dot for whether it is present. Lessons 00 and 01 need nothing. Once the models are in, everything runs on your machine; a lesson's *Export* makes one HTML file (optionally with the models inside) that opens by double-click with no server.`),
+Ten small, readable three.js programs for body and sound live in their own repository, **threejs-body-sound** (so they can be taught and shared apart from the studio): each page has the live scene, controls, key code highlighted, and a code view that exports one HTML file. Clone it, then \`npm run models\` once (MediaPipe and depth models, about 145 MB, not stored in any repository) and \`npm start\`.`),
       h('div', { class: 'wb-row wb-row-actions' },
-        h('button', { class: 'wb-btn primary', title: 'Open the series index with the model check', onclick: () => import('./lessons.js').then(m => m.openThreejsLesson()) }, 'Open the lessons')),
-      h('div', { class: 'wb-docs-lessons' }, ...THREEJS.map(l => h('button', { class: 'wb-btn', style: { display: 'block', margin: '4px 0', textAlign: 'left' }, title: l.summary, onclick: () => import('./lessons.js').then(m => m.openThreejsLesson(l.page)) }, `${l.n} · ${l.title}`, h('span', { class: 'wb-muted' }, ` — ${l.summary}`))))),
-      ),
+        h('button', { class: 'wb-btn primary', title: 'A new three.js board with a spinning cube', onclick: () => import('./lessons.js').then(m => m.addThreeBoard(app)) }, 'Add a three.js board')),
+      h('div', {}, ...THREEJS.map(([n, t, d]) => h('p', { style: { margin: '4px 0' } }, h('b', {}, `${n} · ${t}`), h('span', { class: 'wb-muted' }, ` — ${d}`)))),
+      )),
 
     T('lesson-painterly', 'Lessons', 'Painterly, fading strokes', 'Klee repainted continuously: textured brushes, time envelopes, a layered painter, sliders, effects, p5.js.', () => h('div', {},
       prose(`

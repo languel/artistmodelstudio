@@ -77,8 +77,7 @@ function slashAll(app) {
     { name: 'midi', args: '<seconds>', doc: 'Export the score as a MIDI file: what it plays over that many seconds (the loop range, if marked), at the scene’s tempo', run: arg => app.exportMidi(arg).catch(err => app.log(`MIDI file: ${err.message}`, 'error')) },
     { name: 'samples', args: '', doc: 'A new scene with the stock samples (Assets › Samples), each as a source on its own board with a player', run: () => app.buildSamplesScene().then(n => app.log(`Samples: ${n} boards.`)).catch(err => app.log(`Samples: ${err.message}`, 'error')) },
     { name: 'lesson', args: 'sampling [p5 | expl] | sampling-expl | diffusion | threejs [00-09]', doc: 'Build a lesson as a new scene of frames: its boards from code, with Markdown notes and links (sampling: pointillism and expressionism; p5: p5.js sketches; expl: barebones p5.js sketches. diffusion: diffusion models)', run: arg => import('./lessons.js').then(m => {
-      const web = /^\s*(three(\.?js)?)\b\s*(\S*)/i.exec(arg || '');
-      if (web) { const u = m.openThreejsLesson(web[3]); return app.log(`Three.js lessons (body and sound): ${u}. Models are not stored: run npm run lessons:models once.`); }
+      if (/^\s*three/i.test(arg || '')) { app.openDocs?.('lesson-threejs'); return m.addThreeBoard(app).then(() => app.log('A three.js board (Docs → Lessons → Three.js: the lessons live in their own repository).')); }
       const isDiff = /diffusion/i.test(arg || '');
       const isExpl = /expl/i.test(arg || '');
       const isP5 = /p5/i.test(arg || '') && !isExpl;
