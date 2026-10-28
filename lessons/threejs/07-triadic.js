@@ -31,6 +31,18 @@ function setRoom(light) {
 $('room').onchange = () => setRoom($('room').value === 'light'); setRoom(true);
 
 // ---- the body and its costume -------------------------------------------------------------------------------------------
+// @key A source preview behind the dancer | The video as a texture on a plane, scaled each frame by (shoulder width in metres / shoulder width in the picture) and moved so the picture's hips land on the body's: the costume sits on the person it came from.
+const screen = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide })); screen.visible = false; scene.add(screen);
+const align = { k: 1, x: 0, y: 0 };
+function placePicture() {
+  const P = body.p, hip = new THREE.Vector3().addVectors(P[23], P[24]).multiplyScalar(0.5);
+  const img = Math.hypot(P[11].x - P[12].x, P[11].y - P[12].y), real = body.w[11].distanceTo(body.w[12]);
+  if (img < 1e-3) return;
+  const k = real / img, e = 0.25;
+  align.k += (k - align.k) * e; align.x += (-hip.x * k - align.x) * e; align.y += (-hip.y * k - align.y) * e;
+  screen.scale.set(2 * body.aspect * align.k * (body.mirror ? -1 : 1), 2 * align.k, 1); screen.position.set(align.x, align.y, -0.7);
+}
+// @/key
 const body = new Body(), skeleton = new BodyView(body); skeleton.show({ face: false, hands: false }); scene.add(skeleton);
 let costume = null, palette = 'yellow';
 function dress(name) {
@@ -48,9 +60,10 @@ $('volume').oninput = () => { costume.volume = num('volume'); $('volumeo').textC
 for (const g of ['head', 'torso', 'arms', 'legs']) {
   const l = document.createElement('label'); l.className = 'chk'; const c = Object.assign(document.createElement('input'), { type: 'checkbox', checked: true, id: 'g_' + g, onchange: () => costume.show[g] = c.checked }); l.append(c, g); $('groups').append(l);
 }
-const show = { shadows: true, 'space lines': true, skeleton: false, wire: false };
+const show = { picture: false, shadows: true, 'space lines': true, skeleton: false, wire: false };
+$('pic').oninput = () => { screen.material.opacity = num('pic'); $('pico').textContent = num('pic').toFixed(2); };
 for (const k of Object.keys(show)) {
-  const l = document.createElement('label'); l.className = 'chk'; const c = Object.assign(document.createElement('input'), { type: 'checkbox', checked: show[k], onchange: () => { show[k] = c.checked; if (k === 'wire') costume.wireframe = c.checked; if (k === 'shadows') { key.castShadow = c.checked; floor.receiveShadow = c.checked; } } }); l.append(c, k); $('layers').append(l);
+  const l = document.createElement('label'); l.className = 'chk'; const c = Object.assign(document.createElement('input'), { type: 'checkbox', checked: show[k], title: k === 'picture' ? 'The source video behind the dancer (webcam or film clips; recordings have none)' : '', onchange: () => { show[k] = c.checked; if (k === 'wire') costume.wireframe = c.checked; if (k === 'shadows') { key.castShadow = c.checked; floor.receiveShadow = c.checked; } } }); l.append(c, k); $('layers').append(l);
 }
 dress('spiral');
 
@@ -61,12 +74,15 @@ const plumb = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineB
 // ---- sources ------------------------------------------------------------------------------------------------------------------
 let tracker = null, live = false, playback = null, t0 = 0, lastVT = -1, frames = 0, fps = 0, fpsT = performance.now();
 async function load() { if (tracker) return; status('loading the pose model…'); tracker = await createTracker({ pose: true, hands: false, face: false }); }
-bindSources({ video, camBtn: $('cam'), clipSel: $('clip'), load, status, onStart(mirror, name) { body.mirror = mirror; body.reset(); live = true; playback = null; t0 = performance.now(); status(name); } });
+bindSources({ video, camBtn: $('cam'), clipSel: $('clip'), load, status, onStart(mirror, name) {
+  body.mirror = mirror; body.reset(); body.aspect = video.videoWidth / video.videoHeight || 4 / 3; live = true; playback = null; t0 = performance.now(); status(name);
+  screen.material.map?.dispose(); const tex = new THREE.VideoTexture(video); tex.colorSpace = THREE.SRGBColorSpace; screen.material.map = tex; screen.material.needsUpdate = true;
+} });
 $('rec').add(new Option('recorded…', ''));
 fetch('data/index.json').then(r => r.json()).then(l => l.forEach(n => $('rec').add(new Option(n.replace('.pose.json', ''), n)))).catch(() => {});
 $('rec').onchange = async () => {
   if (!$('rec').value) return; const data = await (await fetch('data/' + $('rec').value)).json();
-  video.pause(); live = false; playback = new Playback(data); t0 = performance.now(); body.mirror = !!data.mirror; body.aspect = data.aspect ?? 4 / 3; body.reset(); status(`recorded: ${playback.frames.length} frames`);
+  video.pause(); live = false; playback = new Playback(data); t0 = performance.now(); body.mirror = !!data.mirror; body.aspect = data.aspect ?? 4 / 3; body.reset(); screen.material.map = null; screen.material.needsUpdate = true; status(`recorded: ${playback.frames.length} frames`);
 };
 
 // ---- loop ---------------------------------------------------------------------------------------------------------------------
@@ -77,6 +93,7 @@ renderer.setAnimationLoop(now => {
     if (video.srcObject || vt !== lastVT) { lastVT = vt; body.update(tracker.detect(video, vt)); frames++; }
   } else if (playback) { body.update(playback.at((now - t0) / 1000)); frames++; }
   const on = body.present;
+  screen.visible = show.picture && on && !!screen.material.map && live; if (screen.visible) placePicture();
   costume.visible = on; skeleton.visible = on && show.skeleton; ring.visible = plumb.visible = on && show['space lines'];
   if (on) {
     const S = segments(body); costume.update(body, S); if (skeleton.visible) skeleton.update('world');
