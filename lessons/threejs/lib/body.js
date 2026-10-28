@@ -23,6 +23,7 @@ export class Body {
     this.p = JOINTS.map(() => new THREE.Vector3());
     this.w = JOINTS.map(() => new THREE.Vector3());
     this.v = JOINTS.map(() => new THREE.Vector3());
+    this.c = JOINTS.map(() => new THREE.Vector3());   // camera-space metres, filled by Fusion (lesson 04)
     this.speed = new Float32Array(JOINTS.length);
     this.hands = { left: Array.from({ length: 21 }, () => new THREE.Vector3()), right: Array.from({ length: 21 }, () => new THREE.Vector3()) };
     this.handsPresent = { left: false, right: false };

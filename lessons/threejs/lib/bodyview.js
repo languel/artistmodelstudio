@@ -39,16 +39,17 @@ export class BodyView extends THREE.Group {
     this._m = new THREE.Matrix4(); this._c = new THREE.Color();
   }
   show(layers) { Object.assign(this.layers_, layers); }
-  // mode 'image': registered with the picture. 'world': metres around the hips, upright (for measuring)
+  // mode 'image': registered with the picture. 'world': metres around the hips, upright (for measuring).
+  // 'camera': metres from the camera, from Fusion (lesson 04)
   update(mode = 'image') {
     // @key Rewrite the buffers each frame | No objects are created per frame: positions are written straight into typed arrays.
-    const b = this.body, L = this.layers_, f = b.frame, world = mode === 'world';
+    const b = this.body, L = this.layers_, f = b.frame, world = mode !== 'image';   // hands and face are only drawn in image space
     const vis = b.present;
     this.joints.visible = this.bones.visible = vis && L.pose;
     this.face.visible = !!f?.face && L.face && !world;
     for (const s of ['left', 'right']) this.handGroups[s].g.visible = b.handsPresent[s] && L.hands && !world;
     if (!vis) return;
-    const P = i => world ? b.w[i] : b.p[i];
+    const P = i => mode === 'world' ? b.w[i] : mode === 'camera' ? b.c[i] : b.p[i];
     const pos = this.bones.geometry.attributes.position.array;
     this.pc.forEach((c, k) => { const a = P(c.start), d = P(c.end); pos.set([a.x, a.y, a.z, d.x, d.y, d.z], k * 6); });
     this.bones.geometry.attributes.position.needsUpdate = true;

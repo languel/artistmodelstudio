@@ -19,7 +19,7 @@
 </div>
 <script type="module">
   import { highlight, mountCodeView } from './lib/codeview.js';
-  mountCodeView({ files: [{ path: 'cube.js', label: 'cube.js' }] });
+  mountCodeView({ files: [{ path: 'cube.js', label: 'cube.js' }], exportHtml: 'blank' });
   // show the real source, then run it into the stage
   const text = await (await fetch('cube.js')).text();
   const { parse } = await import('./lib/codeview.js');

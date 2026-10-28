@@ -1,3 +1,4 @@
 vendor/mediapipe/wasm/
 vendor/mediapipe/models/
 vendor/depth/
+exports/
