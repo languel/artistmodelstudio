@@ -1,17 +1,19 @@
 // Webcam / video -> one "frame" of landmarks in the shared format (see body.js).
-import { FilesetResolver, PoseLandmarker, HandLandmarker, FaceLandmarker } from 'mediapipe';
+import { PoseLandmarker, HandLandmarker, FaceLandmarker } from 'mediapipe';
+import { assetUrl } from './assets.js';
 
-const M = './vendor/mediapipe/';
+const MP = 'vendor/mediapipe/';
 // Round to 3 decimals: small recordings, no visible loss.
 const r3 = v => Math.round(v * 1000) / 1000;
 const pt = (l, vis) => vis ? [r3(l.x), r3(l.y), r3(l.z), r3(l.visibility ?? 0)] : [r3(l.x), r3(l.y), r3(l.z)];
 
 export async function createTracker({ pose = true, hands = true, face = true, mask = false } = {}) {
-  const fileset = await FilesetResolver.forVisionTasks(M + 'wasm');
+  // the runtime is two files: a loader script and the wasm binary (a fileset is just these two paths)
+  const fileset = { wasmLoaderPath: assetUrl(MP + 'wasm/vision_wasm_internal.js'), wasmBinaryPath: assetUrl(MP + 'wasm/vision_wasm_internal.wasm') };
   // @key Create a landmarker | GPU delegate first; fall back to CPU. The same helper builds pose, hands and face.
   const make = async (Cls, file, opts) => {
     for (const delegate of ['GPU', 'CPU']) {
-      try { return await Cls.createFromOptions(fileset, { baseOptions: { modelAssetPath: M + 'models/' + file, delegate }, runningMode: 'VIDEO', ...opts }); }
+      try { return await Cls.createFromOptions(fileset, { baseOptions: { modelAssetPath: assetUrl(MP + 'models/' + file), delegate }, runningMode: 'VIDEO', ...opts }); }
       catch (e) { if (delegate === 'CPU') throw e; }
     }
   };

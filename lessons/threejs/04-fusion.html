@@ -29,5 +29,5 @@
 </div>
 <video id="video" playsinline muted loop crossorigin="anonymous"></video>
 <script type="module" src="04-fusion.js"></script>
-<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'04-fusion.js',label:'04-fusion.js'},{path:'lib/fusion.js',label:'lib/fusion.js'},{path:'lib/sources.js',label:'lib/sources.js'},{path:'lib/tracker.js',label:'lib/tracker.js'},{path:'lib/depth.js',label:'lib/depth.js'}] });</script>
+<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'04-fusion.js',label:'04-fusion.js'},{path:'lib/fusion.js',label:'lib/fusion.js'},{path:'lib/sources.js',label:'lib/sources.js'},{path:'lib/tracker.js',label:'lib/tracker.js'},{path:'lib/depth.js',label:'lib/depth.js'}], exportAssets: ["vendor/mediapipe/wasm/vision_wasm_internal.js", "vendor/mediapipe/wasm/vision_wasm_internal.wasm", "vendor/mediapipe/models/pose_landmarker_full.task", "vendor/depth/ort/ort-wasm-simd-threaded.asyncify.mjs", "vendor/depth/ort/ort-wasm-simd-threaded.asyncify.wasm", "vendor/depth/models/onnx-community/depth-anything-v2-small/config.json", "vendor/depth/models/onnx-community/depth-anything-v2-small/preprocessor_config.json", "vendor/depth/models/onnx-community/depth-anything-v2-small/onnx/model_quantized.onnx"] });</script>
 </body></html>

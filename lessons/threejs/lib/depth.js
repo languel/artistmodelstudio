@@ -1,11 +1,13 @@
 // Monocular depth (Depth Anything V2 small, int8) through transformers.js, run locally from vendor/depth.
 // estimate(source) -> { data: Float32Array 0..1 (1 = nearest), width, height }. Relative, not metres.
 import { env, AutoModel, Tensor } from '../vendor/depth/transformers.min.js';
+import { assetUrl } from './assets.js';
 
 // @key Everything runs locally | No network at show time: the model and the onnxruntime files are read from vendor/depth.
 env.allowRemoteModels = false; env.allowLocalModels = true;
 env.localModelPath = new URL('../vendor/depth/models/', import.meta.url).href;
-env.backends.onnx.wasm.wasmPaths = new URL('../vendor/depth/ort/', import.meta.url).href;
+// onnxruntime's two files (the WebGPU and CPU backends share this build); given as explicit paths so they can be embedded
+env.backends.onnx.wasm.wasmPaths = { mjs: assetUrl('vendor/depth/ort/ort-wasm-simd-threaded.asyncify.mjs'), wasm: assetUrl('vendor/depth/ort/ort-wasm-simd-threaded.asyncify.wasm') };
 // @/key
 
 export async function createDepth({ width, height, device } = {}) {  // sizes are multiples of 14

@@ -32,5 +32,5 @@ body.distance('leftWrist','nose')// metres</pre>
 </div>
 <video id="video" playsinline muted loop crossorigin="anonymous"></video>
 <script type="module" src="02-body.js"></script>
-<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'02-body.js',label:'02-body.js'},{path:'lib/tracker.js',label:'lib/tracker.js'},{path:'lib/body.js',label:'lib/body.js'},{path:'lib/bodyview.js',label:'lib/bodyview.js'},{path:'lib/clips.js',label:'lib/clips.js'}] });</script>
+<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'02-body.js',label:'02-body.js'},{path:'lib/tracker.js',label:'lib/tracker.js'},{path:'lib/body.js',label:'lib/body.js'},{path:'lib/bodyview.js',label:'lib/bodyview.js'},{path:'lib/clips.js',label:'lib/clips.js'}], exportAssets: ["vendor/mediapipe/wasm/vision_wasm_internal.js", "vendor/mediapipe/wasm/vision_wasm_internal.wasm", "vendor/mediapipe/models/pose_landmarker_full.task", "vendor/mediapipe/models/hand_landmarker.task", "vendor/mediapipe/models/face_landmarker.task", "data/index.json", "data/lancement-du-disque-par-l-athlete-americain-mccraken-1900.pose.json"] });</script>
 </body></html>

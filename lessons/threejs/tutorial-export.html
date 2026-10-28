@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tutorial · Making one file you can double-click</title>
+<link rel="stylesheet" href="lesson.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+<style>
+body{overflow:auto} .wrap{max-width:760px;margin:0 auto;padding:36px 20px 80px} h1{font-size:26px} h2{font-size:19px;margin:34px 0 6px} h3{font-size:15px;margin:18px 0 2px}
+dl{margin:8px 0} dt{font-weight:600;margin-top:12px} dd{margin:2px 0 0 0;color:var(--dim)}
+.box{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:10px 14px;margin:12px 0}
+.flow{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;margin:14px 0} .flow div{flex:1;min-width:120px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--panel);font-size:13px} .flow b{display:block;color:var(--accent)} .flow .arr{flex:0;border:0;background:none;align-self:center;color:var(--dim);padding:0;min-width:0}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:8px 0} td,th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left} td.n,th.n{text-align:right;font:12.5px ui-monospace,monospace}
+button.go{background:var(--accent);color:#000;border:0;border-radius:6px;padding:6px 12px;font:inherit;cursor:pointer}
+</style></head><body>
+<div class="wrap">
+<nav class="crumbs"><a href="index.html">Three.js</a> · tutorial</nav>
+<h1>Making one file you can double-click</h1>
+<p class="dim">At the end of a lesson you have a page that works on your computer. This tutorial is about handing it to someone else as <b>one file</b> that opens by double-click: no server, no install, no folder of other files.</p>
+
+<h2>1 · Why it is not already one file</h2>
+<p>A lesson looks like one page but it is really dozens of files: the HTML, the stylesheet, the page's code, the shared code in <code>lib/</code>, three.js, and for the body lessons several large model files. The page asks for them one by one while it loads.</p>
+<p>When you open an HTML file straight from your disk, the address starts with <code>file://</code>. Browsers are strict about that: a page opened this way is <b>not allowed to fetch other files</b>. (Otherwise any web page you downloaded could read your whole disk.) That is why the lessons ask you to run a small server: <code>http://localhost</code> is allowed to fetch.</p>
+<div class="box"><b>The fix:</b> put everything the page needs <i>inside</i> the one HTML file. Then there is nothing to fetch.</div>
+
+<h2>2 · Words you will meet</h2>
+<dl>
+<dt>Module</dt><dd>A JavaScript file that other files can <code>import</code> from. Our lessons are modules: <code>04-fusion.js</code> imports <code>lib/fusion.js</code>, which imports three.js.</dd>
+<dt>Dependency</dt><dd>A file your file imports. Together they form a tree: the <i>dependency graph</i>.</dd>
+<dt>Bundle / bundler</dt><dd>A bundler reads the dependency graph and writes <b>one</b> JavaScript file with everything in it. <b>esbuild</b> and <b>Vite</b> are bundlers. esbuild is a command-line program; you run it once and it produces <code>bundle.js</code>.</dd>
+<dt>Minify</dt><dd>Shrink code by removing comments and shortening names. Smaller, unreadable. Bundlers can do it; we do not, so the code in the export stays readable.</dd>
+<dt>Inline / embed</dt><dd>Put a file's contents <i>inside</i> another file instead of linking to it. Inlining a stylesheet means a <code>&lt;style&gt;</code> tag instead of a <code>&lt;link&gt;</code>. Embedding a model means its bytes live inside the HTML.</dd>
+<dt>Base64</dt><dd>A way to write any binary file (a model, an image) using only ordinary letters and digits, so it can sit inside a text file. The cost: about a third bigger.</dd>
+<dt>gzip</dt><dd>Compression, like a zip file. We gzip before base64, which wins the size back (a 14 MB wasm file shrinks a lot).</dd>
+<dt>Blob URL</dt><dd>A temporary address, like <code>blob:null/3f2a…</code>, that points at data held in memory. Anything that wants a file path (a script, a model loader) can be given one.</dd>
+<dt>Import map</dt><dd>A table in the page that says what a bare name like <code>'three'</code> means: <code>"three": "./vendor/three.module.js"</code>.</dd>
+<dt>Wasm</dt><dd>WebAssembly: compiled code the browser runs next to JavaScript. MediaPipe and the depth model ship a <code>.wasm</code> file.</dd>
+</dl>
+
+<h2>3 · Two ways to make the one file</h2>
+<h3>A · A bundler (esbuild)</h3>
+<p>The standard way. One command turns the module tree into one script:</p>
+<pre>npx esbuild 01-anatomy.js --bundle --format=esm --outfile=bundle.js</pre>
+<p>Add <code>--minify</code> to shrink it. You then still write an HTML file that loads <code>bundle.js</code>, and paste the script into it to get a single file. This is what you will use in real projects, and it needs Node installed.</p>
+<h3>B · The button in this course (no install)</h3>
+<p>Every lesson has a <code>‹›</code> button. In its drawer, <b>⇩ html</b> builds the single file <i>in your browser</i> with no bundler. It does the same job in five small steps:</p>
+<div class="flow">
+<div><b>1 Crawl</b>Start at the page's script, read each <code>import</code>, fetch that file, repeat.</div><div class="arr">→</div>
+<div><b>2 Embed</b>Store every file's text as JSON inside the HTML.</div><div class="arr">→</div>
+<div><b>3 Rewrite</b>Replace each import path with a placeholder.</div><div class="arr">→</div>
+<div><b>4 Load</b>On open, make a blob URL per file, in order, filling in the placeholders.</div><div class="arr">→</div>
+<div><b>5 Run</b>Import the first one. It pulls in the rest.</div>
+</div>
+<p>You can read all of it: open the drawer on this page and pick <i>Key ideas</i>. The cards "Collect every module", "Rewrite imports to blob URLs" and "Embed big files" are the real code.</p>
+
+<h2>4 · What is inside, for real</h2>
+<p>Press the button to see what the export of lesson 04 would contain, measured now from your own copy of the lessons.</p>
+<p><button class="go" id="inspect">Inspect lesson 04's export</button></p>
+<div id="report"></div>
+
+<h2>5 · Code only, or code and models</h2>
+<table>
+<tr><th>Button</th><th>What is embedded</th><th>Runs by double-click?</th><th>Size</th></tr>
+<tr><td><b>⇩ html</b></td><td>The page, its code, three.js</td><td>Lessons 00 and 01: yes. Lessons 02 to 04 need the models next to the file, so they need a server.</td><td>about 2 MB</td></tr>
+<tr><td><b>⇩ html + models</b></td><td>All of the above and the model and wasm files, gzip then base64</td><td>Yes. Everything is inside.</td><td>40 to 60 MB</td></tr>
+</table>
+<p>The models are the reason: pose is 9 MB, hands and face 12 MB more, the depth model 27 MB, the runtimes 40 MB. We only embed what a lesson really uses.</p>
+<div class="box"><b>Opening a big file:</b> the page first unpacks the models in memory (a message shows bottom-right). Expect up to ten seconds, once, when it opens.</div>
+
+<h2>6 · Your turn</h2>
+<ol>
+<li>Open <a href="01-anatomy.html">lesson 01</a>, open the <code>‹›</code> drawer and press <b>⇩ html</b>. A file <code>01-anatomy.single.html</code> downloads.</li>
+<li>Move it to your desktop and <b>double-click</b> it. It works with nothing else beside it. Open the browser's developer tools, Network tab and reload: apart from itself, nothing is loaded.</li>
+<li>Do the same on <a href="04-fusion.html">lesson 04</a> with <b>⇩ html + models</b>. Choose a film clip (needs internet) or the webcam (works offline). Allow the camera when asked.</li>
+<li>Open one of the exported files in a text editor, search for <code>modules</code>. That is your whole program as text. Try changing a number in <code>cube.js</code> in the 00 export and reload.</li>
+<li>Stretch: run the <code>esbuild</code> command from section 3 on <code>cube.js</code> and compare the size of <code>bundle.js</code> with <code>cube.js</code> plus three.js.</li>
+</ol>
+
+<h2>7 · When it does not work</h2>
+<dl>
+<dt>The camera does not start</dt><dd>Your browser must allow the camera for the file. Chrome asks the first time; Safari and Firefox can be stricter with files from disk. If so, run the lessons through the server (<code>python3 serve.py</code>).</dd>
+<dt>The file will not email or upload</dt><dd>The big one is 50 MB or more. Share the small one with a server, or use a file-sharing service.</dd>
+<dt>Depth is slow</dt><dd>It uses your graphics card (WebGPU) when the browser has it, and falls back to the processor. Chrome and Edge on a recent computer are best.</dd>
+<dt>The film clips do not play offline</dt><dd>They are streamed from the Mediathèque. The webcam does not need the internet.</dd>
+</dl>
+
+<h2>The idea to keep</h2>
+<p>A program is a <i>graph of files</i>. Shipping it means choosing where the files live: next to each other and fetched (a server), packed into one script (a bundler), or packed into the page itself with the heavy files stored as text (embedding). The code does not change; only where it lives.</p>
+</div>
+<script type="module">
+import { mountCodeView, inspectExport } from './lib/codeview.js';
+mountCodeView({ files: [{ path: 'lib/codeview.js', label: 'lib/codeview.js (the exporter)' }, { path: 'lib/assets.js', label: 'lib/assets.js' }] });
+const mb = b => (b / 1e6).toFixed(b > 1e5 ? 1 : 2) + ' MB', kb = b => (b / 1e3).toFixed(0) + ' KB';
+document.getElementById('inspect').onclick = async e => {
+  const b = e.target; b.textContent = 'reading…';
+  // lesson 04 declares what it embeds; read it from its page so the two never disagree
+  const html = await (await fetch('04-fusion.html')).text(), assets = JSON.parse(html.match(/exportAssets: (\[.*?\])/)[1]);
+  const r = await inspectExport({ entry: '04-fusion.js', assets, page: '04-fusion.html' });
+  const rows = (list, f) => list.map(x => `<tr><td><code>${x.path}</code></td><td class="n">${f(x.bytes)}</td></tr>`).join('');
+  const sum = l => l.reduce((s, x) => s + x.bytes, 0);
+  document.getElementById('report').innerHTML = `<h3>Code (${r.modules.length} files, ${mb(sum(r.modules))})</h3><table>${rows(r.modules, kb)}</table>
+    <h3>Models and runtimes (${r.assets.length} files, ${mb(sum(r.assets))} before compression)</h3><table>${rows(r.assets, mb)}</table>
+    <p class="dim">The file you get is smaller than these numbers added up, because gzip shrinks the models and wasm before they are written as text.</p>`;
+  b.textContent = 'Inspect again';
+};
+</script>
+</body></html>

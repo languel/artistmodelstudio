@@ -70,8 +70,8 @@ const css = `
 // ---- single-file export ------------------------------------------------------------------------------------------
 // Builds one .html from the running page: its markup and CSS, plus every JS module it imports (three.js included)
 // embedded as text. At load a tiny script turns each module into a blob URL, rewriting the import specifiers to point
-// at the blobs, so no bundler is needed. Models, wasm and data files are NOT embedded: they stay relative to the
-// HTML file, so a lesson that loads them (02, 03, 04) needs the file placed in lessons/threejs/ next to vendor/.
+// at the blobs, so no bundler is needed. Big files (models, wasm, data) are embedded only when asked for, as gzip +
+// base64 text; without them they stay relative to the HTML file, so the file must sit in lessons/threejs/ next to vendor/.
 // static imports must start a statement (line start, or after ; or }), so import lines quoted inside comments are ignored
 const IMPORT_RE = /(?:^|[;}])\s*(?:import|export)\s*(?:[^'"();]*?\bfrom\s*)?(['"])([^'"\n]+)\1|\bimport\(\s*(['"])([^'"\n]+)\3\s*\)/gm;
 
@@ -99,8 +99,18 @@ async function collectModules(entry, map, base) {
 }
 // @/key
 
+// What would go into the export, with sizes (used by the tutorial page): { modules: [{ path, bytes }], assets: [{ path, bytes }] }
+export async function inspectExport({ entry, assets = [], page = location.href }) {   // page: the lesson page whose import map to use
+  const base = location.href.replace(/[^/]*$/, '');
+  const doc = new DOMParser().parseFromString(await (await fetch(page)).text(), 'text/html');
+  const map = JSON.parse(doc.querySelector('script[type=importmap]')?.textContent || '{"imports":{}}').imports;
+  const mods = await collectModules(entry, map, base);
+  const sizes = await Promise.all(assets.map(async p => ({ path: p, bytes: (await (await fetch(new URL(p, base))).arrayBuffer()).byteLength })));
+  return { modules: Object.entries(mods).map(([u, m]) => ({ path: u.slice(base.length), bytes: new Blob([m.code]).size })), assets: sizes };
+}
+
 // @key Rewrite imports to blob URLs at load time | Each import specifier becomes a placeholder; the loader makes modules in dependency order and swaps in their blob URLs.
-export async function buildSingleHtml({ entry, html = 'page' }) {
+export async function buildSingleHtml({ entry, html = 'page', assets = [], onProgress = () => {} }) {
   const base = location.href.replace(/[^/]*$/, '');
   const doc = new DOMParser().parseFromString(await (await fetch(location.href)).text(), 'text/html');
   const map = JSON.parse(doc.querySelector('script[type=importmap]')?.textContent || '{"imports":{}}').imports;
@@ -114,26 +124,53 @@ export async function buildSingleHtml({ entry, html = 'page' }) {
   const css = await (await fetch(new URL('lesson.css', base))).text();
   doc.head.insertAdjacentHTML('beforeend', `<style>${css}</style>`);
   if (html === 'blank') { doc.body.innerHTML = ''; doc.head.insertAdjacentHTML('beforeend', '<style>html,body{margin:0;overflow:hidden;background:#14151a}</style>'); }
+
+  // @key Embed big files as gzip + base64 | Binary files cannot sit in an HTML file as they are, so each is compressed, turned into text (base64) and stored; the loader reverses it.
+  const embedded = {};
+  for (const [i, path] of assets.entries()) {
+    onProgress(`${i + 1}/${assets.length} ${path.split('/').pop()}`);
+    const res = await fetch(new URL(path, base)); if (!res.ok) throw new Error(path + ': ' + res.status);
+    const gz = await new Response(res.body.pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+    let bin = ''; const bytes = new Uint8Array(gz);
+    for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + 0x8000));
+    embedded[path] = { gz: btoa(bin), type: res.headers.get('content-type') || 'application/octet-stream' };
+  }
+  // @/key
   const json = JSON.stringify(out).replace(/</g, '\\u003c');
   doc.body.insertAdjacentHTML('beforeend', `<script type="application/json" id="modules">${json}</script>
+${assets.length ? `<script type="application/json" id="assets">${JSON.stringify(embedded)}</script>` : ''}
 <script type="module">
-const M = JSON.parse(document.getElementById('modules').textContent), U = {};
+${assets.length ? `// unpack the embedded files into blob: URLs, and let fetch() find them by their normal relative path
+globalThis.__ASSETS = {};
+const note = document.body.appendChild(Object.assign(document.createElement('div'), { textContent: 'Unpacking models…', style: 'position:fixed;inset:auto 12px 12px auto;z-index:99;font:13px system-ui;color:#888' }));
+for (const [p, a] of Object.entries(JSON.parse(document.getElementById('assets').textContent))) {
+  const raw = Uint8Array.from(atob(a.gz), c => c.charCodeAt(0));
+  const bytes = await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  globalThis.__ASSETS[p] = URL.createObjectURL(new Blob([bytes], { type: a.type }));
+}
+note.remove();
+const dir = document.baseURI.replace(/[^/]*$/, ''), realFetch = fetch;
+globalThis.fetch = (input, init) => {
+  const abs = new URL(typeof input === 'string' ? input : input.url, document.baseURI).href, hit = abs.startsWith(dir) && globalThis.__ASSETS[abs.slice(dir.length).split('?')[0]];
+  return hit ? realFetch(hit) : realFetch(input, init);
+};
+` : ''}const M = JSON.parse(document.getElementById('modules').textContent), U = {};
 const make = id => U[id] ??= URL.createObjectURL(new Blob([M[id].replace(/@@dep:(.+?)@@/g, (_, d) => make(d))], { type: 'text/javascript' }));
 import(make(${JSON.stringify(entry)}));
 </script>`);
-  doc.head.insertAdjacentHTML('afterbegin', '<!-- Single-file export. Code and three.js are embedded; models, wasm and data (lessons 02+) are loaded relative to this file, so keep it in lessons/threejs/ next to vendor/. -->');
+  doc.head.insertAdjacentHTML('afterbegin', assets.length ? '<!-- Single-file export with models embedded: open it by double-click, no server. -->' : '<!-- Single-file export. Code and three.js are embedded; models, wasm and data (if the lesson uses them) load relative to this file, so keep it in lessons/threejs/ next to vendor/. -->');
   return '<!doctype html>\n' + doc.documentElement.outerHTML;
 }
 // @/key
 
 // files: [{ path, label }] relative to the page. exportEntry: the module the exported page runs (default: the first file);
 // exportHtml: 'page' keeps this page's markup, 'blank' exports a bare canvas page. Returns { open }.
-export function mountCodeView({ files, exportEntry, exportHtml = 'page' }) {
+export function mountCodeView({ files, exportEntry, exportHtml = 'page', exportAssets = [] }) {
   const st = document.createElement('style'); st.textContent = css; document.head.append(st);
   const btn = Object.assign(document.createElement('button'), { className: 'cv-btn', textContent: '‹›', title: 'Code: key ideas and the full source' });
   const el = document.createElement('div'); el.className = 'cv hl';
   el.innerHTML = `<header><button data-t="key" aria-selected="true" title="The few lines that carry the idea">Key ideas</button><button data-t="full" aria-selected="false" title="Whole files, highlighted">Full code</button>
-    <select title="File"></select><label title="Show or hide the comments"><input type="checkbox" checked> comments</label><span class="sp"></span><button data-t="copy" title="Copy this file">⧉</button><button data-t="export" title="Export this lesson as one HTML file (code and three.js embedded)">⇩ html</button><button data-t="close" title="Close (Esc)">✕</button></header><div class="cv-body"></div>`;
+    <select title="File"></select><label title="Show or hide the comments"><input type="checkbox" checked> comments</label><span class="sp"></span><button data-t="copy" title="Copy this file">⧉</button><button data-t="export" title="Export this lesson as one HTML file (code and three.js embedded; models stay next to the file)">⇩ html</button>${exportAssets.length ? '<button data-t="exportall" title="Same, with the models embedded too: runs by double-click, no server, but the file is large">⇩ html + models</button>' : ''}<button data-t="close" title="Close (Esc)">✕</button></header><div class="cv-body"></div>`;
   document.body.append(btn, el);
   const body = el.querySelector('.cv-body'), sel = el.querySelector('select'), cb = el.querySelector('input');
   files.forEach((f, i) => sel.add(new Option(f.label || f.path, i)));
@@ -177,10 +214,10 @@ export function mountCodeView({ files, exportEntry, exportHtml = 'page' }) {
     const t = e.target.dataset?.t;
     if (t === 'close') el.classList.remove('open');
     else if (t === 'key' || t === 'full') { tab = t; render(); }
-    else if (t === 'export') {
+    else if (t === 'export' || t === 'exportall') {
       const b = e.target, label = b.textContent; b.textContent = '…';
-      buildSingleHtml({ entry: exportEntry || files[0].path, html: exportHtml }).then(h => {
-        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([h], { type: 'text/html' })), download: location.pathname.split('/').pop().replace('.html', '') + '.single.html' });
+      buildSingleHtml({ entry: exportEntry || files[0].path, html: exportHtml, assets: t === 'exportall' ? exportAssets : [], onProgress: m => b.textContent = m }).then(h => {
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([h], { type: 'text/html' })), download: location.pathname.split('/').pop().replace('.html', '') + (t === 'exportall' ? '.standalone.html' : '.single.html') });
         a.click(); b.textContent = label;
       }).catch(err => { b.textContent = label; alert('Export failed: ' + err.message); });
     }
