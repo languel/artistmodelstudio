@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three.js 00 · A spinning cube</title>
+<link rel="stylesheet" href="lesson.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
+</head><body>
+<div class="split">
+<aside>
+  <nav class="crumbs"><a href="index.html">Three.js</a> · 00</nav>
+  <h1>A spinning cube</h1>
+  <p class="dim">The whole program. This is the file running on the right (<code>cube.js</code>). Everything else in three.js is a variation on these four things.</p>
+  <pre id="src"></pre>
+  <h2>Four things</h2>
+  <p><b>Scene</b> holds what exists. <b>Camera</b> says where we look from. <b>Mesh</b> (geometry + material) is a thing to look at. <b>Renderer</b> draws the scene through the camera onto a canvas, sixty times a second.</p>
+  <p>Change the numbers in <code>cube.js</code> and reload: the rotation speeds, <code>camera.position.z</code>, the box size.</p>
+  <p><a href="01-anatomy.html">Next: take it apart →</a></p>
+</aside>
+<main id="stage"></main>
+</div>
+<script type="module">
+  // show the real source, then run it into the stage
+  const text = await (await fetch('cube.js')).text();
+  document.getElementById('src').textContent = text;
+  const stage = document.getElementById('stage');
+  // cube.js sizes to the window; here it should fit the stage, so patch the globals it reads
+  const w = () => stage.clientWidth, h = () => stage.clientHeight;
+  Object.defineProperty(window, 'innerWidth', { get: w });
+  Object.defineProperty(window, 'innerHeight', { get: h });
+  const append = document.body.append.bind(document.body);
+  document.body.append = (...n) => stage.append(...n);
+  await import('./cube.js');
+  document.body.append = append;
+  const c = stage.querySelector('canvas'); c.style.cssText = 'width:100%;height:100%';
+</script>
+</body></html>
