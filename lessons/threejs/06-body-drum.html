@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three.js 06 · Body drum</title>
+<link rel="stylesheet" href="lesson.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/","mediapipe":"./vendor/mediapipe/vision_bundle.mjs"}}</script>
+<style>#status{color:var(--dim);font-size:13px;min-height:20px} video{display:none} .chk{display:flex;gap:4px;align-items:center;min-width:0;margin-right:8px} .row input[type=checkbox]{accent-color:var(--accent)}
+#pads .row{margin:3px 0} #pads .row label{min-width:0;flex:1;color:var(--ink);display:flex;gap:6px;align-items:center} #pads i{display:inline-block;width:10px;height:10px;border-radius:50%} #pads select{width:98px}
+#tl{position:absolute;left:0;right:0;bottom:0;width:100%;height:132px;pointer-events:none}</style>
+</head><body>
+<div class="split">
+<aside>
+  <nav class="crumbs"><a href="index.html">Three.js</a> · <a href="05-laser-harp.html">05</a> · 06</nav>
+  <h1>Body drum</h1>
+  <p class="dim">The drum is your body. Pads sit on the chest, belly, thighs, shoulders, head and knees. Hit one with a hand, or clap, or stamp.</p>
+  <h2>Source</h2>
+  <div class="row"><button id="cam" title="Your camera, mirrored. Nothing leaves your machine">webcam</button><select id="clip" title="Public-domain films from the Mediathèque"></select><button id="snd" title="Browsers only start sound after a click">sound</button></div>
+  <div id="status"></div>
+  <h2>Pads</h2>
+  <div id="pads"></div>
+  <div class="row"><label class="chk" title="Two hands meeting"><input type="checkbox" id="claps" checked> clap</label><label class="chk" title="A foot that falls fast and stops"><input type="checkbox" id="feet" checked> stomp</label></div>
+  <h2>Feel</h2>
+  <div class="row"><label>sensitivity</label><input type="range" id="speed" min="0.2" max="1.6" step="0.05" value="0.5" title="The slowest arrival (metres per second) that still counts as a hit. Lower: lighter touches sound"><output id="speedo">0.50 m/s</output></div>
+  <div class="row"><label>pad size</label><input type="range" id="size" min="0.6" max="1.8" step="0.05" value="1" title="Scales every pad. Pads are already sized to your shoulder width"><output id="sizeo">1.00×</output></div>
+  <div class="row"><label>retrigger</label><input type="range" id="refr" min="0.03" max="0.3" step="0.01" value="0.09" title="Seconds before the same pad can sound again"><output id="refro">0.09 s</output></div>
+  <h2>Sound</h2>
+  <div class="row"><label>tune</label><input type="range" id="tune" min="-12" max="12" step="1" value="0" title="Semitones, for all pitched drums"><output id="tuneo">0</output></div>
+  <div class="row"><label>decay</label><input type="range" id="decay" min="0.4" max="2.5" step="0.05" value="1"><output id="decayo">1.00×</output></div>
+  <div class="row"><label>reverb</label><input type="range" id="reverb" min="0" max="1" step="0.05" value="0.2"></div>
+  <div class="row"><label>volume</label><input type="range" id="volume" min="0" max="1" step="0.05" value="0.8"></div>
+  <h2>Show</h2>
+  <div class="row" id="layers"></div>
+  <h2>What it is</h2>
+  <p>A <b>pad</b> is a sphere attached to the body by mixing joints (the chest is mostly shoulders, the belly mostly hips), so it moves with you. A <b>hit</b> is a hand arriving: it has to enter the pad and be closing on it, relative to the body's own motion, faster than the sensitivity. That speed is the loudness.</p>
+  <p>Everything is measured in metres around your hips, scaled by your shoulder width, so it needs no depth and works at any distance. The strip at the bottom is the last eight seconds, one row per pad: the score you just played. An audio-visual study after Laurie Anderson's body drum, not a copy of it.</p>
+</aside>
+<main id="stage"><canvas id="tl"></canvas><div class="hud" id="hud"></div></main>
+</div>
+<video id="video" playsinline muted loop crossorigin="anonymous"></video>
+<script type="module" src="06-body-drum.js"></script>
+<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'06-body-drum.js',label:'06-body-drum.js'},{path:'lib/bodydrum.js',label:'lib/bodydrum.js'},{path:'lib/drums.js',label:'lib/drums.js'},{path:'lib/body.js',label:'lib/body.js'},{path:'lib/bodyview.js',label:'lib/bodyview.js'},{path:'lib/tracker.js',label:'lib/tracker.js'}], exportAssets: ["vendor/mediapipe/wasm/vision_wasm_internal.js", "vendor/mediapipe/wasm/vision_wasm_internal.wasm", "vendor/mediapipe/models/pose_landmarker_full.task"] });</script>
+</body></html>
