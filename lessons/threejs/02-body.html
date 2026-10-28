@@ -37,11 +37,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createTracker } from './lib/tracker.js';
 import { Body, Playback, JOINTS } from './lib/body.js';
 import { BodyView } from './lib/bodyview.js';
+import { MT, CLIPS } from './lib/clips.js';
 
 const $ = id => document.getElementById(id);
-const MT = 'https://languel.github.io/mediatheque/items/';
-const CLIPS = { 'danse serpentine (Lumière 1897)': 'danse-serpentine-lumiere-1897', 'Sandow (1894)': 'sandow-1894',
-  'hurdles (Marey 1900)': 'marey-alvin-kraenzlein-haies-1900', 'discus (Marey 1900)': 'lancement-du-disque-par-l-athlete-americain-mccraken-1900' };
 
 // ---- scene -----------------------------------------------------------------
 const stage = $('stage'), video = $('video');
