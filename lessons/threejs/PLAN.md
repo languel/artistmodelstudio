@@ -60,3 +60,8 @@ Every demo lives in one navigable scene (OrbitControls) so the body, the sound a
 ## Open questions
 - MediaPipe Tasks Vision (`@mediapipe/tasks-vision`) has separate Pose/Hand/Face landmarkers; "Holistic" in the legacy API is one model. Plan: use Tasks Vision's three landmarkers, vendored with their WASM and model files for offline use.
 - Rights: record the source and licence of every mediatheque clip used, for later publishing.
+
+## Review pass (28 Oct 2026)
+- All pages load with no console errors on recorded clips; 43 lesson tests pass; key markers balanced in every file.
+- Standalone `⇩ html + models` exports built and booted for 03, 05, 06, 07, 08, 09 (earlier: 00, 01, 02, 04). Loader now normalises the entry path.
+- Still unverified: webcam capture, `file://` double-click, WebGPU depth speed on a real GPU, audio timbre (cannot hear), foot-lock feel on live tracking, 24k-sample paint frame rate, lesson 08 face-mesh index lists (from memory).

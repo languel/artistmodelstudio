@@ -156,7 +156,7 @@ globalThis.fetch = (input, init) => {
 };
 ` : ''}const M = JSON.parse(document.getElementById('modules').textContent), U = {};
 const make = id => U[id] ??= URL.createObjectURL(new Blob([M[id].replace(/@@dep:(.+?)@@/g, (_, d) => make(d))], { type: 'text/javascript' }));
-import(make(${JSON.stringify(entry)}));
+import(make(${JSON.stringify(rel(new URL(entry, base).href))}));
 </script>`);
   doc.head.insertAdjacentHTML('afterbegin', assets.length ? '<!-- Single-file export with models embedded: open it by double-click, no server. -->' : '<!-- Single-file export. Code and three.js are embedded; models, wasm and data (if the lesson uses them) load relative to this file, so keep it in lessons/threejs/ next to vendor/. -->');
   return '<!doctype html>\n' + doc.documentElement.outerHTML;
