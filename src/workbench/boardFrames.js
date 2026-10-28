@@ -19,9 +19,22 @@
 import { boardsOf, boardKind, findBoard, MAIN } from '../process/boards.js';
 import { renderMarkdown, esc } from '../process/markdown.js';
 import { renderToCanvas } from '../process/render.js';
+import { collectThree, threeLoader } from '../process/threeModules.js';
 // p5.js for sketches, bundled with the studio as plain text (no network needed; the package does not
 // export the file by name), loaded when a sketch first runs.
 const loadP5 = () => import('../../node_modules/p5/lib/p5.min.js?raw').then(m => m.default);
+// three.js and the addons a sketch may import, bundled with the studio as text and read when a sketch first needs them.
+const THREE_FILES = import.meta.glob([
+  '../../node_modules/three/build/three.{module,core}.js',
+  '../../node_modules/three/examples/jsm/{controls,postprocessing,shaders,math,geometries,lines,utils,curves,helpers,objects,lights}/*.js',
+  '../../node_modules/three/examples/jsm/loaders/{GLTFLoader,OBJLoader,MTLLoader,STLLoader,PLYLoader}.js',
+  '../../node_modules/three/examples/jsm/exporters/{OBJExporter,GLTFExporter,STLExporter}.js'
+], { query: '?raw', import: 'default' });
+const loadThreeFile = async id => {
+  const f = THREE_FILES[`../../node_modules/three/${id}`];
+  if (!f) throw new Error(`three.js file “${id}” is not bundled with the studio (import from 'three' or a common addon: controls, postprocessing, shaders, loaders…)`);
+  return f();
+};
 import 'katex/dist/katex.min.css';
 
 const luminance = hex => {
@@ -52,7 +65,7 @@ const fileLoader = files => `(() => {
 })();`;
 
 /** The page a frame runs: the bridge, then (for p5) p5.js and its files, then the board's code. */
-function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false) {
+function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false, threeMods = null) {
   const bridge = `(() => {
   // A sandboxed frame has no storage: reading it throws. Libraries that touch it (ml5, tfjs) get a
   // stand-in that forgets on reload.
@@ -96,7 +109,9 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   });
 })();`;
   const style = `html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}canvas{display:block;width:100%!important;height:100%!important;object-fit:contain}`;   // a canvas of another size than the board: fitted whole
-  const body = kind === 'p5'
+  const body = kind === 'three'
+    ? `<script>${bridge}</script><script type="application/json" id="three-modules">${JSON.stringify(threeMods?.modules || {}).replace(/</g, '\\u003c')}</script><script type="module">${threeLoader(token)}</script>`
+    : kind === 'p5'
     ? `<script>${bridge}</script><script>${p5Source.replace(/<\/script/gi, '<\\/script')}</script><script>${fileLoader(files)}</script>${/\bml5\./.test(code) ? '<script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/ml5@1/dist/ml5.min.js"></script>' : ''}<script>${code.replace(/<\/script/gi, '<\\/script')}</script>`
     : `<script>${bridge}</script>${code}`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>${style}</style></head><body>${body}</body></html>`;
@@ -186,7 +201,7 @@ export class BoardFrames {
 
   release(id, f) {
     this.frames.delete(id);
-    if (f.kind === 'p5' && f.running) { this.snap(f); setTimeout(() => f.el.remove(), 400); }   // its last picture first
+    if ((f.kind === 'p5' || f.kind === 'three') && f.running) { this.snap(f); setTimeout(() => f.el.remove(), 400); }   // its last picture first
     else f.el.remove();
   }
 
@@ -218,7 +233,7 @@ export class BoardFrames {
         f.el.append(f.still);
       }
       const shot = this.snapshots.get(b.id);
-      f.still.innerHTML = shot ? `<img src="${shot}" alt="">` : `<span>p5 · paused</span>`;
+      f.still.innerHTML = shot ? `<img src="${shot}" alt="">` : `<span>${f.kind === 'three' ? 'three.js' : 'p5'} · paused</span>`;
       return;
     }
     f.still?.remove(); f.still = null;
@@ -226,6 +241,15 @@ export class BoardFrames {
     if (f.kind === 'p5' && !this.p5Source) {
       if (!this.p5Loading) this.p5Loading = loadP5().then(t => { this.p5Source = t; this.canvas.invalidate(); return t; }).catch(err => this.app.log(`p5.js did not load: ${err.message}`, 'error'));
       return;
+    }
+    // three.js: find and read the modules the sketch imports (once for each version of the code).
+    if (f.kind === 'three') {
+      if (f.threeFor !== code) {
+        f.threeFor = code; f.threeMods = null;
+        collectThree(code, loadThreeFile).then(m => { if (f.threeFor === code) { f.threeMods = m; this.canvas.invalidate(); } })
+          .catch(err => { if (f.threeFor === code) { this.app.log(`Board “${b.title}”: ${err.message}`, 'error'); } });
+      }
+      if (!f.threeMods) return;
     }
     // The files it loads by name, from the sources (read once, kept as data URLs).
     const wanted = f.kind === 'p5' ? filesOf(code) : [];
@@ -240,7 +264,7 @@ export class BoardFrames {
       iframe.setAttribute('credentialless', '');
       iframe.title = b.title;
       f.perf = Boolean(this.app.perfWanted?.(b));
-      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf);
+      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods);
       f.iframe = iframe;
       f.el.append(iframe);
     }

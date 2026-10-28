@@ -140,7 +140,7 @@ export function mountProperties(el, app) {
     // Its switches, as glyphs: lock, visibility, title, performance.
     const flag = (key, on, glyphOn, glyphOff, tip) => h('button', { class: `wb-icon-btn${on ? ' on' : ''}`, title: tip, html: icon(on ? glyphOn : glyphOff), onclick: () => app.setBoardFlag(b.id, key, !b[key]) });
     // Play / pause first (as on the board's title: it shows what a click does), for boards that run.
-    const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));
+    const runs = b.kind === 'p5' || b.kind === 'three' || (!b.kind && Boolean(b.follow || b.source || b.code));
     const live = app.isBoardLive(b.id);
     const play = runs ? h('button', { class: `wb-icon-btn${live ? ' on' : ''}`, title: live ? 'Running: click to pause (a paused board is baked into a picture)' : 'Paused: click to play', html: icon(live ? 'pause' : 'play'), onclick: () => app.toggleBoardRun(b.id) }) : null;
     // Media controls: the player board under a board that shows a clip or a GIF.

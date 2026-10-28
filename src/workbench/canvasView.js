@@ -1009,7 +1009,7 @@ export class CanvasView {
       const label = `${i + 1}  ${b.title}${this.showTrain !== false && (doc.train === b.id || (!doc.train && b.main && boards.length > 1)) ? '  ·  trains' : ''}`;   // (an embedded editor has no model to train: the host sets showTrain false)
       // Boards with processes (code, following sources, a source under them) get a play / pause button
       // after the title. Like a player's, it shows what a click does: pause while running, play when paused.
-      const runs = b.kind === 'p5' || (!b.kind && Boolean(b.follow || b.source || b.code));   // documents (markdown, html) and frames have nothing to play
+      const runs = b.kind === 'p5' || b.kind === 'three' || (!b.kind && Boolean(b.follow || b.source || b.code));   // documents (markdown, html) and frames have nothing to play
       // The play / pause button comes first, then the title, then icons for what is switched on.
       if (noTitle && !runs) return;
       const lead = runs ? 14 : 0, marks = (b.locked ? 1 : 0) + (b.hidden ? 1 : 0);

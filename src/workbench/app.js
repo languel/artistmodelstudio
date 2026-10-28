@@ -538,6 +538,7 @@ export class Workbench {
       if (!live) return 'paused';
       return p && now - p.at < 3000 ? `p5·${p.fps}${p.calls > p.fps ? `/${p.calls}` : ''}FPS·${n(p.ms)}ms` : 'p5·…';
     }
+    if (kind === 'three') return live ? 'three.js' : 'paused';
     if (kind !== 'drawing' || !b.code) return null;
     const s = this.runStats.get(b.id), recent = (s?.at || []).filter(t => now - t < 3000);
     const names = [...String(b.code).matchAll(/(?:source|fit)\(\s*['"`]([^'"`]+)['"`]/g)].map(m => m[1]);

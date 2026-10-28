@@ -14,6 +14,7 @@ import { PLAYLIST_TEMPLATE } from '../../process/playlist.js';
 import { controlStrip } from '../codeParams.js';
 import { runScript } from '../../process/script.js';
 import { boardById, boardKind, boardsInFrame, MAIN } from '../../process/boards.js';
+import { THREE_STARTER } from '../../process/threeModules.js';
 
 const TEMPLATE = `// This board's code: it redraws the board's marks each time it runs.
 // Coordinates are fractions of the board. Drag the slider, or Cmd-drag any number.
@@ -25,6 +26,7 @@ for (const i of range(n)) {
 `;
 
 const TEMPLATES = {
+  three: THREE_STARTER,
   drawing: TEMPLATE,
   playlist: PLAYLIST_TEMPLATE,
   markdown: `# A page on the canvas
@@ -62,8 +64,8 @@ function draw() {
 }
 `
 };
-const LANGUAGE = { drawing: 'ams', markdown: 'markdown', html: 'html', p5: 'p5', frame: 'markdown', playlist: 'p5' };
-const KIND_LABELS = [['drawing', 'Drawing (studio code)'], ['markdown', 'Markdown'], ['html', 'HTML'], ['p5', 'p5.js'], ['playlist', 'Playlist'], ['frame', 'Frame (a slide)']];
+const LANGUAGE = { drawing: 'ams', markdown: 'markdown', html: 'html', p5: 'p5', three: 'p5', frame: 'markdown', playlist: 'p5' };
+const KIND_LABELS = [['drawing', 'Drawing (studio code)'], ['markdown', 'Markdown'], ['html', 'HTML'], ['p5', 'p5.js'], ['three', 'three.js'], ['playlist', 'Playlist'], ['frame', 'Frame (a slide)']];
 
 export function mountBoardCode(root, app) {
   let id = null, timer = 0, loading = false;
@@ -79,7 +81,7 @@ export function mountBoardCode(root, app) {
   const save = () => { if (!id) return; const b = boardById(app.store.doc, id); if (b && (b.code || '') !== editor.value) app.store.updateBoard(id, { code: editor.value }); out.textContent = ''; out.classList.remove('error'); };
   const run = () => {
     if (!id) return;
-    if (kindOf() !== 'drawing') { save(); if (kindOf() === 'p5') app.frames?.restart?.(id); return; }
+    if (kindOf() !== 'drawing') { save(); if (kindOf() === 'p5' || kindOf() === 'three') app.frames?.restart?.(id); return; }
     const res = app.store.runBoardCode(id, editor.value, runScript);
     if (res.error) { out.textContent = res.line ? `Line ${res.line}: ${res.error}` : res.error; out.classList.add('error'); editor.markError(res.line || 1, res.error); return; }
     out.classList.remove('error'); editor.markError(null);
@@ -98,10 +100,10 @@ export function mountBoardCode(root, app) {
     const b = id && boardById(app.store.doc, id);
     head.replaceChildren(
       h('span', { class: 'wb-muted wb-small', style: { flex: 1 } }, b ? b.title : 'Select a board (its title) or go to one'),
-      b ? h('select', { class: 'wb-select', title: 'What the board holds: a drawing (studio code), a Markdown document, an HTML page or a p5.js sketch', onchange: e => setKind(e.target.value) }, ...KIND_LABELS.map(([k, l]) => h('option', { value: k, selected: boardKind(b) === k }, l))) : null,
+      b ? h('select', { class: 'wb-select', title: 'What the board holds: a drawing (studio code), a Markdown document, an HTML page, a p5.js sketch or a three.js sketch', onchange: e => setKind(e.target.value) }, ...KIND_LABELS.map(([k, l]) => h('option', { value: k, selected: boardKind(b) === k }, l))) : null,
       h('button', { class: `wb-icon-btn${live ? ' on' : ''}`, title: live ? 'Live: runs as you edit (click for Cmd+Enter only)' : 'Runs with Cmd+Enter (click to run as you edit)', html: '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M13 3L5 14h6l-1 7 8-11h-6z" fill="currentColor"/></svg>', onclick: () => { live = !live; try { localStorage.setItem('ams_board_live', live ? '1' : '0'); } catch { /* ignore */ } drawHead(); } }),
       boardKind(b) !== 'drawing' ? null : h('button', { class: `wb-icon-btn${b?.follow ? ' on' : ''}`, title: b?.follow ? 'Following its sources: the code re-runs on each new frame (click to stop)' : 'Follow sources: re-run the code on each new frame of the sources it reads (source(\'…\'), fit(\'…\'))', html: icon('follow'), onclick: () => { if (b) app.setBoardFollow(b.id, !b.follow); } }),
-      ['markdown', 'html', 'frame', 'playlist'].includes(boardKind(b)) ? null : h('button', { class: 'wb-btn primary', title: boardKind(b) === 'p5' ? 'Run (Cmd+Enter): restart the sketch' : 'Run (Cmd+Enter): the board is redrawn from its code', onclick: run }, 'Run'),
+      ['markdown', 'html', 'frame', 'playlist'].includes(boardKind(b)) ? null : h('button', { class: 'wb-btn primary', title: boardKind(b) === 'p5' || boardKind(b) === 'three' ? 'Run (Cmd+Enter): restart the sketch' : 'Run (Cmd+Enter): the board is redrawn from its code', onclick: run }, 'Run'),
       boardKind(b) === 'frame' ? null : h('button', { class: 'wb-btn', title: 'Remove the marks the code made, and the code', onclick: () => { if (!id) return; app.store.change('clear board code', d => { d.elements = d.elements.filter(e => !(e.by?.kind === 'code' && e.by?.name === id)); if (id === MAIN) delete d.artboard.code; else delete d.boards.find(x => x.id === id).code; }); load(id, true); } }, 'Clear'));
   };
 
