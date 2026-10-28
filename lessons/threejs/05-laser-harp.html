@@ -19,6 +19,8 @@
   <h2>Look</h2>
   <div class="row"><label>laser</label><select id="color"><option value="0x38ff6a">green</option><option value="0xff3030">red</option><option value="0x30e0ff">cyan</option><option value="0xb070ff">violet</option></select></div>
   <div class="row"><label>bloom</label><input type="range" id="bloom" min="0" max="2.5" step="0.05" value="0.45" title="Glow around the bright beams. 0 turns it off"><output id="bloomo">0.45</output></div>
+  <div class="row"><label>beam width</label><input type="range" id="beamw" min="0.3" max="4" step="0.05" value="1" title="Thickness of the bright core of each beam (looks only: how close a hand must be is set by grab)"><output id="beamwo">1.0×</output></div>
+  <div class="row"><label>halo</label><input type="range" id="halo" min="0" max="3" step="0.05" value="1" title="Size and strength of the soft glow around each beam. 0 leaves only the core"><output id="haloo">1.0×</output></div>
   <div class="row"><label>haze</label><input type="range" id="haze" min="0" max="1" step="0.05" value="0.7" title="Dust in the air, lit where the beams are"></div>
   <div class="row" id="layers"></div>
   <h2>Voice</h2>

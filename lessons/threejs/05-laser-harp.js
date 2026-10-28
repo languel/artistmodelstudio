@@ -46,6 +46,7 @@ $('thick').oninput = () => { harp.enter = num('thick'); harp.leave = num('thick'
 $('grab').oninput = () => { harp.grab = num('grab'); $('grabo').textContent = fmt.grab(num('grab')); };
 $('bloom').oninput = () => { bloom.strength = num('bloom'); bloom.enabled = num('bloom') > 0; $('bloomo').textContent = num('bloom').toFixed(2); };
 $('bloom').oninput();   // start from the slider's value
+for (const id of ['beamw', 'halo']) $(id).oninput = () => $(id + 'o').textContent = num(id).toFixed(1) + '×';
 $('snd').onclick = () => synth.resume().then(() => $('snd').textContent = 'sound on');
 document.addEventListener('click', () => synth.resume().then(() => $('snd').textContent = 'sound on'), { once: true });
 
@@ -151,7 +152,7 @@ rig.onFrame = (now, fresh) => {
     b.top += (target - b.top) * (hold ? 0.6 : 0.25);
     b.act += ((hold ? 1 : 0) - b.act) * (hold ? 0.12 : 0.05);          // the glow follows the sound's fade in and out
     tmpA.set(harp.baseX(i), harp.yMin, harp.centre.z); tmpB.set(harp.beamXAt(i, b.top), b.top, harp.centre.z);
-    seg(b.core, tmpA, tmpB, 0.004 + 0.002 * b.act); seg(b.glow, tmpA, tmpB, 0.025 + 0.03 * b.act); b.glow.material.opacity = 0.13 + 0.25 * b.act;
+    seg(b.core, tmpA, tmpB, (0.004 + 0.002 * b.act) * num('beamw')); seg(b.glow, tmpA, tmpB, (0.025 + 0.03 * b.act) * num('halo')); b.glow.material.opacity = Math.min(1, (0.13 + 0.25 * b.act) * num('halo'));
     b.flare.visible = !!hold || b.act > 0.05; b.flare.position.copy(tmpB); b.flare.material.opacity = Math.min(1, b.act * 1.4); b.flare.scale.setScalar((0.22 + 0.2 * Math.random() * b.act) * (0.4 + b.act));
     b.pool.scale.setScalar(0.14 + 0.3 * b.act); b.pool.material.opacity = 0.2 + 0.5 * b.act;
   });
