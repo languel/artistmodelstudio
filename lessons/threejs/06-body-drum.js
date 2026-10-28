@@ -24,6 +24,19 @@ new ResizeObserver(resize).observe(stage); resize();
 
 const drum = new BodyDrum(), sound = createDrums();
 
+// @key A picture behind the body | The video as a texture on a plane. The skeleton is in metres around the hips, the picture in pixels, so each frame the plane is scaled by (shoulder width in metres / shoulder width in the picture) and moved so the picture's hips land on the skeleton's.
+const screen = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide })); screen.visible = false; scene.add(screen);
+const align = { k: 1, x: 0, y: 0 };
+function placePicture() {
+  const P = body.p, hip = new THREE.Vector3().addVectors(P[23], P[24]).multiplyScalar(0.5);
+  const img = Math.hypot(P[11].x - P[12].x, P[11].y - P[12].y), real = body.w[11].distanceTo(body.w[12]);
+  if (img < 1e-3) return;
+  const k = real / img, e = 0.25;                       // smoothed: the pose jitters a little from frame to frame
+  align.k += (k - align.k) * e; align.x += (-hip.x * k - align.x) * e; align.y += (-hip.y * k - align.y) * e;
+  screen.scale.set(2 * body.aspect * align.k * (body.mirror ? -1 : 1), 2 * align.k, 1); screen.position.set(align.x, align.y, -0.6);
+}
+// @/key
+
 // ---- pads: one translucent sphere each, lit on a hit ----------------------------------------------------------------
 // @key A pad on screen | A sphere that follows its centre from BodyDrum, with a wire outline. On a hit it flashes and a ring spreads from it.
 const pads = drum.pads.map((p, i) => {
@@ -51,11 +64,12 @@ pads.forEach(({ def, color }) => {
   const on = Object.assign(document.createElement('input'), { type: 'checkbox', checked: true, onchange: () => def.on = on.checked });
   const l = document.createElement('label'); l.innerHTML = `<i style="background:#${color.getHexString()}"></i>`; l.append(on, def.label); r.append(l, sel); $('pads').append(r); rowEls[def.id] = l;
 });
-for (const k of ['pads', 'skeleton', 'labels', 'score']) {
+for (const k of ['picture', 'pads', 'skeleton', 'labels', 'score']) {
   const l = document.createElement('label'); l.className = 'chk';
-  const c = Object.assign(document.createElement('input'), { type: 'checkbox', checked: k !== 'labels', onchange: () => show[k] = c.checked }); l.append(c, k); $('layers').append(l);
+  const c = Object.assign(document.createElement('input'), { type: 'checkbox', checked: k !== 'labels' && k !== 'picture', onchange: () => show[k] = c.checked }); l.append(c, k); $('layers').append(l);
 }
-const show = { pads: true, skeleton: true, labels: false, score: true };
+const show = { picture: false, pads: true, skeleton: true, labels: false, score: true };
+$('pic').oninput = () => { screen.material.opacity = num('pic'); $('pico').textContent = num('pic').toFixed(2); };
 const fmt = { speed: v => v.toFixed(2) + ' m/s', size: v => v.toFixed(2) + '×', refr: v => v.toFixed(2) + ' s', tune: v => v, decay: v => v.toFixed(2) + '×' };
 const knobs = { speed: v => drum.minSpeed = v, size: v => drum.size = v, refr: v => drum.refractory = v, tune: v => sound.set('tune', v), decay: v => sound.set('decay', v), reverb: v => sound.set('reverb', v), volume: v => sound.set('volume', v) };
 for (const [id, f] of Object.entries(knobs)) { $(id).oninput = () => { f(num(id)); if ($(id + 'o')) $(id + 'o').textContent = fmt[id](num(id)); }; $(id).oninput(); }
@@ -66,7 +80,10 @@ document.addEventListener('click', () => sound.resume().then(() => $('snd').text
 // ---- sources ---------------------------------------------------------------------------------------------------------
 let hitCount = 0, tracker = null, live = false, t0 = 0, lastVT = -1, frames = 0, fps = 0, fpsT = performance.now();
 async function load() { if (tracker) return; status('loading the pose model…'); tracker = await createTracker({ pose: true, hands: false, face: false }); }
-bindSources({ video, camBtn: $('cam'), clipSel: $('clip'), load, status, onStart(mirror, name) { body.mirror = mirror; body.reset(); live = true; t0 = performance.now(); status(name); } });
+bindSources({ video, camBtn: $('cam'), clipSel: $('clip'), load, status, onStart(mirror, name) {
+  body.mirror = mirror; body.reset(); body.aspect = video.videoWidth / video.videoHeight || 4 / 3; live = true; t0 = performance.now(); status(name);
+  screen.material.map?.dispose(); const tex = new THREE.VideoTexture(video); tex.colorSpace = THREE.SRGBColorSpace; screen.material.map = tex; screen.material.needsUpdate = true;
+} });
 
 // ---- the score: the last eight seconds, one row per pad ----------------------------------------------------------------
 const tl = $('tl'), tx = tl.getContext('2d'), events = [], WINDOW = 8;
@@ -107,6 +124,7 @@ renderer.setAnimationLoop(now => {
     }
   }
   view.visible = show.skeleton && body.present; if (view.visible) view.update('world');
+  screen.visible = show.picture && body.present && !!screen.material.map; if (screen.visible) placePicture();
   for (const p of pads) {
     p.group.visible = show.pads && body.present; p.label.visible = show.labels && p.group.visible;
     p.flash *= 0.88; p.fill.material.opacity = 0.1 + 0.6 * p.flash; p.wire.material.opacity = 0.25 + 0.6 * p.flash; p.group.scale.multiplyScalar(1 + 0.18 * p.flash);
