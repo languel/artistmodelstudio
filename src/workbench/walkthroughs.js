@@ -228,7 +228,7 @@ export const WALKTHROUGHS = [
         run: ({ app }) => goTo(app, '3.2 · One line'), hold: 4000 },
       { say: 'Paint marks, after Ghostcatching: hands, head and feet leave strokes that stay in space. Orbit the board to walk around the dance.',
         run: ({ app }) => goTo(app, '3.3 · Paint marks'), hold: 4000 },
-      { say: 'The course itself, with real body tracking, depth and the full instruments, is the threejslessons repository; it is linked here with the artists and papers.',
+      { say: 'The course itself, with real body tracking, depth and the full instruments, is the threejslessons site and repository (languel.github.io/threejslessons); it is linked here with the artists and papers.',
         run: ({ app }) => goTo(app, 'Bibliography') }
     ]
   },

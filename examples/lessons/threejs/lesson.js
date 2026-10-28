@@ -259,7 +259,8 @@ tick = t => {
   ],
   bibliography: [
     { title: 'The course', width: 440, items: [
-      ['threejslessons: the ten lessons with MediaPipe body tracking, depth, the real instruments and costumes', REPO],
+      ['threejslessons, online: the ten lessons running in the browser, with MediaPipe body tracking, depth, the real instruments and costumes', 'https://languel.github.io/threejslessons/'],
+      ['threejslessons, the repository', REPO],
       ['three.js documentation', 'https://threejs.org/docs/'],
       ['three.js examples', 'https://threejs.org/examples/'],
       ['MediaPipe pose landmarker', 'https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker'],

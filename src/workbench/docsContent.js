@@ -284,7 +284,7 @@ A board can hold a **three.js sketch**, on the same footing as a p5.js sketch or
 
 ## The lessons
 
-Ten small, readable three.js programs for body and sound live in their own repository, **threejslessons** (so they can be taught and shared apart from the studio): each page has the live scene, controls, key code highlighted, and a code view that exports one HTML file. Clone it, then \`npm run models\` once (MediaPipe and depth models, about 145 MB, not stored in any repository) and \`npm start\`.`),
+Ten small, readable three.js programs for body and sound live in their own repository, **threejslessons** (so they can be taught and shared apart from the studio): each page has the live scene, controls, key code highlighted, and a code view that exports one HTML file. **It runs online at https://languel.github.io/threejslessons/** (webcam, films and recordings; every lesson). To run it yourself, clone it, then \`npm run models\` once (MediaPipe and depth models, about 145 MB, not stored in any repository) and \`npm start\`.`),
       h('div', { class: 'wb-row wb-row-actions' },
         h('button', { class: 'wb-btn primary', title: 'Build the lecture as a scene of slides: ten live three.js boards beside their notes', onclick: () => import('./lessons.js').then(m => m.buildLesson(app, 'threejs')).then(n => app.log(`The lesson is a scene: ${n} boards.`)).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }, 'Build the lesson as a scene'),
         h('button', { class: 'wb-btn', title: 'A guided walkthrough, played with the real controls', onclick: () => app.walkthroughs.start('lesson-threejs') }, 'Take the tour'),
