@@ -37,12 +37,13 @@ export function createRig({ stage, video, status, camBtn, clipSel }) {
   cloud.frustumCulled = false; scene.add(cloud);
   // @/key
 
-  const resize = () => { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); };
-  new ResizeObserver(resize).observe(stage); resize();
-
+  const resize = () => { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); rig.onResize?.(w, h); };
   const rig = { renderer, scene, camera, orbit, floor, body, fusion, fused, ghost, cloud, video, status,
     show: { cloud: true, fused: true, ghost: true },
-    live: false, mirror: false, depth: null, depthMaps: 0, fps: 0, active: false, onFrame: null };
+    live: false, mirror: false, depth: null, depthMaps: 0, fps: 0, active: false, onFrame: null,
+    render: null,       // a lesson can replace the final draw (for example with a bloom composer)
+    onResize: null };
+  new ResizeObserver(resize).observe(stage); resize();
 
   // ---- sources and models -----------------------------------------------------------------------------------
   let tracker = null, depthNet = null, t0 = 0, lastVT = -1, busy = false, framed = false, frames = 0, fpsT = performance.now();
@@ -90,7 +91,7 @@ export function createRig({ stage, video, status, camBtn, clipSel }) {
       if (fusion.floorY != null) floor.position.y = fusion.floorY;
     }
     rig.onFrame?.(now, rig.fresh); rig.fresh = false;
-    orbit.update(); renderer.render(scene, camera);
+    orbit.update(); rig.render ? rig.render() : renderer.render(scene, camera);
     if (now - fpsT > 1000) { rig.fps = frames; frames = 0; fpsT = now; }
   });
   // @/key
