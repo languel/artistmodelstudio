@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three.js 05 · Laser harp</title>
+<link rel="stylesheet" href="lesson.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/","mediapipe":"./vendor/mediapipe/vision_bundle.mjs"}}</script>
+<style>#status{color:var(--dim);font-size:13px;min-height:20px} video{display:none} #read{font:12.5px/1.6 ui-monospace,Menlo,monospace;white-space:pre;color:var(--dim);margin:6px 0}
+.chk{display:flex;gap:4px;align-items:center;min-width:0;margin-right:8px} .row input[type=checkbox]{accent-color:var(--accent)} #note{font:600 22px ui-monospace,monospace;color:var(--accent);min-height:30px}</style>
+</head><body>
+<div class="split">
+<aside>
+  <nav class="crumbs"><a href="index.html">Three.js</a> · <a href="04-fusion.html">04</a> · 05</nav>
+  <h1>Laser harp</h1>
+  <p class="dim">Beams stand in the air in front of you, a fixed number of metres from the camera. Put a fingertip through one and it plays.</p>
+  <h2>Source</h2>
+  <div class="row"><button id="cam" title="Your camera, mirrored. Nothing leaves your machine">webcam</button><select id="clip" title="Public-domain films from the Mediathèque"></select><button id="snd" title="Browsers only start sound after a click">sound</button></div>
+  <div id="status"></div>
+  <div id="note">&nbsp;</div>
+  <div id="read">choose a source</div>
+  <h2>Harp</h2>
+  <div class="row"><label>scale</label><select id="scale"></select><select id="root" title="Root note"></select></div>
+  <div class="row"><label>beams</label><input type="range" id="beams" min="3" max="14" step="1" value="8"><output id="beamso">8</output></div>
+  <div class="row"><label>width</label><input type="range" id="span" min="0.4" max="2.2" step="0.05" value="1.2"><output id="spano">1.2 m</output></div>
+  <div class="row"><label>in front</label><input type="range" id="reach" min="0.1" max="0.8" step="0.02" value="0.35" title="How far in front of your chest the beams stand. Press place to put them there"><output id="reacho">0.35 m</output></div>
+  <div class="row"><label>fingers</label><select id="tips" title="Which points pluck"><option value="index">index fingertips</option><option value="wrist">wrists</option><option value="both">both</option></select>
+    <button id="place" title="Stand the harp here: in front of your chest as you are now">place</button><label class="chk" title="Keep the harp in front of you as you move"><input type="checkbox" id="follow"> follow</label></div>
+  <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.05" value="0.6"></div>
+  <h2>Show</h2>
+  <div class="row" id="layers"></div>
+  <div class="row"><label>trust depth</label><input type="range" id="trust" min="0" max="1" step="0.05" value="0.5" title="0: depth of the hands from MediaPipe only. 1: from the depth map"></div>
+  <h2>What it is</h2>
+  <p>Every beam is a vertical line at a position in <b>metres</b>. A hand crosses the harp's plane when its distance from the camera passes the plane's distance. That needs the body in metres from lesson 04: the camera alone only knows left and right.</p>
+  <p>Depth is good to a few centimetres, so a pluck needs the fingertip to get clearly (3 cm) through the plane. Faster means louder.</p>
+</aside>
+<main id="stage"><div class="hud" id="hud"></div></main>
+</div>
+<video id="video" playsinline muted loop crossorigin="anonymous"></video>
+<script type="module" src="05-laser-harp.js"></script>
+<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'05-laser-harp.js',label:'05-laser-harp.js'},{path:'lib/harp.js',label:'lib/harp.js'},{path:'lib/synth.js',label:'lib/synth.js'},{path:'lib/rig.js',label:'lib/rig.js'},{path:'lib/fusion.js',label:'lib/fusion.js'}], exportAssets: ["vendor/mediapipe/wasm/vision_wasm_internal.js", "vendor/mediapipe/wasm/vision_wasm_internal.wasm", "vendor/mediapipe/models/pose_landmarker_full.task", "vendor/depth/ort/ort-wasm-simd-threaded.asyncify.mjs", "vendor/depth/ort/ort-wasm-simd-threaded.asyncify.wasm", "vendor/depth/models/onnx-community/depth-anything-v2-small/config.json", "vendor/depth/models/onnx-community/depth-anything-v2-small/preprocessor_config.json", "vendor/depth/models/onnx-community/depth-anything-v2-small/onnx/model_quantized.onnx"] });</script>
+</body></html>

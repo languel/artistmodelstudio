@@ -23,15 +23,17 @@ Every demo lives in one navigable scene (OrbitControls) so the body, the sound a
 - 03 `03-pinboard.html` + `lib/pinboard.js`, `lib/depth.js`: pin screen (instanced shafts + heads, pins slew toward targets) driven by the MediaPipe person mask and Depth Anything V2 small depth (transformers.js, int8, local from `vendor/depth`). Modes: subject (person raised by depth), scene, silhouette. `?device=wasm` forces the CPU path.
   - Findings: mask and depth both work on clips. Depth on WebGPU compiled in ~8 s and then stalled in the headless pane (software GPU), so WebGPU speed on a real machine is unverified; the wasm fallback runs at ~3 fps with the page blocked (onnxruntime's worker proxy hung on load). Depth is relative, not metres.
 
+- 05 `05-laser-harp.html` + `lib/harp.js` (pure logic, unit-tested in `test/lessonHarp.test.js`), `lib/synth.js` (Web Audio pluck, scales), `lib/rig.js` (shared depth stage, now also used by 04): vertical beams in a plane a set number of metres in front of the chest; a fingertip crossing the plane (3 cm dead zone, interpolated crossing point, 90 ms refractory) plucks the beam; speed = loudness, x = pan. Place / follow, scale, root, beam count, width, depth of plane.
+  - Findings: on the Sandow clip plucks fire and the audio context runs; I cannot hear the sound, so timbre is untuned. Not tried with a webcam.
+
 ## Next, in order
 02. **(done)** Body in the scene (MediaPipe Holistic, live + recorded). Landmarks (33 pose, 21 per hand, face mesh) as joints and bones in 3D. Sources: webcam, and clips from `languel/mediatheque` (the catalog marks items suited to pose with `--demo pose`; pose landmarks can be precomputed to JSON so the lecture needs no camera). Output: one `Body` object (named joints, velocities) that every later demo reads.
 04. **(done)** Fusing depth with the body (`04-fusion.html`, `lib/fusion.js`). Anchor relative depth to the pose's world scale (hip/shoulder width) to get metres per pixel, so each joint has a depth-corrected z and the mask gives a surface to touch.
-05. **Body Drum (Laurie Anderson, *Body Drum*).** No depth needed: world-landmark distances and speeds are enough.
-05b. **Laser harp (separate instrument, uses the fusion from 04).** Beams in space in front of the player; a hand crossing a beam, measured in metres from the camera, plucks a note.
-   Old note for the drum: Body measurements (limb lengths, joint speed) and collisions (a hand meets torso/thigh, hand meets hand) trigger drum voices through Web Audio; each body zone has a pitch/timbre. Collision = distance between joint spheres under a threshold, with a refractory time. Scene shows hit zones lighting up.
-06. **Triadic costumes (Oskar Schlemmer, *Triadisches Ballett*).** Geometric costume parts (spheres, cones, discs, spirals, tubes) parented to joints and scaled by measurements; a puppet rig that can also run from the live body.
-07. **Unicursal line (Picasso).** One continuous line through a chosen joint set, drawn as a single tube/line in 3D; the line never lifts, and the body steers it.
-08. **Ghostcatching (Bill T. Jones, OpenEndedGroup).** Hands, feet and head leave persistent paint marks (ribbons/strokes) in space; the viewer orbits the trace after the body has left.
+06. **Body Drum (Laurie Anderson, *Body Drum*).** No depth needed: world-landmark distances and speeds are enough.
+   Original note for the drum: Body measurements (limb lengths, joint speed) and collisions (a hand meets torso/thigh, hand meets hand) trigger drum voices through Web Audio; each body zone has a pitch/timbre. Collision = distance between joint spheres under a threshold, with a refractory time. Scene shows hit zones lighting up.
+07. **Triadic costumes (Oskar Schlemmer, *Triadisches Ballett*).** Geometric costume parts (spheres, cones, discs, spirals, tubes) parented to joints and scaled by measurements; a puppet rig that can also run from the live body.
+08. **Unicursal line (Picasso).** One continuous line through a chosen joint set, drawn as a single tube/line in 3D; the line never lifts, and the body steers it.
+09. **Ghostcatching (Bill T. Jones, OpenEndedGroup).** Hands, feet and head leave persistent paint marks (ribbons/strokes) in space; the viewer orbits the trace after the body has left.
 
 ## Open questions
 - MediaPipe Tasks Vision (`@mediapipe/tasks-vision`) has separate Pose/Hand/Face landmarkers; "Holistic" in the legacy API is one model. Plan: use Tasks Vision's three landmarkers, vendored with their WASM and model files for offline use.
