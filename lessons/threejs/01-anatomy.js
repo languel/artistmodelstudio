@@ -1,0 +1,202 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// This page: one scene explored through five tabs. Each tab edits the live scene.
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setScissorTest(true);
+stage.prepend(renderer.domElement);
+
+// ---- the scene -------------------------------------------------------------
+// @key The scene is a tree | Everything is a node you add to the scene or to a Group; helpers live in a group so they can be hidden together.
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(getComputedStyle(document.body).backgroundColor);
+
+const world = new THREE.Group(); world.name = 'helpers';          // axes + grid
+const axes = new THREE.AxesHelper(2), grid = new THREE.GridHelper(10, 10, 0x888888, 0x444444);
+grid.material.transparent = true; grid.material.opacity = 0.5;
+world.add(axes, grid); scene.add(world);
+// @/key
+
+// the scene's camera (what the inset shows) and the free viewing camera (orbit)
+// @key A camera and its frustum | fov, aspect, near and far define the visible pyramid; CameraHelper draws it.
+const sceneCam = new THREE.PerspectiveCamera(50, 1.5, 0.5, 6);
+sceneCam.position.set(0, 1, 4); sceneCam.lookAt(0, 0.5, 0); sceneCam.name = 'camera';
+const camHelper = new THREE.CameraHelper(sceneCam);
+scene.add(sceneCam, camHelper);
+// @/key
+
+// @key A second camera to look around with | The free camera is driven by OrbitControls (drag, scroll, right-drag).
+const view = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+view.position.set(5.5, 4, 7);
+const orbit = new OrbitControls(view, renderer.domElement);
+orbit.target.set(0, 0.5, 0);
+// @/key
+
+// @key Lights are nodes too | Directional light is the sun; ambient fills the shadows. Only lit materials respond.
+const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(3, 5, 2); sun.name = 'sun';
+const fill = new THREE.AmbientLight(0xffffff, 0.35); fill.name = 'ambient';
+const sunHelper = new THREE.DirectionalLightHelper(sun, 0.6);
+scene.add(sun, fill, sunHelper);
+// @/key
+
+// objects
+// @key Mesh = geometry + material | Swap either half independently; position, rotation and scale live on the mesh.
+const geoms = {
+  box: () => new THREE.BoxGeometry(1, 1, 1),
+  sphere: () => new THREE.SphereGeometry(0.6, 32, 16),
+  cone: () => new THREE.ConeGeometry(0.6, 1.2, 32),
+  torus: () => new THREE.TorusKnotGeometry(0.45, 0.16, 96, 12),
+  plane: () => new THREE.PlaneGeometry(1.4, 1.4),
+};
+const mats = {
+  normal: () => new THREE.MeshNormalMaterial(),
+  basic: () => new THREE.MeshBasicMaterial({ color: 0xf2b84b }),
+  lambert: () => new THREE.MeshLambertMaterial({ color: 0xf2b84b }),
+  standard: () => new THREE.MeshStandardMaterial({ color: 0xf2b84b, roughness: 0.35, metalness: 0.1 }),
+  wire: () => new THREE.MeshBasicMaterial({ color: 0xf2b84b, wireframe: true }),
+  toon: () => new THREE.MeshToonMaterial({ color: 0xf2b84b }),
+};
+const meshes = [];
+let n = 0;
+function addMesh(kind = 'box', mat = 'normal', pos) {
+  const m = new THREE.Mesh(geoms[kind](), mats[mat]());
+  m.name = `${kind}${++n}`; m.userData = { kind, mat };
+  m.position.copy(pos || new THREE.Vector3((meshes.length % 3 - 1) * 1.8, 0.7, -Math.floor(meshes.length / 3) * 1.8));
+  if (kind === 'plane') m.material.side = THREE.DoubleSide;
+  scene.add(m); meshes.push(m); return m;
+}
+// @/key
+addMesh('box', 'normal', new THREE.Vector3(0, 0.7, 0));
+let sel = meshes[0];
+const box = new THREE.BoxHelper(sel, 0xf2b84b); scene.add(box);
+
+// The panels are plain DOM built from small helpers (row, slider, select).
+// ---- panels ----------------------------------------------------------------
+const row = (label, input, out) => { const d = document.createElement('div'); d.className = 'row';
+  const l = document.createElement('label'); l.textContent = label; d.append(l, input); if (out) d.append(out); return d; };
+const slider = (min, max, step, val, f) => { const i = document.createElement('input'); i.type = 'range';
+  Object.assign(i, { min, max, step, value: val }); const o = document.createElement('output'); o.textContent = val;
+  i.oninput = () => { o.textContent = (+i.value).toFixed(step < 1 ? 2 : 0); f(+i.value); }; return [i, o]; };
+const select = (opts, val, f) => { const s = document.createElement('select');
+  for (const o of opts) s.add(new Option(o, o)); s.value = val; s.onchange = () => f(s.value); return s; };
+const btn = (t, f) => { const b = document.createElement('button'); b.textContent = t; b.onclick = f; return b; };
+const code = s => { const p = document.createElement('pre'); p.textContent = s; return p; };
+const text = s => { const p = document.createElement('p'); p.innerHTML = s; return p; };
+
+let spin = true;
+const ortho = new THREE.OrthographicCamera(-2.7, 2.7, 1.8, -1.8, 0.5, 6);
+let cam = sceneCam;
+function setCam(c) { // swap perspective <-> orthographic, keep pose
+  c.position.copy(cam.position); c.quaternion.copy(cam.quaternion); c.name = 'camera';
+  scene.remove(cam, camHelperRef); camHelperRef.dispose?.(); cam = c; scene.add(c);
+  camHelperRef = new THREE.CameraHelper(c); scene.add(camHelperRef);
+}
+let camHelperRef = camHelper;
+
+const panels = {
+  Scene() {
+    const f = document.createElement('div');
+    f.append(
+      text('The <b>scene</b> is a tree. Everything you can see or light is a node in it; nodes can hold other nodes. <code>scene.add(x)</code> puts <code>x</code> in. Nothing draws until the renderer is asked to look at the scene through a camera.'),
+      code(`const scene = new THREE.Scene();\nscene.add(mesh);        // a child of the scene\ngroup.add(mesh);        // a child of a group\nscene.background = new THREE.Color(0x14151a);`),
+      row('axes', Object.assign(document.createElement('input'), { type: 'checkbox', checked: true, onchange: e => axes.visible = e.target.checked })),
+      row('grid', Object.assign(document.createElement('input'), { type: 'checkbox', checked: true, onchange: e => grid.visible = e.target.checked })),
+      text('Red is +x, green +y, blue +z. Three.js is right-handed with y up.')
+    ); return f;
+  },
+  Camera() {
+    const f = document.createElement('div');
+    const [fi, fo] = slider(15, 120, 1, sceneCam.fov, v => { sceneCam.fov = v; sceneCam.updateProjectionMatrix(); camHelperRef.update(); });
+    const [ni, no] = slider(0.1, 3, 0.05, sceneCam.near, v => { sceneCam.near = v; ortho.near = v; sceneCam.updateProjectionMatrix(); ortho.updateProjectionMatrix(); camHelperRef.update(); });
+    const [zi, zo] = slider(1, 8, 0.1, sceneCam.position.z, v => { sceneCam.position.z = v; ortho.position.z = v; camHelperRef.update(); });
+    f.append(
+      text('A <b>camera</b> is a node too, with a position and a direction. It defines a <i>frustum</i>, the truncated pyramid of space it can see. The wireframe pyramid is that frustum; what is inside it appears in the inset.'),
+      code(`new THREE.PerspectiveCamera(fov, aspect, near, far);\ncamera.position.set(0, 1, 4);\ncamera.lookAt(0, 0.5, 0);`),
+      row('type', select(['perspective', 'orthographic'], cam.isOrthographicCamera ? 'orthographic' : 'perspective', v => setCam(v === 'orthographic' ? ortho : sceneCam))),
+      row('fov', fi, fo), row('near', ni, no), row('distance', zi, zo),
+      text('Perspective makes far things smaller. Orthographic keeps parallel lines parallel, useful for diagrams and plans.')
+    ); return f;
+  },
+  Objects() {
+    const f = document.createElement('div');
+    f.append(
+      text('An <b>object</b> in the scene is a <code>Mesh</code>: a <i>geometry</i> (the shape: vertices and faces) paired with a <i>material</i> (how its surface looks). Every node also has <code>position</code>, <code>rotation</code> and <code>scale</code>.'),
+      code(`const mesh = new THREE.Mesh(geometry, material);\nmesh.position.set(1, 0.7, 0);\nmesh.rotation.y = Math.PI / 4;\nmesh.scale.setScalar(1.5);\nscene.add(mesh);`),
+      row('add', select(Object.keys(geoms), 'box', k => { sel = addMesh(k, sel.userData.mat); box.setFromObject(sel); refreshPanel(); })),
+      row('spin', Object.assign(document.createElement('input'), { type: 'checkbox', checked: spin, onchange: e => spin = e.target.checked })),
+      row('selected', select(meshes.map(m => m.name), sel.name, v => { sel = meshes.find(m => m.name === v); box.setFromObject(sel); })),
+      row('', btn('remove selected', () => { if (meshes.length < 2) return; scene.remove(sel); meshes.splice(meshes.indexOf(sel), 1); sel.geometry.dispose(); sel.material.dispose(); sel = meshes[0]; box.setFromObject(sel); refreshPanel(); })),
+      text('A <code>Group</code> is a node with no shape of its own; moving or rotating it moves everything inside. This is how a body or a costume gets built later.')
+    ); return f;
+  },
+  Materials() {
+    const f = document.createElement('div');
+    const [ri, ro] = slider(0, 1, 0.01, sel.material.roughness ?? 0.5, v => { if ('roughness' in sel.material) sel.material.roughness = v; });
+    f.append(
+      text('A <b>material</b> decides how a surface answers light. Basic ignores light. Lambert and Standard respond to the lights in the scene (Standard is physically based). Normal paints each face by the direction it points, a handy debugging look.'),
+      code(`new THREE.MeshBasicMaterial({ color: 0xf2b84b });\nnew THREE.MeshStandardMaterial({\n  color: 0xf2b84b, roughness: 0.35, metalness: 0.1\n});\nnew THREE.MeshNormalMaterial();`),
+      row('material', select(Object.keys(mats), sel.userData.mat, k => { sel.material.dispose(); sel.material = mats[k](); sel.userData.mat = k; if (sel.userData.kind === 'plane') sel.material.side = THREE.DoubleSide; refreshPanel(); })),
+      row('roughness', ri, ro),
+      row('color', Object.assign(document.createElement('input'), { type: 'color', value: '#f2b84b', oninput: e => sel.material.color?.set(e.target.value) })),
+      text('Try Basic on a sphere: it looks flat, because it never asks where the light is. Switch to Standard and the sun lights it.')
+    ); return f;
+  },
+  Light() {
+    const f = document.createElement('div');
+    const [si, so] = slider(0, 6, 0.1, sun.intensity, v => sun.intensity = v);
+    const [ai, ao] = slider(0, 2, 0.05, fill.intensity, v => fill.intensity = v);
+    const [xi, xo] = slider(-6, 6, 0.1, sun.position.x, v => { sun.position.x = v; sunHelper.update(); });
+    f.append(
+      text('<b>Lights</b> are nodes too. Ambient light fills everything evenly; a directional light is the sun (parallel rays from a direction). Only lit materials (Lambert, Standard, Toon) respond.'),
+      code(`const sun = new THREE.DirectionalLight(0xffffff, 2.2);\nsun.position.set(3, 5, 2);\nscene.add(sun, new THREE.AmbientLight(0xffffff, 0.35));`),
+      row('sun', si, so), row('sun x', xi, xo), row('ambient', ai, ao)
+    ); return f;
+  },
+};
+const tabs = document.getElementById('tabs'), panel = document.getElementById('panel');
+let current = 'Scene';
+function refreshPanel() { panel.replaceChildren(panels[current]()); for (const b of tabs.children) b.setAttribute('aria-selected', b.textContent === current); }
+for (const k of Object.keys(panels)) tabs.append(btn(k, () => { current = k; refreshPanel(); }));
+refreshPanel();
+
+// ---- live scene tree -------------------------------------------------------
+const treeEl = document.getElementById('tree');
+function tree(o, d = 0) {
+  const kind = o.isMesh ? `Mesh ${o.geometry.type.replace('Geometry', '')}/${o.material.type.replace('Material', '')}` : o.type;
+  let s = '  '.repeat(d) + (o === sel ? '<b>' : '') + (o.name || '·') + ' <span style="opacity:.6">' + kind + '</span>' + (o === sel ? '</b>' : '') + '\n';
+  if (o.isCamera && o !== cam || o.isLightHelper || o.type.endsWith('Helper')) return '';
+  for (const c of o.children) s += tree(c, d + 1);
+  return s;
+}
+let lastTree = '';
+
+// ---- loop ------------------------------------------------------------------
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h); view.aspect = w / h; view.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage); resize();
+
+const hud = document.getElementById('hud');
+// @key Two views in one canvas | The same scene is drawn twice with scissored viewports: the free view, then the scene camera's inset.
+renderer.setAnimationLoop(t => {
+  if (spin) for (const m of meshes) { m.rotation.y = t / 1800 + m.position.x; m.rotation.x = t / 2600; }
+  box.update(); orbit.update();
+  const w = stage.clientWidth, h = stage.clientHeight;
+  // main view: the free camera sees everything, camera helper included
+  renderer.setViewport(0, 0, w, h); renderer.setScissor(0, 0, w, h);
+  renderer.render(scene, view);
+  // inset: the scene's own camera, without the helpers
+  const iw = Math.min(260, w * 0.38), ih = iw / 1.5, x = w - iw - 12, y = h - ih - 12;
+  Object.assign(document.getElementById('inset').style, { width: iw + 'px', height: ih + 'px' });
+  cam.aspect !== undefined && (cam.aspect = 1.5, cam.updateProjectionMatrix());
+  const hv = [world, camHelperRef, sunHelper, box].map(o => o.visible); [world, camHelperRef, sunHelper, box].forEach(o => o.visible = false);
+  renderer.setViewport(x, y, iw, ih); renderer.setScissor(x, y, iw, ih);
+  renderer.autoClear = false; renderer.clearDepth(); renderer.render(scene, cam); renderer.autoClear = true;
+  [world, camHelperRef, sunHelper, box].forEach((o, i) => o.visible = hv[i]);
+  const s = tree(scene); if (s !== lastTree) { lastTree = s; treeEl.innerHTML = s; }
+  hud.textContent = `${renderer.info.render.calls} draw calls · ${renderer.info.render.triangles} triangles`;
+});
+// @/key

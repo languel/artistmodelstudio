@@ -2,6 +2,7 @@
 // the same board can show depth, a person mask, or both.
 import * as THREE from 'three';
 
+// Depth to colour: far = violet, near = red.
 const ramp = (t, c) => c.setHSL(0.72 - 0.72 * t, 0.85, 0.5);   // far = violet ... near = red
 
 export class Pinboard extends THREE.Group {
@@ -17,13 +18,16 @@ export class Pinboard extends THREE.Group {
     for (const m of [this.shafts, this.heads]) if (m) { this.remove(m); m.geometry.dispose(); m.dispose?.(); }
     const n = this.cols * this.rows, pitch = this.width / this.cols; this.pitch = pitch; this.len = this.width * 0.5;
     const shaft = new THREE.CylinderGeometry(pitch * 0.12, pitch * 0.12, 1, 6).rotateX(Math.PI / 2);   // unit length along z
+    // @key A pin is two instances | A thin shaft and a ball head, thousands of each, as two InstancedMeshes (two draw calls).
     this.shafts = new THREE.InstancedMesh(shaft, this.shaftMat, n);
     this.heads = new THREE.InstancedMesh(new THREE.SphereGeometry(pitch * 0.42, 10, 8), this.headMat, n);
     this.heads.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3).fill(1), 3);
     this.shafts.frustumCulled = this.heads.frustumCulled = false;
     this.h = new Float32Array(n); this.sample.width = this.cols; this.sample.height = this.rows;
     this.add(this.shafts, this.heads);
+    // @/key
   }
+  // Rebuild the grid when the picture's aspect changes.
   setAspect(a) { if (Math.abs(a - this.aspect) > 1e-3) { this.aspect = a; this.build(this.cols); } }
   // opts: { video, mirror, depth, mask, mode, amount, slew, threshold, color, invert }
   update(o) {
@@ -33,15 +37,19 @@ export class Pinboard extends THREE.Group {
     const D = o.depth, M = o.mask, W = cols * pitch, Hh = rows * pitch;
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
       const k = j * cols + i, u = o.mirror ? 1 - (i + 0.5) / cols : (i + 0.5) / cols, v = (j + 0.5) / rows;
+      // @key Heights from mask and depth | Each pin reads its own pixel of the depth map and the mask, picks a target height by mode, then eases toward it (slew) so motion has weight.
       const d = D ? D.data[Math.min(D.height - 1, v * D.height | 0) * D.width + Math.min(D.width - 1, u * D.width | 0)] : 0.5;
       const mk = M ? M.data[Math.min(M.height - 1, v * M.height | 0) * M.width + Math.min(M.width - 1, u * M.width | 0)] : 1;
       const dd = o.invert ? 1 - d : d, inside = mk > o.threshold;
       let t = o.mode === 'silhouette' ? (inside ? 1 : 0) : o.mode === 'subject' ? (inside ? 0.15 + 0.85 * dd : 0) : dd;
       this.h[k] += (t * o.amount - this.h[k]) * o.slew;
+      // @/key
       const z = this.h[k], x = (i + 0.5) * pitch - W / 2, y = Hh / 2 - (j + 0.5) * pitch;
+      // @key Write the instance matrices directly | A 4x4 matrix is 16 numbers: scale on the diagonal, translation in slots 12-14. No objects are created per pin per frame.
       // column-major 4x4: scale on the diagonal, translation in 12..14 (written directly, no per-pin objects)
       const o16 = k * 16; sa[o16] = sa[o16 + 5] = 1; sa[o16 + 10] = L; sa[o16 + 15] = 1; sa[o16 + 12] = x; sa[o16 + 13] = y; sa[o16 + 14] = z - L / 2;
       ha[o16] = ha[o16 + 5] = ha[o16 + 10] = ha[o16 + 15] = 1; ha[o16 + 12] = x; ha[o16 + 13] = y; ha[o16 + 14] = z;
+      // @/key
       if (o.color === 'video' && px) col.setRGB(px[k * 4] / 255, px[k * 4 + 1] / 255, px[k * 4 + 2] / 255, THREE.SRGBColorSpace);
       else if (o.color === 'depth') ramp(Math.min(1, z / o.amount), col);
       else col.setScalar(0.55 + 0.45 * Math.min(1, z / o.amount));

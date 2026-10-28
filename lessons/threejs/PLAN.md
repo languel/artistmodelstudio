@@ -5,6 +5,12 @@ Serve with `python3 lessons/threejs/serve.py 5199` (static + saves recordings to
 
 Every demo lives in one navigable scene (OrbitControls) so the body, the sound and the marks share a space the audience can walk around.
 
+## Lesson convention (every lesson)
+- A page `NN-name.html` holds the sidebar and the stage only; its code lives in `NN-name.js` (plus shared `lib/*.js`), never inline, so the viewer can show it.
+- The page ends with `mountCodeView({ files: [...] })` (`lib/codeview.js`): a `‹›` button opens a drawer with **Key ideas** (cards of highlighted snippets) and **Full code** (whole file, syntax highlighted, line numbers, key lines tinted, comments on/off, copy).
+- Mark key code in the source with `// @key Title | one-line explanation` ... `// @/key` (markers are hidden in the viewer). Keep each key block syntactically balanced; check with a quick parse of the file.
+- Comment as you go: a header line per file and per section, and the why of anything non-obvious.
+
 ## Done
 - 00 `00-cube.html` + `cube.js`: the whole program (scene, camera, mesh, renderer, loop).
 - 01 `01-anatomy.html`: scene graph, camera frustum + inset view, objects/groups, materials, light.

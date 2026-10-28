@@ -9,7 +9,7 @@
   <nav class="crumbs"><a href="index.html">Three.js</a> · 00</nav>
   <h1>A spinning cube</h1>
   <p class="dim">The whole program. This is the file running on the right (<code>cube.js</code>). Everything else in three.js is a variation on these four things.</p>
-  <pre id="src"></pre>
+  <pre id="src" class="hl"></pre>
   <h2>Four things</h2>
   <p><b>Scene</b> holds what exists. <b>Camera</b> says where we look from. <b>Mesh</b> (geometry + material) is a thing to look at. <b>Renderer</b> draws the scene through the camera onto a canvas, sixty times a second.</p>
   <p>Change the numbers in <code>cube.js</code> and reload: the rotation speeds, <code>camera.position.z</code>, the box size.</p>
@@ -18,9 +18,12 @@
 <main id="stage"></main>
 </div>
 <script type="module">
+  import { highlight, mountCodeView } from './lib/codeview.js';
+  mountCodeView({ files: [{ path: 'cube.js', label: 'cube.js' }] });
   // show the real source, then run it into the stage
   const text = await (await fetch('cube.js')).text();
-  document.getElementById('src').textContent = text;
+  const { parse } = await import('./lib/codeview.js');
+  document.getElementById('src').innerHTML = highlight(parse(text).text);
   const stage = document.getElementById('stage');
   // cube.js sizes to the window; here it should fit the stage, so patch the globals it reads
   const w = () => stage.clientWidth, h = () => stage.clientHeight;
