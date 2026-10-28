@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three.js 03 · Pinboard</title>
+<link rel="stylesheet" href="lesson.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/","mediapipe":"./vendor/mediapipe/vision_bundle.mjs"}}</script>
+<style>#status{color:var(--dim);font-size:13px;min-height:20px} video{display:none} .thumbs{display:flex;gap:8px;margin:8px 0} .thumbs canvas{width:calc(50% - 4px);background:#000;border:1px solid var(--line);border-radius:4px}</style>
+</head><body>
+<div class="split">
+<aside>
+  <nav class="crumbs"><a href="index.html" title="All lessons and models">Three.js</a><span class="lnav"><a href="00-cube.html" title="A spinning cube">00</a><a href="01-anatomy.html" title="Anatomy of a scene">01</a><a href="02-body.html" title="A body in the scene">02</a><b title="Pinboard">03</b><a href="04-fusion.html" title="The body in metres">04</a><a href="05-laser-harp.html" title="Laser harp">05</a><a href="06-body-drum.html" title="Body drum">06</a><a href="07-triadic.html" title="Triadic costumes">07</a><a href="08-unicursal.html" title="One line">08</a><a href="09-ghost.html" title="Paint marks">09</a><a href="tutorial-export.html" title="Tutorial: one file you can double-click">⇩</a></span></nav>
+  <h1>Pinboard</h1>
+  <p class="dim">A pin-screen toy: every pin is pushed out by what the camera sees. Two estimates drive it, a <b>mask</b> (which pixels are the person) and a <b>depth</b> (how far each pixel is).</p>
+  <h2>Source</h2>
+  <div class="row"><button id="cam" title="Your camera, mirrored. Nothing leaves your machine">webcam</button><select id="clip" title="Public-domain films from the Mediathèque"></select></div>
+  <div id="status"></div>
+  <div class="thumbs"><canvas id="tmask" title="Person mask from the pose model"></canvas><canvas id="tdepth" title="Depth Anything V2 small: near is bright"></canvas></div>
+  <h2>Pins</h2>
+  <div class="row"><label>height from</label><select id="mode" title="subject: the person raised by depth, background flat. scene: depth of everything. silhouette: the person at one height"><option>subject</option><option>scene</option><option>silhouette</option></select></div>
+  <div class="row"><label>colour</label><select id="color" title="video: the picture's colours. depth: a colour ramp. metal: bare pins"><option>video</option><option>depth</option><option>metal</option></select></div>
+  <div class="row"><label>pins</label><input type="range" id="cols" min="24" max="140" step="2" value="84"><output id="colso">84</output></div>
+  <div class="row"><label>relief</label><input type="range" id="amount" min="0.1" max="3" step="0.05" value="1.4"></div>
+  <div class="row"><label>slew</label><input type="range" id="slew" min="0.05" max="1" step="0.05" value="0.35" title="How fast a pin follows its target. Low is heavy, like real pins"></div>
+  <div class="row"><label>mask edge</label><input type="range" id="thr" min="0.05" max="0.95" step="0.05" value="0.5"></div>
+  <div class="row"><label>invert</label><input type="checkbox" id="invert" title="Swap near and far"></div>
+  <h2>What it is</h2>
+  <p>One <code>InstancedMesh</code> of shafts and one of heads, a few thousand pins, each placed by a height from two arrays. Nothing here is a mesh of the person: the person is only the pattern in the heights.</p>
+  <p>The depth is <i>relative</i> (near vs far), not metres. Lesson 04 anchors it to the body's measured size.</p>
+</aside>
+<main id="stage"><div class="hud" id="hud"></div></main>
+</div>
+<video id="video" playsinline muted loop crossorigin="anonymous"></video>
+<script type="module" src="03-pinboard.js"></script>
+<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'03-pinboard.js',label:'03-pinboard.js'},{path:'lib/pinboard.js',label:'lib/pinboard.js'},{path:'lib/depth.js',label:'lib/depth.js'},{path:'lib/tracker.js',label:'lib/tracker.js'}], exportAssets: ["vendor/mediapipe/wasm/vision_wasm_internal.js", "vendor/mediapipe/wasm/vision_wasm_internal.wasm", "vendor/mediapipe/models/pose_landmarker_full.task", "vendor/depth/ort/ort-wasm-simd-threaded.asyncify.mjs", "vendor/depth/ort/ort-wasm-simd-threaded.asyncify.wasm", "vendor/depth/models/onnx-community/depth-anything-v2-small/config.json", "vendor/depth/models/onnx-community/depth-anything-v2-small/preprocessor_config.json", "vendor/depth/models/onnx-community/depth-anything-v2-small/onnx/model_quantized.onnx"] });</script>
+</body></html>

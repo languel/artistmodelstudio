@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three.js 07 · Triadic costumes</title>
+<link rel="stylesheet" href="lesson.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/","mediapipe":"./vendor/mediapipe/vision_bundle.mjs"}}</script>
+<style>#status{color:var(--dim);font-size:13px;min-height:20px} video{display:none} .chk{display:flex;gap:4px;align-items:center;min-width:0;margin-right:8px} .row input[type=checkbox]{accent-color:var(--accent)}
+#read{font:12.5px/1.6 ui-monospace,Menlo,monospace;white-space:pre;color:var(--dim);margin:6px 0} .sw{display:flex;gap:8px} .sw button{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0} .sw button[aria-pressed=true]{border-color:var(--accent)}</style>
+</head><body>
+<div class="split">
+<aside>
+  <nav class="crumbs"><a href="index.html" title="All lessons and models">Three.js</a><span class="lnav"><a href="00-cube.html" title="A spinning cube">00</a><a href="01-anatomy.html" title="Anatomy of a scene">01</a><a href="02-body.html" title="A body in the scene">02</a><a href="03-pinboard.html" title="Pinboard">03</a><a href="04-fusion.html" title="The body in metres">04</a><a href="05-laser-harp.html" title="Laser harp">05</a><a href="06-body-drum.html" title="Body drum">06</a><b title="Triadic costumes">07</b><a href="08-unicursal.html" title="One line">08</a><a href="09-ghost.html" title="Paint marks">09</a><a href="tutorial-export.html" title="Tutorial: one file you can double-click">⇩</a></span></nav>
+  <h1>Triadic costumes</h1>
+  <p class="dim">Spheres, cones, discs, hoops and wire spirals hung on a moving body, after Oskar Schlemmer's Triadic Ballet. Your body is the mannequin.</p>
+  <h2>Source</h2>
+  <div class="row"><button id="cam" title="Your camera, mirrored. Nothing leaves your machine">webcam</button><select id="clip" title="Public-domain films from the Mediathèque"></select><select id="rec" title="Recorded landmarks: no camera needed"></select></div>
+  <div id="status"></div>
+  <h2>Costume</h2>
+  <div class="row"><label>costume</label><select id="costume"></select></div>
+  <div class="row"><label>colour</label><div class="sw" id="sw"></div></div>
+  <div class="row"><label>volume</label><input type="range" id="volume" min="0.5" max="1.7" step="0.05" value="1" title="Thickness of every part. Parts are already sized to your shoulder width"><output id="volumeo">1.00×</output></div>
+  <div class="row" id="groups"></div>
+  <h2>Motion</h2>
+  <div class="row"><label>preset</label><select id="mpreset" title="raw: the tracker as it comes. gentle: a little cleaning. performance: stable with little lag. dreamy: heavy, floaty"><option>performance</option><option>gentle</option><option>dreamy</option><option>raw</option></select><button id="recentre" title="Make the dancer's current spot the middle of the stage">recentre</button></div>
+  <div class="row"><label>noise</label><input type="range" id="noise" min="0" max="1" step="0.05" title="How hard to smooth jitter while a joint is still. Higher = steadier"><output id="noiseo"></output></div>
+  <div class="row"><label>response</label><input type="range" id="response" min="0" max="1" step="0.05" title="How fast the smoothing lets go when a joint moves quickly. Higher = less lag on fast moves"><output id="responseo"></output></div>
+  <div class="row"><label>inertia</label><input type="range" id="inertia" min="0" max="1" step="0.05" title="Weight: the costume follows like a mass on a spring. Low is snappy, high is heavy and floaty"><output id="inertiao"></output></div>
+  <div class="row"><label>bounce</label><input type="range" id="damping" min="0.3" max="1.3" step="0.05" title="Damping of that spring. 1 = no overshoot, lower = a little springy"><output id="dampingo"></output></div>
+  <div class="row"><label>lead</label><input type="range" id="lead" min="0" max="2.5" step="0.05" title="Anticipation. Above 1 the costume leans into the motion, which cancels the lag the smoothing adds"><output id="leado"></output></div>
+  <div class="row"><label>bones</label><input type="range" id="rigid" min="0" max="1" step="0.05" title="Keep every limb its own length, so thighs and forearms stop breathing"><output id="rigido"></output></div>
+  <div class="row"><label>feet lock</label><input type="range" id="feet" min="0" max="1" step="0.05" title="Plant a still foot on the floor and bend the knee to keep the leg's length: the hips can wobble without the foot skating"><output id="feeto"></output></div>
+  <div class="row"><label>hold</label><input type="range" id="hold" min="0" max="1.5" step="0.05" title="Seconds to keep a joint the tracker briefly lost before hiding its costume part"><output id="holdo"></output></div>
+  <div class="row"><label>travel</label><input type="range" id="travel" min="0" max="1.5" step="0.05" title="Move the costume across the stage as the dancer moves in the picture. 0 keeps it in the middle"><output id="travelo"></output></div>
+  <div class="row"><label>depth travel</label><input type="range" id="travelZ" min="0" max="1" step="0.05" title="Also move toward and away from the viewer, guessed from how big the shoulders look (assumes the dancer starts 3 m away)"><output id="travelZo"></output></div>
+  <h2>Stage</h2>
+  <div class="row"><label>room</label><select id="room"><option value="light">white room</option><option value="dark">dark room</option></select></div>
+  <div class="row" id="layers"></div>
+  <div class="row"><label>picture</label><input type="range" id="pic" min="0.1" max="1" step="0.05" value="0.6" title="Opacity of the source video behind the dancer. Turn the picture layer on above"><output id="pico">0.60</output></div>
+  <h2>Measured</h2>
+  <div id="read">choose a source</div>
+  <h2>What it is</h2>
+  <p>Each part hangs on a <b>segment</b> of the body: the shoulder-to-elbow bone, the torso, the head. A segment gives the part its position, direction and length; the part's thickness comes from your <b>shoulder width</b>, and the head's size from the distance between your ears. So the same costume fits a child, an adult, or a dancer far from the camera.</p>
+  <p>Schlemmer's Triadic Ballet (1922) dressed three dancers in geometry: spheres, spirals, discs and cones, in yellow, pink and black. These are studies in that spirit, not reconstructions of the costumes. A part on a joint the camera cannot see is hidden, not guessed.</p>
+</aside>
+<main id="stage"><div class="hud" id="hud"></div></main>
+</div>
+<video id="video" playsinline muted loop crossorigin="anonymous"></video>
+<script type="module" src="07-triadic.js"></script>
+<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'07-triadic.js',label:'07-triadic.js'},{path:'lib/costume.js',label:'lib/costume.js'},{path:'lib/body.js',label:'lib/body.js'},{path:'lib/tracker.js',label:'lib/tracker.js'}], exportAssets: ["vendor/mediapipe/wasm/vision_wasm_internal.js", "vendor/mediapipe/wasm/vision_wasm_internal.wasm", "vendor/mediapipe/models/pose_landmarker_full.task", "data/index.json", "data/lancement-du-disque-par-l-athlete-americain-mccraken-1900.pose.json"] });</script>
+</body></html>

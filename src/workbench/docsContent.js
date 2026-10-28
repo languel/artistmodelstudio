@@ -4,6 +4,7 @@
  * they never drift from it.
  */
 import { h, esc } from './ui.js';
+import { THREEJS_LESSONS as THREEJS } from './lessons.js';
 import { BRUSHES } from '../process/brushes.js';
 import { FX } from '../process/fx.js';
 import { SCRIPT_REFERENCE } from '../process/script.js';
@@ -268,6 +269,24 @@ A diffusion model is trained to undo a simple process: adding noise to a picture
 
 The networks are replaced by the ideal denoiser, a formula for these toy data. A trained network only approximates it, and the difference is where real models go wrong. The bibliography (two frames, ids checked) runs from Sohl-Dickstein 2015 and score matching through DDPM, DDIM, the SDE view, latent diffusion, guidance and transformers. **Flow matching is the next lecture.**`),
       lessonButtons(app, 'diffusion', { tour: 'lesson-diffusion' }))),
+
+    T('lesson-threejs', 'Lessons', 'Three.js for body and sound', 'Ten pages, from a spinning cube to Ghostcatching-style paint marks: MediaPipe, depth, a laser harp, a body drum, Schlemmer costumes, Picasso one-line drawings.', () => h('div', {},
+      prose(`
+A series of small, readable three.js programs you can run, change and export. Each page has the live scene on the right, controls on the left, key code highlighted, and a code view of the whole commented source. **Source** can be your webcam, a public-domain film from the Mediathèque, or recorded landmarks, so no camera is needed.
+
+Every page has the same numbered menu at its top, so any lesson is one click away.
+
+**Models are not stored in the repository.** Lessons 02–09 use MediaPipe pose, hand and face models; 03–05 also a depth model (about 145 MB in all). Fetch them once from the project folder:
+
+\`\`\`
+npm run lessons:models
+\`\`\`
+
+The series index lists each file, where it goes, where it comes from, and a green or red dot for whether it is present. Lessons 00 and 01 need nothing. Once the models are in, everything runs on your machine; a lesson's *Export* makes one HTML file (optionally with the models inside) that opens by double-click with no server.`),
+      h('div', { class: 'wb-row wb-row-actions' },
+        h('button', { class: 'wb-btn primary', title: 'Open the series index with the model check', onclick: () => import('./lessons.js').then(m => m.openThreejsLesson()) }, 'Open the lessons')),
+      h('div', { class: 'wb-docs-lessons' }, ...THREEJS.map(l => h('button', { class: 'wb-btn', style: { display: 'block', margin: '4px 0', textAlign: 'left' }, title: l.summary, onclick: () => import('./lessons.js').then(m => m.openThreejsLesson(l.page)) }, `${l.n} · ${l.title}`, h('span', { class: 'wb-muted' }, ` — ${l.summary}`))))),
+      ),
 
     T('lesson-painterly', 'Lessons', 'Painterly, fading strokes', 'Klee repainted continuously: textured brushes, time envelopes, a layered painter, sliders, effects, p5.js.', () => h('div', {},
       prose(`

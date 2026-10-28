@@ -76,14 +76,16 @@ function slashAll(app) {
     { name: 'nous', args: '', doc: 'Open a Midinous (.nous) or midinojs project as a new board: its nodes and paths become marks that play on the Timeline, a grid cell a beat', run: () => app.importNous().catch(err => app.log(`Midinous: ${err.message}`, 'error')) },
     { name: 'midi', args: '<seconds>', doc: 'Export the score as a MIDI file: what it plays over that many seconds (the loop range, if marked), at the scene’s tempo', run: arg => app.exportMidi(arg).catch(err => app.log(`MIDI file: ${err.message}`, 'error')) },
     { name: 'samples', args: '', doc: 'A new scene with the stock samples (Assets › Samples), each as a source on its own board with a player', run: () => app.buildSamplesScene().then(n => app.log(`Samples: ${n} boards.`)).catch(err => app.log(`Samples: ${err.message}`, 'error')) },
-    { name: 'lesson', args: 'sampling [p5 | expl] | sampling-expl | diffusion', doc: 'Build a lesson as a new scene of frames: its boards from code, with Markdown notes and links (sampling: pointillism and expressionism; p5: p5.js sketches; expl: barebones p5.js sketches. diffusion: diffusion models)', run: arg => import('./lessons.js').then(m => {
+    { name: 'lesson', args: 'sampling [p5 | expl] | sampling-expl | diffusion | threejs [00-09]', doc: 'Build a lesson as a new scene of frames: its boards from code, with Markdown notes and links (sampling: pointillism and expressionism; p5: p5.js sketches; expl: barebones p5.js sketches. diffusion: diffusion models)', run: arg => import('./lessons.js').then(m => {
+      const web = /^\s*(three(\.?js)?)\b\s*(\S*)/i.exec(arg || '');
+      if (web) { const u = m.openThreejsLesson(web[3]); return app.log(`Three.js lessons (body and sound): ${u}. Models are not stored: run npm run lessons:models once.`); }
       const isDiff = /diffusion/i.test(arg || '');
       const isExpl = /expl/i.test(arg || '');
       const isP5 = /p5/i.test(arg || '') && !isExpl;
       const id = isDiff ? 'diffusion' : isExpl ? 'sampling-expl' : 'sampling';
       const language = isExpl ? 'expl' : isP5 ? 'p5' : 'studio';
       return m.buildLesson(app, id, { language, expl: isExpl });
-    }).then(n => app.log(`The lesson is a scene: ${n} boards.`)).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }
+    }).then(n => { if (typeof n === 'number') app.log(`The lesson is a scene: ${n} boards.`); }).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }
   ];
 }
 

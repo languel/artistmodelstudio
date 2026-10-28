@@ -4,7 +4,7 @@
 <style>body{overflow:auto}.wrap{max-width:680px;margin:0 auto;padding:40px 20px}li{margin:6px 0}</style></head><body>
 <div class="wrap">
 <h1>Three.js for body and sound</h1>
-<p class="dim">Serve this folder (<code>npx vite lessons/threejs</code> or any static server) and open a page.</p>
+<p class="dim">Part of the Artist–Model Studio lessons. Every lesson page has the same numbered menu at its top: one click to any other.</p>
 <ol start="0">
 <li><a href="00-cube.html">A spinning cube</a> — the whole program</li>
 <li><a href="01-anatomy.html">Anatomy of a scene</a> — scene, camera, objects, materials, light</li>
@@ -18,5 +18,25 @@
 <li><a href="09-ghost.html">Paint marks</a> — hands, feet and head leave strokes in space that you can orbit, after Ghostcatching</li>
 <li><a href="tutorial-export.html">Tutorial: one file you can double-click</a> — bundling, embedding, esbuild and blob URLs explained</li>
 </ol>
-<p class="dim">Planned: see <a href="PLAN.md">PLAN.md</a>.</p>
+<h2>Models</h2>
+<p class="dim">No model files are stored in the repository. Lessons 02 and up need MediaPipe models; 03–05 also the depth model. Fetch them once (about 145 MB; after that nothing leaves your machine):</p>
+<pre id="cmd">npm run lessons:models</pre>
+<p class="dim">or <code>sh lessons/threejs/fetch-mediapipe.sh</code>. Or download the files yourself into the folders shown. A missing model shows a red dot; reload this page after fetching.</p>
+<ul id="models" style="list-style:none;padding:0"></ul>
+<script type="module">
+const M=[
+ ['MediaPipe runtime (wasm)','vendor/mediapipe/wasm/vision_wasm_internal.wasm','npm package @mediapipe/tasks-vision, folder wasm/','02, 05–09'],
+ ['Pose landmarker (full)','vendor/mediapipe/models/pose_landmarker_full.task','https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task','02–09'],
+ ['Hand landmarker','vendor/mediapipe/models/hand_landmarker.task','https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task','02, 05'],
+ ['Face landmarker','vendor/mediapipe/models/face_landmarker.task','https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task','02, 08'],
+ ['Depth Anything V2 small (int8)','vendor/depth/models/onnx-community/depth-anything-v2-small/onnx/model_quantized.onnx','https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_quantized.onnx (plus config.json and preprocessor_config.json beside it)','03–05'],
+ ['ONNX runtime (wasm)','vendor/depth/ort/ort-wasm-simd-threaded.asyncify.wasm','npm package onnxruntime-web, dist/ort-wasm-simd-threaded.*','03–05']];
+const ul=document.getElementById('models');
+for(const [name,path,src,uses] of M){
+  const li=document.createElement('li'); li.style.cssText='margin:8px 0;font-size:14px';
+  li.innerHTML=`<span style="color:#888">●</span> <b>${name}</b> <span class="dim">lessons ${uses}</span><br><span class="dim" style="font-size:12px">put at <code>lessons/threejs/${path}</code><br>from ${src}</span>`;
+  ul.append(li);
+  fetch(path,{method:'HEAD'}).then(r=>{li.firstChild.style.color=r.ok&&!(r.headers.get('content-type')||'').includes('html')?'#4caf50':'#e55';}).catch(()=>{li.firstChild.style.color='#e55';});
+}
+</script>
 </div></body></html>

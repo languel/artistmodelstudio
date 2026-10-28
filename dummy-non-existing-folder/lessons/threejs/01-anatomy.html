@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three.js 01 · Anatomy of a scene</title>
+<link rel="stylesheet" href="lesson.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
+</head><body>
+<div class="split">
+<aside>
+  <nav class="crumbs"><a href="index.html" title="All lessons and models">Three.js</a><span class="lnav"><a href="00-cube.html" title="A spinning cube">00</a><b title="Anatomy of a scene">01</b><a href="02-body.html" title="A body in the scene">02</a><a href="03-pinboard.html" title="Pinboard">03</a><a href="04-fusion.html" title="The body in metres">04</a><a href="05-laser-harp.html" title="Laser harp">05</a><a href="06-body-drum.html" title="Body drum">06</a><a href="07-triadic.html" title="Triadic costumes">07</a><a href="08-unicursal.html" title="One line">08</a><a href="09-ghost.html" title="Paint marks">09</a><a href="tutorial-export.html" title="Tutorial: one file you can double-click">⇩</a></span></nav>
+  <h1>Anatomy of a scene</h1>
+  <p class="dim">Drag to orbit, scroll to zoom, right-drag to pan. The small window is what the scene's camera sees.</p>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <section id="panel"></section>
+  <h2>Scene graph</h2>
+  <div id="tree"></div>
+</aside>
+<main id="stage"><div class="hud" id="hud"></div><div id="inset" style="position:absolute;right:12px;top:12px;border:1px solid var(--accent);pointer-events:none"></div></main>
+</div>
+<script type="module" src="01-anatomy.js"></script>
+<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'01-anatomy.js',label:'01-anatomy.js'}] });</script>
+</body></html>

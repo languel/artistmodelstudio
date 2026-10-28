@@ -75,3 +75,9 @@ Pick **Reference Fitter** as the engine, choose a reference in the **Reference**
 ## Licenses
 
 MIT © 2026 Artist Model Studio contributors. Exported sketches vendor p5.js (LGPL-2.1) and p5.brush (MIT) unmodified; the built-in score sound is jzz and jzz-synth-tiny (MIT) with g200kg's webaudio-tinysynth (MIT); bundled reference images are public domain (see `fixtures/references/*/sources.json`).
+
+## Three.js lessons: body and sound
+
+`lessons/threejs/` is a ten-page lesson series (a spinning cube up to MediaPipe body tracking, depth, a laser harp, a body drum, Schlemmer costumes, Picasso one-line drawings and Ghostcatching-style paint marks). `npm run dev` serves it at `/lessons/threejs/` (also in Docs → Lessons, and `/lesson threejs [00-09]` in the palette); `npm run build` copies it into `dist/`.
+
+No model files are stored in the repository. Run `npm run lessons:models` once (about 145 MB: MediaPipe pose, hand and face models, the Depth Anything V2 small ONNX model and their wasm runtimes); the series index shows which files are present and where each comes from if you prefer to download them by hand.

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three.js 04 · The body in metres</title>
+<link rel="stylesheet" href="lesson.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/","mediapipe":"./vendor/mediapipe/vision_bundle.mjs"}}</script>
+<style>#status{color:var(--dim);font-size:13px;min-height:20px} video{display:none} #read{font:12.5px/1.6 ui-monospace,Menlo,monospace;white-space:pre;color:var(--dim);margin:6px 0}
+.chk{display:flex;gap:4px;align-items:center;min-width:0;margin-right:8px} .row input[type=checkbox]{accent-color:var(--accent)}</style>
+</head><body>
+<div class="split">
+<aside>
+  <nav class="crumbs"><a href="index.html" title="All lessons and models">Three.js</a><span class="lnav"><a href="00-cube.html" title="A spinning cube">00</a><a href="01-anatomy.html" title="Anatomy of a scene">01</a><a href="02-body.html" title="A body in the scene">02</a><a href="03-pinboard.html" title="Pinboard">03</a><b title="The body in metres">04</b><a href="05-laser-harp.html" title="Laser harp">05</a><a href="06-body-drum.html" title="Body drum">06</a><a href="07-triadic.html" title="Triadic costumes">07</a><a href="08-unicursal.html" title="One line">08</a><a href="09-ghost.html" title="Paint marks">09</a><a href="tutorial-export.html" title="Tutorial: one file you can double-click">⇩</a></span></nav>
+  <h1>The body in metres</h1>
+  <p class="dim">The camera sits at the origin. The room behind the person is a point cloud made from the depth map, and the skeleton stands inside it, both in metres.</p>
+  <h2>Source</h2>
+  <div class="row"><button id="cam" title="Your camera, mirrored. Nothing leaves your machine">webcam</button><select id="clip" title="Public-domain films from the Mediathèque"></select></div>
+  <div id="status"></div>
+  <h2>Measured</h2>
+  <div id="read">choose a source</div>
+  <h2>Show</h2>
+  <div class="row" id="layers"></div>
+  <div class="row"><label>field of view</label><input type="range" id="fov" min="40" max="100" step="1" value="60" title="Horizontal field of view of the camera, in degrees. It sets the scale of everything: a wrong guess makes the person look too near or too far"><output id="fovo">60</output></div>
+  <div class="row"><label>trust depth</label><input type="range" id="trust" min="0" max="1" step="0.05" value="0.5" title="0: body depth from MediaPipe's own z. 1: from the depth map. The ghost skeleton is the MediaPipe-only version"></div>
+  <div class="row"><label>air plane</label><input type="range" id="reach" min="0.1" max="0.8" step="0.02" value="0.4" title="A vertical plane this far in front of the chest. It lights when a wrist passes through it: the first step toward an instrument played in the air"><output id="reacho">0.40 m</output></div>
+  <h2>What it is</h2>
+  <p>Three facts become one space. MediaPipe knows the body's <b>shape</b> in metres. A limb's apparent size gives its <b>distance</b>. The depth map gives <b>near and far</b> for every pixel, and the joints' known distances turn that into metres.</p>
+  <p>It is an estimate, good to a few centimetres on a good day. The <i>measured</i> numbers show how well the depth map agrees with the body.</p>
+</aside>
+<main id="stage"><div class="hud" id="hud"></div></main>
+</div>
+<video id="video" playsinline muted loop crossorigin="anonymous"></video>
+<script type="module" src="04-fusion.js"></script>
+<script type="module">import { mountCodeView } from './lib/codeview.js'; mountCodeView({ files: [{path:'04-fusion.js',label:'04-fusion.js'},{path:'lib/rig.js',label:'lib/rig.js'},{path:'lib/fusion.js',label:'lib/fusion.js'},{path:'lib/sources.js',label:'lib/sources.js'},{path:'lib/tracker.js',label:'lib/tracker.js'},{path:'lib/depth.js',label:'lib/depth.js'}], exportAssets: ["vendor/mediapipe/wasm/vision_wasm_internal.js", "vendor/mediapipe/wasm/vision_wasm_internal.wasm", "vendor/mediapipe/models/pose_landmarker_full.task", "vendor/depth/ort/ort-wasm-simd-threaded.asyncify.mjs", "vendor/depth/ort/ort-wasm-simd-threaded.asyncify.wasm", "vendor/depth/models/onnx-community/depth-anything-v2-small/config.json", "vendor/depth/models/onnx-community/depth-anything-v2-small/preprocessor_config.json", "vendor/depth/models/onnx-community/depth-anything-v2-small/onnx/model_quantized.onnx"] });</script>
+</body></html>

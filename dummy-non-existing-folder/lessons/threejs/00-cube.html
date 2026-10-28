@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three.js 00 · A spinning cube</title>
+<link rel="stylesheet" href="lesson.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
+</head><body>
+<div class="split">
+<aside>
+  <nav class="crumbs"><a href="index.html" title="All lessons and models">Three.js</a><span class="lnav"><b title="A spinning cube">00</b><a href="01-anatomy.html" title="Anatomy of a scene">01</a><a href="02-body.html" title="A body in the scene">02</a><a href="03-pinboard.html" title="Pinboard">03</a><a href="04-fusion.html" title="The body in metres">04</a><a href="05-laser-harp.html" title="Laser harp">05</a><a href="06-body-drum.html" title="Body drum">06</a><a href="07-triadic.html" title="Triadic costumes">07</a><a href="08-unicursal.html" title="One line">08</a><a href="09-ghost.html" title="Paint marks">09</a><a href="tutorial-export.html" title="Tutorial: one file you can double-click">⇩</a></span></nav>
+  <h1>A spinning cube</h1>
+  <p class="dim">The whole program. This is the file running on the right (<code>cube.js</code>). Everything else in three.js is a variation on these four things.</p>
+  <pre id="src" class="hl"></pre>
+  <h2>Four things</h2>
+  <p><b>Scene</b> holds what exists. <b>Camera</b> says where we look from. <b>Mesh</b> (geometry + material) is a thing to look at. <b>Renderer</b> draws the scene through the camera onto a canvas, sixty times a second.</p>
+  <p>Change the numbers in <code>cube.js</code> and reload: the rotation speeds, <code>camera.position.z</code>, the box size.</p>
+  <p><a href="01-anatomy.html">Next: take it apart →</a></p>
+</aside>
+<main id="stage"></main>
+</div>
+<script type="module">
+  import { highlight, mountCodeView } from './lib/codeview.js';
+  mountCodeView({ files: [{ path: 'cube.js', label: 'cube.js' }], exportHtml: 'blank' });
+  // show the real source, then run it into the stage
+  const text = await (await fetch('cube.js')).text();
+  const { parse } = await import('./lib/codeview.js');
+  document.getElementById('src').innerHTML = highlight(parse(text).text);
+  const stage = document.getElementById('stage');
+  // cube.js sizes to the window; here it should fit the stage, so patch the globals it reads
+  const w = () => stage.clientWidth, h = () => stage.clientHeight;
+  Object.defineProperty(window, 'innerWidth', { get: w });
+  Object.defineProperty(window, 'innerHeight', { get: h });
+  const append = document.body.append.bind(document.body);
+  document.body.append = (...n) => stage.append(...n);
+  await import('./cube.js');
+  document.body.append = append;
+  const c = stage.querySelector('canvas'); c.style.cssText = 'width:100%;height:100%';
+</script>
+</body></html>
