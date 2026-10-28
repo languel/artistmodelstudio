@@ -173,7 +173,7 @@ tick = t => {
       text: 'With the body in metres, the room is an instrument: beams to cut, pads to strike. Sound is a few lines of Web Audio. *Click the board once so the browser lets it make sound.*',
       boards: [
         { id: 'harp', title: '2.1 · Laser harp', w: 800, h: 600, ground: '#141414',
-          idea: 'After Jean-Michel Jarre: beams stand in the air, and a hand that reaches into one **interrupts** it, starting a note; the height of the hand would sweep a filter. The beam starts at the floor and is cut at the hand, so you see the contact. Lesson 05 adds attack and release, sustain, tuning, bloom and haze.',
+          idea: 'After [Jean-Michel Jarre](https://en.wikipedia.org/wiki/Jean-Michel_Jarre)\'s [laser harp](https://en.wikipedia.org/wiki/Laser_harp): beams stand in the air, and a hand that reaches into one **interrupts** it, starting a note; the height of the hand would sweep a filter. The beam starts at the floor and is cut at the hand, so you see the contact. Lesson 05 adds attack and release, sustain, tuning, bloom and haze.',
           pseudo: `9 beams, evenly spaced, each a note of a scale
 each frame: if the right hand is within 5 cm of a beam (in x) and in the beam's plane
   cut the beam at the hand's height; if it was not cut a moment ago: start the note
@@ -193,7 +193,7 @@ tick = t => {
   });
 };`) },
         { id: 'drum', title: '2.2 · Body drum', w: 800, h: 600, ground: '#141414',
-          idea: 'After Laurie Anderson: pads are placed **on the body** (chest, hips, thighs) and a hit is a hand or foot that arrives fast. Speed, not just position, tells a touch from a pass. Lesson 06 adds the full pad map, a rolling score and a drum kit.',
+          idea: 'After [Laurie Anderson](https://en.wikipedia.org/wiki/Laurie_Anderson): pads are placed **on the body** (chest, hips, thighs) and a hit is a hand or foot that arrives fast. Speed, not just position, tells a touch from a pass. Lesson 06 adds the full pad map, a rolling score and a drum kit.',
           pseudo: `pads = chest, belly, left thigh, right thigh  (each follows the body)
 each frame: for each hand and foot:
   if it is inside a pad and moving faster than a threshold, and the pad was quiet: hit
@@ -214,10 +214,10 @@ tick = t => {
     },
     {
       id: 'costume', title: 'Dressing, drawing, painting', label: 'Examples',
-      text: 'The same joints can be dressed in geometry (Schlemmer), drawn as one unbroken line (Picasso), or leave their path behind them as paint in space (Bill T. Jones and OpenEndedGroup\'s *Ghostcatching*).',
+      text: 'The same joints can be dressed in geometry ([Schlemmer](https://en.wikipedia.org/wiki/Oskar_Schlemmer)), drawn as one unbroken line ([Picasso](https://en.wikipedia.org/wiki/Pablo_Picasso)), or leave their path behind them as paint in space (Bill T. Jones and OpenEndedGroup\'s [*Ghostcatching*](https://openendedgroup.com/artworks/gc.html)).',
       boards: [
         { id: 'triadic', title: '3.1 · Triadic costumes', w: 800, h: 600, ground: '#141414',
-          idea: 'After Oskar Schlemmer\'s Triadic Ballet: the body is a mannequin and the costume is geometry sized to its measurements: a sphere for the head, a cone for the torso, a disc at the hips, tubes for the limbs. Lesson 07 has fifteen costumes, palettes, and the motion cleaning (inertia, planted feet) that makes it usable on a live performer.',
+          idea: 'After [Oskar Schlemmer](https://en.wikipedia.org/wiki/Oskar_Schlemmer)\'s [Triadic Ballet](https://en.wikipedia.org/wiki/Triadic_Ballet): the body is a mannequin and the costume is geometry sized to its measurements: a sphere for the head, a cone for the torso, a disc at the hips, tubes for the limbs. Lesson 07 has fifteen costumes, palettes, and the motion cleaning (inertia, planted feet) that makes it usable on a live performer.',
           pseudo: `head = a sphere at the head joint
 torso = a cone from hip to neck
 hips = a flat disc around the hip
@@ -230,7 +230,7 @@ tick = t => {
   BONES.slice(3).filter((_, i) => i !== 4).forEach(([a, b], i) => between(tubes[i], j[a], j[b]));
 };`) },
         { id: 'oneline', title: '3.2 · One line', w: 800, h: 600, ground: '#141414',
-          idea: 'After Picasso: a face drawn **without lifting the pen**. The strokes (oval, brows, eyes, nose, mouth) are joined by connectors into one path, and the pen walks it. Lesson 08 builds the path from a real face mesh, orders the strokes, adds wobble and pressure, and keeps the line in 3D so you can orbit it.',
+          idea: 'After [Picasso](https://en.wikipedia.org/wiki/Pablo_Picasso): a face drawn **without lifting the pen**. The strokes (oval, brows, eyes, nose, mouth) are joined by connectors into one path, and the pen walks it. Lesson 08 builds the path from a real face mesh, orders the strokes, adds wobble and pressure, and keeps the line in 3D so you can orbit it.',
           pseudo: `strokes = oval, brows, eyes, nose, mouth    # from the face landmarks
 order them so each begins near where the last ended
 path = stroke, connector, stroke, connector ...
@@ -243,7 +243,7 @@ const geo = new THREE.BufferGeometry().setFromPoints(path), ink = new THREE.Line
 scene.add(ink, pen); renderer.setClearColor(0x1a1a1a);
 tick = t => { const n = Math.floor((t * 60) % (path.length + 120)); geo.setDrawRange(0, Math.min(n, path.length)); pen.position.copy(path[Math.min(n, path.length - 1)]); };`) },
         { id: 'paint', title: '3.3 · Paint marks', w: 800, h: 600, ground: '#141414',
-          idea: 'After Ghostcatching: points on the body (hands, head, feet) leave strokes that **stay** where they were made. Pause and walk around what the dance drew. Lesson 09 turns the trails into camera-facing ribbons with a brush that is fat when slow and thin when fast, three looks, and an OBJ export for Blender.',
+          idea: 'After [Ghostcatching](https://openendedgroup.com/artworks/gc.html) ([Bill T. Jones](https://en.wikipedia.org/wiki/Bill_T._Jones) and OpenEndedGroup): points on the body (hands, head, feet) leave strokes that **stay** where they were made. Pause and walk around what the dance drew. Lesson 09 turns the trails into camera-facing ribbons with a brush that is fat when slow and thin when fast, three looks, and an OBJ export for Blender.',
           pseudo: `for each marked joint: keep a trail of its recent positions
 each frame: append the joint's position to its trail
 draw each trail as a line; colour by joint`,
@@ -271,7 +271,11 @@ tick = t => {
       ['Laurie Anderson, the body drum and the Handphone Table', 'https://en.wikipedia.org/wiki/Laurie_Anderson'],
       ['Jean-Michel Jarre and the laser harp', 'https://en.wikipedia.org/wiki/Laser_harp'],
       ['Bill T. Jones, OpenEndedGroup: Ghostcatching (1999)', 'https://openendedgroup.com/artworks/gc.html'],
-      ['Picasso\'s one-line drawings', 'https://en.wikipedia.org/wiki/Pablo_Picasso']
+      ['Picasso\'s one-line drawings', 'https://en.wikipedia.org/wiki/Pablo_Picasso'],
+      ['Oskar Schlemmer', 'https://en.wikipedia.org/wiki/Oskar_Schlemmer'],
+      ['Bill T. Jones', 'https://en.wikipedia.org/wiki/Bill_T._Jones'],
+      ['Hugo Ball at the Cabaret Voltaire, 1916 (the costume source in the course)', 'https://en.wikipedia.org/wiki/Hugo_Ball'],
+      ['The Bauhaus', 'https://en.wikipedia.org/wiki/Bauhaus']
     ] }
   ]
 };
