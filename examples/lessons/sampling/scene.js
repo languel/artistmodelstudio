@@ -31,17 +31,17 @@ function p5For(b, LESSON) {
 function notesFor(b, sec, language, lesson, expl = false) {
   const ref = sec.boards.find(x => x.reference);
   // A board written as a p5 sketch has one language; a drawing's code has the other one as a callout.
-  const native = Boolean(b.p5);
+  const native = Boolean(b.p5 || b.three);
   const useExpl = (expl || language === 'expl') && Boolean(b.p5expl);
-  const p5Code = useExpl ? b.p5expl : (native ? b.p5 : p5For(b, lesson));
-  const p5Label = useExpl ? 'p5.js (expl)' : (native ? 'p5.js' : language === 'p5' ? 'Studio code' : 'p5.js');
+  const p5Code = useExpl ? b.p5expl : (b.three ?? (native ? b.p5 : p5For(b, lesson)));
+  const p5Label = useExpl ? 'p5.js (expl)' : (b.three ? 'three.js' : native ? 'p5.js' : language === 'p5' ? 'Studio code' : 'p5.js');
   const other = language === 'p5' && !useExpl ? fence(b.code, 'js') : fence(p5Code, 'js');
   return [
     `## ${b.title}`,
     b.idea,
     b.pseudo ? quote(`[!abstract]- Pseudocode\n${fence(b.pseudo)}`) : '',
     b.code || native || b.p5expl ? quote(`[!example]- ${p5Label}\n${other}`) : '',
-    `${native || language === 'p5' || language === 'expl' ? 'Its p5.js code' : 'Its studio code'}: Code → Board.${ref ? ` Source: [[${ref.title}]].` : ''} Back to [[${intro(sec)}]].`
+    `${b.three ? 'Its three.js code' : native || language === 'p5' || language === 'expl' ? 'Its p5.js code' : 'Its studio code'}: Code → Board.${ref ? ` Source: [[${ref.title}]].` : ''} Back to [[${intro(sec)}]].`
   ].filter(Boolean).join('\n\n');
 }
 
@@ -106,7 +106,8 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
     st.updateBoard(id, { text: b.idea, hideLabel: true, ...(b.pseudo ? { pseudo: b.pseudo } : {}), ...(sec?.diagram ? { codeMin: true } : {}) });
     if (b.reference) app.setBoardSource(id, b.source, 1, b.fit || 'cover');
     if (b.live) app.setBoardLive(id, true);
-    if (b.p5) st.updateBoard(id, { kind: 'p5', code: b.p5 });   // written as a p5 sketch (a simulation)
+    if (b.three) st.updateBoard(id, { kind: 'three', code: b.three });   // a three.js sketch
+    else if (b.p5) st.updateBoard(id, { kind: 'p5', code: b.p5 });   // written as a p5 sketch (a simulation)
     else if (b.code) {
       if ((language === 'expl' || (language === 'p5' && expl)) && b.p5expl) {
         st.updateBoard(id, { kind: 'p5', code: b.p5expl });

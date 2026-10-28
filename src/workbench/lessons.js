@@ -6,6 +6,7 @@
 export const LESSONS = [
   { id: 'sampling', title: 'Pointillism and Expressionism, by sampling', summary: 'Seurat, Munch and Muybridge as sources: sample a picture, decide what to draw there. Diagrams of the eye, ten examples, a body as a source.', languages: ['studio', 'p5', 'expl'] },
   { id: 'sampling-expl', title: 'Pointillism and Expressionism, by sampling (p5.js expl)', summary: 'The sampling lesson with barebones, copy-pasteable p5.js code under pseudocode for each art demo.', languages: ['studio', 'p5', 'expl'] },
+  { id: 'threejs', title: 'Three.js for body and sound', summary: 'From a spinning cube to a body you can play, dress, draw with and paint with: ten three.js boards (a dancer made of numbers stands in for the tracker; no camera or models), with the course repository linked.', languages: ['studio'] },
   { id: 'diffusion', title: 'Diffusion models: from noise to picture', summary: 'Six diagrams (forward and reverse, the schedule, training, sampling, latent space, the score) and five p5.js simulations, with a bibliography.', languages: ['studio'] }
 ];
 
@@ -15,13 +16,13 @@ export async function buildLesson(app, id = 'sampling', { language = 'studio', e
   const baseId = id.replace(/-expl$/, '');
   const [{ buildLessonScene }, lesson] = await Promise.all([
     import('../../examples/lessons/sampling/scene.js'),
-    baseId === 'diffusion' ? import('../../examples/lessons/diffusion/lesson.js').then(m => m.LESSON) : null
+    baseId === 'diffusion' ? import('../../examples/lessons/diffusion/lesson.js').then(m => m.LESSON) : baseId === 'threejs' ? import('../../examples/lessons/threejs/lesson.js').then(m => m.LESSON) : null
   ]);
   return buildLessonScene(app, { language, expl: isExpl, ...(lesson ? { lesson } : {}) });
 }
 
 /**
- * The three.js series for body and sound lives in its own repository (threejs-body-sound): ten small lessons from a
+ * The three.js series for body and sound lives in its own repository (threejslessons): ten small lessons from a
  * spinning cube to MediaPipe body tracking, depth, a laser harp, a body drum, costumes, one-line drawings and paint
  * marks. The studio runs three.js sketches as a board kind ('three'); the lessons are the course that goes with it.
  */

@@ -236,7 +236,7 @@ A **lesson** is a scene of 16:9 **frames** (slides). Each frame holds boards: a 
 - **Code view.** On an exported page each board's code is one box with tabs (Pseudocode, Studio, p5.js); a click opens a tab, a click on the open tab minimizes it to the bar. A board's **Code** switch (Properties → Board) starts it minimized; the diagrams of a lesson do.
 - **Pages and files.** Export → Page makes the lesson one HTML file whose sketches run; Export → Scene (JSON) writes it as an \`.ams.json\` to import again. Sources the scene reads (pictures, clips) are added by name first.`),
       prose('The lessons in this app, each with a guided tour (Getting started → Walkthroughs):'),
-      ...[['lesson-sampling', 'Pointillism and Expressionism, by sampling'], ['lesson-diffusion', 'Diffusion models: from noise to picture'], ['lesson-painterly', 'Painterly, fading strokes (Klee)'], ['lesson-line-walk', 'Taking a line for a walk']]
+      ...[['lesson-sampling', 'Pointillism and Expressionism, by sampling'], ['lesson-diffusion', 'Diffusion models: from noise to picture'], ['lesson-threejs', 'Three.js for body and sound'], ['lesson-painterly', 'Painterly, fading strokes (Klee)'], ['lesson-line-walk', 'Taking a line for a walk']]
         .map(([id, t]) => h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, t)), h('button', { class: 'wb-btn', onclick: () => app.openDocs(id) }, 'Read'))))),
 
     T('lesson-sampling', 'Lessons', 'Pointillism and Expressionism, by sampling', 'Seurat, Munch and Muybridge as sources: sample a picture, decide what to draw there.', () => h('div', {},
@@ -274,6 +274,8 @@ The networks are replaced by the ideal denoiser, a formula for these toy data. A
       prose(`
 ## A three.js board
 
+**Build the lesson as a scene** for the tour: slides, each a live three.js board beside its notes, from a spinning cube to costumes and paint marks. A dancer made of numbers stands in for the tracker, so it needs no camera or models.
+
 A board can hold a **three.js sketch**, on the same footing as a p5.js sketch or studio code: Code panel → the board's kind menu → *three.js*. The code is an ES module; it runs in a sandboxed frame while the board is live and on screen, and leaves its last picture when paused.
 
 - \`import * as THREE from 'three'\` and addons such as \`import { OrbitControls } from 'three/addons/controls/OrbitControls.js'\`. three.js (r186) is bundled with the studio, so there is no network and no bundler. Controls, postprocessing (bloom), shaders, geometries, lines, utils, helpers, and the GLTF, OBJ, MTL, STL and PLY loaders and exporters are included.
@@ -282,9 +284,11 @@ A board can hold a **three.js sketch**, on the same footing as a p5.js sketch or
 
 ## The lessons
 
-Ten small, readable three.js programs for body and sound live in their own repository, **threejs-body-sound** (so they can be taught and shared apart from the studio): each page has the live scene, controls, key code highlighted, and a code view that exports one HTML file. Clone it, then \`npm run models\` once (MediaPipe and depth models, about 145 MB, not stored in any repository) and \`npm start\`.`),
+Ten small, readable three.js programs for body and sound live in their own repository, **threejslessons** (so they can be taught and shared apart from the studio): each page has the live scene, controls, key code highlighted, and a code view that exports one HTML file. Clone it, then \`npm run models\` once (MediaPipe and depth models, about 145 MB, not stored in any repository) and \`npm start\`.`),
       h('div', { class: 'wb-row wb-row-actions' },
-        h('button', { class: 'wb-btn primary', title: 'A new three.js board with a spinning cube', onclick: () => import('./lessons.js').then(m => m.addThreeBoard(app)) }, 'Add a three.js board')),
+        h('button', { class: 'wb-btn primary', title: 'Build the lecture as a scene of slides: ten live three.js boards beside their notes', onclick: () => import('./lessons.js').then(m => m.buildLesson(app, 'threejs')).then(n => app.log(`The lesson is a scene: ${n} boards.`)).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }, 'Build the lesson as a scene'),
+        h('button', { class: 'wb-btn', title: 'A guided walkthrough, played with the real controls', onclick: () => app.walkthroughs.start('lesson-threejs') }, 'Take the tour'),
+        h('button', { class: 'wb-btn', title: 'A new three.js board with a spinning cube', onclick: () => import('./lessons.js').then(m => m.addThreeBoard(app)) }, 'Add a three.js board')),
       h('div', {}, ...THREEJS.map(([n, t, d]) => h('p', { style: { margin: '4px 0' } }, h('b', {}, `${n} · ${t}`), h('span', { class: 'wb-muted' }, ` — ${d}`)))),
       )),
 

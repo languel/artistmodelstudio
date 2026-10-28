@@ -80,4 +80,4 @@ MIT © 2026 Artist Model Studio contributors. Exported sketches vendor p5.js (LG
 
 A board can hold a three.js sketch (Code panel → kind → *three.js*, or `/lesson threejs`): an ES module importing `three` and common addons, run live in a sandboxed frame like a p5 board. three.js is bundled, so no network is needed.
 
-The ten-lesson course that goes with it (a spinning cube up to MediaPipe body tracking, depth, a laser harp, a body drum, Schlemmer costumes, Picasso one-line drawings and Ghostcatching-style paint marks) lives in its own repository, `threejs-body-sound`.
+The ten-lesson course that goes with it (a spinning cube up to MediaPipe body tracking, depth, a laser harp, a body drum, Schlemmer costumes, Picasso one-line drawings and Ghostcatching-style paint marks) lives in its own repository, `threejslessons`.
