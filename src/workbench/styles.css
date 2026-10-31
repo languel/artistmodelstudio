@@ -887,3 +887,39 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-chip-x { border: 0; background: none; color: var(--wb-muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 3px; }
 .wb-sub { margin: 8px 0 2px; color: var(--wb-muted); font-size: var(--ui-small); letter-spacing: .04em; text-transform: uppercase; }
 .wb-icon-btn.on { color: #d9a23a; }
+
+.wb-settings-search { position: sticky; top: 0; z-index: 3; width: 100%; box-sizing: border-box; background: var(--wb-panel); }
+
+/* Settings → Model: controls fill their row; the test button sits with its status */
+.wb-model-ctl { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.wb-model-fav { display: inline-flex; align-items: center; gap: 3px; color: var(--wb-muted); cursor: pointer; }
+.wb-model-test { gap: 8px; margin: 2px 0 4px; }
+.wb-model-test .wb-picker-status { flex: 1; min-width: 0; }
+.wb-model-body .wb-row > .wb-select, .wb-model-body .wb-row > .wb-inline { flex: 1; min-width: 0; }
+.wb-section [hidden], .wb-section[hidden], .wb-model-body [hidden] { display: none !important; }   /* (the search hides rows; a row's own display would otherwise win) */
+.wb-model-body { display: flex; flex-direction: column; gap: 4px; }   /* the rows' spacing, as the other sections give theirs */
+.wb-model-body > .wb-sub { margin: 8px 0 0; }
+
+/* The search boxes' clear button: the browser's is blue; this one is the muted text color */
+input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; height: 12px; width: 12px; margin-left: 6px; cursor: pointer; background: var(--wb-muted); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 2l8 8M10 2l-8 8' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 2l8 8M10 2l-8 8' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-text); }
+
+/* Settings: two columns, labels then controls; buttons sit in the control column */
+.wb-settings .wb-section > .wb-row-actions { padding-left: 70px; }
+.wb-model-ctl { gap: 4px; }
+.wb-icon-btn.wb-boxed { flex: none; width: var(--ctl); height: var(--ctl); display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--wb-line); background: var(--wb-panel-2); border-radius: var(--radius); color: var(--wb-muted); cursor: pointer; font-size: 14px; }
+.wb-icon-btn.wb-boxed:hover { color: var(--wb-text); }
+.wb-icon-btn.wb-boxed.on { color: #d9a23a; }
+.wb-model-note { padding-left: 70px; }
+.wb-model-status { margin-top: -2px; }
+.wb-combo { position: relative; flex: 1; min-width: 0; display: block; }
+.wb-combo-input { width: 100%; box-sizing: border-box; }
+.wb-combo-list { position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 30; max-height: 280px; overflow: auto; background: var(--wb-panel); border: 1px solid var(--wb-line); border-radius: var(--radius); box-shadow: 0 6px 18px rgba(0,0,0,.35); padding: 3px; }
+.wb-combo-head { display: flex; align-items: center; gap: 6px; padding: 3px 6px; color: var(--wb-muted); font-size: var(--ui-small); cursor: pointer; }
+.wb-combo-item { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+.wb-combo-item:hover, .wb-combo-item.active { background: var(--wb-hover); }
+.wb-combo-item.current .wb-combo-name { color: var(--wb-text); font-weight: 600; }
+.wb-combo-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-combo-star { border: 0; background: none; color: var(--wb-muted); cursor: pointer; padding: 0 2px; font-size: 14px; }
+.wb-combo-star.on { color: #d9a23a; }
+.wb-combo-none { padding: 6px; color: var(--wb-muted); font-size: var(--ui-small); }

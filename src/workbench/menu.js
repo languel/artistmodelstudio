@@ -4,7 +4,7 @@
  */
 import { h } from './ui.js';
 
-export function showMenu(items, x, y) {
+export function showMenu(items, x, y, { up = false } = {}) {   // up: y is the bottom edge, the menu opens above it
   document.querySelectorAll('.wb-menu').forEach(m => m.remove());
   const menus = [];
   const build = (list, px, py, level = 0, parentRect = null) => {
@@ -27,7 +27,8 @@ export function showMenu(items, x, y) {
       m.append(b);
     }
     document.body.append(m);
-    const mr = m.getBoundingClientRect();
+    let mr = m.getBoundingClientRect();
+    if (up && level === 0) { m.style.top = `${Math.max(8, py - mr.height)}px`; mr = m.getBoundingClientRect(); }
     if (mr.bottom > window.innerHeight - 8) m.style.top = `${Math.max(8, window.innerHeight - 8 - mr.height)}px`;
     if (mr.right > window.innerWidth - 8) m.style.left = `${Math.max(8, (parentRect ? parentRect.left : px) - mr.width - 2)}px`;
   };

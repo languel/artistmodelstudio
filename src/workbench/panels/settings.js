@@ -9,14 +9,50 @@ const PRESETS = [
 ];
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return v; };
 
+/**
+ * Narrow the settings to what matches a search (like the shortcuts panel's): a row stays if its label, hint or choices
+ * contain every word; a section whose title matches stays whole; sections open while searching and go back after.
+ */
+export function filterSettings(root, query) {
+  const terms = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const text = el => `${el.textContent} ${el.title || ''} ${[...el.querySelectorAll('[title]')].map(t => t.title).join(' ')}`.toLowerCase();
+  const has = (el, t) => terms.every(w => t.includes(w));
+  let any = false;
+  for (const sec of root.querySelectorAll(':scope > details.wb-section')) {
+    if (sec.dataset.open === undefined) sec.dataset.open = sec.open ? '1' : '0';
+    const kids = [...sec.children].filter(c => c.tagName !== 'SUMMARY').flatMap(c => (c.classList.contains('wb-model-body') ? [...c.children] : [c]));   // (the Model section keeps its rows in one box)
+    if (!terms.length) { kids.forEach(c => { c.hidden = false; }); sec.hidden = false; sec.open = sec.dataset.open === '1'; delete sec.dataset.open; continue; }
+    const wholeSection = has(sec, sec.querySelector('summary').textContent.toLowerCase());
+    let shown = 0, group = [];   // (a sub-heading stays only with a row that matches)
+    const flush = () => { if (group.length && group.slice(1).some(c => !c.hidden)) group[0].hidden = false; group = []; };
+    for (const c of kids) {
+      if (c.classList.contains('wb-sub')) { flush(); c.hidden = true; group = [c]; continue; }
+      c.hidden = !(wholeSection || has(c, text(c)));
+      if (!c.hidden) shown++;
+      if (group.length) group.push(c);
+    }
+    flush();
+    sec.hidden = !shown; sec.open = Boolean(shown);
+    if (shown) any = true;
+  }
+  return any || !terms.length;
+}
+
 export function mountSettings(root, app) {
+  root.classList.add('wb-settings');
+  let query = '';
+  const search = h('input', { type: 'search', class: 'wb-inline wb-settings-search', placeholder: 'Search settings', value: '' });
+  const none = h('p', { class: 'wb-muted wb-small', hidden: true }, 'No setting matches.');
+  const apply = () => { none.hidden = filterSettings(root, query); };
+  search.addEventListener('input', () => { query = search.value; apply(); });
+  search.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape' && search.value) { search.value = ''; query = ''; apply(); } });
   const setArtboard = patch => app.store.change('artboard', d => { d.artboard = { ...d.artboard, ...patch }; });
   const render = () => {
     // The panel may mount during startup, before the canvas and guide exist.
     if (!app.canvas || !app.guide) { setTimeout(render, 30); return; }
     const ab = app.store.doc.artboard;
     const preset = PRESETS.find(([, , w, hh]) => (w === ab.width && hh === ab.height) || (w === ab.height && hh === ab.width))?.[0] || 'custom';
-    root.replaceChildren(
+    root.replaceChildren(search, none,
       section('Artboard', true,
         row('Preset', selectField([...PRESETS.map(([id, label, w, hh]) => [id, `${label} · ${w}×${hh}`]), ['custom', 'Custom']], preset, v => {
           const p = PRESETS.find(x => x[0] === v); if (!p) return;
@@ -51,6 +87,7 @@ export function mountSettings(root, app) {
         row('Show agents', check(app.guide.enabled, v => { app.guide.enabled = v; ls('ams_guide_enabled', v ? '1' : '0'); }, 'Move a cursor and narrate when an agent or walkthrough acts')),
         row('Pace', selectField([['0', 'Instant'], ['0.5', 'Fast'], ['1', 'Normal'], ['2', 'Slow']], String(app.guide.pace), v => { app.guide.pace = Number(v); ls('ams_guide_pace', v); })))
     );
+    if (query) apply();
   };
   app.store.subscribe(render);
   render();

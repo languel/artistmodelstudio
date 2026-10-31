@@ -93,7 +93,7 @@ export function mountAssistant(root, app) {
       { label: 'Attach a text file…', hint: 'Code, Markdown, JSON or SVG: its text goes with your next message', run: () => fileIn.click() },
       { label: 'Add the selected marks', disabled: !sel.length, hint: 'The selection as studio JSON', run: () => { const d = app.selectionDoc?.(sel); if (d) { attachments.push({ name: `selection (${sel.length} marks)`, text: JSON.stringify(d).slice(0, ATTACH_MAX) }); paintChips(); } } },
       { label: 'Add this board’s code', disabled: !b?.code, hint: 'The code of the board you are on', run: () => { attachments.push({ name: `${b.title} code`, text: String(b.code).slice(0, ATTACH_MAX) }); paintChips(); } }
-    ], r.left, r.top - 4 - 3 * 32);
+    ], r.left, r.top - 6, { up: true });
   };
   // The model pill: what it is talking to; the menu has the favorites (on any engine) and the engines.
   const pill = h('button', { class: 'wb-compose-pill', title: 'Model: favorites, engines and settings' });
@@ -112,7 +112,7 @@ export function mountAssistant(root, app) {
       { label: 'Engine', items: Object.entries(ENGINE_NAMES).map(([id, name]) => ({ label: name, active: id === engine, run: () => { setEngine(id); } })) },
       { label: 'All models and settings…', hint: 'Settings → Model: the engine, how to reach it, the model list and favorites', run: () => { app.docks.open('settings'); setTimeout(() => app.modelSection?.scrollIntoView?.({ block: 'start' }), 60); } }
     ].filter(Boolean);
-    showMenu(items, r.left, Math.max(8, r.top - 8 - items.length * 30));
+    showMenu(items, r.left, r.top - 6, { up: true });
   };
   window.addEventListener('ams-model', () => { if (document.body.contains(wrap)) paintPill(); });
   const toolsBtn = h('button', { class: 'wb-compose-pill', title: 'Let it use the studio’s tools (draw, change boards). Off: it only talks' });
@@ -121,7 +121,7 @@ export function mountAssistant(root, app) {
   const moreBtn = h('button', { class: 'wb-compose-icon', title: 'More', html: '⋯', onclick: e => { const r = e.currentTarget.getBoundingClientRect(); showMenu([
     { label: 'How did you do that?', hint: 'Replay the latest agent or assistant session with the guide', run: () => window.ams.callTool('ams_sessions', { action: 'replay' }).catch(err => app.log(err.message, 'error')) },
     { label: 'Clear the conversation', run: () => { history.length = 0; log.replaceChildren(hint); persist(); } }
-  ], r.left, r.top - 4 - 2 * 32); } });
+  ], r.left, r.top - 6, { up: true }); } });
   const sendBtn = h('button', { class: 'wb-compose-send', title: 'Send (Enter)', html: SEND, onclick: () => (busy ? busy.abort() : send()) });
   const grow = () => { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; };
   input.addEventListener('input', grow);
