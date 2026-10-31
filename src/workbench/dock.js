@@ -80,13 +80,29 @@ export class DockManager {
     this.render();
   }
 
-  close(id) { const s = this.state.panels[id]; if (s) { s.open = false; this.save(); this.render(); } }
+  /**
+   * Close a panel. A floating one goes back to the dock it was taken from (its tab is there again, in front; hide: closed there), so
+   * taking the Assistant out of the sidebar and closing it returns it to the sidebar; a docked one just closes.
+   */
+  close(id, { hide = false } = {}) {   // hide: really put it away (a floating one goes back to its dock, closed)
+    const s = this.state.panels[id], p = this.panels.get(id);
+    if (!s) return;
+    if (s.placement === 'floating' && p) {
+      let home = s.home || p.natural || 'right';
+      if (home === 'floating') home = p.natural || 'right';
+      if (home === 'bottom' && !p.allowBottom) home = 'right';
+      s.placement = home; s.open = !hide;
+      if (!hide) { this.state.active[home] = id; this.state.collapsed[home] = false; }
+    } else s.open = false;
+    this.save(); this.render();
+  }
 
   move(id, placement, pos = null) {
     const s = this.state.panels[id];
     const p = this.panels.get(id);
     if (!s || !p) return;
     if (placement === 'bottom' && !p.allowBottom) placement = 'right';
+    if (placement === 'floating' && s.placement !== 'floating') s.home = s.placement;   // (where it was taken from)
     s.placement = placement;
     s.open = true;
     if (pos) Object.assign(s, pos);
@@ -239,6 +255,7 @@ export class DockManager {
         if (!dragging) {
           dragging = true;
           if (s.placement !== 'floating') {
+            s.home = s.placement;   // (where it was taken from: closing it sends it back)
             s.placement = 'floating'; s.open = true; s.x = ev.clientX - 60; s.y = ev.clientY - 14;
             this.render();
           }
@@ -266,6 +283,11 @@ export class DockManager {
   }
 
   dockTarget(x, y, allowBottom) {
+    // Over a dock's tab bar: that dock, as if it had been dropped at the bar's own edge.
+    for (const el of document.elementsFromPoint?.(x, y) || []) {
+      const dock = el.closest?.('.wb-tabs')?.closest?.('[data-dock]')?.dataset.dock;
+      if (dock) return dock === 'bottom' && !allowBottom ? 'right' : dock;
+    }
     const W = window.innerWidth, H = window.innerHeight, edge = 64;
     if (allowBottom && y > H - edge) return 'bottom';
     if (x < edge) return 'left';

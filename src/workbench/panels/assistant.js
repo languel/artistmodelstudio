@@ -11,6 +11,7 @@
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
 import { showMenu } from '../menu.js';
+import { modelPill } from '../modelPill.js';
 import { ENGINE_NAMES, currentEngine, setEngine, useModel, allFavorites, favorites, isFavorite, toggleFavorite, assistantSettings, setAssistantSettings } from '../modelStore.js';
 import { parseCommand, brief, help } from '../console.js';
 
@@ -95,26 +96,7 @@ export function mountAssistant(root, app) {
       { label: 'Add this board’s code', disabled: !b?.code, hint: 'The code of the board you are on', run: () => { attachments.push({ name: `${b.title} code`, text: String(b.code).slice(0, ATTACH_MAX) }); paintChips(); } }
     ], r.left, r.top - 6, { up: true });
   };
-  // The model pill: what it is talking to; the menu has the favorites (on any engine) and the engines.
-  const pill = h('button', { class: 'wb-compose-pill', title: 'Model: favorites, engines and settings' });
-  const paintPill = () => {
-    const engine = currentEngine(), artist = app.artists.get(engine), m = artist?.getModel?.() || '';
-    pill.replaceChildren(h('span', { class: 'wb-pill-engine' }, ENGINE_NAMES[engine] || engine), m && engine !== 'agent' ? h('span', { class: 'wb-pill-model' }, m) : null, h('span', { class: 'wb-tool-caret' }));
-  };
-  pill.onclick = e => {
-    const r = pill.getBoundingClientRect(), engine = currentEngine(), artist = app.artists.get(engine), cur = artist?.getModel?.() || '';
-    const favs = allFavorites(app);
-    const items = [
-      favs.length ? { label: 'Favorites' } : null,
-      ...favs.map(f => ({ icon: '★', label: f.id, hint: ENGINE_NAMES[f.engine], active: f.engine === engine && f.id === cur, run: () => useModel(app, f.engine, f.id) })),
-      favs.length ? '-' : null,
-      cur && engine !== 'agent' ? { icon: isFavorite(engine, cur, artist) ? '★' : '☆', label: isFavorite(engine, cur, artist) ? 'Remove this model from favorites' : 'Favorite this model', run: () => toggleFavorite(engine, cur, artist) } : null,
-      { label: 'Engine', items: Object.entries(ENGINE_NAMES).map(([id, name]) => ({ label: name, active: id === engine, run: () => { setEngine(id); } })) },
-      { label: 'All models and settings…', hint: 'Settings → Model: the engine, how to reach it, the model list and favorites', run: () => { app.docks.open('settings'); setTimeout(() => app.modelSection?.scrollIntoView?.({ block: 'start' }), 60); } }
-    ].filter(Boolean);
-    showMenu(items, r.left, r.top - 6, { up: true });
-  };
-  window.addEventListener('ams-model', () => { if (document.body.contains(wrap)) paintPill(); });
+  const pill = modelPill(app);   // what it is talking to; the menu has the favorites, the engines and settings
   const toolsBtn = h('button', { class: 'wb-compose-pill', title: 'Let it use the studio’s tools (draw, change boards). Off: it only talks' });
   const paintTools = () => { const on = assistantSettings().tools; toolsBtn.classList.toggle('on', on); toolsBtn.replaceChildren(h('span', {}, 'Tools')); };
   toolsBtn.onclick = () => { setAssistantSettings({ tools: !assistantSettings().tools }); paintTools(); };
@@ -127,7 +109,7 @@ export function mountAssistant(root, app) {
   input.addEventListener('input', grow);
   const composer = h('div', { class: 'wb-composer' }, chips, input, h('div', { class: 'wb-compose-row' },
     h('button', { class: 'wb-compose-icon', title: 'Attach', html: icon('plus'), onclick: attachMenu }), pill, toolsBtn, h('span', { style: { flex: 1 } }), moreBtn, sendBtn), fileIn);
-  paintPill(); paintTools();
+  paintTools();
 
   app.assistantAsk = text => { input.value = text; send(); };
   const send = async () => {

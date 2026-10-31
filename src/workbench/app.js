@@ -123,6 +123,8 @@ const TOOLBAR_SECTIONS = [
   ['canvas', 'Canvas', 'Snap to the grid, and the canvas settings'],
   ['frame', 'Frame', 'Zoom out, in, the zoom and fit']
 ];
+/** The on/off mark in menus: a rounded frame, with a filled rounded square inside it (a hairline between) when on. */
+const menuBox = on => `<span class="wb-box${on ? ' on' : ''}"></span>`;
 const TOOLBAR_KEY = 'ams_toolbar_sections';
 const TOOLBAR_DEFAULT = { selection: true, drawing: true, score: false, canvas: true, frame: true };
 const BRUSH_KEY = 'ams_brush_active';
@@ -2317,9 +2319,9 @@ export class Workbench {
       { label: 'Command palette', keys: this.shortcuts.label('app.palette'), run: () => openPalette(this) },
       { label: 'Docs', keys: this.shortcuts.label('app.docs'), run: () => this.openDocs() },
       '-',
-      { label: 'Toolbar', hint: 'Which sections of the toolbar to show', items: TOOLBAR_SECTIONS.filter(([id]) => id !== 'frame' || !this.overlay).map(([id, name, hint]) => ({ icon: this.toolbarOn(id) ? '✓' : '&nbsp;', label: name, hint, run: () => this.setToolbarSection(id, !this.toolbarOn(id)) })) },
-      { label: 'Panels', hint: 'Open a panel', items: [
-        ...[...this.docks.panels.values()].filter(p => !['settings', 'shortcuts'].includes(p.id)).map(p => ({ label: p.title, run: () => this.docks.open(p.id) })),
+      { label: 'Toolbar', hint: 'Which sections of the toolbar to show', items: TOOLBAR_SECTIONS.filter(([id]) => id !== 'frame' || !this.overlay).map(([id, name, hint]) => ({ icon: menuBox(this.toolbarOn(id)), label: name, hint, run: () => this.setToolbarSection(id, !this.toolbarOn(id)) })) },
+      { label: 'Panels', hint: 'Show or hide a panel', items: [
+        ...[...this.docks.panels.values()].filter(p => !['settings', 'shortcuts'].includes(p.id)).map(p => { const on = Boolean(this.docks.state.panels[p.id]?.open); return { icon: menuBox(on), label: p.title, run: () => (on ? this.docks.close(p.id, { hide: true }) : this.docks.open(p.id)) }; }),
         '-',
         { label: 'Reset layout', run: () => this.docks.reset() }
       ] },

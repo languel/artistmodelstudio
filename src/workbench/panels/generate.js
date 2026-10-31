@@ -1,100 +1,112 @@
 /**
  * Generate: ask an engine (a model, or an agent over MCP) for scores. Each candidate
  * is a recorded process: open it on the canvas, save it to Assets, read its score.
+ * The same shell as the Assistant: the candidates fill the panel, the request sits at the bottom
+ * (what to draw, then + options · model · how many · send). The model is the one chosen for the Assistant.
  */
-import { h, row, selectField, numberField, section } from '../ui.js';
+import { h } from '../ui.js';
 import { icon } from '../icons.js';
+import { showMenu } from '../menu.js';
 import { generateScore } from '../../process/prompt.js';
 import { EXERCISES } from '../../process/exercises.js';
 import { renderToCanvas } from '../../process/render.js';
+import { modelPill } from '../modelPill.js';
+import { currentEngine, useModel } from '../modelStore.js';
 
-import { modelPicker } from '../modelPicker.js';
-const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return v; };
+const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg>';
+const STOP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+const COUNTS = [1, 2, 4, 8];
 
 export function mountGenerate(root, app) {
-  const picker = modelPicker({ app, storageKey: 'ams_wb_engine', onChange: ({ engine, model }) => { app.log(`Generate: ${engine} · ${model}`); render(); } });
-  const el = h('div', { class: 'wb-col' });
-  root.append(picker, el);
-  let engineId = picker.engine();
+  const wrap = h('div', { class: 'wb-assistant' });
+  const results = h('div', { class: 'wb-chat' });
+  const composer = h('div', { class: 'wb-composer' });
+  wrap.append(results, composer);
+  root.append(wrap);
+  const pill = modelPill(app);
   let saved = [];
   try { saved = JSON.parse(sessionStorage.getItem('ams_wb_candidates') || '[]'); } catch { /* ignore */ }
   const candidates = app.candidates = app.candidates || saved;
   const persist = () => { try { sessionStorage.setItem('ams_wb_candidates', JSON.stringify(candidates.slice(0, 24))); } catch { /* quota */ } };
   let busy = null;
+  const status = h('div', { class: 'wb-script-out' });
+  const hint = h('div', { class: 'wb-chat-empty' }, h('b', {}, 'Generate'), h('span', {}, 'Describe a drawing. Each candidate is a recorded process: open it on the board, save it to Assets, or read its score.'));
+  const prompt = h('textarea', { class: 'wb-compose-input', rows: 1, placeholder: 'What to draw…' });
+  const grow = () => { prompt.style.height = 'auto'; prompt.style.height = `${Math.min(prompt.scrollHeight, 180)}px`; };
+  prompt.addEventListener('input', () => { app.genPrompt = prompt.value; grow(); });
+  prompt.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); } });
 
   const render = () => {
-    el.innerHTML = '';
-    engineId = picker.engine();
-    const artist = app.artists.get(engineId);
-    const prompt = h('textarea', { class: 'wb-why', rows: 3, placeholder: 'What to draw…' });
-    prompt.value = app.genPrompt || '';
-    prompt.addEventListener('input', () => { app.genPrompt = prompt.value; });
-    prompt.addEventListener('keydown', e => { e.stopPropagation(); if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') go(); });
-    const exercise = selectField([['', 'No exercise frame'], ...EXERCISES.map(x => [x.id, x.title])], app.genExercise || '', v => { app.genExercise = v; }, 'Frame the request with an exercise brief');
-    const withRef = h('input', { type: 'checkbox', checked: Boolean(app.genWithRef && app.reference), disabled: !app.reference, title: app.reference ? `Send the reference (${app.reference.title})` : 'No reference: open an image asset first' });
-    withRef.addEventListener('change', () => { app.genWithRef = withRef.checked; });
-    const count = numberField({ value: app.genCount || 1, min: 1, max: 8, step: 1, def: 1, title: 'Candidates', onChange: v => { app.genCount = v; } });
-    const temp = numberField({ value: app.genTemp ?? 0.8, min: 0, max: 2, step: 0.05, def: 0.8, title: 'Temperature', onChange: v => { app.genTemp = v; } });
-    const status = h('div', { class: 'wb-script-out' }, busy ? busy.status : (engineId === 'agent' ? 'Agent engine: requests wait until an agent answers over MCP (ams_pending → ams_answer).' : ''));
-
-    const go = async () => {
-      if (busy) return;
-      const text = prompt.value.trim();
-      if (!text) { prompt.focus(); return; }
-      const n = app.genCount || 1;
-      const ctrl = new AbortController();
-      busy = { status: 'starting', ctrl };
-      render();
-      const image = app.genWithRef && app.reference ? app.referenceDataUrl() : null;
-      const by = { kind: engineId === 'agent' ? 'agent' : 'model', name: artist.getModel?.() || engineId, engine: engineId };
-      app.log(`Generate ×${n} with ${engineId} · ${by.name}: “${text}”${image ? ' + reference' : ''}${app.genExercise ? ` · exercise ${app.genExercise}` : ''}`);
-      for (let i = 0; i < n && !ctrl.signal.aborted; i++) {
-        const t0 = performance.now();
-        const setStatus = s => { busy.status = `${i + 1}/${n}: ${s}`; status.textContent = busy.status; };
-        try {
-          const res = await generateScore({
-            complete: args => artist.complete({ ...args, signal: ctrl.signal }),
-            prompt: text, exercise: app.genExercise || null,
-            width: app.store.doc.artboard.width, height: app.store.doc.artboard.height,
-            image, temperature: app.genTemp ?? 0.8, seed: i + 1, by, onStatus: setStatus
-          });
-          const c = { id: `cand_${Date.now()}_${i}`, prompt: text, engine: engineId, model: by.name, exercise: app.genExercise || null, withRef: Boolean(image), seconds: +((performance.now() - t0) / 1000).toFixed(1), ...res };
-          candidates.unshift(c);
-          persist();
-          app.log(res.error ? `Candidate failed after ${res.attempts} attempt(s): ${res.error}` : `Candidate: ${res.doc.stages.length} stages, ${res.doc.elements.length} elements, ${res.doc.decisions.length} decisions (${c.seconds}s${res.attempts > 1 ? ', repaired' : ''})`, res.error ? 'error' : 'info');
-          if (res.doc && i === 0) app.putScoreDoc(res.doc, 'generated');
-        } catch (err) {
-          app.log(`Generate failed: ${err.message}`, 'error');
-          if (ctrl.signal.aborted) break;
-        }
-        renderList();
-      }
-      busy = null;
-      render();
+    const engineId = currentEngine();
+    if (document.activeElement !== prompt) prompt.value = app.genPrompt || '';
+    grow();
+    const optionsMenu = e => {
+      const r = e.currentTarget.getBoundingClientRect(), withRef = Boolean(app.genWithRef && app.reference), temp = app.genTemp ?? 0.8;
+      showMenu([
+        { label: 'Exercise', hint: 'Frame the request with an exercise brief', items: [{ label: 'No exercise frame', active: !app.genExercise, run: () => { app.genExercise = ''; render(); } }, ...EXERCISES.map(x => ({ label: x.title, active: app.genExercise === x.id, run: () => { app.genExercise = x.id; render(); } }))] },
+        { label: app.reference ? `${withRef ? '✓ ' : ''}Send the reference (${app.reference.title})` : 'Send the reference (open an image asset first)', disabled: !app.reference, hint: 'For vision models and agents', run: () => { app.genWithRef = !withRef; render(); } },
+        { label: 'Temperature', items: [0.2, 0.5, 0.8, 1.2, 1.6].map(t => ({ label: String(t), active: t === temp, run: () => { app.genTemp = t; render(); } })) }
+      ], r.left, r.top - 6, { up: true });
     };
-
-    app.startGenerate = go;
-    el.append(
-      keys(engineId, app) || '',
+    const count = app.genCount || 1;
+    const countBtn = h('button', { class: 'wb-compose-pill', title: 'How many candidates (click to change)', onclick: () => { app.genCount = COUNTS[(COUNTS.indexOf(count) + 1) % COUNTS.length] || 1; render(); } }, `×${count}`);
+    const optsBtn = h('button', { class: 'wb-compose-icon', title: 'Options: exercise, reference, temperature', html: icon('plus'), onclick: optionsMenu });
+    const sendBtn = h('button', { class: 'wb-compose-send', title: busy ? 'Stop' : 'Generate (Enter)', 'data-guide': 'button:generate', html: busy ? STOP : SEND, onclick: () => (busy ? stop() : go()) });
+    const chips = [app.genExercise ? EXERCISES.find(x => x.id === app.genExercise)?.title : null, app.genWithRef && app.reference ? 'reference' : null].filter(Boolean);
+    composer.replaceChildren(
+      chips.length ? h('div', { class: 'wb-compose-chips' }, ...chips.map(c => h('span', { class: 'wb-chip' }, c))) : '',
       prompt,
-      row('Exercise', exercise),
-      h('div', { class: 'wb-row wb-row-actions' },
-        h('label', { class: 'wb-row', title: 'Send the reference image (vision models, agents)' }, withRef, h('span', {}, 'Reference')),
-        h('span', { class: 'wb-muted' }, '×'), count,
-        h('span', { class: 'wb-muted' }, 'temp'), temp,
-        busy
-          ? h('button', { class: 'wb-btn', onclick: () => { busy.ctrl.abort(); app.artists.get('agent')?.answer?.(''); } }, 'Stop')
-          : h('button', { class: 'wb-btn primary', 'data-guide': 'button:generate', html: `${icon('sparkles')}<span>Generate</span>`, title: 'Cmd+Enter', onclick: go })
-      ),
-      status,
-      listBox
-    );
-    for (const n of [...el.childNodes]) if (n.nodeType === 3 && n.textContent === 'null') n.remove();
+      h('div', { class: 'wb-compose-row' }, optsBtn, pill, countBtn, h('span', { style: { flex: 1 } }), sendBtn));
+    status.textContent = busy ? busy.status : (engineId === 'agent' ? 'Agent engine: requests wait until an agent answers over MCP (ams_pending → ams_answer).' : status.textContent === 'starting' ? '' : status.textContent);
+    status.hidden = !status.textContent;
     renderList();
   };
+  const stop = () => { busy?.ctrl.abort(); app.artists.get('agent')?.answer?.(''); };
+
+  const go = async () => {
+    if (busy) return;
+    const engineId = currentEngine(), artist = app.artists.get(engineId);
+    const text = prompt.value.trim();
+    if (!text) { prompt.focus(); return; }
+    if (!artist?.complete) { status.textContent = 'Pick a model engine from the model button.'; status.hidden = false; return; }
+    const n = app.genCount || 1;
+    const ctrl = new AbortController();
+    busy = { status: 'starting', ctrl };
+    render();
+    const image = app.genWithRef && app.reference ? app.referenceDataUrl() : null;
+    const by = { kind: engineId === 'agent' ? 'agent' : 'model', name: artist.getModel?.() || engineId, engine: engineId };
+    app.log(`Generate ×${n} with ${engineId} · ${by.name}: “${text}”${image ? ' + reference' : ''}${app.genExercise ? ` · exercise ${app.genExercise}` : ''}`);
+    for (let i = 0; i < n && !ctrl.signal.aborted; i++) {
+      const t0 = performance.now();
+      const setStatus = s => { busy.status = `${i + 1}/${n}: ${s}`; status.textContent = busy.status; };
+      try {
+        const res = await generateScore({
+          complete: args => artist.complete({ ...args, signal: ctrl.signal }),
+          prompt: text, exercise: app.genExercise || null,
+          width: app.store.doc.artboard.width, height: app.store.doc.artboard.height,
+          image, temperature: app.genTemp ?? 0.8, seed: i + 1, by, onStatus: setStatus
+        });
+        const c = { id: `cand_${Date.now()}_${i}`, prompt: text, engine: engineId, model: by.name, exercise: app.genExercise || null, withRef: Boolean(image), seconds: +((performance.now() - t0) / 1000).toFixed(1), ...res };
+        candidates.unshift(c);
+        persist();
+        app.log(res.error ? `Candidate failed after ${res.attempts} attempt(s): ${res.error}` : `Candidate: ${res.doc.stages.length} stages, ${res.doc.elements.length} elements, ${res.doc.decisions.length} decisions (${c.seconds}s${res.attempts > 1 ? ', repaired' : ''})`, res.error ? 'error' : 'info');
+        if (res.doc && i === 0) app.putScoreDoc(res.doc, 'generated');
+      } catch (err) {
+        app.log(`Generate failed: ${err.message}`, 'error');
+        if (ctrl.signal.aborted) break;
+      }
+      renderList();
+    }
+    busy = null;
+    render();
+  };
+
+  app.startGenerate = go;
 
   const listBox = h('div', { class: 'wb-cands' });
+  results.append(hint, status, listBox);
   const renderList = () => {
+    hint.hidden = candidates.length > 0;
     listBox.replaceChildren(...candidates.slice(0, 24).map(c => {
       const thumb = c.doc ? renderToCanvas(c.doc, { scale: 110 / Math.max(c.doc.artboard.width, c.doc.artboard.height), mode: 'picture' }) : h('div', { class: 'wb-cand-fail' }, '✕');
       const src = h('pre', { class: 'wb-ref', hidden: true }, c.source || c.raw || '');
@@ -116,20 +128,8 @@ export function mountGenerate(root, app) {
       );
     }));
   };
-  app.setGenerateEngine = (v, model) => { picker.setEngine(v, model); engineId = v; render(); };
+  app.setGenerateEngine = (v, model) => { useModel(app, v, model); render(); };
   app.on('generate-refresh', render);
+  window.addEventListener('ams-model', () => { if (document.body.contains(wrap)) render(); });
   render();
-}
-
-function keys(engineId, app) {
-  const field = (label, key, type = 'password', placeholder = '') => {
-    const input = h('input', { class: 'wb-inline', type, placeholder, value: store(key) || '', autocomplete: 'off' });
-    input.addEventListener('change', () => { store(key, input.value.trim()); app.log(`${label} updated.`); });
-    input.addEventListener('keydown', e => e.stopPropagation());
-    return row(label, input);
-  };
-  if (engineId === 'openrouter') return section('Keys', false, field('API key', 'ams_openrouter_key'));
-  if (engineId === 'openai') return section('Keys', false, field('API key', 'ams_openai_key'), field('Base URL', 'ams_openai_base_url', 'text', 'https://api.openai.com/v1'));
-  if (engineId === 'ollama') return section('Server', false, field('Endpoint', 'ams_ollama_endpoint', 'text', 'http://localhost:11434'));
-  return null;
 }

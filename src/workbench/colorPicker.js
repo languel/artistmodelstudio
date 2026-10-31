@@ -224,6 +224,11 @@ function buildPicker(start, onChange, app, { allowNone = false, dismiss = () => 
   };
 }
 
+/** Double-click the picker (not a field, and not the cube, whose double-click turns it back) to keep the color and close. */
+function pickOnDoubleClick(pop, close) {
+  pop.addEventListener('dblclick', e => { if (e.target.closest?.('input, select, textarea, [title*="double-click"]')) return; close(); });
+}
+
 export function openPicker(anchor, start, onChange, app, { allowNone = false } = {}) {
   open?.close();
   const b = buildPicker(start, onChange, app, { allowNone, dismiss: () => close() });
@@ -242,7 +247,8 @@ export function openPicker(anchor, start, onChange, app, { allowNone = false } =
     open = null;
   };
   const outside = e => { if (!pop.contains(e.target) && !anchor.contains(e.target)) close(); };
-  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } else if (e.key === 'Enter' && !e.isComposing && (document.activeElement === document.body || pop.contains(document.activeElement))) { e.stopPropagation(); e.preventDefault(); document.activeElement?.blur?.(); close(); } };   // Enter: keep the color, close (a hex being typed is taken first)
+  pickOnDoubleClick(pop, () => close());
   setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
   open = { close, accept: c => b.choose(c) };
 }
@@ -614,7 +620,8 @@ export function openPaintPicker(app, x, y, io, mode = load(MODES_KEY, 'fields'))
     open = null;
   };
   const outside = e => { if (!pop.contains(e.target) && !io.anchor?.contains(e.target)) close(); };
-  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } else if (e.key === 'Enter' && !e.isComposing && (document.activeElement === document.body || pop.contains(document.activeElement))) { e.stopPropagation(); e.preventDefault(); document.activeElement?.blur?.(); close(); } };   // Enter: keep the color, close (a hex being typed is taken first)
+  pickOnDoubleClick(pop, () => close());
   setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
   open = { close, accept: c => body.accept(c) };
   return { close };

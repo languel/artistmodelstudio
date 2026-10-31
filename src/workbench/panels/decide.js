@@ -7,6 +7,7 @@
  * 4. The step is realized by an executor, and your final choices become training labels.
  */
 import { askConfirm, askText } from '../dialog.js';
+import { showMenu } from '../menu.js';
 import { h, row, numberField, section, download } from '../ui.js';
 import { icon } from '../icons.js';
 import { analyzeImage } from '../../perception/analyze.js';
@@ -17,6 +18,8 @@ import { STEPS, VALUES, DENSITIES } from '../../decide/questions.js';
 
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return v; };
 const CORE = ['next', 'region', 'technique'];
+const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg>';
+const STOP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 const SESSION_KEY = 'ams_decide_session';
 
 export function mountDecide(root, app) {
@@ -24,8 +27,11 @@ export function mountDecide(root, app) {
   let backend = ls('ams_decide_backend') || 'rules';
   let threshold = Number(ls('ams_decide_threshold') ?? 0.35);
   let proposal = null, final = {}, auto = null;
-  const body = h('div', { class: 'wb-col' });
-  root.append(body);
+  // The Assistant's shell: what it found and asked fills the panel; the controls sit at the bottom.
+  const wrap = h('div', { class: 'wb-assistant' }), view = h('div', { class: 'wb-chat' }), composer = h('div', { class: 'wb-composer' });
+  let useMediaPipe = false;
+  wrap.append(view, composer);
+  root.append(wrap);
 
   app.canvas.drawOverlay = ctx => {
     if (!eng.analysis || !app.showRegions) return;
@@ -143,26 +149,22 @@ export function mountDecide(root, app) {
   const render = () => {
     const a = eng.analysis;
     const counts = eng.labels.reduce((m, l) => ((m[l.meta?.source] = (m[l.meta?.source] || 0) + 1), m), {});
-    const backendSel = h('select', { class: 'wb-select' }, ...[['rules', 'Rules (baseline)'], ['lev', 'lev / kev (local server)'], ['agent', 'Agent (MCP)'], ['you', 'You decide']].map(([v, l]) => h('option', { value: v, selected: v === backend }, l)));
-    backendSel.addEventListener('change', () => { backend = backendSel.value; ls('ams_decide_backend', backend); render(); });
-    const urlInput = h('input', { class: 'wb-inline', value: ls(URL_KEY) || '/__decide', title: 'Decision server base URL (the dev proxy /__decide forwards to 127.0.0.1:8009)' });
+    const BACKENDS = [['rules', 'Rules (baseline)'], ['lev', 'lev / kev (local server)'], ['agent', 'Agent (MCP)'], ['you', 'You decide']];
+    const urlInput = h('input', { class: 'wb-inline wb-compose-url', value: ls(URL_KEY) || '/__decide', title: 'Decision server base URL (the dev proxy /__decide forwards to 127.0.0.1:8009)' });
     urlInput.addEventListener('change', () => ls(URL_KEY, urlInput.value.trim()));
     urlInput.addEventListener('keydown', e => e.stopPropagation());
-    const mp = h('input', { type: 'checkbox', title: 'Also run MediaPipe pose and figure segmentation' });
-    body.replaceChildren(...[
-      h('div', { class: 'wb-row wb-row-actions' },
-        h('button', { class: 'wb-btn', 'data-guide': 'button:analyze', html: `${icon('picture')}<span>Analyze reference</span>`, onclick: () => analyze({ mediapipe: mp.checked }).catch(e => status(e.message)) }),
-        h('label', { class: 'wb-row' }, mp, h('span', {}, 'MediaPipe')),
-        a ? h('label', { class: 'wb-row' }, h('input', { type: 'checkbox', checked: app.showRegions, onchange: e => { app.showRegions = e.target.checked; app.canvas.invalidate(); } }), h('span', {}, 'Regions')) : null),
-      a ? h('div', { class: 'wb-muted wb-small' }, `${a.regions.length} regions · masses ${a.masses.map(m => `${Math.round(m.lightness * 100)}:${Math.round(m.share * 100)}%`).join(' ')}${a.poses?.length ? ` · ${a.poses.length} pose(s)` : ''}`) : h('div', { class: 'wb-muted wb-small', title: 'Open an image from Assets as the reference, then Analyze' }, app.reference ? app.reference.title : 'No reference'),
+    const menuAt = (btn, items) => { const r = btn.getBoundingClientRect(); showMenu(items, r.left, r.top - 6, { up: true }); };
+    const policyBtn = h('button', { class: 'wb-compose-pill', title: 'Who answers the questions: rules, the local lev model, an agent over MCP, or you', onclick: e => menuAt(e.currentTarget, BACKENDS.map(([v, l]) => ({ label: l, active: v === backend, run: () => { backend = v; ls('ams_decide_backend', backend); render(); } }))) },
+      h('span', { class: 'wb-pill-engine' }, 'Policy'), h('span', { class: 'wb-pill-model' }, BACKENDS.find(x => x[0] === backend)?.[1] || backend), h('span', { class: 'wb-tool-caret' }));
+    const askBtn = h('button', { class: 'wb-compose-pill', title: 'Wait for your choice when the model is less confident than this', onclick: e => menuAt(e.currentTarget, [0.1, 0.2, 0.35, 0.5, 0.7, 0.9].map(t => ({ label: String(t), active: t === threshold, run: () => { threshold = t; ls('ams_decide_threshold', t); render(); } }))) }, `ask me < ${threshold}`);
+    const sendBtn = h('button', { class: 'wb-compose-send', 'data-guide': 'button:propose', title: auto ? 'Stop' : 'Propose a step', disabled: !a && !auto, html: auto ? STOP : SEND, onclick: () => (auto ? (auto = null, render()) : propose().catch(e => status(e.message))) });
+    const mp = h('input', { type: 'checkbox', checked: useMediaPipe, title: 'Also run MediaPipe pose and figure segmentation', onchange: e => { useMediaPipe = e.target.checked; } });
+    const analyzeBtn = h('button', { class: 'wb-compose-pill', 'data-guide': 'button:analyze', title: 'Reduce the reference to value masses, regions, edges and directions', html: `${icon('picture')}<span>${a ? 'Analyze again' : 'Analyze reference'}</span>`, onclick: () => analyze({ mediapipe: useMediaPipe }).catch(e => status(e.message)) });
+    view.replaceChildren(...[
+      !a && !proposal && !eng.history.length ? h('div', { class: 'wb-chat-empty' }, h('b', {}, 'Decide'), h('span', {}, 'The drawing as a sequence of decisions: analyze a reference, let a policy answer what to do next, correct it when it is unsure. Your choices become training labels.')) : null,
+      a ? h('div', { class: 'wb-muted wb-small' }, `${a.regions.length} regions · masses ${a.masses.map(m => `${Math.round(m.lightness * 100)}:${Math.round(m.share * 100)}%`).join(' ')}${a.poses?.length ? ` · ${a.poses.length} pose(s)` : ''}`) : null,
+      a ? h('label', { class: 'wb-row', title: 'Draw the regions on the canvas' }, h('input', { type: 'checkbox', checked: app.showRegions, onchange: e => { app.showRegions = e.target.checked; app.canvas.invalidate(); } }), h('span', {}, 'Show regions')) : null,
       a?.poses?.length ? h('button', { class: 'wb-btn', onclick: () => addPoseGuides(app, a) }, 'Add pose as gesture guides') : null,
-      row('Policy', backendSel),
-      backend === 'lev' ? row('Server', urlInput) : null,
-      row('Ask me', numberField({ value: threshold, min: 0, max: 1, step: 0.05, def: 0.35, title: 'Wait for your choice when the model is less confident than this', onChange: v => { threshold = v; ls('ams_decide_threshold', String(v)); } })),
-      h('div', { class: 'wb-row wb-row-actions' },
-        h('button', { class: 'wb-btn primary', 'data-guide': 'button:propose', disabled: !a, onclick: () => propose().catch(e => status(e.message)) }, 'Propose step'),
-        h('button', { class: 'wb-btn', disabled: !a || auto, onclick: () => runAuto(8).catch(e => status(e.message)) }, 'Run ×8'),
-        auto ? h('button', { class: 'wb-btn', onclick: () => { auto = null; } }, 'Stop') : null),
       statusEl,
       card(),
       eng.history.length ? section(`Steps (${eng.history.length})`, false, ...eng.history.map((s, i) => h('div', { class: 'wb-small' }, `${i + 1}. ${s.step} · ${s.region} · ${s.technique} · ${VALUES[s.value]} · ${DENSITIES[s.density]} (${s.source})`))) : null,
@@ -174,6 +176,12 @@ export function mountDecide(root, app) {
           import.meta.env?.DEV ? h('button', { class: 'wb-btn', title: 'Write the labels to training/decisions/labels/ for make_suite.py', onclick: () => eng.saveToProject().then(p => status(`Saved ${p}`), e => status(e.message)) }, 'Save to project') : null,
           h('button', { class: 'wb-btn', onclick: async () => { if (await askConfirm('Delete all decision labels?')) { eng.labels = []; eng.saveLabels(); render(); } } }, 'Clear')))
     ].filter(Boolean));
+    composer.replaceChildren(
+      h('div', { class: 'wb-compose-row' }, analyzeBtn, h('label', { class: 'wb-compose-pill', title: 'Also run MediaPipe pose and figure segmentation' }, mp, h('span', {}, 'MediaPipe')),
+        backend === 'lev' ? urlInput : null),
+      h('div', { class: 'wb-compose-row' }, policyBtn, askBtn,
+        h('button', { class: 'wb-compose-pill', disabled: !a || Boolean(auto), title: 'Propose and apply up to eight steps by itself, stopping when unsure', onclick: () => runAuto(8).catch(e => status(e.message)) }, 'Run ×8'),
+        h('span', { style: { flex: 1 } }), sendBtn));
   };
   app.decidePanel = { analyze, propose, apply, runAuto, setBackend: b => { backend = b; ls('ams_decide_backend', b); render(); }, get proposal() { return proposal; }, setFinal: (v) => { Object.assign(final, v); render(); } };
   app.on('decision-pending', () => render());

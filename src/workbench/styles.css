@@ -370,7 +370,7 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 
 /* Checkboxes: a quiet square; checked shows a filled dot in the theme colors. */
 input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; margin: 0 4px 0 2px; border: 1px solid var(--wb-muted); border-radius: 3px; background: transparent; display: inline-grid; place-content: center; cursor: pointer; flex: none; vertical-align: middle; }
-input[type="checkbox"]::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--wb-accent); transform: scale(0); transition: transform .1s; }
+input[type="checkbox"]::before { content: ''; width: 10px; height: 10px; border-radius: 2px; background: var(--wb-accent); transform: scale(0); transition: transform .1s; }
 input[type="checkbox"]:checked { border-color: var(--wb-accent); }
 input[type="checkbox"]:checked::before { transform: scale(1); }
 input[type="checkbox"]:hover { border-color: var(--wb-text); }
@@ -923,3 +923,14 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-combo-star { border: 0; background: none; color: var(--wb-muted); cursor: pointer; padding: 0 2px; font-size: 14px; }
 .wb-combo-star.on { color: #d9a23a; }
 .wb-combo-none { padding: 6px; color: var(--wb-muted); font-size: var(--ui-small); }
+
+/* On/off in menus (and the checkboxes above): a rounded frame; filled, a rounded square sits inside it with a hairline between */
+.wb-box { display: inline-grid; place-content: center; width: 11px; height: 11px; box-sizing: border-box; border: 1px solid var(--wb-muted); border-radius: 2.5px; flex: none; }
+.wb-box.on { border-color: var(--wb-accent); }
+.wb-box.on::before { content: ''; width: 7px; height: 7px; border-radius: 1.5px; background: var(--wb-accent); }
+.wb-menu-icon:has(> .wb-box) { width: 11px; margin-right: -2px; }
+.wb-compose-url { flex: 1; min-width: 0; }
+.wb-compose-pill:disabled, .wb-compose-send:disabled { opacity: .4; cursor: default; }
+.wb-composer .wb-compose-row { flex-wrap: wrap; }
+.wb-assistant .wb-cands { display: flex; flex-direction: column; gap: 8px; }
+.wb-assistant .wb-script-out { margin: 0; }
