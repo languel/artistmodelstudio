@@ -1,6 +1,29 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "ams-dev", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "--port", "3017", "--strictPort"], "port": 3017 }
+    {
+      "name": "ams-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "3017",
+        "--strictPort"
+      ],
+      "port": 3017
+    },
+    {
+      "name": "poliplan",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--config",
+        "vite.embed.config.js",
+        "--port",
+        "3018",
+        "--strictPort"
+      ],
+      "port": 3018
+    }
   ]
 }

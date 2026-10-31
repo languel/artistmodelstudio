@@ -54,7 +54,20 @@ export const DEFAULT_REALIZE = Object.freeze({
   image: { brush: 'image', params: {} }
 });
 
-export function createDocument({ width = 1000, height = 1000, ground = '#f3efe6', title = 'Untitled' } = {}) {
+// The paper a new drawing starts on, by theme: warm paper in the light theme, a deep neutral in the dark one.
+export const LIGHT_GROUND = '#f3efe6', DARK_GROUND = '#1b1c1f';
+export const themeGround = () => (typeof document !== 'undefined' && document.documentElement?.dataset?.theme === 'dark' ? DARK_GROUND : LIGHT_GROUND);
+
+/** The pen that reads on a paper: null (the brush's own dark ink) on a light ground, a bright ink on a dark one. */
+export function inkOn(ground) {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(String(ground || '').trim());
+  if (!m) return null;
+  let h = m[1]; if (h.length === 3) h = [...h].map(c => c + c).join('');
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.45 ? '#f1efe8' : null;
+}
+
+export function createDocument({ width = 1000, height = 1000, ground = themeGround(), title = 'Untitled' } = {}) {
   return {
     type: 'ams-process',
     version: PROCESS_VERSION,
@@ -73,7 +86,7 @@ export function normalizeDocument(doc, { own = false } = {}) {
   const d = doc && typeof doc === 'object' ? (own ? doc : structuredClone(doc)) : createDocument();
   d.type = 'ams-process';
   d.version = PROCESS_VERSION;
-  d.artboard = { width: 1000, height: 1000, ground: '#f3efe6', ...(d.artboard || {}) };
+  d.artboard = { width: 1000, height: 1000, ground: themeGround(), ...(d.artboard || {}) };
   d.stages = Array.isArray(d.stages) && d.stages.length ? d.stages : DEFAULT_STAGES();
   for (const s of d.stages) {
     s.id ||= newId('stage');

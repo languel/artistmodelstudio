@@ -3,7 +3,7 @@
  * and the process document at the center. Everything the user can do is also a
  * command (see mcp.js), so agents drive the same surface.
  */
-import { openToolParams, openGridParams, openToolDefaults, openBoardParams } from './toolParams.js';
+import { openToolParams, openGridParams, openCanvasParams, openToolDefaults, openBoardParams } from './toolParams.js';
 import { openRadial } from './radial.js';
 import { boardAt, boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard, rateOf, newBoardId, nextBoardPlace } from '../process/boards.js';
 import { FX, normalizeFx } from '../process/fx.js';
@@ -13,7 +13,7 @@ import { Scenes } from './scenes.js';
 import { runScoreInto } from '../process/script.js';
 import { toP5Min } from '../process/p5min.js';
 import { SCULPTS, loadSculptLibrary } from '../process/sculpt.js';
-import { ProcessStore, createDocument, normalizeDocument, normalizeElement, DEFAULT_REALIZE, ROLES } from '../process/document.js';
+import { ProcessStore, createDocument, themeGround, normalizeDocument, normalizeElement, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
 import { dslToProcess } from '../process/fromDsl.js';
 import { canvasBlob } from './ui.js';
@@ -95,6 +95,8 @@ const TOOLS = [
 ];
 /** Select and direct selection (points) share a button. */
 const SELECTS = [['select', 'Select and move', 'V'], ['direct', 'Direct: edit points (click a mark, drag its points; double-click a segment adds one; Ctrl snaps)', '⇧V']];
+/** Pan and the laser pointer share a button (H; Shift+H cycles; K picks the laser). */
+const PANS = [['hand', 'Pan', 'H'], ['laser', 'Laser pointer: a trail in the stroke color that fades out and leaves no mark', 'K']];
 /**
  * Line, gesture and guide share a button (1; Shift+1 cycles). A gesture and a guide are construction: they show
  * in the process view, not in the picture.
@@ -113,6 +115,16 @@ const PLANES = [
 /** The drawing tools whose path (smooth or straight) is the tool's state, and the defaults they keep it in. */
 const PATH_TOOLS = { line: 'line', plane: 'plane', circle: 'plane', gesture: 'gesture', guide: 'guide', brush: 'brush' };
 const NOTE_TOOL = ['note', 'Note: a written annotation', 'T'];
+/** The toolbar in sections, each switched on or off from the menu (Toolbar). Only what you use needs to be there; every tool keeps its key. */
+const TOOLBAR_SECTIONS = [
+  ['selection', 'Selection', 'Select, pan and the laser pointer, boards and text'],
+  ['drawing', 'Drawing', 'Point, line, plane, brush, sculpt and the colours'],
+  ['score', 'Score', 'Play: author a score by pointing'],
+  ['canvas', 'Canvas', 'Snap to the grid, and the canvas settings'],
+  ['frame', 'Frame', 'Zoom out, in, the zoom and fit']
+];
+const TOOLBAR_KEY = 'ams_toolbar_sections';
+const TOOLBAR_DEFAULT = { selection: true, drawing: true, score: false, canvas: true, frame: true };
 const BRUSH_KEY = 'ams_brush_active';
 /** Settings of the shape tools (right-click the tool): a circle's sides, a rectangle's roundness (0 square, 1 a pill). */
 const SHAPES_KEY = 'ams_shapes_v1';
@@ -134,9 +146,7 @@ export class Workbench {
     if (this.persist) { try { saved = JSON.parse(localStorage.getItem(DOC_KEY) || 'null'); } catch { /* ignore */ } }
     if (!saved && this.embed) saved = this.embed.document ? normalizeDocument(this.embed.document) : createDocument();
     if (!saved) {
-      const first = runScript(EXERCISES[1].source, { seed: 1, by: { kind: 'example', name: 'exercise' } }).doc;
-      if (first) first.title = EXERCISES[1].title;
-      saved = first || createDocument();
+      saved = createDocument({ title: 'Scene 1' });   // a blank sheet; the exercises and lessons are in the palette and Docs
     }
     this.store = new ProcessStore(saved);
     this.tool = 'select';
@@ -373,6 +383,7 @@ export class Workbench {
   cycleStack(kind) {
     const stacks = {
       select: { ids: SELECTS.map(c => c[0]), inside: () => SELECTS.some(c => c[0] === this.tool), current: () => this.tool, shown: () => this.selectTool || 'select', go: id => this.setTool(id) },
+      pan: { ids: PANS.map(c => c[0]), inside: () => PANS.some(c => c[0] === this.tool), current: () => this.tool, shown: () => this.panTool || 'hand', go: id => this.setTool(id) },
       line: { ids: LINES.map(c => c[0]), inside: () => LINES.some(c => c[0] === this.tool), current: () => this.tool, shown: () => this.lineTool || 'line', go: id => this.setTool(id) },
       plane: { ids: PLANES.map(c => c[0]), inside: () => PLANES.some(c => c[0] === this.tool), current: () => this.tool, shown: () => this.planeTool || 'plane', go: id => this.setTool(id) },
       brush: { ids: this.brushIds(), inside: () => this.tool === 'brush', current: () => this.brush.id, shown: () => this.brush.id, go: id => { this.pickBrush(id, { apply: false }); this.setTool('brush'); } },
@@ -408,6 +419,15 @@ export class Workbench {
     return icon(id);
   }
 
+  /** Pan and laser pointer on one button: the one in use, Shift+H to cycle, click again for the list. */
+  panStackButton() {
+    const cur = PANS.find(c => c[0] === this.tool) || PANS.find(c => c[0] === this.panTool) || PANS[0], inStack = PANS.some(c => c[0] === this.tool);
+    const menu = (x, y) => showMenu([{ label: 'Pan and point' }, ...PANS.map(([id, tip, k]) => ({ icon: icon(id), active: id === cur[0], label: tip.split(':')[0], hint: tip, keys: k, run: () => this.setTool(id) }))], x, y);
+    const btn = h('button', { class: `wb-tool wb-tool-stack${inStack ? ' on' : ''}`, 'data-guide': `tool:${cur[0]}`, title: `${cur[1]} (${cur[2]}; Shift+H cycles pan and laser, K picks the laser). Click again for the list`, html: `${icon(cur[0])}<kbd>${cur[2]}</kbd><span class="wb-tool-caret"></span>` });
+    btn.addEventListener('click', () => { if (inStack) { const r = btn.getBoundingClientRect(); menu(r.left, r.bottom + 4); } else this.setTool(cur[0]); });
+    btn.addEventListener('contextmenu', ev => { ev.preventDefault(); menu(ev.clientX, ev.clientY); });
+    return btn;
+  }
   planeStackButton() { return this.stackToolButton(PLANES, this.planeTool, 'Plane', 'Shift+2 cycles plane, circle and rectangle'); }
   lineStackButton() { return this.stackToolButton(LINES, this.lineTool, 'Line', 'Shift+1 cycles line, gesture and guide'); }
 
@@ -416,6 +436,7 @@ export class Workbench {
     if (this.player?.take) this.player.close();
     if (LINES.some(c => c[0] === t)) this.lineTool = t;
     if (t === 'select' || t === 'direct') this.selectTool = t;
+    if (PANS.some(c => c[0] === t)) this.panTool = t;
     if (PLANES.some(c => c[0] === t)) this.planeTool = t;
     if (t !== 'direct' && this.canvas) this.canvas.selPoints = [];
     this.canvas?.finishClickPath?.();
@@ -638,6 +659,7 @@ export class Workbench {
 
   /** The grid settings at the pointer (Ctrl+Shift+right-click): grid, grid color, paper and workspace colors. */
   openGridMenu(x = this.pointerAt?.[0] ?? 200, y = this.pointerAt?.[1] ?? 200) { return openGridParams(this, x, y); }
+  openCanvasMenu(x = this.pointerAt?.[0] ?? 200, y = this.pointerAt?.[1] ?? 200) { return openCanvasParams(this, x, y); }
 
   paintSwatches() {
     const { stroke: s, fill: f } = this.paintValues();
@@ -1959,21 +1981,24 @@ export class Workbench {
     // The chrome is minimal: tools in the middle, view controls and the menu on the right; scenes,
     // boards, stages live in panels (right-click and Opt+right-click for properties).
     const tools = h('div', { class: 'wb-island wb-tools-island' });
+    const parts = { selection: [], drawing: [], score: [], canvas: [], frame: [] };   // the toolbar's sections (see TOOLBAR_SECTIONS)
     // Select / direct: one slot showing the one in use (V, Shift+V pick directly; click again for both).
     const selT = SELECTS.find(c => c[0] === this.tool) || SELECTS.find(c => c[0] === this.selectTool) || SELECTS[0];
     const selMenu = (x, y) => showMenu([{ label: 'Select' }, ...SELECTS.map(([id, tip, key]) => ({ icon: icon(id), active: id === selT[0], label: tip.split(':')[0], hint: tip, keys: key, run: () => this.setTool(id) }))], x, y);
     const selBtn = h('button', { class: `wb-tool wb-tool-stack${SELECTS.some(c => c[0] === this.tool) ? ' on' : ''}`, 'data-guide': `tool:${selT[0]}`, title: `${selT[1]} (${selT[2]}). Click again or right-click for select and direct`, html: `${icon(selT[0])}<kbd>${selT[2].replace('⇧', '')}</kbd><span class="wb-tool-caret"></span>` });
     selBtn.addEventListener('click', () => { if (SELECTS.some(c => c[0] === this.tool)) { const r = selBtn.getBoundingClientRect(); selMenu(r.left, r.bottom + 4); } else this.setTool(selT[0]); });
     selBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); selMenu(ev.clientX, ev.clientY); });
-    tools.append(selBtn);
+    parts.selection.push(selBtn);
     for (const t of TOOLS) {
-      if (!t) { tools.append(h('div', { class: 'wb-sep' })); continue; }
+      if (!t) continue;
       const [id, tip, key] = t;
-      if (id === 'select') continue;
-      if (id === 'plane') { tools.append(this.planeStackButton()); continue; }
-      if (id === 'line') { tools.append(this.lineStackButton()); continue; }
+      if (id === 'select' || id === 'laser') continue;
+      if (id === 'hand') { parts.selection.push(this.panStackButton()); continue; }
+      if (id === 'plane') { parts.drawing.push(this.planeStackButton()); continue; }
+      if (id === 'line') { parts.drawing.push(this.lineStackButton()); continue; }
       const drawing = ['point', 'line', 'plane'].includes(id);
-      tools.append(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})${drawing ? ' · right-click: brush and look for new marks' : ''}`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id), oncontextmenu: drawing ? e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); openToolDefaults(this, id, r.left, r.bottom + 6); } : null }));
+      (id === 'board' ? parts.selection : parts.drawing).push(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})${drawing ? ' · right-click: brush and look for new marks' : ''}`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id), oncontextmenu: drawing ? e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); openToolDefaults(this, id, r.left, r.bottom + 6); } : null }));
+      if (id === 'board') { const [nid, ntip, nkey] = NOTE_TOOL; parts.selection.push(h('button', { class: `wb-tool${this.tool === nid ? ' on' : ''}`, 'data-guide': `tool:${nid}`, title: `${ntip} (${nkey})`, html: `${icon(nid)}<kbd>${nkey}</kbd>`, onclick: () => this.setTool(nid) })); }
     }
     // Brush: the active brush (click again or right-click for the list).
     const bb = BRUSHES[this.brush.id] || BRUSHES.ink;
@@ -1997,57 +2022,64 @@ export class Workbench {
     const playBtn = h('button', { class: `wb-tool wb-tool-stack${this.tool === 'play' ? ' on' : ''}`, 'data-guide': 'tool:play', title: `Play: ${kind[1]} (Y). ${kind[2]} Click again or right-click for the kinds`, html: `${this.playKindIcon(kind[0])}<kbd>Y</kbd><span class="wb-tool-caret"></span>` });
     playBtn.addEventListener('click', () => { if (this.tool === 'play') { const r = playBtn.getBoundingClientRect(); this.playMenu(r.left, r.bottom + 4); } else this.setTool('play'); });
     playBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.playMenu(ev.clientX, ev.clientY); });
-    tools.append(h('div', { class: 'wb-sep' }), brushBtn, sculptBtn, playBtn);
+    parts.drawing.push(brushBtn, sculptBtn); parts.score.push(playBtn);
     // Snap to grid: on shows the grid at full strength; off, fainter.
     const snapKey = this.shortcuts?.label('view.snap') || '';
-    tools.append(h('div', { class: 'wb-sep' }), this.paintSwatches(), h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''} · right-click or G: canvas settings (grid, names, drawing)`, html: `${icon('snap')}<kbd>G</kbd>`, onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }), oncontextmenu: e => { e.preventDefault(); openGridParams(this, e.clientX, e.clientY + 8); } }));
-    { const [id, tip, key] = NOTE_TOOL; tools.append(h('div', { class: 'wb-sep' }), h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id) })); }
-    const right = h('div', { class: 'wb-island wb-view-island' },
-      h('button', { class: 'wb-tool', 'data-guide': 'menu', title: 'Menu', html: icon('menu'), onclick: e => this.openMenu(e.currentTarget) }),
-      h('div', { class: 'wb-sep' }),
-      h('button', { class: 'wb-tool', 'data-guide': 'view', title: this.view.mode === 'process' ? 'Process: guides, gestures and notes shown (\\ for the picture)' : 'Picture: the finished picture (\\ for the process)', html: icon(this.view.mode === 'process' ? 'viewProcess' : 'viewPicture'), onclick: () => this.setViewMode(this.view.mode === 'picture' ? 'process' : 'picture') }),
-      this.reference ? h('button', { class: `wb-tool${this.reference.visible ? ' on' : ''}`, title: `Reference underlay: ${this.reference.title} (R toggles)`, html: icon('picture'), onclick: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } }) : null,
-      h('button', { class: `wb-tool${this.canvas.showPoints ? ' on' : ''}`, title: "Show marks' points (')", html: icon('points'), onclick: () => this.togglePoints() }),
-      h('button', { class: 'wb-tool', 'data-guide': 'present', title: 'Present the boards (Opt+Cmd+P): ← → to move, Esc to leave', html: icon('play'), onclick: () => this.present(true) }),
-      h('button', { class: 'wb-tool', title: 'Theme', html: icon(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun'), onclick: () => this.toggleTheme() })
-    );
-    // The menu island starts top-left, the tools top-centre; both can be dragged by their grip.
-    if (this.embed) {
-      // The embedded editor has one toolbar: the menu (the view island's items live in it) comes first, the zoom (optional) last.
-      if (this.zoomBarOn() && !this.overlay) {
-        const z = h('span', { class: 'wb-zoom-pct', title: 'Zoom: click for 100%', onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1 / this.canvas.cam.z) }, `${Math.round((this.canvas?.cam.z || 1) * 100)}%`);
-        tools.append(h('div', { class: 'wb-sep wb-zoom-bar' }),
+    parts.drawing.push(this.paintSwatches());
+    parts.canvas.push(h('button', { class: `wb-tool${this.canvas.grid.snap ? ' on' : ''}`, 'data-guide': 'tool:snap', title: `Snap to grid${snapKey ? ` (${snapKey})` : ''} · right-click or G: the grid`, html: `${icon('snap')}<kbd>G</kbd>`, onclick: () => this.canvas.setGrid({ snap: !this.canvas.grid.snap }), oncontextmenu: e => { e.preventDefault(); openGridParams(this, e.clientX, e.clientY + 8); } }), h('button', { class: 'wb-tool', 'data-guide': 'tool:canvas', title: `Canvas settings: the paper and workspace colours, names, how scores glow, how the pen draws`, html: icon('gear'), onclick: e => { const r = e.currentTarget.getBoundingClientRect(); this.openCanvasMenu(r.left, r.bottom + 6); } }));
+    // One toolbar: the menu (the stack: view, scenes, files, panels, theme) first, then the tools, then the zoom (optional, from the menu); it can be dragged by its grip.
+    {
+      if (!this.overlay) {
+        const z = h('span', { class: 'wb-zoom-pct', title: 'Zoom: click for 100% · right-click: performance', onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1 / this.canvas.cam.z) }, `${Math.round((this.canvas?.cam.z || 1) * 100)}%`);
+        parts.frame.push(
           h('button', { class: 'wb-tool wb-zoom-bar', title: 'Zoom out', html: icon('down'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1 / 1.2) }),
-          Object.assign(z, { className: 'wb-zoom-pct wb-zoom-bar' }),
+          Object.assign(z, { className: 'wb-zoom-pct wb-zoom-bar', oncontextmenu: e => { e.preventDefault(); this.togglePerf(); } }),
           h('button', { class: 'wb-tool wb-zoom-bar', title: 'Zoom in', html: icon('up'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1.2) }),
           h('button', { class: 'wb-tool wb-zoom-bar', title: 'Fit the active board (F)', html: icon('fit'), onclick: () => { this.canvas.fit(60, this.activeBoard || MAIN); this.renderChrome(); } }));
       }
-      tools.prepend(h('button', { class: 'wb-tool wb-menu-btn', 'data-guide': 'menu', title: 'Menu', html: icon('menu'), onclick: e => this.openMenu(e.currentTarget) }), h('div', { class: 'wb-sep wb-menu-sep' }));
+      // The sections that are switched on, in order, with a divider between them.
+      let first = true;
+      for (const [id] of TOOLBAR_SECTIONS) {
+        if (!this.toolbarOn(id) || !parts[id].length) continue;
+        if (!first) tools.append(h('div', { class: 'wb-sep' }));
+        tools.append(...parts[id]); first = false;
+      }
+      tools.prepend(h('button', { class: 'wb-tool wb-menu-btn', 'data-guide': 'menu', title: 'Menu: view, scenes, files, panels, theme', html: icon('menu'), onclick: e => this.openMenu(e.currentTarget) }), h('div', { class: 'wb-sep wb-menu-sep' }));
       this.topbar.replaceChildren(tools, h('div', { class: 'wb-topbar-spacer' }));
       this.makeMovable(tools, 'tools');
-    } else {
-      this.topbar.replaceChildren(right, tools, h('div', { class: 'wb-topbar-spacer' }));
-      this.makeMovable(right, 'view'); this.makeMovable(tools, 'tools');
     }
-    this.zoomIsland.replaceChildren(
-      h('button', { class: 'wb-tool', title: 'Zoom out', html: icon('down'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1 / 1.2) }),
-      h('span', {}, `${Math.round((this.canvas?.cam.z || 1) * 100)}%`),
-      h('button', { class: 'wb-tool', title: 'Zoom in', html: icon('up'), onclick: () => this.canvas.zoomAt(this.canvas.w / 2, this.canvas.h / 2, 1.2) }),
-      h('button', { class: 'wb-tool', title: 'Fit the active board (F)', html: icon('fit'), onclick: () => { this.canvas.fit(60, this.activeBoard || MAIN); this.renderChrome(); } })
-    );
+    // The zoom controls are the end of the toolbar; this island is only the performance readout (right-click the zoom % to show it).
+    this.zoomIsland.replaceChildren();
+    this.zoomIsland.style.display = this.perfOn ? '' : 'none';   // (an empty island would still show its drag grip)
     if (this.perfOn) this.zoomIsland.append(this.perfEl ||= h('span', { class: 'wb-perf', title: 'Frames per second while the canvas redraws · the last redraw · marks. Click: performance under each board', style: { cursor: 'pointer' }, onclick: () => this.toggleBoardPerf() }));
     this.zoomIsland.oncontextmenu = e => { e.preventDefault(); this.togglePerf(); };
     this.makeMovable(this.zoomIsland, 'zoom');
   }
 
-  /** The zoom controls in the toolbar (the embedded editor; the menu toggles them): on unless switched off. */
-  zoomBarOn() { try { return localStorage.getItem('ams_zoom_bar') !== '0'; } catch { return true; } }
-  setZoomBar(on) { try { localStorage.setItem('ams_zoom_bar', on ? '1' : '0'); } catch { /* ignore */ } this.renderChrome(); }
+  /** Which toolbar sections are shown: the defaults, then what was chosen in the menu (kept per browser). The embed's old zoom switch still counts. */
+  toolbarOn(id) {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(TOOLBAR_KEY) || '{}'); if (this.embed && !('frame' in saved) && localStorage.getItem('ams_zoom_bar') === '0') saved.frame = false; } catch { /* ignore */ }
+    return id in saved ? Boolean(saved[id]) : TOOLBAR_DEFAULT[id] !== false;
+  }
+  setToolbarSection(id, on) {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(TOOLBAR_KEY) || '{}'); } catch { /* ignore */ }
+    saved[id] = Boolean(on);
+    try { localStorage.setItem(TOOLBAR_KEY, JSON.stringify(saved)); } catch { /* ignore */ }
+    this.renderChrome();
+  }
 
   toggleTheme() {
     const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    const was = themeGround();
     document.documentElement.dataset.theme = t;
     try { localStorage.setItem('ams_theme', t); } catch { /* ignore */ }
+    // Paper still on the old theme's stock color follows the theme (a color you chose stays).
+    const now = themeGround();
+    if (this.store.doc.artboard?.ground === was || boardsOf(this.store.doc).some(b => b.ground === was)) {
+      this.store.change('theme paper', d => { if (d.artboard.ground === was) d.artboard.ground = now; for (const b of d.boards || []) if (b.ground === was) b.ground = now; });
+    }
     this.canvas.invalidate();
     this.renderChrome();
   }
@@ -2252,15 +2284,13 @@ export class Workbench {
     const r = anchor.getBoundingClientRect();
     const sc = id => this.shortcuts.label(id);
     // What the view island held (picture or process, reference, points, present, theme), for the single toolbar.
-    const viewItems = this.embed ? [
+    const viewItems = [
       { label: this.view.mode === 'process' ? 'Show the picture' : 'Show the process', keys: sc('view.toggle'), hint: 'The finished picture, or the process: guides, gestures and notes', run: () => this.setViewMode(this.view.mode === 'process' ? 'picture' : 'process') },
       this.reference ? { label: this.reference.visible ? 'Hide the reference' : 'Show the reference', keys: sc('view.reference'), run: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } } : null,
-      { label: this.canvas.showPoints ? 'Hide points' : 'Show points', keys: sc('view.points'), hint: "The marks' points", run: () => this.togglePoints() },
-      { label: 'Present', keys: sc('view.present'), hint: 'The boards one by one: ← → to move, Esc to leave', run: () => this.present(true) },
-      this.overlay ? null : { label: this.zoomBarOn() ? 'Hide the zoom controls' : 'Show the zoom controls', hint: 'Zoom out, in and fit, at the end of the toolbar', run: () => this.setZoomBar(!this.zoomBarOn()) },
+      { label: 'Play', keys: sc('view.present'), hint: 'Present the boards one by one: ← → to move, Esc to leave', run: () => this.present(true) },
       { label: document.documentElement.dataset.theme === 'light' ? 'Dark theme' : 'Light theme', run: () => this.toggleTheme() },
       '-'
-    ].filter(Boolean) : [];
+    ].filter(Boolean);
     const items = [...viewItems,
       { label: 'New scene', keys: this.shortcuts.label('scene.new'), hint: 'An empty drawing in this project; the others stay', run: () => this.scenes.create() },
       { label: 'New project', hint: 'Start over with one empty scene', items: [
@@ -2287,9 +2317,12 @@ export class Workbench {
       { label: 'Command palette', keys: this.shortcuts.label('app.palette'), run: () => openPalette(this) },
       { label: 'Docs', keys: this.shortcuts.label('app.docs'), run: () => this.openDocs() },
       '-',
-      { label: 'Panels' },
-      ...[...this.docks.panels.values()].filter(p => !['settings', 'shortcuts'].includes(p.id)).map(p => ({ label: p.title, run: () => this.docks.open(p.id) })),
-      { label: 'Reset layout', run: () => this.docks.reset() },
+      { label: 'Toolbar', hint: 'Which sections of the toolbar to show', items: TOOLBAR_SECTIONS.filter(([id]) => id !== 'frame' || !this.overlay).map(([id, name, hint]) => ({ icon: this.toolbarOn(id) ? '✓' : '&nbsp;', label: name, hint, run: () => this.setToolbarSection(id, !this.toolbarOn(id)) })) },
+      { label: 'Panels', hint: 'Open a panel', items: [
+        ...[...this.docks.panels.values()].filter(p => !['settings', 'shortcuts'].includes(p.id)).map(p => ({ label: p.title, run: () => this.docks.open(p.id) })),
+        '-',
+        { label: 'Reset layout', run: () => this.docks.reset() }
+      ] },
       '-',
       { label: 'Classic studio', hint: 'The earlier studio (generation, mediums, training)', run: () => { window.location.href = '/classic.html'; } }
     ];
@@ -2298,7 +2331,7 @@ export class Workbench {
 
   /** The menu of the lean embedded editor: no scenes, assets, docs, settings or presentation; the exports it has. */
   leanMenu(items) {
-    const drop = /^(New scene|New project|Open file|Save to Assets|Settings|Shortcuts|Docs|Classic studio|Present)$/;
+    const drop = /^(New scene|New project|Open file|Save to Assets|Settings|Shortcuts|Docs|Classic studio|Present|Play)$/;
     const keepExport = /^(PNG|SVG|Scene \(JSON\)|Excalidraw)$/;
     const out = [];
     for (const i of items) {

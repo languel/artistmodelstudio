@@ -113,8 +113,11 @@ export function openToolParams(app, x, y) {
   open = { close };
 }
 
-/** Right-click the grid button: the grid and the drawing settings, where you are. */
-export function openGridParams(app, x, y) {
+/** The grid button's right-click: the grid (and whether marks show their points). Canvas settings are their own popup. */
+export const openGridParams = (app, x, y) => canvasPopup(app, x, y, 'grid');
+/** The canvas settings button: names of marks that play, the paper and workspace colours, how scores glow, how the pen draws. */
+export const openCanvasParams = (app, x, y) => canvasPopup(app, x, y, 'canvas');
+function canvasPopup(app, x, y, which) {
   open?.close();
   const pop = h('div', { class: 'wb-cp-pop wb-tp' });
   const g = app.canvas.grid;
@@ -131,19 +134,23 @@ export function openGridParams(app, x, y) {
   };
   const line = (label, control, doc) => h('label', { class: 'wb-tp-row wb-tp-row2', title: doc || '' }, h('span', { class: 'wb-tp-label' }, label), control);
   const snap = h('input', { type: 'checkbox', checked: Boolean(g.snap), onchange: e => app.canvas.setGrid({ snap: e.target.checked }) });
-  pop.append(
-    h('div', { class: 'wb-tp-head' }, h('span', {}, 'Canvas')),
+  const gridRows = [
+    h('div', { class: 'wb-tp-head' }, h('span', {}, 'Grid')),
+    line('Mark points', h('input', { type: 'checkbox', checked: Boolean(app.canvas.showPoints), onchange: () => app.togglePoints() }), "Show each mark's points (')"),
     line('Show', seg([['off', 'Off'], ['paper', 'Paper'], ['everywhere', 'All']], g.show || 'paper', v => app.canvas.setGrid({ show: v }))),
-    line('Names', (() => { const c = h('input', { type: 'checkbox', checked: Boolean(app.scoreView?.names), onchange: e => app.setScoreView({ names: e.target.checked }) }); return c; })(), 'Show the names of marks that play (the id when a mark has none) and the links between them (Alt+N)'),
     line('Style', seg([['lines', 'Lines'], ['dots', 'Dots']], g.style || 'lines', v => app.canvas.setGrid({ style: v }))),
     slider({ label: 'Spacing', min: 5, max: 400, step: 1, value: g.spacing, doc: 'Distance between major lines, in artboard units', onInput: v => app.canvas.setGrid({ spacing: v }) }),
     line('Auto', h('input', { type: 'checkbox', checked: Boolean(g.auto), onchange: e => app.canvas.setGrid({ auto: e.target.checked }) }), 'The grid follows the zoom: finer lines (and finer snapping) as you zoom in, coarser as you zoom out'),
     line('Grid', colorField(g.color, v => app.canvas.setGrid({ color: v }), { title: 'Grid color', fallback: '#8a837840', app })),
-    line(board.main ? 'Paper' : `Paper · ${board.title || 'board'}`, colorField(board.ground, v => app.store.updateBoard(board.id, { ground: v }), { title: 'The paper of the board under the pointer (else the active one)', fallback: '#f3efe6', app })),
-    line('Workspace', colorField(workspaceColor(), v => app.setBackground(v), { title: 'Workspace background (behind the boards)', fallback: '#1b1b1b', app })),
     slider({ label: 'Divisions', min: 1, max: 10, step: 1, value: g.subdivisions, doc: 'Minor lines between the major ones', onInput: v => app.canvas.setGrid({ subdivisions: v }) }),
     line('Snap', snap, 'Marks snap to the grid (Shift+Tab); Ctrl snaps while drawing, moving and scaling'),
     line('Snap to', seg([['points', 'Grid'], ['increments', 'Steps'], ['objects', 'Objects']], ['increments', 'objects'].includes(g.snapMode) ? g.snapMode : 'points', v => app.canvas.setGrid({ snapMode: v })), 'Grid: the grabbed point (or the dragged edge) lands on a grid point. Steps: moves in whole grid steps from where it started. Objects: the grabbed (or drawn) point lands on the nearest point of another mark'),
+  ];
+  const canvasRows = [
+    h('div', { class: 'wb-tp-head' }, h('span', {}, 'Canvas')),
+    line('Names', (() => { const c = h('input', { type: 'checkbox', checked: Boolean(app.scoreView?.names), onchange: e => app.setScoreView({ names: e.target.checked }) }); return c; })(), 'Show the names of marks that play (the id when a mark has none) and the links between them (Alt+N)'),
+    line(board.main ? 'Paper' : `Paper · ${board.title || 'board'}`, colorField(board.ground, v => app.store.updateBoard(board.id, { ground: v }), { title: 'The paper of the board under the pointer (else the active one)', fallback: '#f3efe6', app })),
+    line('Workspace', colorField(workspaceColor(), v => app.setBackground(v), { title: 'Workspace background (behind the boards)', fallback: '#1b1b1b', app })),
     h('div', { class: 'wb-tp-sub' }, 'Scores (glow, trails, blips)'),
     line('Highlight', colorField(app.scoreView.color || '', v => app.setScoreView({ color: v || '' }), { title: 'The colour of everything lit: travelers, trails, blips, nodes (empty: the theme\'s accent)', fallback: '#c8664f', app }), 'The colour of everything lit by a score'),
     slider({ label: 'Glow', min: 0, max: 1, step: 0.05, value: app.scoreView.glow, doc: 'The halo around a traveler: how strong (0 = off). A traveler can have its own in Properties', onInput: v => app.setScoreView({ glow: v }) }),
@@ -154,7 +161,9 @@ export function openGridParams(app, x, y) {
     h('div', { class: 'wb-tp-sub' }, 'Drawing'),
     slider({ label: 'Lazy', min: 0, max: 120, step: 1, value: app.lazy.radius, doc: 'The pen trails the cursor on a string this long (screen px). Small wobbles inside it never reach the line; corners get rounded. 0 = off', onInput: v => app.setLazy({ radius: v }) }),
     slider({ label: 'Smoothing', min: 0, max: 0.95, step: 0.01, value: app.lazy.smoothing, doc: 'Each step the pen covers only part of the way to where it is pulled (0.5 = half). Higher is smoother and lags more. 0 = off', onInput: v => app.setLazy({ smoothing: v }) }),
-    slider({ label: 'Simplify', min: 0, max: 40, step: 0.5, value: app.lazy.simplify || 0, doc: 'On release, points the line does not need are dropped: how far (screen px) the shape may move. Higher = fewer points, looser shape. 0 = off', onInput: v => app.setLazy({ simplify: v }) }));
+    slider({ label: 'Simplify', min: 0, max: 40, step: 0.5, value: app.lazy.simplify || 0, doc: 'On release, points the line does not need are dropped: how far (screen px) the shape may move. Higher = fewer points, looser shape. 0 = off', onInput: v => app.setLazy({ simplify: v }) }),
+  ];
+  pop.append(...(which === 'grid' ? gridRows : canvasRows));
   document.body.append(pop);
   const r = pop.getBoundingClientRect();
   pop.style.left = `${Math.max(8, Math.min(x, window.innerWidth - r.width - 8))}px`;

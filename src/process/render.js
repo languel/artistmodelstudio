@@ -10,6 +10,7 @@
 import { envelope, reveal, expired, nextChange, cutPath } from './envelope.js';
 import { BRUSHES, mulberry32, resolveParams, installLines, KIT } from './brushes.js';
 import { boardDoc, boardsOf, MAIN } from './boards.js';
+import { inkOn } from './document.js';
 import { drawNote, noteCorners } from './notes.js';
 import { txBeginFrame, txArm, txDisarm, txKnown, txBlit, txHash, txPpu } from './texture.js';
 
@@ -57,9 +58,12 @@ export function renderDocument(ctx, doc, {
   const env = { scale: transform.scale, rng: null, frozen, now, age: 0 };
   const boardRects = new Map(boardsOf(doc).map(b => [b.id, { x: b.x, y: b.y, width: b.width, height: b.height, mask: Boolean(b.mask) }]));
   env.boards = boardRects;
+  // A mark with no color of its own is drawn in the pen that reads on its board's paper (bright on a dark one).
+  const inks = new Map(boardsOf(doc).map(b => [b.id, inkOn(b.ground)]));
   const overlay = [];
   for (const e0 of ordered) {
     let e = e0;
+    if (!e.color && !e.fill) { const ink = inks.get(e.board || MAIN); if (ink) e = { ...e, color: ink }; }
     const s = stageOf.get(e.stage);
     if (!s || !s.visible || e.hidden) continue;
     if ((rank.get(e.stage) ?? 0) > upTo) continue;

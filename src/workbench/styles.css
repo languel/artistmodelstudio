@@ -123,6 +123,7 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-stagebadge:hover { background: var(--wb-hover); color: var(--wb-text); }
 .wb-stagebadge b { color: var(--wb-text); font-weight: 600; margin-left: 4px; }
 .wb-zoom { position: absolute; left: 10px; bottom: 10px; z-index: 10; }
+.wb-zoom:empty { display: none; }
 .wb-zoom span { min-width: 44px; text-align: center; color: var(--wb-muted); font: var(--ui-small) var(--font-mono); }
 .wb-flash { position: absolute; left: 50%; top: 60px; transform: translateX(-50%); z-index: 20; background: var(--wb-panel); border: 1px solid var(--wb-line); padding: 6px 10px; border-radius: 6px; box-shadow: var(--wb-shadow); }
 .wb-note-input { position: absolute; z-index: 20; box-sizing: border-box; border: 1px dashed rgba(120, 110, 95, 0.55); border-radius: 2px; outline: none; resize: horizontal; overflow: hidden; }
