@@ -5,6 +5,11 @@
  */
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
+import { showMenu } from '../menu.js';
+import { boardsOf, MAIN, BLACKBOARD, opacityOf, blendOf, isLayered, BOARD_BLENDS } from '../../process/boards.js';
+
+const BY_KEY = 'ams_outliner_by';
+const readBy = () => { try { return localStorage.getItem(BY_KEY) === 'board' ? 'board' : 'stage'; } catch { return 'stage'; } };
 
 const ROLE_GLYPH = { point: '•', line: '∿', plane: '▰', guide: '┼', gesture: '〰', note: '¶', image: '▣' };
 
@@ -19,6 +24,8 @@ export function mountOutliner(root, app) {
   const collapsed = new Set();
   let drag = null;       // ids being dragged
   let anchor = null;     // last clicked id (for shift ranges)
+  let by = readBy();     // what the tree is grouped by: 'stage' (stage → group → mark) or 'board' (board → stage → group → mark)
+  let boardDrag = null;  // a board row being dragged to a new place in the stack
   const list = h('div', { class: 'wb-outliner', role: 'tree', tabIndex: 0 });
   const bar = h('div', { class: 'wb-row wb-row-actions wb-outliner-bar' });
   root.append(bar, list);
@@ -139,15 +146,15 @@ export function mountOutliner(root, app) {
     return h('div', { class: 'wb-outliner-block' }, row, ...(open ? items.map(e => elementRow(e, depth + 1)) : []));
   };
 
-  const stageBlock = (s, i) => {
+  const stageBlock = (s, i, { marks = null, depth = 0, scope = '' } = {}) => {
     const doc = app.store.doc;
-    const items = doc.elements.filter(e => e.stage === s.id);
-    const key = `stage:${s.id}`;
+    const items = (marks || doc.elements).filter(e => e.stage === s.id);
+    const key = `${scope}stage:${s.id}`;
     const open = !collapsed.has(key);
     const active = app.activeStageId === s.id;
     const name = h('span', { class: 'wb-outliner-label wb-outliner-stage-name' }, `${i + 1}. ${s.name}`);
     onDouble(name, `s:${s.id}`, cur => rename(cur, s.name, v => app.store.updateStage(s.id, { name: v })), () => app.store.doc.elements.filter(x => x.stage === s.id && !x.hidden).map(x => x.id));
-    const row = h('div', { class: `wb-outliner-row wb-outliner-stage${active ? ' active' : ''}${s.visible ? '' : ' hidden'}`, title: `${s.kind}: click to make active (new marks go here)`, onclick: () => app.setActiveStage(s.id) },
+    const row = h('div', { class: `wb-outliner-row wb-outliner-stage${active ? ' active' : ''}${s.visible ? '' : ' hidden'}`, style: { '--depth': depth }, title: `${s.kind}: click to make active (new marks go here)`, onclick: () => app.setActiveStage(s.id) },
       h('button', { class: 'wb-outliner-caret', title: open ? 'Collapse' : 'Expand', onclick: ev => { ev.stopPropagation(); open ? collapsed.add(key) : collapsed.delete(key); render(); } }, items.length ? (open ? '▾' : '▸') : ''),
       name,
       h('span', { class: 'wb-muted wb-outliner-count' }, String(items.length)),
@@ -159,11 +166,61 @@ export function mountOutliner(root, app) {
     if (open) {
       const seen = new Set();
       for (const e of items) {
-        if (e.group) { if (seen.has(e.group)) continue; seen.add(e.group); children.push(groupBlock(e.group, items.filter(x => x.group === e.group), 1)); }
-        else children.push(elementRow(e, 1));
+        if (e.group) { if (seen.has(e.group)) continue; seen.add(e.group); children.push(groupBlock(e.group, items.filter(x => x.group === e.group), depth + 1)); }
+        else children.push(elementRow(e, depth + 1));
       }
     }
     return h('div', { class: 'wb-outliner-block' }, row, ...children);
+  };
+
+  // A board as a layer: where it stands in the stack (later is above), whether it shows, is locked, how much of it shows,
+  // and how it blends. Its stages and marks are inside it. Drag a board row to restack it; drop marks on it to put them there.
+  const boardBlock = (b, i) => {
+    const doc = app.store.doc;
+    const isBoard = b.id !== BLACKBOARD;
+    const marks = doc.elements.filter(e => (e.board || MAIN) === b.id);
+    const key = `board:${b.id}`, open = !collapsed.has(key), layered = isLayered(b);
+    const name = h('span', { class: 'wb-outliner-label wb-outliner-stage-name', title: `${isBoard ? 'Click to go to it; ' : ''}${isBoard ? 'drag to restack (later boards are above)' : 'marks outside every board'}` }, isBoard ? `${i + 1}. ${b.title}${b.kind && b.kind !== 'drawing' ? ` · ${b.kind}` : ''}` : 'Blackboard');
+    const ops = h('input', { type: 'range', class: 'wb-outliner-opacity', min: 0, max: 100, step: 1, value: Math.round(opacityOf(b) * 100), title: `Opacity ${Math.round(opacityOf(b) * 100)}%`, onclick: ev => ev.stopPropagation(), oninput: ev => { ev.stopPropagation(); ops.title = `Opacity ${ops.value}%`; }, onchange: ev => app.store.updateBoard(b.id, { opacity: Number(ops.value) / 100 }) });
+    const more = h('button', { class: `wb-icon-btn wb-outliner-toggle${layered ? ' on' : ''}`, title: `Blend: ${BOARD_BLENDS.find(x => x[0] === blendOf(b))?.[1]}. Output, and more`, html: '⋯', onclick: ev => {
+      ev.stopPropagation(); const r = ev.currentTarget.getBoundingClientRect();
+      showMenu([
+        { label: 'Blend' }, ...BOARD_BLENDS.map(([id, label]) => ({ label, active: id === blendOf(b), run: () => app.store.updateBoard(b.id, { blend: id }) })), '-',
+        app.outputs ? { label: 'Pin on screen', hint: 'A window-like overlay that stays put while you move around the canvas', run: () => app.outputs.pin(b.id) } : null,
+        app.outputs ? { label: 'Open in a window', hint: 'A window for another display or a projector (click it for full screen)', run: () => app.outputs.openWindow(b.id) } : null,
+        app.outputs && window.documentPictureInPicture ? { label: 'Open borderless', hint: 'A picture-in-picture window (Chrome): no address bar, always on top', run: () => app.outputs.openWindow(b.id, { borderless: true }) } : null
+      ].filter(Boolean), r.left, r.bottom + 4);
+    } });
+    const row = h('div', { class: `wb-outliner-row wb-outliner-stage wb-outliner-board${b.hidden ? ' hidden' : ''}${isBoard && app.activeBoard === b.id ? ' active' : ''}`, onclick: () => isBoard && app.goToBoard(b.id) },
+      h('button', { class: 'wb-outliner-caret', title: open ? 'Collapse' : 'Expand', onclick: ev => { ev.stopPropagation(); open ? collapsed.add(key) : collapsed.delete(key); render(); } }, marks.length ? (open ? '▾' : '▸') : ''),
+      name,
+      h('span', { class: 'wb-muted wb-outliner-count' }, String(marks.length)),
+      isBoard && b.kind !== 'frame' ? ops : null,
+      isBoard ? toggleBtn(!b.hidden, 'eye', 'eyeOff', b.hidden ? 'Show board' : 'Hide board', () => app.setBoardFlag(b.id, 'hidden', !b.hidden)) : null,
+      isBoard ? toggleBtn(!b.locked, 'unlock', 'lock', b.locked ? 'Unlock board' : 'Lock board', () => app.setBoardFlag(b.id, 'locked', !b.locked), b.locked ? 'on' : '') : null,
+      isBoard ? more : null);
+    if (isBoard && !b.main) {
+      row.draggable = true;
+      row.addEventListener('dragstart', e => { boardDrag = b.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', b.id); row.classList.add('dragging'); });
+      row.addEventListener('dragend', () => { boardDrag = null; row.classList.remove('dragging'); });
+    }
+    // Over a board row: another board is put before or after it; marks are put on the board.
+    row.addEventListener('dragover', e => { if (!drag && !boardDrag) return; if (boardDrag === b.id) return; e.preventDefault(); const r = row.getBoundingClientRect(); row.dataset.drop = boardDrag ? (e.clientY < r.top + r.height / 2 ? 'before' : 'after') : 'inside'; });
+    row.addEventListener('dragleave', () => { delete row.dataset.drop; });
+    row.addEventListener('drop', e => {
+      e.preventDefault(); const where = row.dataset.drop; delete row.dataset.drop;
+      if (boardDrag && boardDrag !== b.id) {
+        const order = boardsOf(app.store.doc).map(x => x.id), from = order.indexOf(boardDrag);
+        let to = order.indexOf(b.id) + (where === 'after' ? 1 : 0); if (from < to) to -= 1;
+        to = Math.max(1, to);   // (the main board stays first)
+        if (to !== from) app.store.moveBoard(boardDrag, to - from);
+      } else if (drag && isBoard) app.store.assignBoard(drag, b.id);
+      else if (drag) app.store.assignBoard(drag, BLACKBOARD);
+      boardDrag = null; drag = null;
+    });
+    const kids = [];
+    if (open) for (const [si, s] of doc.stages.entries()) if (marks.some(e => e.stage === s.id)) kids.push(stageBlock(s, si, { marks, depth: 1, scope: `${key}:` }));
+    return h('div', { class: 'wb-outliner-block' }, row, ...kids);
   };
 
   const render = () => {
@@ -174,8 +231,14 @@ export function mountOutliner(root, app) {
       h('button', { class: 'wb-btn', disabled: n < 2, title: 'Group the selection (Cmd+G)', onclick: () => app.groupSelection() }, 'Group'),
       h('button', { class: 'wb-btn', disabled: !grouped, title: 'Ungroup (Shift+Cmd+G)', onclick: () => app.ungroupSelection() }, 'Ungroup'),
       h('span', { style: { flex: 1 } }),
+      h('div', { class: 'wb-seg', title: 'Group the marks by their stage (when and why they were made), or by their board (where they are: the layers of the scene)' },
+        ...[['stage', 'Stage'], ['board', 'Board']].map(([id, label]) => h('button', { class: by === id ? 'on' : '', onclick: () => { by = id; try { localStorage.setItem(BY_KEY, id); } catch { /* ignore */ } render(); } }, label))),
       h('span', { class: 'wb-muted wb-small' }, n ? `${n} selected` : `${doc.elements.length}`));
-    list.replaceChildren(...doc.stages.map(stageBlock));
+    if (by === 'board') {
+      const boards = boardsOf(doc).filter(b => b.kind !== 'frame' || doc.elements.some(e => e.board === b.id));
+      const black = doc.elements.some(e => e.board === BLACKBOARD) ? [{ id: BLACKBOARD, title: 'Blackboard' }] : [];
+      list.replaceChildren(...[...boards, ...black].map((b, i) => boardBlock(b, i)));
+    } else list.replaceChildren(...doc.stages.map((s, i) => stageBlock(s, i)));
   };
   // Selecting on the canvas reveals the row.
   const reveal = () => { render(); list.querySelector('.wb-outliner-row.selected')?.scrollIntoView({ block: 'nearest' }); };

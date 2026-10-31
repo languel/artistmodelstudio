@@ -67,6 +67,7 @@ import { askText, askConfirm } from './dialog.js';
 import { brushesForRole, KIT, BRUSHES } from '../process/brushes.js';
 import { txStats } from '../process/texture.js';
 import { Composer } from './masks.js';
+import { Outputs } from './outputs.js';
 import { Shortcuts } from './shortcuts.js';
 import { eyedropToTarget, openPaintPicker } from './colorPicker.js';
 import { ArtistRegistry } from '../artists/artistRegistry.js';
@@ -906,6 +907,12 @@ export class Workbench {
       ].filter(Boolean) },
       boardKind(b) === 'drawing' && b.code ? { label: 'Convert to p5.js', hint: 'A new board running its code as the p5 sketch the export writes (it pastes into the p5 editor as it is)', run: () => this.convertBoard(id, 'p5') } : null,
       boardKind(b) === 'p5' && isStudioSketch(b.code) ? { label: 'Convert to studio code', hint: 'A new drawing board with the studio code inside this sketch', run: () => this.convertBoard(id, 'studio') } : null,
+      { label: 'Output', hint: 'Send this board somewhere: it keeps running while it is sent', items: [
+        { label: this.outputs?.items.has(`pin:${id}`) ? 'Unpin from the screen' : 'Pin on screen', hint: 'A window-like overlay that stays put while you move around the canvas', run: () => this.outputs.pin(id) },
+        { label: 'Open in a window', hint: 'A window of its own: for another display or a projector (click it for full screen, which hides the title and address bars)', run: () => this.outputs.openWindow(id) },
+        ...(window.documentPictureInPicture ? [{ label: 'Open borderless', hint: 'A picture-in-picture window (Chrome): no address bar, always on top, drag it to any size or display', run: () => this.outputs.openWindow(id, { borderless: true }) }] : []),
+        ...(this.outputs?.list().some(o => o.board === id) ? [{ label: 'Stop its outputs', run: () => this.outputs.list().filter(o => o.board === id).forEach(o => this.outputs.close(o.key)) }] : [])
+      ] },
       { label: 'Bake', items: [
         { label: 'To a PNG image', hint: 'Its marks become one picture (undo brings them back)', run: () => this.bakeBoard(id, 'png') },
         { label: 'To an SVG image', hint: 'Its marks become one vector image, crisp at any zoom (undo brings them back)', run: () => this.bakeBoard(id, 'svg') }
@@ -1185,6 +1192,7 @@ export class Workbench {
     this.canvas.onToggleRun = (id, e) => (e?.altKey ? this.soloBoard(id) : this.toggleBoardRun(id));
     // Document and program boards (markdown, html, p5) over the canvas.
     this.frames = new BoardFrames(this);
+    this.outputs = new Outputs(this);   // boards sent to pinned overlays and windows (outputs.js)
     // The score runner, for code outside the app (lesson builders): the app's own, with its sources.
     this.runScript = runScript;
     this.canvas.onDrawn = () => this.frames.update();
@@ -1615,7 +1623,7 @@ export class Workbench {
     const doc = this.store.doc, b = boardById(doc, id);
     if (!b || b.paused || b.hidden) return false;   // paused by hand (or hidden): stays paused, even while you are on it
     if (this.scoreBoards().has(b.id)) return true;   // a board with a score runs (and sounds) unless paused: the play button is its mute, Opt+click its solo
-    if (b.id === (this.activeBoard || MAIN) || b.live) return true;
+    if (b.id === (this.activeBoard || MAIN) || b.live || this.outputs?.wants(b.id)) return true;   // (a board sent to an output keeps running)
     // On a frame (a slide): the boards it holds are live together.
     const active = boardById(doc, this.activeBoard || MAIN);
     return isFrame(active) && boardsInFrame(doc, active).some(x => x.id === b.id);
@@ -1674,7 +1682,7 @@ export class Workbench {
   }
 
   /** Live and on screen: a board whose processes run now. */
-  isBoardActive(id, b = boardById(this.store.doc, id)) { return Boolean(b) && this.isBoardLive(id) && this.canvas.boardOnScreen(b, 0); }
+  isBoardActive(id, b = boardById(this.store.doc, id)) { return Boolean(b) && this.isBoardLive(id) && (this.canvas.boardOnScreen(b, 0) || Boolean(this.outputs?.wants(id))); }
 
   setBoardLive(id, on) {
     this.store.change(on ? 'board live' : 'board paused', d => {

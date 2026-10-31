@@ -9,7 +9,7 @@ import { rangeInput, paintRange } from '../rangeInput.js';
 import { colorField } from '../colorPicker.js';
 import { BRUSHES, brushesForRole, resolveParams } from '../../process/brushes.js';
 import { ROLES, BLENDS } from '../../process/document.js';
-import { boardById, boardsOf, marksOf, trainBoard, rateOf } from '../../process/boards.js';
+import { boardById, boardsOf, marksOf, trainBoard, rateOf, opacityOf, blendOf, BOARD_BLENDS } from '../../process/boards.js';
 import { fxEditor } from './fxEditor.js';
 import { SCULPTS, sculptParams } from '../../process/sculpt.js';
 import { NOTE_STYLES, NOTE_FONTS, noteProps } from '../../process/notes.js';
@@ -163,6 +163,8 @@ export function mountProperties(el, app) {
       row('Height', numberField({ value: b.height, min: 40, max: 10000, step: 10, def: 1000, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { height: Math.round(v) }); } })),
       row('Redraw', numberField({ value: rateOf(b), min: 0, max: 60, step: 1, def: 0, title: 'Runs a second for a board that follows a source (each with fresh randomness); 0: once per new frame of the source', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { rate: Math.round(v) }); } })),
       row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app })),
+      row('Opacity', numberField({ value: opacityOf(b), min: 0, max: 1, step: 0.05, def: 1, title: 'How much of the board shows over what is under it (boards are layers: later ones are above)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { opacity: v }); } })),
+      row('Blend', selectField(BOARD_BLENDS, blendOf(b), v => app.store.updateBoard(b.id, { blend: v }), 'How the board mixes with what is under it')),
       h('div', { class: 'wb-muted wb-small' }, `${marksOf(app.store.doc, b.id).length} marks${!app.embed && trainBoard(app.store.doc) === b.id ? ' · models learn from this board' : ''}`)));
     // Media: the same controls as the player board (play / pause, frame steps, the timeline, speed),
     // for the source this board shows or plays. The values follow the source while this is showing.

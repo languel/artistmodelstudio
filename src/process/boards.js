@@ -60,7 +60,20 @@ const fxFields = b => ({
   ...(Array.isArray(b?.fx) && b.fx.length ? { fx: copy(b.fx) } : {}),
   ...(Array.isArray(b?.sourceFx) && b.sourceFx.length ? { sourceFx: copy(b.sourceFx) } : {})
 });
-const flagsOf = b => ({ ...Object.fromEntries(BOARD_FLAGS.filter(k => b?.[k]).map(k => [k, true])), ...(rateOf(b) ? { rate: rateOf(b) } : {}) });
+/**
+ * A board as a layer: how much of it shows (opacity, 1 = all) and how it blends with what is under it. The boards'
+ * order (their sequence) is the stacking order: later boards are above earlier ones where they overlap.
+ */
+export const BOARD_BLENDS = [['normal', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'], ['darken', 'Darken'], ['lighten', 'Lighten'], ['difference', 'Difference'], ['exclusion', 'Exclusion'], ['add', 'Add']];
+export const opacityOf = b => { const o = Number(b?.opacity); return Number.isFinite(o) ? Math.max(0, Math.min(1, o)) : 1; };
+export const blendOf = b => (BOARD_BLENDS.some(([id]) => id === b?.blend) ? b.blend : 'normal');
+/** The names the canvas and CSS know a blend by. */
+export const canvasBlend = id => (id === 'add' ? 'lighter' : id && id !== 'normal' ? id : 'source-over');
+export const cssBlend = id => (id === 'add' ? 'plus-lighter' : id && id !== 'normal' ? id : 'normal');
+/** Does a board need composing apart (it is see-through or blended), and not just painted? */
+export const isLayered = b => opacityOf(b) < 1 || blendOf(b) !== 'normal';
+const layerFields = b => ({ ...(opacityOf(b) < 1 ? { opacity: +opacityOf(b).toFixed(3) } : {}), ...(blendOf(b) !== 'normal' ? { blend: blendOf(b) } : {}) });
+const flagsOf = b => ({ ...Object.fromEntries(BOARD_FLAGS.filter(k => b?.[k]).map(k => [k, true])), ...(rateOf(b) ? { rate: rateOf(b) } : {}), ...layerFields(b) });
 
 /** All boards, the main one first, each with its place: { id, title, x, y, width, height, ground, main }. */
 export function boardsOf(doc) {

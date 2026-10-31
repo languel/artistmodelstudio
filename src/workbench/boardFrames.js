@@ -16,7 +16,7 @@
  *   await ams.frame(name)                a source's current picture (an ImageBitmap)
  * Marks drawn on a document board stay visible over it (annotations).
  */
-import { boardsOf, boardKind, findBoard, MAIN } from '../process/boards.js';
+import { boardsOf, boardKind, findBoard, MAIN, opacityOf, blendOf, cssBlend } from '../process/boards.js';
 import { renderMarkdown, esc } from '../process/markdown.js';
 import { renderToCanvas } from '../process/render.js';
 import { collectThree, threeLoader } from '../process/threeModules.js';
@@ -78,11 +78,21 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   const token = ${JSON.stringify(token)}, pending = new Map(); let seq = 0;
   const ask = (type, data, transfer) => new Promise((ok, fail) => { const id = ++seq; pending.set(id, { ok, fail }); parent.postMessage({ amsFrame: token, type, id, ...data }, '*'); });
   let perfOn = ${perf ? 'true' : 'false'};   // timed only while the studio shows it
+  let piping = false, pumping = false;
+  const pump = async () => {
+    if (!piping) { pumping = false; return; }
+    pumping = true;
+    const c = document.querySelector('canvas');
+    if (c && c.width > 0 && c.height > 0) { try { const bm = await createImageBitmap(c); parent.postMessage({ amsFrame: token, type: 'pipe', bitmap: bm }, '*', [bm]); } catch { /* not ready */ } }
+    requestAnimationFrame(pump);
+  };
   addEventListener('message', e => {
     const d = e.data; if (!d || d.amsFrame !== token) return;
     if (d.type === 'perf') perfOn = Boolean(d.on);
     if (d.type === 'reply') { const p = pending.get(d.id); if (p) { pending.delete(d.id); d.error ? p.fail(new Error(d.error)) : p.ok(d.result); } }
     if (d.type === 'snapshot') { const c = document.querySelector('canvas'); parent.postMessage({ amsFrame: token, type: 'snapshot', url: c ? c.toDataURL('image/png') : null }, '*'); }
+    // The board is sent to an output: a bitmap of its canvas goes to the studio each frame, for as long as it is asked.
+    if (d.type === 'pipe') { piping = Boolean(d.on); if (piping && !pumping) pump(); }
   });
   // The sketch's own pace (for the studio's performance readout): draw() calls a second and their time.
   addEventListener('load', () => {
@@ -164,15 +174,22 @@ export class BoardFrames {
     if (sig !== this.titles) { this.titles = sig; this.relink(); }
     for (const b of boardsOf(doc)) {
       const kind = boardKind(b);
-      if (kind === 'drawing' || kind === 'frame' || b.hidden || !this.canvas.boardOnScreen(b, 0.05)) continue;
+      if (kind === 'drawing' || kind === 'frame' || b.hidden || !(this.canvas.boardOnScreen(b, 0.05) || this.app.outputs?.wants(b.id))) continue;   // (a board sent to an output runs off screen too)
       seen.add(b.id);
       let f = this.frames.get(b.id);
       if (f && f.kind !== kind) { f.el.remove(); f = null; }
       if (!f) { f = this.create(b, kind); this.frames.set(b.id, f); }
       this.refresh(f, b);
       const [sx, sy] = this.canvas.toScreen(b.x, b.y);
-      f.el.style.transform = `translate(${sx}px, ${sy}px) scale(${z})`;
       f.el.style.width = `${b.width}px`; f.el.style.height = `${b.height}px`;
+      if (!this.canvas.boardOnScreen(b, 0.05)) {
+        // Sent to an output but off screen: a browser stops painting a frame that is out of view, so it is kept in view
+        // (tiny, in a corner, invisible and untouchable) and keeps running.
+        f.el.style.transform = 'translate(0px, 0px) scale(0.02)'; f.el.style.opacity = '0'; f.el.style.pointerEvents = 'none';
+      } else {
+        f.el.style.transform = `translate(${sx}px, ${sy}px) scale(${z})`; f.el.style.pointerEvents = '';
+        f.el.style.opacity = String(opacityOf(b)); f.el.style.mixBlendMode = cssBlend(blendOf(b));   // (a board as a layer)
+      }
     }
     // A board's media controls (board.controls): under it, as wide as it, following it. Not a board of their own.
     for (const b of boardsOf(doc)) {
@@ -198,6 +215,11 @@ export class BoardFrames {
     this.tokens.set(token, b.id);
     return { kind, el, id: b.id, code: null, token, running: false };
   }
+
+  /** Ask a board's frame to send its canvas as bitmaps (to an output); cb gets each one. */
+  pipe(id, cb) { (this.pipes ||= new Map()).set(id, cb); const f = this.frames.get(id); if (f?.iframe) this.sendPipe(f); }
+  unpipe(id) { const f = this.frames.get(id); this.pipes?.delete(id); if (f?.iframe) this.sendPipe(f); }
+  sendPipe(f) { try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'pipe', on: Boolean(this.pipes?.has(f.id)) }, '*'); } catch { /* gone */ } }
 
   release(id, f) {
     this.frames.delete(id);
@@ -266,6 +288,7 @@ export class BoardFrames {
       f.perf = Boolean(this.app.perfWanted?.(b));
       iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods);
       f.iframe = iframe;
+      iframe.addEventListener('load', () => this.sendPipe(f));   // (an output may be waiting for it)
       f.el.append(iframe);
     }
     // Its performance shown or not: the sketch times its draw() only while it is.
@@ -410,6 +433,7 @@ export class BoardFrames {
     const f = this.frames.get(id);
     const reply = (msg, transfer) => e.source?.postMessage({ amsFrame: d.amsFrame, type: 'reply', id: d.id, ...msg }, '*', transfer);
     if (d.type === 'perf') { this.perf.set(id, { fps: d.fps, calls: d.calls, ms: d.ms, at: performance.now() }); return; }
+    if (d.type === 'pipe') { const cb = this.pipes?.get(id); if (cb && d.bitmap) cb(d.bitmap); else d.bitmap?.close?.(); return; }
     if (d.type === 'snapshot') { if (d.url) { this.snapshots.set(id, d.url); if (f?.still) f.still.innerHTML = `<img src="${d.url}" alt="">`; } return; }
     if (d.type === 'error') { this.app.log(`Board “${boardsOf(this.app.store.doc).find(b => b.id === id)?.title || '?'}”: ${d.message}${d.line ? ` (line ${d.line})` : ''}`, 'error'); if (f) (f.errors ||= []).push(d); this.app.emit('frame-error', id, d); return; }
     if (d.type === 'call') {

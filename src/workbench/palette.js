@@ -5,6 +5,7 @@
 import { h } from './ui.js';
 import { EXERCISES } from '../process/exercises.js';
 import { createDocument } from '../process/document.js';
+import { findBoard, MAIN } from '../process/boards.js';
 
 export function buildCommands(app) {
   const cmd = (category, name, run, keys = '', hint = '') => ({ id: `${category}:${name}`, category, name, run, keys, hint });
@@ -67,6 +68,8 @@ function slashAll(app) {
     { name: 'background', args: '<color | transparent | default>', doc: 'The workspace behind the boards: a color (#1b1c1f, a name), transparent (for a see-through window over the desktop), or the theme’s own', run: arg => app.setBackground(arg || 'default') },
     { name: 'transparent', args: '', doc: 'See-through workspace (toggle): only the boards, marks and interface show over what is behind the window', run: () => app.setBackground(app.background === 'transparent' ? 'default' : 'transparent') },
     { name: 'ui', args: '<on | off>', doc: 'Show or hide all of the interface', run: arg => app.setUI({ all: arg ? !/^(off|hide|no|0)$/i.test(arg) : !(app.ui?.tools !== false) }) },
+    { name: 'pin', args: '[board]', doc: 'Pin a board on screen as a window-like overlay that stays put while you move around the canvas (again: unpin). The board keeps running while it is pinned', run: arg => { const b = arg ? findBoard(app.store.doc, arg.trim()) : findBoard(app.store.doc, app.activeBoard || MAIN); if (!b) return app.log(`No board “${arg}”.`, 'error'); app.outputs.pin(b.id); } },
+    { name: 'output', args: '[board] [borderless]', doc: 'Open a board in a window of its own: for another display or a projector (click it for full screen: no title or address bar). With borderless: a picture-in-picture window (Chrome), no address bar', run: arg => { const borderless = /\bborderless\b/i.test(arg || ''); const name = String(arg || '').replace(/\bborderless\b/i, '').trim(); const b = name ? findBoard(app.store.doc, name) : findBoard(app.store.doc, app.activeBoard || MAIN); if (!b) return app.log(`No board “${name}”.`, 'error'); return app.outputs.openWindow(b.id, { borderless }); } },
     { name: 'present', args: '', doc: 'Present the boards', run: () => app.present(true) },
     { name: 'grid', args: '<off | paper | all>', doc: 'Show the grid', run: arg => app.canvas.setGrid({ show: arg === 'all' ? 'everywhere' : arg === 'off' ? 'off' : 'paper' }) },
     { name: 'bake', args: '<png | svg>', doc: 'Bake the selection (or the board you are on) into one image mark: PNG, or SVG (vector, crisp at any zoom). Undo brings the marks back', run: arg => { const f = /svg/i.test(arg || '') ? 'svg' : 'png'; const ids = [...app.canvas.selected]; if (ids.length) { const el = app.bakeMarks(ids, { format: f, title: `${ids.length} marks` }); if (el) app.canvas.select([el.id]); } else app.bakeBoard(app.activeBoard || 'main', f); } },

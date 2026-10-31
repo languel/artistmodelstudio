@@ -13,7 +13,7 @@
 import { normalizeTime } from './envelope.js';
 import { normalizeTransport } from '../time/sceneTransport.js';
 import { installLines, embedBrushes } from './brushes.js';
-import { migrateBoards, boardsOf, newBoardId, nextBoardPlace, boardForPoints, MAIN, BLACKBOARD, BOARD_FLAGS, rateOf } from './boards.js';
+import { migrateBoards, boardsOf, newBoardId, nextBoardPlace, boardForPoints, MAIN, BLACKBOARD, BOARD_FLAGS, rateOf, BOARD_BLENDS } from './boards.js';
 
 export const PROCESS_VERSION = 1;
 
@@ -109,6 +109,12 @@ export function normalizeDocument(doc, { own = false } = {}) {
 }
 
 /** A board's mask and effects from a patch: set from an object or a list, taken away with null or an empty list. */
+/** A board's layer settings (opacity, blend): set, or removed when they are what a board has anyway. */
+function patchLayer(b, patch) {
+  if ('opacity' in patch) { const o = Math.max(0, Math.min(1, Number(patch.opacity))); if (Number.isFinite(o) && o < 1) b.opacity = +o.toFixed(3); else delete b.opacity; }
+  if ('blend' in patch) { if (BOARD_BLENDS.some(([id]) => id === patch.blend) && patch.blend !== 'normal') b.blend = patch.blend; else delete b.blend; }
+}
+
 function patchFx(b, patch) {
   if ('maskWith' in patch) { const m = patch.maskWith; if (m && typeof m === 'object' && (m.source || m.board)) b.maskWith = JSON.parse(JSON.stringify(m)); else delete b.maskWith; }
   for (const k of ['fx', 'sourceFx']) if (k in patch) { const l = patch[k]; if (Array.isArray(l) && l.length) b[k] = JSON.parse(JSON.stringify(l)); else delete b[k]; }
@@ -460,7 +466,7 @@ export class ProcessStore {
         for (const k of ['width', 'height', 'ground', 'text', 'code', 'pseudo', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete d.artboard[k]; else d.artboard[k] = patch[k]; }
         for (const k of BOARD_FLAGS) if (k in patch) { if (patch[k]) d.artboard[k] = true; else delete d.artboard[k]; }
         if ('rate' in patch) { if (rateOf(patch)) d.artboard.rate = rateOf(patch); else delete d.artboard.rate; }
-        patchFx(d.artboard, patch);
+        patchFx(d.artboard, patch); patchLayer(d.artboard, patch);
         return;
       }
       const b = d.boards.find(x => x.id === id);
@@ -472,7 +478,7 @@ export class ProcessStore {
       for (const k of ['title', 'ground', 'width', 'height', 'x', 'y']) if (k in patch) b[k] = patch[k];
       for (const k of BOARD_FLAGS) if (k in patch) { if (patch[k]) b[k] = true; else delete b[k]; }
       if ('rate' in patch) { if (rateOf(patch)) b.rate = rateOf(patch); else delete b.rate; }
-      patchFx(b, patch);
+      patchFx(b, patch); patchLayer(b, patch);
       for (const k of ['text', 'code', 'pseudo', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete b[k]; else b[k] = String(patch[k]); }
       // A p5 board is its sketch's canvas: resized, the sketch's createCanvas(w, h) follows.
       if (b.kind === 'p5' && b.code && ('width' in patch || 'height' in patch)) b.code = b.code.replace(/createCanvas\(\s*\d+\s*,\s*\d+/, `createCanvas(${Math.round(b.width)}, ${Math.round(b.height)}`);

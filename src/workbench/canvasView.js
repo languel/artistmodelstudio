@@ -9,7 +9,7 @@
  * (mouse pressure is estimated from speed). Wheel pans; Ctrl/Cmd+wheel or pinch zooms.
  */
 import { sculptMark, SCULPTABLE, nearMark, falloff, effectiveSculpt } from '../process/sculpt.js';
-import { boardsOf, boardDoc, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD } from '../process/boards.js';
+import { boardsOf, boardDoc, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD, opacityOf, blendOf, canvasBlend } from '../process/boards.js';
 import { closeLasso, lazyFollow, lazyCatchUp, straightEnd, effectiveLazy } from '../process/strokes.js';
 import { rdp } from '../process/sculpt.js';
 import { renderDocument, nextTimed, drawOutlines } from '../process/render.js';
@@ -194,7 +194,9 @@ export class CanvasView {
       if (!this.boardOnScreen(b)) continue;
       const c = this.composer.compose(b, { doc, scale, now: this.frameNow, mode, chain: [] });
       const [sx, sy] = this.toScreen(b.x, b.y);
+      ctx.save(); ctx.globalAlpha = opacityOf(b); ctx.globalCompositeOperation = canvasBlend(blendOf(b));   // (a board is a layer: its opacity and how it blends)
       ctx.drawImage(c, sx, sy, b.width * z, b.height * z);
+      ctx.restore();
     }
     // Their marks' outlines (selected, hovered), which the marks' own drawing would have made.
     if (!this.previewDoc && (this.selected.size || this.hovered)) {

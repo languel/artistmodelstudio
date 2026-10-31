@@ -723,3 +723,17 @@ policy with `training/decisions/` (see its README).
 ## The assistant and its model
 
 The Assistant panel is a conversation that fills the panel, with the composer at the bottom: your text, then **+** (attach a text file, the selected marks, or this board's code), the model button, **Tools** (let it draw through the studio's tools, or only talk), **⋯** (replay how it did that, clear) and send. The model button lists your favorites on every engine, a star to favorite the current model, the engines, and a way into **Settings → Model**: the engine (Ollama, in-browser WebGPU, OpenRouter, OpenAI-compatible, an external agent over MCP), how to reach it (an endpoint, or an API key), the model list with a search and a favorites filter (OpenRouter also: free, image input), **Save & test**, and how it asks (temperature, steps, how much of the conversation it remembers). Favorites are kept per engine.
+
+
+## Boards as layers, and outputs
+
+A board is a window into the canvas world, and it is a **layer**. Boards stack in their sequence (later ones are above earlier ones where they overlap), and each can be see-through (**Opacity**) and blended with what is under it (**Blend**: normal, multiply, screen, overlay, darken, lighten, difference, exclusion, add), in Properties → Board, the Outliner, or `ams_board update {patch: {opacity, blend}}`. Masks and effects (Properties) work on a board the same way.
+
+**Outliner → Stage | Board.** *Stage* is the tree by stage (when and why a mark was made). *Board* is the same marks by where they are: Board → Stage → Group → mark, each board a row with its opacity, show, lock and a **⋯** menu (blend, output). Drag a board row to restack it; drop marks on a board row to put them on it.
+
+**Outputs** send a board somewhere, live. A board is a stream (a drawing, a p5 or three.js sketch, a page), and an output is a place it goes:
+- **Pin on screen** (board menu → Output, the Outliner's ⋯, `/pin`): a window-like overlay that stays put while you navigate the rest of the canvas. Drag it by its bar, resize it from the corner, set its opacity, **◌** lets clicks through to what is under it, **⧉** also opens it in a window.
+- **Open in a window** (`/output`): a window of its own, for another display or a projector. The browser may ask once to see your displays; the window then opens on the other one. **Click it for full screen** (F toggles, Esc leaves): then nothing of the browser shows, no title bar and no address bar. A browser always draws a pop-up's title and address bar until then, and a page cannot hide them.
+- **Open borderless** (`/output board borderless`, Chrome 116+): a picture-in-picture window instead: no address bar, always on top, and you drag it to any size or display. It cannot go full screen.
+
+A board that has an output keeps running when it is off screen or paused, because the output is what it is for. `ams_output` does the same for agents.

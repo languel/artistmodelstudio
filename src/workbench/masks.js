@@ -12,7 +12,7 @@
  * still board with a still source is composed once; effects and masks are computed at most FX_CAP pixels across
  * and drawn up; a run of point effects is one pass over the pixels (fx.js).
  */
-import { boardsOf, findBoard, MAIN } from '../process/boards.js';
+import { boardsOf, findBoard, MAIN, isLayered } from '../process/boards.js';
 import { renderDocument } from '../process/render.js';
 import { nextChange } from '../process/envelope.js';
 import { compileFx, fxKey, runPoint, toMask, fxIsEmpty } from '../process/fx.js';
@@ -39,7 +39,7 @@ export class Composer {
 
   hasFx(list) { return Array.isArray(list) && list.length > 0 && !fxIsEmpty(list); }
   /** Does the board have a mask or effects? (Nothing else here costs anything for a board that has none.) */
-  needs(b) { return Boolean(b && (b.maskWith || this.hasFx(b.fx))); }
+  needs(b) { return Boolean(b && (b.maskWith || this.hasFx(b.fx) || (isLayered(b) && (!b.kind || b.kind === 'drawing')))); }   // (a drawing board that is see-through or blended is composed apart too; a page or sketch is a layer of its own, by CSS)
 
   compile(list) {
     const key = fxKey(list);

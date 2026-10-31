@@ -934,3 +934,20 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-composer .wb-compose-row { flex-wrap: wrap; }
 .wb-assistant .wb-cands { display: flex; flex-direction: column; gap: 8px; }
 .wb-assistant .wb-script-out { margin: 0; }
+
+/* Outliner: boards as layers */
+.wb-outliner-board .wb-outliner-opacity { width: 44px; flex: none; accent-color: var(--wb-muted); opacity: .6; height: 12px; }
+.wb-outliner-board:hover .wb-outliner-opacity { opacity: 1; }
+.wb-outliner-toggle.on { color: var(--wb-accent); }
+
+/* Outputs: a board pinned on screen, a window-like overlay that stays while the canvas moves */
+.wb-pin { position: fixed; z-index: 80; display: flex; flex-direction: column; min-width: 140px; min-height: 90px; background: rgba(0,0,0,.35); border: 1px solid var(--wb-line); border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.45); overflow: hidden; resize: both; backdrop-filter: blur(2px); }
+.wb-pin-bar { display: flex; align-items: center; gap: 4px; height: 24px; flex: none; padding: 0 4px 0 8px; background: var(--wb-panel); cursor: grab; color: var(--wb-muted); font-size: var(--ui-small); }
+.wb-pin-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-pin-opacity { width: 52px; height: 12px; accent-color: var(--wb-muted); }
+.wb-pin-btn { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 4px; background: none; color: var(--wb-muted); cursor: pointer; font-size: 14px; line-height: 1; }
+.wb-pin-btn:hover { background: var(--wb-on); color: var(--wb-text); }
+.wb-pin-btn.on { color: var(--wb-accent); }
+.wb-pin-canvas { flex: 1; min-height: 0; width: 100%; display: block; }
+.wb-pin.through { pointer-events: none; }
+.wb-pin.through .wb-pin-bar { pointer-events: auto; }
