@@ -238,6 +238,7 @@ export function workbenchTools(app) {
     { name: 'ams_generate', description: 'Generate panel: ask an engine for scores (agent, openrouter, openai, ollama, webgpu). Returns immediately; candidates appear in the panel and the first opens on the canvas. With engine "agent", answer the waiting request with ams_pending / ams_answer.', inputSchema: S({ prompt: str(''), engine: str(''), model: str(''), count: num('1-8'), exercise: str('Exercise id or empty'), withReference: { type: 'boolean' }, temperature: num('') }, ['prompt']), run: (a) => {
       app.docks.open('generate');
       if (a.engine) app.setGenerateEngine(a.engine, a.model);
+      if ('plain' in a) app.genPlain = Boolean(a.plain);
       app.genPrompt = a.prompt; app.genCount = a.count || 1; app.genExercise = a.exercise || ''; app.genWithRef = Boolean(a.withReference); if (a.temperature !== undefined) app.genTemp = a.temperature;
       app.emit('generate-refresh');
       setTimeout(() => app.startGenerate?.(), 0);

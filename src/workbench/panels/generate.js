@@ -36,6 +36,9 @@ export function mountGenerate(root, app) {
   prompt.addEventListener('input', () => { app.genPrompt = prompt.value; grow(); });
   prompt.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); } });
 
+  // Plain (just the marks) or process (stages, decisions, reasons, notes): kept, plain to start with.
+  const plainOn = () => { if (app.genPlain === undefined) { try { app.genPlain = localStorage.getItem('ams_gen_plain') !== '0'; } catch { app.genPlain = true; } } return app.genPlain; };
+  const setPlain = on => { app.genPlain = on; try { localStorage.setItem('ams_gen_plain', on ? '1' : '0'); } catch { /* ignore */ } render(); };
   const render = () => {
     const engineId = currentEngine();
     if (document.activeElement !== prompt) prompt.value = app.genPrompt || '';
@@ -43,6 +46,7 @@ export function mountGenerate(root, app) {
     const optionsMenu = e => {
       const r = e.currentTarget.getBoundingClientRect(), withRef = Boolean(app.genWithRef && app.reference), temp = app.genTemp ?? 0.8;
       showMenu([
+        { label: 'Style', hint: 'Plain: just the marks, for quick experiments. Process: stages, decisions, reasons and notes, the record of how it was made', items: [{ label: 'Plain: just the marks', active: plainOn(), run: () => setPlain(true) }, { label: 'Process: stages, decisions, notes', active: !plainOn(), run: () => setPlain(false) }] },
         { label: 'Exercise', hint: 'Frame the request with an exercise brief', items: [{ label: 'No exercise frame', active: !app.genExercise, run: () => { app.genExercise = ''; render(); } }, ...EXERCISES.map(x => ({ label: x.title, active: app.genExercise === x.id, run: () => { app.genExercise = x.id; render(); } }))] },
         { label: app.reference ? `${withRef ? '✓ ' : ''}Send the reference (${app.reference.title})` : 'Send the reference (open an image asset first)', disabled: !app.reference, hint: 'For vision models and agents', run: () => { app.genWithRef = !withRef; render(); } },
         { label: 'Temperature', items: [0.2, 0.5, 0.8, 1.2, 1.6].map(t => ({ label: String(t), active: t === temp, run: () => { app.genTemp = t; render(); } })) }
@@ -52,7 +56,7 @@ export function mountGenerate(root, app) {
     const countBtn = h('button', { class: 'wb-compose-pill', title: 'How many candidates (click to change)', onclick: () => { app.genCount = COUNTS[(COUNTS.indexOf(count) + 1) % COUNTS.length] || 1; render(); } }, `×${count}`);
     const optsBtn = h('button', { class: 'wb-compose-icon', title: 'Options: exercise, reference, temperature', html: icon('plus'), onclick: optionsMenu });
     const sendBtn = h('button', { class: 'wb-compose-send', title: busy ? 'Stop' : 'Generate (Enter)', 'data-guide': 'button:generate', html: busy ? STOP : SEND, onclick: () => (busy ? stop() : go()) });
-    const chips = [app.genExercise ? EXERCISES.find(x => x.id === app.genExercise)?.title : null, app.genWithRef && app.reference ? 'reference' : null].filter(Boolean);
+    const chips = [plainOn() ? null : 'process', app.genExercise ? EXERCISES.find(x => x.id === app.genExercise)?.title : null, app.genWithRef && app.reference ? 'reference' : null].filter(Boolean);
     composer.replaceChildren(
       chips.length ? h('div', { class: 'wb-compose-chips' }, ...chips.map(c => h('span', { class: 'wb-chip' }, c))) : '',
       prompt,
@@ -84,7 +88,7 @@ export function mountGenerate(root, app) {
           complete: args => artist.complete({ ...args, signal: ctrl.signal }),
           prompt: text, exercise: app.genExercise || null,
           width: app.store.doc.artboard.width, height: app.store.doc.artboard.height,
-          image, temperature: app.genTemp ?? 0.8, seed: i + 1, by, onStatus: setStatus
+          image, temperature: app.genTemp ?? 0.8, seed: i + 1, by, onStatus: setStatus, plain: plainOn()
         });
         const c = { id: `cand_${Date.now()}_${i}`, prompt: text, engine: engineId, model: by.name, exercise: app.genExercise || null, withRef: Boolean(image), seconds: +((performance.now() - t0) / 1000).toFixed(1), ...res };
         candidates.unshift(c);

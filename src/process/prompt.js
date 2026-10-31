@@ -20,6 +20,21 @@ Write a SCORE: a short JavaScript program in the vocabulary below. Running it re
 - Coordinates are FRACTIONS of the artboard: x 0..1 across, y 0..1 down (width and height give its size in units). Call artboard(w, h, ground) first.
 - Brushes are code. Use the built-ins, or define your own when a technique needs it: brush({ id, label, roles, doc, params: { key: [min, max, default, doc] }, draw(ctx, e, p, k) { … } }), then plane(pts, { brush: id }). In draw, e.points are [x, y, t, p] in artboard units and k is the kit (k.frames, k.spans, k.segment, k.beginInk … ctx.restore(), k.rng, k.noise).`;
 
+/**
+ * The plain version of the brief, for quick experiments and teaching: the same vocabulary and brushes, but the marks
+ * only: no named stages, no decide(), no notes, no reasons. (The process version is for studying a drawing's making.)
+ */
+export const PLAIN_PRINCIPLES = `You are drawing for an artist who is experimenting. Write a SCORE: a short JavaScript program in the vocabulary below that makes the drawing asked for, nothing more.
+- Make the marks directly. Do NOT use stage(), decide(), note() or why: no stages, no decisions, no notes, no explanations.
+- Use loops, functions and walk() instead of listing coordinates; small rules make rich drawings.
+- Coordinates are FRACTIONS of the artboard: x 0..1 across, y 0..1 down (width and height give its size in units). Call artboard(w, h, ground) first, choosing a ground that suits the request.
+- Brushes realize your paths. Use the built-ins, or define your own when a technique needs it: brush({ id, label, roles, doc, params: { key: [min, max, default, doc] }, draw(ctx, e, p, k) { … } }), then plane(pts, { brush: id }). In draw, e.points are [x, y, t, p] in artboard units and k is the kit (k.frames, k.spans, k.segment, k.beginInk … ctx.restore(), k.rng, k.noise).`;
+
+const PLAIN_EXAMPLE = `artboard(800, 800, '#f2ede3')
+plane(circle(0.5, 0.62, 0.22), { brush: 'flat', color: '#3f3a34' })
+point(0.72, 0.28, { size: 18, color: '#b83a22' })
+for (let i = 0; i < 5; i++) line(walk([0.1, 0.1 + i * 0.05], 12, 0.06), { color: '#3f3a34' })`;
+
 const FRACTION_EXAMPLE = `artboard(800, 800, '#f2ede3')
 
 // A technique as code: short strokes across a plane, like a dry brush
@@ -54,10 +69,23 @@ export function brushSummary() {
 }
 
 /** { system, user } for a drawing request. exercise: optional id whose brief frames the task. */
-export function scorePrompt({ prompt, exercise = null, width = 1000, height = 1000, withImage = false }) {
+export function scorePrompt({ prompt, exercise = null, width = 1000, height = 1000, withImage = false, plain = false }) {
   const ex = EXERCISES.find(e => e.id === exercise);
   const example = EXERCISES.find(e => e.id === 'medial-line');
-  const system = `${PRINCIPLES}
+  const system = plain ? `${PLAIN_PRINCIPLES}
+
+VOCABULARY
+${SCRIPT_REFERENCE}
+
+BRUSHES
+${brushSummary()}
+
+EXAMPLE SCORE (just the marks)
+\`\`\`js
+${PLAIN_EXAMPLE}
+\`\`\`
+
+Reply with ONE score in a \`\`\`js code block and nothing else.` : `${PRINCIPLES}
 
 VOCABULARY
 ${SCRIPT_REFERENCE}
@@ -92,8 +120,8 @@ export function extractScore(text) {
  * complete: ({ system, user, image, temperature }) => Promise<text>
  * Returns { doc, source, error, attempts, raw }.
  */
-export async function generateScore({ complete, prompt, exercise, width, height, image = null, temperature = 0.8, seed = 1, by, onStatus }) {
-  const { system, user } = scorePrompt({ prompt, exercise, width, height, withImage: Boolean(image) });
+export async function generateScore({ complete, prompt, exercise, width, height, image = null, temperature = 0.8, seed = 1, by, onStatus, plain = false }) {
+  const { system, user } = scorePrompt({ prompt, exercise, width, height, withImage: Boolean(image), plain });
   onStatus?.('asking');
   let raw = await complete({ system, user, image, temperature });
   let source = extractScore(raw);
@@ -108,7 +136,7 @@ export async function generateScore({ complete, prompt, exercise, width, height,
   }
   if (res.doc) {
     res.doc.title = prompt.slice(0, 80);
-    res.doc.meta = { ...res.doc.meta, prompt, exercise: exercise || null, engine: by };
+    res.doc.meta = { ...res.doc.meta, prompt, exercise: exercise || null, engine: by, ...(plain ? { plain: true } : {}) };
   }
   return { doc: res.doc, source, error: res.error, attempts, raw, logs: res.logs };
 }

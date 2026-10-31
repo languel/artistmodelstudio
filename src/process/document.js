@@ -34,10 +34,10 @@ export const STAGE_KINDS = Object.freeze([
   'analysis', 'concept', 'construction', 'blocking', 'structure', 'value', 'marks', 'accents', 'notes'
 ]);
 
+// A new drawing starts with one stage, Marks. More (construction, notes, analysis…) are added when they are wanted:
+// the + Stage button, or a score that names them.
 export const DEFAULT_STAGES = () => [
-  { id: 'construction', name: 'Construction', kind: 'construction', visible: true, locked: false },
-  { id: 'marks', name: 'Marks', kind: 'marks', visible: true, locked: false },
-  { id: 'notes', name: 'Notes', kind: 'notes', visible: true, locked: false }
+  { id: 'marks', name: 'Marks', kind: 'marks', visible: true, locked: false }
 ];
 
 let idCounter = 0;
