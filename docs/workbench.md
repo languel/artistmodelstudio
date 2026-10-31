@@ -718,3 +718,8 @@ policy with `training/decisions/` (see its README).
 - **Group frames** (plain, Excalidraw-style) beside boards; per-board grids and snapping.
 - **Sequencing scenes,** and cameras separate from boards (a view that travels across several boards).
 - **Rendering cache:** keep each mark's rendering until it changes. Panning a drawing of about 20 heavy marks runs near 30 fps, with redraws around 20 ms.
+
+
+## The assistant and its model
+
+The Assistant panel is a conversation that fills the panel, with the composer at the bottom: your text, then **+** (attach a text file, the selected marks, or this board's code), the model button, **Tools** (let it draw through the studio's tools, or only talk), **⋯** (replay how it did that, clear) and send. The model button lists your favorites on every engine, a star to favorite the current model, the engines, and a way into **Settings → Model**: the engine (Ollama, in-browser WebGPU, OpenRouter, OpenAI-compatible, an external agent over MCP), how to reach it (an endpoint, or an API key), the model list with a search and a favorites filter (OpenRouter also: free, image input), **Save & test**, and how it asks (temperature, steps, how much of the conversation it remembers). Favorites are kept per engine.

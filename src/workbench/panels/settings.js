@@ -1,6 +1,7 @@
 /** Settings: the artboard (size, paper), the workspace (theme, grid, reference), and the guide. */
 import { h, row, numberField, selectField, section } from '../ui.js';
 import { colorField } from '../colorPicker.js';
+import { modelSection } from './modelSettings.js';
 
 const PRESETS = [
   ['square', 'Square', 1000, 1000], ['a4', 'A4', 794, 1123], ['letter', 'Letter', 816, 1056], ['4:3', '4 : 3', 1200, 900],
@@ -43,6 +44,7 @@ export function mountSettings(root, app) {
         row('Smoothing', numberField({ value: app.lazy.smoothing, min: 0, max: 0.95, step: 0.01, def: 0, title: 'Each step the pen covers only part of the way (0.5 = half): higher is smoother and lags more. 0 = off', onChange: v => app.setLazy({ smoothing: v }) }))),
       section('Export', true,
         row('p5.js', selectField([['2', '2.x (latest)'], ['1', '1.x']], app.p5Version(), v => { try { localStorage.setItem('ams_p5_version', v); } catch { /* ignore */ } }), 'The p5.js version p5 exports target: 2.x uses splineVertex, 1.x curveVertex')),
+      app.modelSection ||= modelSection(app),
       soundSection(app),
       gridSection(app),
       section('Guide', true,

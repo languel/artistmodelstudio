@@ -10,10 +10,14 @@
  */
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
-import { modelPicker } from '../modelPicker.js';
+import { showMenu } from '../menu.js';
+import { ENGINE_NAMES, currentEngine, setEngine, useModel, allFavorites, favorites, isFavorite, toggleFavorite, assistantSettings, setAssistantSettings } from '../modelStore.js';
 import { parseCommand, brief, help } from '../console.js';
 
-const MAX_ROUNDS = 6;
+const ATTACH_MAX = 40000;   // characters of an attached file that go to the model
+const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg>';
+const STOP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+const TALK_ONLY = 'You are the assistant inside Artist Model Studio, a workbench for drawing by process (Klee, Kandinsky, the algorists). Studio tools are switched off: answer in plain text, briefly, and say what you would draw rather than drawing it.';
 
 function systemPrompt(app) {
   const tools = window.ams.listTools()
@@ -46,15 +50,19 @@ function parseReply(text) {
 }
 
 export function mountAssistant(root, app) {
-  const picker = modelPicker({ app, storageKey: 'ams_assistant_engine', onChange: () => {} });
+  root.classList.add('wb-assistant-host');
+  const wrap = h('div', { class: 'wb-assistant' });
   const log = h('div', { class: 'wb-chat' });
-  const input = h('textarea', { class: 'wb-why', rows: 2, placeholder: 'Ask, or tell it what to draw… !board list runs a tool (!help)' });
+  const input = h('textarea', { class: 'wb-compose-input', rows: 1, placeholder: 'Ask, or tell it what to draw…  (!board list runs a tool; !help)' });
+  const chips = h('div', { class: 'wb-compose-chips' });
   let savedChat = [];
   try { savedChat = JSON.parse(sessionStorage.getItem('ams_assistant_chat') || '[]'); } catch { /* ignore */ }
   const history = app.assistantHistory = app.assistantHistory || savedChat;
   const persist = () => { try { sessionStorage.setItem('ams_assistant_chat', JSON.stringify(history.slice(-40))); } catch { /* quota */ } };
   let busy = null;
-  const add = (who, text, kind = '') => { log.append(h('div', { class: `wb-msg ${who} ${kind}` }, text)); log.scrollTop = log.scrollHeight; };
+  const attachments = [];   // { name, text }
+  const hint = h('div', { class: 'wb-chat-empty' }, h('b', {}, 'Assistant'), h('span', {}, 'Ask, or tell it to draw. It works through the same tools an agent uses, and every action is shown and can be replayed.'));
+  const add = (who, text, kind = '') => { hint.remove(); const m = h('div', { class: `wb-msg ${who} ${kind}` }, text); log.append(m); log.scrollTop = log.scrollHeight; return m; };
   // The console: ! lines run tools directly (no model); ↑ and ↓ go through what was run.
   const ran = []; let back = 0;
   const runCommand = async line => {
@@ -69,27 +77,84 @@ export function mountAssistant(root, app) {
     } catch (err) { add('sys', err.message, 'error'); }
     persist();
   };
-  for (const m of history) add(m.who, m.text);
+  if (history.length) for (const m of history) add(m.who, m.text); else log.append(hint);
+
+  // ---- the composer: attachments, the text, then the controls: attach, model, tools, send ------------------------------
+  const paintChips = () => chips.replaceChildren(...attachments.map((a, i) => h('span', { class: 'wb-chip', title: `${a.text.length} characters` }, `📎 ${a.name}`, h('button', { class: 'wb-chip-x', title: 'Remove', onclick: () => { attachments.splice(i, 1); paintChips(); } }, '×'))));
+  const fileIn = h('input', { type: 'file', hidden: true, accept: '.txt,.md,.json,.js,.mjs,.ts,.css,.html,.svg,.csv,.yaml,.yml,text/*' });
+  fileIn.addEventListener('change', async () => {
+    for (const f of fileIn.files) { const t = await f.text(); attachments.push({ name: f.name, text: t.slice(0, ATTACH_MAX) }); if (t.length > ATTACH_MAX) add('sys', `${f.name}: only the first ${ATTACH_MAX} characters go to the model.`); }
+    fileIn.value = ''; paintChips(); input.focus();
+  });
+  const attachMenu = e => {
+    const r = e.currentTarget.getBoundingClientRect(), b = app.store.doc.boards.find(x => x.id === app.activeBoard) || null;
+    const sel = [...app.canvas.selected];
+    showMenu([
+      { label: 'Attach a text file…', hint: 'Code, Markdown, JSON or SVG: its text goes with your next message', run: () => fileIn.click() },
+      { label: 'Add the selected marks', disabled: !sel.length, hint: 'The selection as studio JSON', run: () => { const d = app.selectionDoc?.(sel); if (d) { attachments.push({ name: `selection (${sel.length} marks)`, text: JSON.stringify(d).slice(0, ATTACH_MAX) }); paintChips(); } } },
+      { label: 'Add this board’s code', disabled: !b?.code, hint: 'The code of the board you are on', run: () => { attachments.push({ name: `${b.title} code`, text: String(b.code).slice(0, ATTACH_MAX) }); paintChips(); } }
+    ], r.left, r.top - 4 - 3 * 32);
+  };
+  // The model pill: what it is talking to; the menu has the favorites (on any engine) and the engines.
+  const pill = h('button', { class: 'wb-compose-pill', title: 'Model: favorites, engines and settings' });
+  const paintPill = () => {
+    const engine = currentEngine(), artist = app.artists.get(engine), m = artist?.getModel?.() || '';
+    pill.replaceChildren(h('span', { class: 'wb-pill-engine' }, ENGINE_NAMES[engine] || engine), m && engine !== 'agent' ? h('span', { class: 'wb-pill-model' }, m) : null, h('span', { class: 'wb-tool-caret' }));
+  };
+  pill.onclick = e => {
+    const r = pill.getBoundingClientRect(), engine = currentEngine(), artist = app.artists.get(engine), cur = artist?.getModel?.() || '';
+    const favs = allFavorites(app);
+    const items = [
+      favs.length ? { label: 'Favorites' } : null,
+      ...favs.map(f => ({ icon: '★', label: f.id, hint: ENGINE_NAMES[f.engine], active: f.engine === engine && f.id === cur, run: () => useModel(app, f.engine, f.id) })),
+      favs.length ? '-' : null,
+      cur && engine !== 'agent' ? { icon: isFavorite(engine, cur, artist) ? '★' : '☆', label: isFavorite(engine, cur, artist) ? 'Remove this model from favorites' : 'Favorite this model', run: () => toggleFavorite(engine, cur, artist) } : null,
+      { label: 'Engine', items: Object.entries(ENGINE_NAMES).map(([id, name]) => ({ label: name, active: id === engine, run: () => { setEngine(id); } })) },
+      { label: 'All models and settings…', hint: 'Settings → Model: the engine, how to reach it, the model list and favorites', run: () => { app.docks.open('settings'); setTimeout(() => app.modelSection?.scrollIntoView?.({ block: 'start' }), 60); } }
+    ].filter(Boolean);
+    showMenu(items, r.left, Math.max(8, r.top - 8 - items.length * 30));
+  };
+  window.addEventListener('ams-model', () => { if (document.body.contains(wrap)) paintPill(); });
+  const toolsBtn = h('button', { class: 'wb-compose-pill', title: 'Let it use the studio’s tools (draw, change boards). Off: it only talks' });
+  const paintTools = () => { const on = assistantSettings().tools; toolsBtn.classList.toggle('on', on); toolsBtn.replaceChildren(h('span', {}, 'Tools')); };
+  toolsBtn.onclick = () => { setAssistantSettings({ tools: !assistantSettings().tools }); paintTools(); };
+  const moreBtn = h('button', { class: 'wb-compose-icon', title: 'More', html: '⋯', onclick: e => { const r = e.currentTarget.getBoundingClientRect(); showMenu([
+    { label: 'How did you do that?', hint: 'Replay the latest agent or assistant session with the guide', run: () => window.ams.callTool('ams_sessions', { action: 'replay' }).catch(err => app.log(err.message, 'error')) },
+    { label: 'Clear the conversation', run: () => { history.length = 0; log.replaceChildren(hint); persist(); } }
+  ], r.left, r.top - 4 - 2 * 32); } });
+  const sendBtn = h('button', { class: 'wb-compose-send', title: 'Send (Enter)', html: SEND, onclick: () => (busy ? busy.abort() : send()) });
+  const grow = () => { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; };
+  input.addEventListener('input', grow);
+  const composer = h('div', { class: 'wb-composer' }, chips, input, h('div', { class: 'wb-compose-row' },
+    h('button', { class: 'wb-compose-icon', title: 'Attach', html: icon('plus'), onclick: attachMenu }), pill, toolsBtn, h('span', { style: { flex: 1 } }), moreBtn, sendBtn), fileIn);
+  paintPill(); paintTools();
 
   app.assistantAsk = text => { input.value = text; send(); };
   const send = async () => {
     const text = input.value.trim();
     if (!text || busy) return;
-    input.value = '';
+    input.value = ''; grow();
     if (text.startsWith('!')) { await runCommand(text); return; }
-    add('you', text); history.push({ who: 'you', text }); persist();
-    const engine = picker.engine();
+    const files = attachments.splice(0); paintChips();
+    add('you', files.length ? `${text}\n${files.map(f => `📎 ${f.name}`).join('  ')}` : text);
+    const full = files.length ? `${text}\n\n${files.map(f => `Attached ${f.name}:\n\`\`\`\n${f.text}\n\`\`\``).join('\n\n')}` : text;
+    history.push({ who: 'you', text: full }); persist();
+    const cfg = assistantSettings(), engine = currentEngine();
     const artist = app.artists.get(engine);
-    if (!artist?.complete || engine === 'agent') { add('sys', 'Pick a model engine (Ollama, WebGPU, OpenRouter or OpenAI-compatible). An external agent drives the tools directly over MCP.', 'error'); return; }
+    if (!artist?.complete || engine === 'agent') { add('sys', 'Pick a model engine (Ollama, WebGPU, OpenRouter or OpenAI-compatible) from the model button. An external agent drives the tools directly over MCP.', 'error'); return; }
     busy = new AbortController();
-    sendBtn.textContent = 'Stop';
+    sendBtn.innerHTML = STOP; sendBtn.title = 'Stop';
     let lastSig = '';
-    let transcript = history.slice(-12).map(m => `${m.who === 'you' ? 'USER' : m.who === 'bot' ? 'ASSISTANT' : 'RESULTS'}: ${m.text}`).join('\n');
+    let transcript = history.slice(-cfg.history).map(m => `${m.who === 'you' ? 'USER' : m.who === 'bot' ? 'ASSISTANT' : 'RESULTS'}: ${m.text}`).join('\n');
     try {
-      for (let round = 0; round < MAX_ROUNDS && !busy.signal.aborted; round++) {
-        add('sys', round ? 'thinking about the results…' : 'thinking…', 'pending');
-        const raw = await artist.complete({ system: systemPrompt(app), user: transcript, temperature: 0.4, signal: busy.signal });
-        log.lastChild?.classList.contains('pending') && log.lastChild.remove();
+      if (!cfg.tools) {
+        const pending = add('sys', 'Working…', 'pending');
+        const raw = await artist.complete({ system: TALK_ONLY, user: transcript, temperature: cfg.temperature, signal: busy.signal });
+        pending.remove(); const say = String(raw || '').trim(); add('bot', say); history.push({ who: 'bot', text: say });
+      } else for (let round = 0; round < cfg.rounds && !busy.signal.aborted; round++) {
+        const pending = add('sys', round ? 'Reading the results…' : 'Working…', 'pending');
+        const raw = await artist.complete({ system: systemPrompt(app), user: transcript, temperature: cfg.temperature, signal: busy.signal });
+        pending.remove();
         const r = parseReply(raw);
         if (r.say) { add('bot', r.say); history.push({ who: 'bot', text: r.say }); }
         if (!r.actions.length) break;
@@ -113,12 +178,12 @@ export function mountAssistant(root, app) {
         if (r.done) break;
       }
     } catch (err) {
-      log.lastChild?.classList.contains('pending') && log.lastChild.remove();
-      add('sys', `Error: ${err.message}`, 'error');
+      log.querySelector('.pending')?.remove();
+      add('sys', busy?.signal.aborted ? 'Stopped.' : `Error: ${err.message}`, busy?.signal.aborted ? '' : 'error');
     } finally {
       persist();
       busy = null;
-      sendBtn.textContent = 'Send';
+      sendBtn.innerHTML = SEND; sendBtn.title = 'Send (Enter)';
     }
   };
 
@@ -132,10 +197,6 @@ export function mountAssistant(root, app) {
       input.value = back ? ran[ran.length - back] : '';
     }
   });
-  const sendBtn = h('button', { class: 'wb-btn primary', onclick: () => (busy ? busy.abort() : send()) }, 'Send');
-  root.append(picker, log, input, h('div', { class: 'wb-row wb-row-actions' },
-    sendBtn,
-    h('button', { class: 'wb-btn', title: 'Replay the latest agent or assistant session with the guide', html: `${icon('play')}<span>How did you do that?</span>`, onclick: () => window.ams.callTool('ams_sessions', { action: 'replay' }).catch(e => add('sys', e.message, 'error')) }),
-    h('button', { class: 'wb-btn', title: 'Clear the conversation', onclick: () => { history.length = 0; log.innerHTML = ''; } }, 'Clear')
-  ));
+  wrap.append(log, composer);
+  root.append(wrap);
 }

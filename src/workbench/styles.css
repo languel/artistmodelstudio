@@ -857,3 +857,33 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-toollabel.glyph svg { width: 20px; height: 20px; }
 .wb-toollabel.out { opacity: 0; }
 .wb-paint-key { position: absolute; right: 2px; bottom: 1px; font: 8px var(--font-mono); color: var(--wb-muted); pointer-events: none; }
+
+/* Assistant: the conversation fills the panel; the composer sits at the bottom (text, then attach · model · tools · send) */
+.wb-panel-body:has(> .wb-assistant) { height: 100%; box-sizing: border-box; padding: 0; gap: 0; }
+.wb-dock-content:has(> .wb-panel-body > .wb-assistant) { overflow: hidden; }
+.wb-assistant { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.wb-assistant .wb-chat { flex: 1 1 auto; min-height: 0; max-height: none; padding: 12px 12px 6px; gap: 10px; }
+.wb-assistant .wb-msg.you { border-radius: 14px; padding: 6px 12px; max-width: 88%; }
+.wb-assistant .wb-msg.bot { background: none; border: 0; padding: 0 2px; max-width: 100%; line-height: 1.5; user-select: text; }
+.wb-assistant .wb-msg.pending { color: var(--wb-muted); animation: wb-pulse 1.4s ease-in-out infinite; }
+@keyframes wb-pulse { 50% { opacity: .45; } }
+.wb-chat-empty { margin: auto; max-width: 260px; display: flex; flex-direction: column; gap: 6px; text-align: center; color: var(--wb-muted); font-size: var(--ui-small); line-height: 1.5; }
+.wb-chat-empty b { color: var(--wb-text); font-size: 13px; font-weight: 600; }
+.wb-composer { margin: 6px 10px 10px; background: var(--wb-panel-2); border: 1px solid var(--wb-line); border-radius: 14px; padding: 8px 8px 6px 12px; display: flex; flex-direction: column; gap: 4px; }
+.wb-composer:focus-within { border-color: var(--wb-muted); }
+.wb-compose-input { resize: none; border: 0; background: transparent; color: inherit; font: inherit; outline: none; width: 100%; line-height: 1.45; max-height: 180px; padding: 2px 0; box-sizing: border-box; }
+.wb-compose-row { display: flex; align-items: center; gap: 4px; margin-left: -6px; }
+.wb-compose-pill { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 9px; border: 0; border-radius: 999px; background: none; color: var(--wb-muted); font: inherit; font-size: var(--ui-small); cursor: pointer; }
+.wb-compose-pill:hover, .wb-compose-icon:hover { background: var(--wb-on); color: var(--wb-text); }
+.wb-compose-pill.on { color: var(--wb-text); }
+.wb-pill-engine { color: var(--wb-text); white-space: nowrap; }
+.wb-pill-model { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
+.wb-compose-icon { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: none; color: var(--wb-muted); cursor: pointer; font-size: 16px; line-height: 1; }
+.wb-compose-send { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: var(--wb-text); color: var(--wb-panel); cursor: pointer; flex: none; }
+.wb-compose-send:hover { opacity: .85; }
+.wb-compose-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.wb-compose-chips:empty { display: none; }
+.wb-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px 1px 8px; border-radius: 999px; background: var(--wb-on); font-size: var(--ui-small); }
+.wb-chip-x { border: 0; background: none; color: var(--wb-muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 3px; }
+.wb-sub { margin: 8px 0 2px; color: var(--wb-muted); font-size: var(--ui-small); letter-spacing: .04em; text-transform: uppercase; }
+.wb-icon-btn.on { color: #d9a23a; }
