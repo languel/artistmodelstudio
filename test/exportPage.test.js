@@ -37,12 +37,20 @@ describe('exported pages', () => {
     expect(plain).not.toContain('ams-ui');
     const withUi = await sketchPage({ kind: 'three', title: 't', code, controls: true, loadFile });
     expect(withUi).toContain('ams-ui');
+    expect(withUi).toContain('ams-code');   // the code glyph's overlay
+    expect(withUi).toContain("e.key === 'H'");   // Shift+H hides the glyph itself
     for (const src of scripts(withUi)) expect(() => new Function(src)).not.toThrow();   // every plain script is valid
+  });
+
+  it('a page with controls has the panel and the code glyph even when the code has no controls', async () => {
+    const html = await sketchPage({ kind: 'p5', title: 'p', code: 'function draw() {}', controls: true, p5Source: '/*p5*/' });
+    expect(html).toContain('ams-ui');
+    for (const src of scripts(html)) expect(() => new Function(src)).not.toThrow();
   });
 
   it('a p5.js page inlines p5 and the instrumented sketch', async () => {
     const html = await sketchPage({ kind: 'p5', title: 'p', code: 'const n = 3 /* 0..9 */\nfunction draw() {}', controls: true, p5Source: '/*p5*/window.p5=1;' });
-    expect(html.indexOf('window.p5=1')).toBeLessThan(html.indexOf('function draw'));
+    expect(html.indexOf('window.p5=1')).toBeLessThan(html.lastIndexOf('function draw'));   // (the sketch comes last; the panel holds a copy to show)
     expect(html).toContain('let n = 3 /* 0..9 */; __ctl("n"');
     expect(html).not.toContain('windowWidth: { get');   // p5 has its own
   });

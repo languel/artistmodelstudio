@@ -2562,7 +2562,7 @@ export class Workbench {
     const lib = b.kind === 'three' ? 'three.js' : 'p5.js';
     return [
       { label: 'Standalone page', hint: `One HTML file with ${lib} inside: opens offline and fills the window (F: full screen)`, run: () => this.exportSketch(id, false) },
-      { label: 'Page with controls', hint: 'The same, with the sliders, toggles, selects, colours and palettes the code declares as a small panel (H shows or hides it; ?ui=0 starts it hidden)', run: () => this.exportSketch(id, true) }
+      { label: 'Page with controls', hint: 'The same, with the sliders, toggles, selects, colours and palettes the code declares as a small panel (H shows or hides it, Shift+H hides the button too; ?ui=0 starts it hidden)', run: () => this.exportSketch(id, true) }
     ];
   }
 

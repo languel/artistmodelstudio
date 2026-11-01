@@ -32,19 +32,30 @@ const shim = (vals, title, p5) => `(() => {
   addEventListener('keydown', e => { if (e.key === 'f' && !e.metaKey && !e.ctrlKey && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); } });
 })();`;
 
-/** The panel: one row for each control; the gear (or H) shows and hides it, ?ui=0 starts it hidden. */
-const panel = specs => `(() => {
-  const specs = ${json(specs)};
+/**
+ * The panel: one row for each control, and a code glyph at the bottom that shows the sketch's code over the page. The gear (H) shows
+ * and hides the panel and only appears when the pointer is near it; Shift+H hides or brings back all of it. ?ui=0 starts the panel hidden.
+ */
+const panel = (specs, source) => `(() => {
+  const specs = ${json(specs)}, source = ${json(source)};
   const style = document.createElement('style');
   style.textContent = '#ams-ui{position:fixed;top:10px;right:10px;z-index:9;font:12px/1.4 system-ui,sans-serif;color:#e8e8e8;text-align:right}'
-    + '#ams-ui button.g{width:28px;height:28px;border:0;border-radius:14px;background:rgba(20,20,22,.75);color:#e8e8e8;font-size:15px;cursor:pointer}'
+    + '#ams-ui[hidden]{display:none}'
+    + '#ams-ui button.g{width:28px;height:28px;border:0;border-radius:14px;background:rgba(20,20,22,.75);color:#e8e8e8;font-size:15px;cursor:pointer;opacity:0;transition:opacity .25s}'
+    + '#ams-ui.near button.g,#ams-ui.open button.g,#ams-ui button.g:focus-visible{opacity:1}'
     + '#ams-ui .p{margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(20,20,22,.82);backdrop-filter:blur(6px);display:grid;grid-template-columns:auto 130px auto;gap:6px 8px;align-items:center;text-align:left;max-height:80vh;overflow:auto}'
     + '#ams-ui .p[hidden]{display:none}#ams-ui .l{opacity:.7}#ams-ui .v{opacity:.55;min-width:34px;text-align:right;font:11px ui-monospace,monospace}'
     + '#ams-ui input[type=range]{width:100%;accent-color:#e0a030}#ams-ui input[type=color]{width:26px;height:20px;padding:0;border:0;background:none}#ams-ui select{width:100%;font:inherit}'
-    + '#ams-ui .c{grid-column:2/4;display:flex;gap:4px}';
+    + '#ams-ui .c{grid-column:2/4;display:flex;gap:4px}'
+    + '#ams-ui .f{grid-column:1/-1;display:flex;justify-content:flex-end;gap:4px;margin-top:2px}'
+    + '#ams-ui .f button,#ams-code button{height:24px;min-width:28px;padding:0 7px;border:0;border-radius:12px;background:rgba(255,255,255,.1);color:#e8e8e8;font:12px ui-monospace,monospace;cursor:pointer}'
+    + '#ams-ui .f button:hover,#ams-code button:hover{background:rgba(255,255,255,.2)}'
+    + '#ams-code{position:fixed;inset:0;z-index:8;background:rgba(10,10,12,.84);backdrop-filter:blur(8px);color:#e8e8e8;display:flex;flex-direction:column}'
+    + '#ams-code[hidden]{display:none}#ams-code .t{display:flex;justify-content:flex-end;gap:6px;padding:10px 52px 0 10px}'
+    + '#ams-code pre{flex:1;margin:0;padding:10px 16px 16px;overflow:auto;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;tab-size:2}';
   document.head.append(style);
   const root = document.createElement('div'); root.id = 'ams-ui';
-  const gear = document.createElement('button'); gear.className = 'g'; gear.textContent = '⚙'; gear.title = 'Controls (H)';
+  const gear = document.createElement('button'); gear.className = 'g'; gear.textContent = '⚙'; gear.title = 'Controls (H; Shift+H hides this button)';
   const box = document.createElement('div'); box.className = 'p';
   root.append(gear, box); document.body.append(root);
   const toHex = css => { try { const g = document.createElement('canvas').getContext('2d'); g.fillStyle = '#000'; g.fillStyle = css; const v = g.fillStyle; if (v[0] === '#') return v; const m = v.match(/\\d+/g); return '#' + m.slice(0, 3).map(n => (+n).toString(16).padStart(2, '0')).join(''); } catch { return '#888888'; } };
@@ -73,10 +84,34 @@ const panel = specs => `(() => {
       add(s, w);
     }
   }
-  const show = on => { box.hidden = !on; };
+  // The code, over the page (a glyph at the bottom of the panel; Esc closes).
+  const code = document.createElement('div'); code.id = 'ams-code'; code.hidden = true;
+  const bar = document.createElement('div'); bar.className = 't';
+  const copy = document.createElement('button'); copy.textContent = 'copy'; copy.title = 'Copy the code';
+  copy.onclick = () => { try { navigator.clipboard.writeText(source); copy.textContent = 'copied'; setTimeout(() => { copy.textContent = 'copy'; }, 1200); } catch { /* no clipboard here */ } };
+  const shut = document.createElement('button'); shut.textContent = '×'; shut.title = 'Close (Esc)';
+  bar.append(copy, shut);
+  const pre = document.createElement('pre'); pre.textContent = source;
+  code.append(bar, pre); document.body.append(code);
+  const showCode = on => { code.hidden = !on; };
+  shut.onclick = () => showCode(false);
+  const foot = document.createElement('div'); foot.className = 'f';
+  const cb = document.createElement('button'); cb.textContent = '</>'; cb.title = 'Show the code';
+  cb.onclick = () => showCode(code.hidden);
+  foot.append(cb); box.append(foot);
+  // The panel: the gear or H; ?ui=0 starts it hidden. The gear shows when the pointer is near; Shift+H hides or brings back all of it.
+  const show = on => { box.hidden = !on; root.classList.toggle('open', on); };
   show(!/[?&]ui=0/.test(location.search) && location.hash !== '#noui');
   gear.onclick = () => show(box.hidden);
-  addEventListener('keydown', e => { if ((e.key === 'h' || e.key === 'H') && !e.metaKey && !e.ctrlKey && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) show(box.hidden); });
+  const near = e => { const r = root.getBoundingClientRect(); const d = Math.hypot(Math.max(r.left - e.clientX, 0, e.clientX - r.right), Math.max(r.top - e.clientY, 0, e.clientY - r.bottom)); root.classList.toggle('near', d < 90); };
+  addEventListener('pointermove', near); addEventListener('pointerdown', near);
+  document.documentElement.addEventListener('pointerleave', () => root.classList.remove('near'));
+  addEventListener('keydown', e => {
+    if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'Escape' && !code.hidden) showCode(false);
+    else if (e.key === 'H') root.hidden = !root.hidden;
+    else if (e.key === 'h') { if (!root.hidden) show(box.hidden); }
+  });
 })();`;
 
 const head = (title, ground) => `<!doctype html>
@@ -91,7 +126,7 @@ export async function sketchPage({ kind, title, code, ground, controls = false, 
   const inst = instrument(code);
   const specs = controlSpecs(code);
   const parts = [head(title, ground), `<script>${shim(inst.values, title, kind === 'p5')}</script>`];
-  if (controls && specs.length) parts.push(`<script>${panel(specs)}</script>`);
+  if (controls) parts.push(`<script>${panel(specs, code)}</script>`);
   if (kind === 'three') {
     const m = await collectThree(inst.code, loadFile);
     parts.push(`<script type="application/json" id="three-modules">${json(m.modules)}</script><script type="module">${threeLoader(null)}</script>`);
