@@ -1266,6 +1266,12 @@ export class Workbench {
     };
     this.activeBoard = MAIN;
     this.canvas.onBoardSelect = id => { this.activeBoard = id; this.selectedAsset = null; this.emit('board'); };
+    // A click on a sketch makes it live to the pointer and keys (see CanvasView): said the first few times.
+    this.canvas.onBoardActivate = id => {
+      if (this.activeBoard === id) return;
+      this.activeBoard = id; this.emit('board'); this.canvas.invalidate();
+      try { const n = Number(localStorage.getItem('ams_sketch_hint') || 0); if (n < 3) { localStorage.setItem('ams_sketch_hint', String(n + 1)); this.canvas.flash('This sketch is live now: drag, click and type in it. Cmd+click selects the board.'); } } catch { /* ignore */ }
+    };
     if (this.embed) this.canvas.showTrain = false;   // (no model to train in an embedded editor: no "trains" on the board, in the panels or in the menu)
     this.canvas.onOpenProperties = () => this.docks.open('properties');
     this.canvas.onFlipPath = () => this.flipPathChoice();

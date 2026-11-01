@@ -508,9 +508,12 @@ Cmd (or Ctrl) + click anywhere in a board, not only on its title, selects it and
 
 Properties → Board has switches as glyphs beside its title (and the board's menu → Board):
 
+Hover a switch for its name. In order: play or pause (a board that runs), **Lock**, **Hide** (the eye), **Title** (T), **Border** (the square), **Code** (<>), **Crop to board** (the dotted square) and **Performance** (the gauge).
+
 - **Lock:** its marks cannot be selected, changed or drawn over, and the board cannot be moved or resized.
 - **Hide:** not drawn and not run; a dashed outline marks where it is. Hidden boards are left out of the exported page.
 - **Title:** hides the title above it (it shows while the board is selected, so it can still be moved). A board that runs keeps its ▶ / ⏸ there.
+- **Using a sketch:** a p5.js, three.js or HTML board takes the pointer and keys only while it is the board you are on. **Click it** (with the Select tool) to make it so, even when its title is hidden, as on a lesson's slide; Cmd+click selects the board instead and opens its Properties. Going to a board (Alt+1–9, the Boards panel) also makes it the one you are on.
 - **Code (minimize):** shown for a board with code. On an exported page its code box starts as a bar of tabs (Pseudocode, Studio, p5.js) and opens on a click; off, it starts open on the first tab (the pseudocode, when there is some).
 - **Crop to board (mask):** its marks are cropped to the board (a mask the size of the board; see *Masks and effects*). Off by default: marks from you, from agents and from code may go past the paper.
 - **Performance:** a line under it (see below). Only boards that show it are measured.

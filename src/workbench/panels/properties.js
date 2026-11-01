@@ -149,13 +149,13 @@ export function mountProperties(el, app) {
     const flags = h('span', { class: 'wb-board-flags' },
       play,
       controls,
-      flag('locked', b.locked, 'lock', 'unlock', b.locked ? 'Locked: its marks and the board stay as they are (click to unlock)' : 'Lock the board (its marks, its place and size)'),
-      h('button', { class: `wb-icon-btn${b.hidden ? ' on' : ''}`, title: b.hidden ? 'Hidden: not drawn, not run (click to show)' : 'Hide the board (not drawn, not run)', html: icon(b.hidden ? 'eyeOff' : 'eye'), onclick: () => app.setBoardFlag(b.id, 'hidden', !b.hidden) }),
-      h('button', { class: `wb-icon-btn${b.hideLabel ? ' on' : ''}`, title: b.hideLabel ? 'Title hidden (click to show it)' : 'Hide the title above it', html: icon(b.hideLabel ? 'labelOff' : 'label'), onclick: () => app.setBoardFlag(b.id, 'hideLabel', !b.hideLabel) }),
-      h('button', { class: `wb-icon-btn${b.hideBorder ? ' on' : ''}`, title: b.hideBorder ? 'Border hidden (click to show it)' : 'Hide its border (the shadow and frame line: the board is only structure)', html: icon(b.hideBorder ? 'borderOff' : 'border'), onclick: () => app.setBoardFlag(b.id, 'hideBorder', !b.hideBorder) }),
-      b.code || b.pseudo ? flag('codeMin', b.codeMin, 'codeMin', 'script', b.codeMin ? 'Its code is a bar of tabs on an exported page (click to open it there)' : 'Minimize its code on an exported page: a bar of tabs (Pseudocode, Studio, p5.js), opened by a click') : null,
-      flag('mask', b.mask, 'mask', 'maskOff', b.mask ? 'Masked: its marks are cropped to the board (click to let them spill)' : 'Crop its marks to the board (a mask the size of the board)'),
-      flag('perf', b.perf, 'gauge', 'gaugeOff', b.perf ? 'Performance shown under it (click to hide; hidden, it is not measured)' : 'Show its performance under it (runs, code time, source fps)'));
+      flag('locked', b.locked, 'lock', 'unlock', b.locked ? 'Locked: its marks and the board stay as they are (click to unlock)' : 'Lock: the board stays as it is (its marks, its place and size)'),
+      h('button', { class: `wb-icon-btn${b.hidden ? ' on' : ''}`, title: b.hidden ? 'Hidden: not drawn, not run (click to show)' : 'Hide: the board is not drawn and not run', html: icon(b.hidden ? 'eyeOff' : 'eye'), onclick: () => app.setBoardFlag(b.id, 'hidden', !b.hidden) }),
+      h('button', { class: `wb-icon-btn${b.hideLabel ? ' on' : ''}`, title: b.hideLabel ? 'Title hidden (click to show it)' : 'Title: hide the name above the board', html: icon(b.hideLabel ? 'labelOff' : 'label'), onclick: () => app.setBoardFlag(b.id, 'hideLabel', !b.hideLabel) }),
+      h('button', { class: `wb-icon-btn${b.hideBorder ? ' on' : ''}`, title: b.hideBorder ? 'Border hidden (click to show it)' : 'Border: hide the shadow and frame line (the board is only structure)', html: icon(b.hideBorder ? 'borderOff' : 'border'), onclick: () => app.setBoardFlag(b.id, 'hideBorder', !b.hideBorder) }),
+      b.code || b.pseudo ? flag('codeMin', b.codeMin, 'codeMin', 'script', b.codeMin ? 'Its code is a bar of tabs on an exported page (click to open it there)' : 'Code on an exported page: start it as a bar of tabs (Pseudocode, Studio, p5.js) opened by a click') : null,
+      flag('mask', b.mask, 'mask', 'maskOff', b.mask ? 'Crop to board is on: marks past the board’s edge are hidden (click to let them spill)' : 'Crop to board: hide marks that go past the board’s edge (a mask the size of the board)'),
+      flag('perf', b.perf, 'gauge', 'gaugeOff', b.perf ? 'Performance is shown under the board (click to hide it: hidden, it is not measured)' : 'Performance: show under the board how fast it runs (frames a second of a sketch, code time, source fps)'));
     el.append(h('div', { class: 'wb-panel-title' }, 'Board', h('span', { class: 'wb-muted' }, b.main ? ' · main' : ''), h('span', { style: { flex: 1 } }), flags));
     el.append(section('Board', true,
       row('Title', title),

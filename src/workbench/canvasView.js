@@ -904,6 +904,12 @@ export class CanvasView {
         const bh = this.boardHandleAt(sx, sy);
         if (bh) return this.startBoardDrag(e, bh);
         if (tool === 'board') return this.startBoardRect(e, wx, wy);
+        // A click on a sketch (p5.js, three.js, a page) makes it the board you are on: from then on it takes the pointer and keys
+        // (its title may be hidden, as on a lesson's slide, so the title is not the only way in).
+        if (tool === 'select' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !this.hitTest(wx, wy)) {
+          const sb = boardAt(this.store.doc, wx, wy);
+          if (sb && !sb.hidden && ['p5', 'three', 'html'].includes(sb.kind)) this.onBoardActivate?.(sb.id);
+        }
         if (this.selectedBoard && !this.hitTest(wx, wy) && !e.shiftKey) this.selectBoard(null);
       }
       // A traveler or an event on a path is one mark: dragging it slides it along the path (a traveler: where it begins).
