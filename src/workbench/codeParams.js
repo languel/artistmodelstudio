@@ -83,12 +83,21 @@ function makeSlider(c, view, liveSrc) {
 /** The sliders of one line, overlaid on the line's right side. */
 class LineControls extends WidgetType {
   constructor(cs, view, live) { super(); this.cs = cs; this.view = view; this.live = live; }
-  eq(o) { return o.live === this.live && o.cs.length === this.cs.length && o.cs.every((c, i) => c.id === this.cs[i].id && c.kind === this.cs[i].kind && c.min === this.cs[i].min && c.max === this.cs[i].max && String(c.options) === String(this.cs[i].options)); }
+  sig() { return `${this.live ? 'L' : ''}${this.cs.map(c => `${c.id}:${c.kind}:${c.min}:${c.max}:${c.options || ''}`).join('|')}`; }
+  eq(o) { return this.sig() === o.sig() && o.cs.every((c, i) => c.value === this.cs[i].value); }
   toDOM() {
     const wrap = document.createElement('span');
     wrap.className = 'cm-param';
-    for (const c of this.cs) wrap.append(makeControl(c, this.view, this.live).input);
+    wrap._sig = this.sig();
+    wrap._ctls = this.cs.map(c => makeControl(c, this.view, this.live));
+    for (const ctl of wrap._ctls) wrap.append(ctl.input);
     return wrap;
+  }
+  // The same controls with another value (an edit, an undo, a drag): keep the elements, show the value.
+  updateDOM(dom) {
+    if (dom._sig !== this.sig()) return false;
+    this.cs.forEach((c, i) => { const ctl = dom._ctls[i]; if (document.activeElement !== ctl.input && String(ctl.value()) !== String(c.value)) ctl.set(c.value); });
+    return true;
   }
   ignoreEvent() { return true; }
 }

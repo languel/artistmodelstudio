@@ -638,10 +638,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, [contentedita
 .cm-param > * { align-self: center; vertical-align: middle; }
 .cm-param .wb-pick { font: inherit; }
 .cm-param .wb-pick-text { display: none; }
-.cm-param .wb-pick-caret { width: 1.15em; height: 1.15em; padding: .08em; border-radius: .25em; }
-.cm-param input[type="checkbox"] { width: 1.05em; height: 1.05em; margin: 0; border-radius: .25em; }
+.cm-param .wb-pick-caret { width: .9em; height: .9em; padding: .05em; border-radius: .2em; }
+.cm-param input[type="checkbox"] { width: .85em; height: .85em; margin: 0; border-radius: .2em; }
 .cm-param input[type="checkbox"]::before { width: 60%; height: 60%; border-radius: .12em; }
-.cm-param .wb-color-input { width: 1.05em; height: 1.05em; margin: 0; }
+.cm-param .wb-color-input { width: .85em; height: .85em; margin: 0; }
 .cm-param .wb-range { width: 4.5em; height: .7em; }
 .cm-param .wb-range::-webkit-slider-runnable-track { height: .7em; border-radius: .35em; }
 .cm-param .wb-range::-webkit-slider-thumb { width: .56em; height: .56em; margin-top: .07em; }
