@@ -18,6 +18,7 @@ export { findControls };
 
 import { rangeInput, paintRange } from './rangeInput.js';
 import { showMenu } from './menu.js';
+import { openPicker, parseColor } from './colorPicker.js';
 export { rangeInput, paintRange };
 
 /**
@@ -32,7 +33,10 @@ export function makeControl(c, view, liveSrc) {
 function makeChoice(c, view) {
   let input;
   if (c.kind === 'toggle') { input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(c.value); }
-  else if (c.kind === 'color') { input = document.createElement('input'); input.type = 'color'; input.className = 'wb-color-input'; input.value = /^#[0-9a-f]{6}$/i.test(c.value) ? c.value : '#888888'; }
+  else if (c.kind === 'color') { // A round swatch that opens the studio's own picker.
+    input = document.createElement('button'); input.type = 'button'; input.className = 'wb-color-input'; input.value = c.value; input.style.background = c.value;
+    input.addEventListener('click', () => openPicker(input, { hex: parseColor(input.value).hex, alpha: 1 }, col => { set(col.hex); fire(); }, null));
+  }
   else {
     // A chip that opens the studio's menu (a native dropdown does not hold up inside the editor).
     input = document.createElement('button'); input.type = 'button'; input.className = 'wb-pick'; input.value = c.value;
@@ -51,9 +55,9 @@ function makeChoice(c, view) {
     const cur = findControls(view.state.doc.toString()).find(x => x.id === c.id);
     if (cur) view.dispatch({ changes: { from: cur.from, to: cur.to, insert: literalOf(cur, v) } });
   };
-  if (c.kind !== 'select') input.addEventListener(c.kind === 'color' ? 'input' : 'change', fire);
+  if (c.kind === 'toggle') input.addEventListener('change', fire);
   for (const ev of ['mousedown', 'pointerdown', 'keydown', 'click']) input.addEventListener(ev, e => e.stopPropagation());
-  function set(v) { if (c.kind === 'toggle') input.checked = Boolean(v); else { input.value = String(v); const t = input.querySelector('.wb-pick-text'); if (t) t.textContent = String(v); } }
+  function set(v) { if (c.kind === 'toggle') input.checked = Boolean(v); else { input.value = String(v); if (c.kind === 'color') input.style.background = String(v); const t = input.querySelector('.wb-pick-text'); if (t) t.textContent = String(v); } }
   return { input, step: 1, name, onInput: f => listeners.push(f), value: read, set };
 }
 

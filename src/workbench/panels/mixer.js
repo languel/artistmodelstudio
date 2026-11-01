@@ -41,8 +41,8 @@ export function mountMixer(root, app) {
         selectField([['none', 'None'], ['all', 'All ports'], ...player.midi.ports().map(p => [p.id, p.name])], player.midi.selected, v => { player.setSound({ midi: v }); build(); }, 'A MIDI output'),
         h('button', { class: 'wb-btn', title: 'Ask the browser for MIDI access', onclick: () => player.connectMidi().then(build).catch(e => app.log(`MIDI: ${e.message}`, 'error')) }, player.midi.connected ? 'Rescan' : 'Connect')),
       h('span', { class: 'wb-mx-group wb-mx-end' },
-        h('button', { class: 'wb-btn', title: 'Play a short chord on the outputs', onclick: () => player.test() }, 'Test'),
-        h('button', { class: 'wb-btn', title: 'Everything off', onclick: () => player.panic() }, 'Stop all')));
+        h('button', { class: 'wb-icon-btn', title: 'Play a short chord on the outputs', onclick: () => player.test(), html: icon('volume') }),
+        h('button', { class: 'wb-icon-btn', title: 'Everything off', onclick: () => player.panic(), html: icon('stop') })));
 
     const strips = h('div', { class: 'wb-mx-strips' });
     for (let ch = 1; ch <= 16; ch++) {

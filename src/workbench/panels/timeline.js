@@ -84,13 +84,13 @@ export function mountTimeline(root, app) {
       rate,
       h('button', { class: `wb-icon-btn${p?.loop ? ' on' : ''}`, title: p.loopRange ? 'Loop the marked range (Shift-drag the ruler to mark one; right-click it to clear)' : 'Loop (Shift-drag the ruler to mark a range)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a6 6 0 016-6h8l-3-3M20 12a6 6 0 01-6 6H6l3 3"/></svg>', onclick: () => { p.loop = !p.loop; drawBar(); drawLanes(); } }),
       sel,
-      h('button', { class: 'wb-btn', title: 'Add at the playhead', disabled: !take, onclick: e => showMenu(addItems(), e.clientX, e.clientY) }, '+ Add'),
+      h('button', { class: 'wb-icon-btn', title: 'Add at the playhead', disabled: !take, onclick: e => showMenu(addItems(), e.clientX, e.clientY), html: icon('plus') }),
       take?.original
-        ? h('button', { class: 'wb-btn', title: 'Back to the take this summary was made from (the summary is discarded unless saved)', onclick: () => { const o = take.original; P().load(o); select(null); fitZoom(); drawBar(); drawLanes(); } }, 'Original')
+        ? h('button', { class: 'wb-icon-btn', title: 'Back to the take this summary was made from (the summary is discarded unless saved)', onclick: () => { const o = take.original; P().load(o); select(null); fitZoom(); drawBar(); drawLanes(); }, html: icon('undo') })
         : h('button', { class: 'wb-btn', title: 'A short-form summary: narration kept, the drawing brisk, analysis and waiting sped through, a hold at the end', disabled: !take || Boolean(take.summaryOf) || /\(summary\)$/.test(take.title), onclick: makeSummary }, 'Summary'),
       h('button', { class: 'wb-btn', title: 'Make a live walkthrough from this take (steps from narration; the drawing replayed with the guide)', disabled: !take, onclick: () => app.walkthroughs.fromTake(p.take).then(w => app.log(`Walkthrough “${w.title}” is in Docs → Walkthroughs and the palette.`)) }, 'Walkthrough'),
-      h('button', { class: 'wb-btn', title: 'Export', disabled: !take, onclick: e => showMenu(exportItems(), e.clientX, e.clientY) }, 'Export'),
-      h('button', { class: 'wb-btn', title: 'Save the edited take to Assets', disabled: !take, onclick: saveTake }, 'Save'),
+      h('button', { class: 'wb-icon-btn', title: 'Export', disabled: !take, onclick: e => showMenu(exportItems(), e.clientX, e.clientY), html: icon('export') }),
+      h('button', { class: 'wb-icon-btn', title: 'Save the edited take to Assets', disabled: !take, onclick: saveTake, html: icon('save') }),
       take ? h('button', { class: 'wb-icon-btn', title: 'Close the take (back to your drawing)', html: icon('close'), onclick: () => { p.close(); select(null); drawBar(); drawLanes(); } }) : null].filter(Boolean));
   };
 

@@ -118,8 +118,8 @@ function objectView(el, app, { empty, get, apply }) {
     if (o.key !== key || force || !dirty) { loading = true; editor.value = o.text; loading = false; key = o.key; dirty = false; }
   };
   const buttons = h('div', { class: 'wb-row wb-row-actions' },
-    h('button', { class: 'wb-btn primary', title: 'Apply the code (Cmd+Enter)', onclick: doApply }, 'Apply'),
-    h('button', { class: 'wb-btn', title: 'Discard edits and show the current code', onclick: () => { dirty = false; key = null; out.textContent = ''; editor.markError(null); refresh(true); } }, 'Revert'));
+    h('button', { class: 'wb-icon-btn primary', title: 'Apply the code (Cmd+Enter)', onclick: doApply, html: icon('check') }),
+    h('button', { class: 'wb-icon-btn', title: 'Discard edits and show the current code', onclick: () => { dirty = false; key = null; out.textContent = ''; editor.markError(null); refresh(true); }, html: icon('undo') }));
   el.append(info, host, buttons, out);
   return { refresh };
 }

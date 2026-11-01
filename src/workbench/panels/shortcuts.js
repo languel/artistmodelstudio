@@ -4,6 +4,7 @@
  * A key taken from another command is moved, and the panel says so.
  */
 import { askConfirm, askText } from '../dialog.js';
+import { icon } from '../icons.js';
 import { h } from '../ui.js';
 import { comboOf, formatCombo } from '../shortcuts.js';
 
@@ -15,7 +16,7 @@ export function mountShortcuts(root, app) {
   const list = h('div', { class: 'wb-sc-list' });
   const status = h('div', { class: 'wb-muted wb-small wb-sc-status' });
   root.append(h('div', { class: 'wb-row wb-row-actions' }, search,
-    h('button', { class: 'wb-btn', title: 'Restore every default', onclick: async () => { if (await askConfirm('Restore all default shortcuts?')) { sc().reset(); note = 'Defaults restored.'; render(); } } }, 'Reset all')), status, list);
+    h('button', { class: 'wb-icon-btn', title: 'Restore every default', onclick: async () => { if (await askConfirm('Restore all default shortcuts?')) { sc().reset(); note = 'Defaults restored.'; render(); } }, html: icon('undo') })), status, list);
 
   const record = (cmd, index, chip) => {
     chip.textContent = 'Press keys…';

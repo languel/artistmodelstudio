@@ -174,7 +174,7 @@ export function mountDecide(root, app) {
           h('button', { class: 'wb-btn', title: 'Download the labels as JSONL (lev format)', onclick: () => download(eng.exportJSONL(), 'ams-decisions.jsonl', 'application/jsonl') }, 'Export JSONL'),
           h('button', { class: 'wb-btn', title: 'Keep the labels as a dataset in Assets (export it from there as JSONL)', onclick: () => eng.saveToAssets(app.assetStore, { title: `Decisions · ${app.store.doc.title}` }).then(a => status(`Saved “${a.title}” to Assets`), e => status(e.message)) }, 'Save to Assets'),
           import.meta.env?.DEV ? h('button', { class: 'wb-btn', title: 'Write the labels to training/decisions/labels/ for make_suite.py', onclick: () => eng.saveToProject().then(p => status(`Saved ${p}`), e => status(e.message)) }, 'Save to project') : null,
-          h('button', { class: 'wb-btn', onclick: async () => { if (await askConfirm('Delete all decision labels?')) { eng.labels = []; eng.saveLabels(); render(); } } }, 'Clear')))
+          h('button', { title: 'Clear', class: 'wb-icon-btn', onclick: async () => { if (await askConfirm('Delete all decision labels?')) { eng.labels = []; eng.saveLabels(); render(); } }, html: icon('trash') })))
     ].filter(Boolean));
     composer.replaceChildren(
       h('div', { class: 'wb-compose-row' }, analyzeBtn, h('label', { class: 'wb-compose-pill', title: 'Also run MediaPipe pose and figure segmentation' }, mp, h('span', {}, 'MediaPipe')),

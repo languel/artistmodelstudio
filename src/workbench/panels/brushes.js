@@ -7,7 +7,7 @@ import { askConfirm, askText } from '../dialog.js';
 import { h, selectField } from '../ui.js';
 import { BRUSHES, brushSource, compileBrush, saveLibraryBrush, deleteLibraryBrush, isBuiltin, resolveParams, mulberry32 } from '../../process/brushes.js';
 import { controlStrip } from '../codeParams.js';
-import { setToolIcon, iconFromCanvas } from '../icons.js';
+import { setToolIcon, iconFromCanvas, icon } from '../icons.js';
 import { createCodeEditor } from '../codeEditor.js';
 
 const TEMPLATE = id => `brush({
@@ -184,14 +184,14 @@ export function mountBrushes(root, app) {
     if (!BRUSHES[current]) sel.prepend(h('option', { value: current, selected: true }, `${current} (unsaved)`));
     sel.addEventListener('change', () => { open(sel.value); sel.blur(); });
     picker.replaceChildren(sel,
-      h('button', { class: 'wb-btn', title: 'A new brush from a template', onclick: newBrush }, 'New'),
-      h('button', { class: 'wb-btn', title: 'Copy this brush under a new id to make it yours', onclick: fork }, 'Fork'));
+      h('button', { class: 'wb-icon-btn', title: 'A new brush from a template', onclick: newBrush, html: icon('plus') }),
+      h('button', { class: 'wb-icon-btn', title: 'Copy this brush under a new id to make it yours', onclick: fork, html: icon('fork') }));
     const builtin = isBuiltin(current);
     actions.replaceChildren(
-      h('button', { class: 'wb-btn primary', title: 'Save to your library (Cmd+Enter)', disabled: builtin, onclick: save }, 'Save'),
-      h('button', { class: 'wb-btn', title: 'Use on the selection, or for the current tool', onclick: use }, 'Use'),
+      h('button', { class: 'wb-icon-btn primary', title: 'Save to your library (Cmd+Enter)', disabled: builtin, onclick: save, html: icon('save') }),
+      h('button', { class: 'wb-icon-btn', title: 'Use on the selection, or for the current tool', onclick: use, html: icon('select') }),
       !isBuiltin(current) ? h('button', { class: 'wb-icon-btn', title: 'Use the preview as this brush’s icon (toolbar and menus)', html: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.2"/><path d="M8 6l1.5-2h5L16 6"/></svg>', onclick: () => { setToolIcon('brush', current, iconFromCanvas(preview, app.store.doc.artboard.ground || '#f3efe6')); app.renderChrome(); status.textContent = 'Icon taken from the preview.'; } }) : null,
-      !builtin && BRUSHES[current]?.scope === 'library' ? h('button', { class: 'wb-btn', title: 'Delete from your library (drawings keep their copies)', onclick: async () => { if (await askConfirm(`Delete the brush “${current}” from your library?`)) { deleteLibraryBrush(current); open('ink'); } } }, 'Delete') : null,
+      !builtin && BRUSHES[current]?.scope === 'library' ? h('button', { class: 'wb-icon-btn', title: 'Delete from your library (drawings keep their copies)', onclick: async () => { if (await askConfirm(`Delete the brush “${current}” from your library?`)) { deleteLibraryBrush(current); open('ink'); } }, html: icon('trash') }) : null,
       h('span', { class: 'wb-muted wb-small', style: { marginLeft: 'auto' } }, builtin ? 'built-in · fork to edit' : scopeOf(current)));
   };
   app.brushesPanel = { open, editor, get source() { return editor.value; }, setSource: v => { editor.value = v; check(); }, save };

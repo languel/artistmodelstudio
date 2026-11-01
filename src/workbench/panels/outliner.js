@@ -237,8 +237,8 @@ export function mountOutliner(root, app) {
     const n = sel().size;
     const grouped = [...sel()].some(id => doc.elements.find(e => e.id === id)?.group);
     bar.replaceChildren(
-      h('button', { class: 'wb-btn', disabled: n < 2, title: 'Group the selection (Cmd+G)', onclick: () => app.groupSelection() }, 'Group'),
-      h('button', { class: 'wb-btn', disabled: !grouped, title: 'Ungroup (Shift+Cmd+G)', onclick: () => app.ungroupSelection() }, 'Ungroup'),
+      h('button', { class: 'wb-icon-btn', disabled: n < 2, title: 'Group the selection (Cmd+G)', onclick: () => app.groupSelection(), html: icon('group') }),
+      h('button', { class: 'wb-icon-btn', disabled: !grouped, title: 'Ungroup (Shift+Cmd+G)', onclick: () => app.ungroupSelection(), html: icon('ungroup') }),
       h('span', { style: { flex: 1 } }),
       h('div', { class: 'wb-seg', title: 'Group the marks by their stage (when and why they were made), or by their board (where they are: the layers of the scene)' },
         ...[['stage', 'Stage'], ['board', 'Board']].map(([id, label]) => h('button', { class: by === id ? 'on' : '', onclick: () => { by = id; try { localStorage.setItem(BY_KEY, id); } catch { /* ignore */ } render(); } }, label))),

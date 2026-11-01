@@ -1,4 +1,5 @@
 /** Settings: the artboard (size, paper), the workspace (theme, grid, reference), and the guide. */
+import { icon } from '../icons.js';
 import { h, row, numberField, selectField, section } from '../ui.js';
 import { colorField } from '../colorPicker.js';
 import { modelSection } from './modelSettings.js';
@@ -63,8 +64,8 @@ export function mountSettings(root, app) {
         row('Width', numberField({ value: ab.width, min: 50, max: 10000, step: 10, def: 1000, onChange: v => setArtboard({ width: Math.round(v) }) })),
         row('Height', numberField({ value: ab.height, min: 50, max: 10000, step: 10, def: 1000, onChange: v => setArtboard({ height: Math.round(v) }) })),
         h('div', { class: 'wb-row wb-row-actions' },
-          h('button', { class: 'wb-btn', title: 'Swap width and height', onclick: () => { setArtboard({ width: ab.height, height: ab.width }); app.canvas.fit(); } }, 'Rotate'),
-          h('button', { class: 'wb-btn', title: 'Fit the artboard in view (F)', onclick: () => { app.canvas.fit(); app.renderChrome(); } }, 'Fit')),
+          h('button', { class: 'wb-icon-btn', title: 'Swap width and height', onclick: () => { setArtboard({ width: ab.height, height: ab.width }); app.canvas.fit(); }, html: icon('rotate') }),
+          h('button', { class: 'wb-icon-btn', title: 'Fit the artboard in view (F)', onclick: () => { app.canvas.fit(); app.renderChrome(); }, html: icon('fit') })),
         row('Paper', colorField(ab.ground, v => setArtboard({ ground: v }), { title: 'Paper', fallback: '#f3efe6', app }))),
       section('Workspace', true,
         row('Theme', selectField([['dark', 'Dark'], ['light', 'Light']], document.documentElement.dataset.theme === 'light' ? 'light' : 'dark', v => { if ((document.documentElement.dataset.theme === 'light') !== (v === 'light')) app.toggleTheme(); })),
@@ -122,6 +123,6 @@ function soundSection(app) {
       h('button', { class: 'wb-btn', title: 'Ask the browser for MIDI access', onclick: () => sc.connectMidi().then(() => app.store.emit('sound')).catch(e => app.log(`MIDI: ${e.message}`, 'error')) }, sc.midi.connected ? 'Refresh' : 'Connect')), 'A MIDI output port, for real instruments'),
     row('Instruments', h('button', { class: 'wb-btn', title: 'Per-channel instruments, routes, volume, mute and solo, and the scale filter', onclick: () => app.docks.open('mixer') }, 'Open mixer')),
     h('div', { class: 'wb-row wb-row-actions' },
-      h('button', { class: 'wb-btn', title: 'Play a short chord on the outputs', onclick: () => sc.test() }, 'Test'),
-      h('button', { class: 'wb-btn', title: 'Everything off', onclick: () => sc.panic() }, 'Stop all')));
+      h('button', { class: 'wb-icon-btn', title: 'Play a short chord on the outputs', onclick: () => sc.test(), html: icon('volume') }),
+      h('button', { class: 'wb-icon-btn', title: 'Everything off', onclick: () => sc.panic(), html: icon('stop') })));
 }

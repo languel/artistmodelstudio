@@ -74,7 +74,7 @@ export function mountProperties(el, app) {
       row('Radius', numberField({ value: Math.round(s.radius), min: 4, max: 400, step: 1, def: 40, title: 'Brush radius in screen pixels ([ and ])', onChange: v => app.setSculpt({ radius: v }) })),
       row('Strength', numberField({ value: s.strength, min: 0.02, max: 1, step: 0.01, def: 0.5, title: 'Shift+[ and Shift+]', onChange: v => app.setSculpt({ strength: v }) })),
       ...t.params.map(p => row(p.label, numberField({ value: vals[p.key], min: p.min, max: p.max, step: p.step, def: p.default, title: p.doc, onChange: v => app.setSculpt({ params: { [p.key]: v } }) }), p.doc)),
-      h('div', { class: 'wb-row wb-row-actions' }, h('button', { class: 'wb-btn', title: 'Sculpt tools are code: fork one or write your own', onclick: () => app.openCode?.('sculpt', s.tool) }, 'Show code'))
+      h('div', { class: 'wb-row wb-row-actions' }, h('button', { class: 'wb-icon-btn', title: 'Sculpt tools are code: fork one or write your own', onclick: () => app.openCode?.('sculpt', s.tool), html: icon('script') }))
     ));
   };
 

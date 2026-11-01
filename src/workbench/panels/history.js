@@ -4,6 +4,7 @@
  * selection onto the Timeline to make clips, restore a state to continue from it.
  */
 import { askConfirm, askText } from '../dialog.js';
+import { icon } from '../icons.js';
 import { h } from '../ui.js';
 import { showMenu } from '../menu.js';
 import { createTake, touch } from '../../process/take.js';
@@ -59,7 +60,7 @@ export function mountHistory(root, app) {
       h('span', { style: { flex: 1 } }),
       h('span', { class: 'wb-muted wb-small' }, n ? `${n} selected` : `${H().entries.length}`),
       h('button', { class: 'wb-btn', disabled: !n, title: 'A new take from the selected changes (or drag them onto the Timeline)', onclick: makeTake }, 'Make take'),
-      h('button', { class: 'wb-btn', title: 'Forget the history so far (the drawing is unchanged)', onclick: async () => { if (await askConfirm('Clear the history? The drawing stays as it is.')) { selected.clear(); H().clear(); } } }, 'Clear'));
+      h('button', { class: 'wb-icon-btn', title: 'Forget the history so far (the drawing is unchanged)', onclick: async () => { if (await askConfirm('Clear the history? The drawing stays as it is.')) { selected.clear(); H().clear(); } }, html: icon('trash') }));
   };
 
   const draw = () => {
