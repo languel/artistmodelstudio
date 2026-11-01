@@ -47,6 +47,14 @@ function head() {                                                   // a profile
   s.bezierCurveTo(0.2, 0.55, 0.1, 0.7, -0.08, 0.72); s.bezierCurveTo(-0.26, 0.7, -0.3, 0.45, -0.22, 0.25); s.lineTo(-0.1, 0.1);
   return s;
 }
+function hand() {                                                   // a mitten: a palm that widens a little, a thumb, fingers together
+  const s = new THREE.Shape();
+  s.moveTo(-0.05, 0); s.lineTo(0.05, 0);
+  s.lineTo(0.12, -0.07); s.lineTo(0.2, -0.11);                         // the thumb
+  s.lineTo(0.12, -0.13); s.lineTo(0.09, -0.2);
+  s.bezierCurveTo(0.06, -0.31, -0.06, -0.31, -0.07, -0.2); s.lineTo(-0.06, -0.08);
+  return s;
+}
 function foot() {                                                   // a slipper: a heel, a sole, and a toe that curls up
   const s = new THREE.Shape(); s.moveTo(-0.1, 0.1); s.lineTo(0.22, 0.04); s.bezierCurveTo(0.4, 0.02, 0.5, 0.05, 0.56, 0.2);
   s.bezierCurveTo(0.5, 0.0, 0.42, -0.1, 0.3, -0.11); s.lineTo(-0.1, -0.12); s.lineTo(-0.1, 0.1);
@@ -63,10 +71,10 @@ const PARTS = [
   { id: 'head', parent: 'neck', at: [0, 0.2], shape: head(), tip: [0.03, 0.5], limit: [-0.7, 0.7], z: 0.03 },
   { id: 'armA', parent: 'chest', at: [0, 0.68], shape: limb(0.62, 0.17, 0.12), tip: [0, -0.62], limit: [-3.1, 3.1], z: 0.04 },
   { id: 'foreA', parent: 'armA', at: [0, -0.62], shape: limb(0.58, 0.12, 0.09), tip: [0, -0.58], limit: [-0.1, 2.7], z: 0.05 },
-  { id: 'handA', parent: 'foreA', at: [0, -0.58], shape: limb(0.2, 0.09, 0.06), tip: [0, -0.2], limit: [-1.0, 1.0], z: 0.06 },
+  { id: 'handA', parent: 'foreA', at: [0, -0.58], shape: hand(), tip: [0, -0.26], limit: [-1.0, 1.0], z: 0.06 },
   { id: 'armB', parent: 'chest', at: [0, 0.68], shape: limb(0.62, 0.17, 0.12), tip: [0, -0.62], limit: [-3.1, 3.1], z: -0.04 },
   { id: 'foreB', parent: 'armB', at: [0, -0.62], shape: limb(0.58, 0.12, 0.09), tip: [0, -0.58], limit: [-0.1, 2.7], z: -0.05 },
-  { id: 'handB', parent: 'foreB', at: [0, -0.58], shape: limb(0.2, 0.09, 0.06), tip: [0, -0.2], limit: [-1.0, 1.0], z: -0.06 },
+  { id: 'handB', parent: 'foreB', at: [0, -0.58], shape: hand(), tip: [0, -0.26], limit: [-1.0, 1.0], z: -0.06 },
   { id: 'thighA', parent: 'pelvis', at: [0, 0], shape: limb(0.85, 0.26, 0.16), tip: [0, -0.85], limit: [-1.5, 1.5], z: 0.01 },
   { id: 'shinA', parent: 'thighA', at: [0, -0.85], shape: limb(0.85, 0.16, 0.08), tip: [0, -0.85], limit: [-2.5, 0.1], z: 0.015 },
   { id: 'footA', parent: 'shinA', at: [0, -0.85], shape: foot(), tip: [0.5, 0.02], limit: [-0.9, 0.9], z: 0.02 },
