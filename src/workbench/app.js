@@ -837,6 +837,75 @@ export class Workbench {
     this.emit('present', on);
   }
 
+  /**
+   * Perform (Ctrl+Opt+P): the active board alone, filling the screen and running live, with no interface: for a performance or
+   * an installation. It is the board's own picture, so a sketch keeps its state and takes the pointer and keys as usual.
+   * Ctrl+Opt+F: the whole board (bars around it) or the board filling the screen (its edges cropped). Esc, or the same keys, leave.
+   */
+  perform(on = !this.performing) {
+    if (Boolean(this.performing) === Boolean(on)) return;
+    const cv = this.canvas, root = document.documentElement;
+    if (on) {
+      if (cv.previewDoc || this.presenting) return;   // (a take is playing, or the boards are being presented)
+      const d = this.store.doc, id = this.activeBoard || MAIN;
+      this.performing = id;
+      this.performWas = { cam: { ...cv.cam }, canvasColor: root.style.getPropertyValue('--wb-canvas'), presenting: cv.presenting };
+      // The canvas shows a document of its own for a take; here it is this board alone (the others and the main board are left out).
+      cv.previewDoc = { ...d, artboard: id === MAIN ? d.artboard : { ...d.artboard, hidden: true }, boards: (d.boards || []).filter(b => b.id === id), elements: (d.elements || []).filter(e => (e.board || MAIN) === id) };
+      cv.presenting = true;
+      this.root.classList.add('presenting', 'performing');
+      root.style.setProperty('--wb-canvas', '#000');
+      try { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {}); } catch { /* ignore */ }
+      this.performFit = (() => { try { return localStorage.getItem('ams_perform_fit') || 'contain'; } catch { return 'contain'; } })();
+      const place = () => {
+        const b = boardsOf(this.canvas.previewDoc || this.store.doc).find(x => x.id === this.performing);
+        if (!b) return;
+        const z = (this.performFit === 'cover' ? Math.max : Math.min)(cv.w / b.width, cv.h / b.height);
+        cv.cam = { z, x: (cv.w - b.width * z) / 2 - b.x * z, y: (cv.h - b.height * z) / 2 - b.y * z };
+        cv.invalidate();
+      };
+      this.performPlace = place;
+      this.performKeys = e => {
+        if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+        if (e.key === 'Escape' && !e.metaKey) { e.preventDefault(); e.stopPropagation(); this.perform(false); }
+        else if (e.code === 'KeyF' && e.ctrlKey && e.altKey && !e.metaKey) {
+          e.preventDefault(); e.stopPropagation();
+          this.performFit = this.performFit === 'cover' ? 'contain' : 'cover';
+          try { localStorage.setItem('ams_perform_fit', this.performFit); } catch { /* ignore */ }
+          place();
+        }
+      };
+      this.performResize = () => requestAnimationFrame(place);
+      // The pointer goes quiet after a moment, as on a screen in a room.
+      let idle = 0;
+      this.performMove = () => { this.root.classList.remove('idle'); clearTimeout(idle); idle = setTimeout(() => this.root.classList.add('idle'), 2000); };
+      this.performFs = () => { if (!document.fullscreenElement && this.performing) this.perform(false); };   // (Esc leaves full screen first: that leaves Perform)
+      window.addEventListener('keydown', this.performKeys, true);
+      window.addEventListener('resize', this.performResize);
+      window.addEventListener('pointermove', this.performMove);
+      document.addEventListener('fullscreenchange', this.performFs);
+      cv.selectBoard(null);
+      place(); requestAnimationFrame(place); setTimeout(place, 300);
+      this.performMove();
+      this.log('Perform: Esc leaves; Ctrl+Opt+F switches between the whole board and filling the screen.');
+    } else {
+      const was = this.performWas || {};
+      window.removeEventListener('keydown', this.performKeys, true);
+      window.removeEventListener('resize', this.performResize);
+      window.removeEventListener('pointermove', this.performMove);
+      document.removeEventListener('fullscreenchange', this.performFs);
+      this.performing = null;
+      cv.previewDoc = null; cv.presenting = Boolean(was.presenting);
+      this.root.classList.remove('presenting', 'performing', 'idle');
+      if (was.canvasColor) root.style.setProperty('--wb-canvas', was.canvasColor); else root.style.removeProperty('--wb-canvas');
+      try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch { /* ignore */ }
+      if (was.cam) cv.cam = was.cam;
+      cv.invalidate();
+      requestAnimationFrame(() => { if (was.cam) cv.cam = was.cam; cv.invalidate(); });
+    }
+    this.emit('perform', on);
+  }
+
   presentHud() {
     const bs = slidesOf(this.store.doc), i = bs.findIndex(b => b.id === this.activeBoard);
     if (!this.hud) { this.hud = h('div', { class: 'wb-present-hud' }); this.stageArea.append(this.hud); }
@@ -2307,6 +2376,7 @@ export class Workbench {
       { label: this.view.mode === 'process' ? 'Show the picture' : 'Show the process', keys: sc('view.toggle'), hint: 'The finished picture, or the process: guides, gestures and notes', run: () => this.setViewMode(this.view.mode === 'process' ? 'picture' : 'process') },
       this.reference ? { label: this.reference.visible ? 'Hide the reference' : 'Show the reference', keys: sc('view.reference'), run: () => { this.reference.visible = !this.reference.visible; this.canvas.invalidate(); this.renderChrome(); } } : null,
       { label: 'Play', keys: sc('view.present'), hint: 'Present the boards one by one: ← → to move, Esc to leave', run: () => this.present(true) },
+      { label: 'Perform', keys: sc('view.perform'), hint: 'The active board alone, filling the screen and running, with no interface: Esc leaves, Ctrl+Opt+F switches between the whole board and filling the screen', run: () => this.perform(true) },
       { label: document.documentElement.dataset.theme === 'light' ? 'Dark theme' : 'Light theme', run: () => this.toggleTheme() },
       '-'
     ].filter(Boolean);

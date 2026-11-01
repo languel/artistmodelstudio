@@ -91,6 +91,11 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   window.__ctl = (k, f) => { ctlSet[k] = f; if (k in ctlVals) f(ctlVals[k]); };
   // p5.js code reads windowWidth and windowHeight; so may any sketch here (the board's size), to be copied as it is.
   ${kind === 'p5' ? '' : "Object.defineProperties(window, { windowWidth: { get: () => innerWidth, configurable: true }, windowHeight: { get: () => innerHeight, configurable: true } });"}
+  // The studio's own keys keep working while a sketch has the focus: Esc, and chords with Ctrl or Cmd and Option (Perform, Present…).
+  addEventListener('keydown', e => {
+    if (!((e.altKey && (e.ctrlKey || e.metaKey)) || e.key === 'Escape')) return;
+    parent.postMessage({ amsFrame: token, type: 'hotkey', ev: { key: e.key, code: e.code, keyCode: e.keyCode, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey } }, '*');
+  }, true);
   let fwd = false;
   for (const t of ['pointermove', 'pointerdown', 'pointerup', 'mousemove', 'mousedown', 'mouseup', 'click', 'wheel', 'keydown', 'keyup']) {
     addEventListener(t, e => {
@@ -503,6 +508,8 @@ export class BoardFrames {
     const reply = (msg, transfer) => e.source?.postMessage({ amsFrame: d.amsFrame, type: 'reply', id: d.id, ...msg }, '*', transfer);
     if (d.type === 'perf') { this.perf.set(id, { fps: d.fps, calls: d.calls, ms: d.ms, at: performance.now() }); return; }
     if (d.type === 'input') { this.app.outputs?.forward(id, d.ev, d.amsFrame); return; }
+    // A key the studio keeps for itself, pressed while the sketch had the focus: the studio gets it too.
+    if (d.type === 'hotkey' && d.ev) { document.body.dispatchEvent(new KeyboardEvent('keydown', { ...d.ev, bubbles: true, cancelable: true })); return; }
     if (d.type === 'pipe') { const cb = this.pipes?.get(id); if (cb && d.bitmap) cb(d.bitmap); else d.bitmap?.close?.(); return; }
     if (d.type === 'snapshot') { if (d.url) { this.snapshots.set(id, d.url); if (f?.still) f.still.innerHTML = `<img src="${d.url}" alt="">`; } return; }
     if (d.type === 'error') { this.app.log(`Board “${boardsOf(this.app.store.doc).find(b => b.id === id)?.title || '?'}”: ${d.message}${d.line ? ` (line ${d.line})` : ''}`, 'error'); if (f) (f.errors ||= []).push(d); this.app.emit('frame-error', id, d); return; }

@@ -160,6 +160,7 @@ A **project** holds **scenes**, and a scene holds **boards**. It is enough to wr
   - **Training** uses the board marked with the dot in the Boards panel.
 - **Board code** (Code → Board): a board's own score, run with the board as its artboard. Each run replaces its last run's marks, so the board is live while you edit or move its sliders.
 - **Present** (Opt+Cmd+P): the boards full-window, with eased moves between them.
+- **Perform** (Ctrl+Opt+P, again to leave): the active board alone, filling the screen, running live, with no interface, for a performance or an installation. It is the board itself, so a sketch keeps its state and takes the pointer and keys; the pointer hides when still. Ctrl+Opt+F switches between the whole board (bars around it) and the board filling the screen (its edges cropped); Esc leaves. These keys work while a sketch has the focus. Also Play → Perform in the view menu.
   - Keys: →, Space, ←, Alt+1–9, Esc.
   - Drawing still works.
   - While recording, the moves go onto the camera track, so replays and videos follow them.

@@ -239,7 +239,7 @@ export class CanvasView {
     ctx.setLineDash([4, 4]);
     ctx.strokeStyle = css.getPropertyValue('--wb-line').trim() || '#353535';
     for (const b of boards) {
-      if (!b.hidden || b.kind === 'player') continue;   // (a hidden player leaves no trace: its switch is in Properties)
+      if (!b.hidden || b.kind === 'player' || this.presenting) continue;   // (a hidden player leaves no trace: its switch is in Properties; nor does a hidden board when presenting)
       const [bx, by] = this.toScreen(b.x, b.y);
       ctx.strokeRect(Math.round(bx) + 0.5, Math.round(by) + 0.5, Math.round(b.width * this.cam.z), Math.round(b.height * this.cam.z));
     }
@@ -738,9 +738,6 @@ export class CanvasView {
     });
     window.addEventListener('keyup', e => { if (e.code === 'Space') { const tap = this.space && !this.spaceUsed && this.getTool() === 'play'; this.space = false; this.spaceUsed = false; this.updateCursor(); if (tap) this.onSpaceTap?.(); } });   // (in the Play tool a tap of Space is play / pause; held, it pans)
     // Option (Alt) held: the sculpt brush shows the control points it would move, in any tool.
-    const altState = e => { const on = Boolean(e.altKey); if (on !== this.altHeld) { this.altHeld = on; this.paintAffected(); } };
-    window.addEventListener('keydown', altState);
-    window.addEventListener('keyup', altState);
     // Ctrl held: a selected path, traveler or event shows the Timeline's divisions along its path (see the score overlay).
     const ctrlState = e => { const on = Boolean(e.ctrlKey); if (on !== Boolean(this.ctrlHeld)) { this.ctrlHeld = on; this.invalidate(); } };
     window.addEventListener('keydown', ctrlState);
@@ -1371,13 +1368,13 @@ export class CanvasView {
   }
 
   /** Marks the brush can sculpt at a world point: the selection if any, else any mark near it. */
-  /** Direct is active, or Option is held: the sculpt brush's preview shows (not while dragging, pan or the laser). */
+  /** The Direct tool is active: the sculpt brush's preview (its ring and the points it would move) shows, not while dragging a pan (Option held no longer shows it in other tools: the ' key shows a mark's points). */
   affectedShown() {
     const t = this.getTool();
     if (t === 'play') return false;   // (the Play tool has no use for the sculpt points)
     const over = this.hovered && this.store.doc.elements.find(e => e.id === this.hovered);
     if (over?.play?.travel || over?.play?.trigger) return false;   // (and so does the Select tool, over one)
-    return Boolean(this.lastLocal) && (!this.pointer || Boolean(this.sculptDrag)) && !this.space && (t === 'direct' || Boolean(this.altHeld)) && !['hand', 'laser', 'note', 'point', 'board'].includes(t);
+    return Boolean(this.lastLocal) && (!this.pointer || Boolean(this.sculptDrag)) && !this.space && t === 'direct';
   }
 
   /**

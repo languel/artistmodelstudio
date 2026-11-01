@@ -61,6 +61,7 @@ export function defaultCommands(app) {
     cmd('view.frameSelection', 'View', 'Frame the selection', ['alt+shift+home'], () => { if (!app.canvas.frameSelection()) app.canvas.animateTo(app.canvas.camFor(app.activeBoard || 'main'), 400); }),
     cmd('tool.board', 'Tools', 'Board', [';'], () => app.setTool('board')),
     cmd('view.present', 'View', 'Present the boards', ['mod+alt+p'], () => app.present()),
+    cmd('view.perform', 'View', 'Perform: the active board alone, filling the screen, running, with no interface (Esc leaves; Ctrl+Opt+F: whole board or fill)', ['ctrl+alt+p', 'mod+alt+shift+p'], () => app.perform(), { global: true }),
     cmd('ui.all', 'View', 'Zen mode: hide all the interface, leaving only the drawing (again to bring it back)', ['alt+z', 'mod+.'], () => app.toggleZen(), { global: true }),
     cmd('view.theme', 'View', 'Dark / light theme', ['alt+shift+d'], () => app.toggleTheme()),
     cmd('ui.perf', 'View', 'Show / hide the performance readout (fps, redraw time)', [], () => app.togglePerf()),

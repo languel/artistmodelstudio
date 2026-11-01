@@ -671,6 +671,8 @@ canvas.assets-preview-media { height: auto; aspect-ratio: auto; }
 
 /* Presenting: the canvas alone, the boards full-window */
 .presenting .wb { grid-template-columns: 0 1fr 0; grid-template-rows: 1fr 0; }
+.performing, .performing * { cursor: default; }
+.performing.idle, .performing.idle * { cursor: none !important; }
 .presenting .wb-dock, .presenting [data-floating], .presenting .wb-island, .presenting .wb-topbar, .presenting .wb-dock-hint { display: none !important; }
 .wb-present-hud { position: absolute; right: 18px; bottom: 14px; padding: 4px 10px; border-radius: 6px; background: color-mix(in srgb, var(--wb-panel) 80%, transparent); color: var(--wb-muted); font: 12px ui-sans-serif, system-ui, sans-serif; pointer-events: none; opacity: 0; }
 .wb-present-hud.fade { animation: wb-hud 2.4s ease forwards; }
