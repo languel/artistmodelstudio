@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { sketchPage, controlSpecs } from '../src/workbench/exportPage.js';
+import { findControls } from '../src/process/controls.js';
 import { TEMPLATES, snippetsFor, saveSnippet, deleteSnippet, isBlank, SNIPPETS } from '../src/workbench/snippets.js';
 
 const code = `import * as THREE from 'three';
@@ -62,6 +63,13 @@ describe('templates and snippets', () => {
     for (const list of Object.values(SNIPPETS)) for (const s of list) expect(s.code.trim().length).toBeGreaterThan(10);
     expect(SNIPPETS.three.some(s => /windowWidth/.test(s.code))).toBe(true);
     expect(JSON.stringify(SNIPPETS)).not.toContain('ams.width');
+  });
+  it('every control comment in the catalog is read as a control', () => {
+    const comment = /\/\*\s*(?:-?[\d.]+\s*(?:\.{2,3}|…)|toggle\b|colou?r\b|palette\b|[\w-]+\|)/g;
+    for (const [kind, list] of Object.entries(SNIPPETS)) for (const s of list) {
+      const written = (s.code.match(comment) || []).length;
+      expect(findControls(s.code).filter(c => c.kind !== 'param').length, `${kind}: ${s.title}`).toBe(written);
+    }
   });
   it('the user keeps their own', () => {
     saveSnippet('p5', 'My start', 'function setup() {}');

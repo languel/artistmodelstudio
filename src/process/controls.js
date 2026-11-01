@@ -7,7 +7,7 @@
 export const NUM = '-?(?:\\d+\\.?\\d*|\\.\\d+)';
 const PARAM_RE = new RegExp(`(^|[\\s{,])([A-Za-z_$][\\w$]*)\\s*:\\s*\\[\\s*(${NUM})\\s*,\\s*(${NUM})\\s*,\\s*(${NUM})`, 'g');
 const DOTS = '(?:\\.{2,3}|…)';   // 0..5, 0...5 or 0…5 (an editor turns .. and ... into other marks)
-const RANGE_RE = new RegExp(`(${NUM})(\\s*/\\*\\s*(${NUM})\\s*${DOTS}\\s*(${NUM})(?:\\s*(?:step|:)\\s*(${NUM}))?\\s*\\*/)`, 'g');
+const RANGE_RE = new RegExp(`(${NUM})(\\s*/\\*\\s*(${NUM})\\s*${DOTS}\\s*(${NUM})(?:\\s*(?:step\\s*:?|:)\\s*(${NUM}))?\\s*\\*/)`, 'g');
 
 export const decimalsOf = s => (String(s).split('.')[1] || '').length;
 export const fmt = (v, step) => { const d = Math.min(6, Math.max(decimalsOf(step), 0)); return String(+v.toFixed(d)); };
