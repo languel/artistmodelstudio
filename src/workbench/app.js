@@ -811,6 +811,7 @@ export class Workbench {
    */
   present(on = !this.presenting) {
     this.presenting = on;
+    this.frames?.setPresenting(on);
     this.canvas.presenting = on;
     this.root.classList.toggle('presenting', on);
     try { if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen?.(); } catch { /* ignore */ }
@@ -819,7 +820,7 @@ export class Workbench {
         if (!this.presenting || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
         const bs = slidesOf(this.store.doc);
         const go = i => { e.preventDefault(); e.stopPropagation(); this.goToBoard(bs[Math.max(0, Math.min(bs.length - 1, i))].id); };
-        const cur = Math.max(0, bs.findIndex(b => b.id === this.activeBoard));
+        const cur = this.slideIndex(bs);
         if (['ArrowRight', 'PageDown', ' '].includes(e.key) && !e.metaKey) go(cur + 1);
         else if (['ArrowLeft', 'PageUp'].includes(e.key) && !e.metaKey) go(cur - 1);
         else if (e.key === 'Home') go(0);
@@ -939,16 +940,22 @@ export class Workbench {
   }
 
   presentHud() {
-    const bs = slidesOf(this.store.doc), i = bs.findIndex(b => b.id === this.activeBoard);
+    const bs = slidesOf(this.store.doc), i = this.slideIndex(bs);
     if (!this.hud) { this.hud = h('div', { class: 'wb-present-hud' }); this.stageArea.append(this.hud); }
     this.hud.textContent = `${i + 1} / ${bs.length}  ·  ${bs[i]?.title || ''}`;
     this.hud.classList.remove('fade'); void this.hud.offsetWidth; this.hud.classList.add('fade');
   }
 
+  /** Where the active board sits among the slides: its own place, or that of the frame that holds it (a board in a frame is not a slide itself). */
+  slideIndex(bs = slidesOf(this.store.doc)) {
+    let i = bs.findIndex(b => b.id === this.activeBoard);
+    if (i < 0) i = bs.findIndex(b => isFrame(b) && boardsInFrame(this.store.doc, b).some(x => x.id === this.activeBoard));
+    return Math.max(0, i);
+  }
+
   stepBoard(delta) {
     const bs = slidesOf(this.store.doc);
-    const i = Math.max(0, bs.findIndex(b => b.id === this.activeBoard));
-    this.goToBoard(bs[(i + delta + bs.length) % bs.length].id);
+    this.goToBoard(bs[(this.slideIndex(bs) + delta + bs.length) % bs.length].id);
   }
 
   /** Rename a board in place: on its title above the board, or in the Boards panel. */

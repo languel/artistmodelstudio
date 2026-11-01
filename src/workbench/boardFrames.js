@@ -107,8 +107,13 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   ${kind === 'p5' ? '' : "Object.defineProperties(window, { windowWidth: { get: () => innerWidth, configurable: true }, windowHeight: { get: () => innerHeight, configurable: true } });"}
   // The studio's own keys keep working while a sketch has the focus: Esc, and chords with Ctrl or Cmd and Option (Perform, Present…).
   let holdKeys = false;   // (Perform asks for H and Shift+H too, for its controls)
+  let present = false;    // (while the boards are presented, the arrow keys go to the studio: next and previous board)
+  parent.postMessage({ amsFrame: token, type: 'present?' }, '*');
   addEventListener('keydown', e => {
-    if (!((e.altKey && (e.ctrlKey || e.metaKey)) || e.key === 'Escape' || (holdKeys && (e.key === 'h' || e.key === 'H') && !e.altKey && !e.ctrlKey && !e.metaKey))) return;
+    const bare = !e.altKey && !e.ctrlKey && !e.metaKey;
+    // PageUp and PageDown (and Alt with the arrows) step through the boards from inside a sketch too; so do the arrows while presenting.
+    const step = (bare && (e.key === 'PageUp' || e.key === 'PageDown' || (present && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')))) || (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight'));
+    if (!((e.altKey && (e.ctrlKey || e.metaKey)) || e.key === 'Escape' || step || (holdKeys && (e.key === 'h' || e.key === 'H') && bare))) return;
     parent.postMessage({ amsFrame: token, type: 'hotkey', ev: { key: e.key, code: e.code, keyCode: e.keyCode, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey } }, '*');
   }, true);
   // How large the board is shown, as the pixel ratio: a canvas drawn at it stays sharp when the board is enlarged (Perform, zoom).
@@ -144,6 +149,7 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
     if (d.type === 'perf') perfOn = Boolean(d.on);
     if (d.type === 'fwd') fwd = Boolean(d.on);
     if (d.type === 'holdkeys') holdKeys = Boolean(d.on);
+    if (d.type === 'present') present = Boolean(d.on);
     if (d.type === 'scale') { ratio = Math.max(1, Number(d.value) || 1); for (const r of window.__amsRenderers || []) { try { r.setPixelRatio(ratio); } catch { /* a renderer that is gone */ } } }
     if (d.type === 'ctl') { ctlVals[d.key] = params[d.key] = d.value; try { ctlSet[d.key]?.(d.value); } catch { /* the sketch's own error */ } }
     if (d.type === 'input' && d.ev) { try { replay(d.ev); } catch { /* an event the sketch cannot take */ } }
@@ -309,6 +315,9 @@ export class BoardFrames {
     }
   }
   /** Ask a board's sketch to pass H and Shift+H to the studio (Perform's controls), or not. */
+  /** Tell every running sketch whether the boards are being presented (its arrow keys then step the presentation). */
+  setPresenting(on) { for (const f of this.frames.values()) { try { f.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'present', on: Boolean(on) }, '*'); } catch { /* gone */ } } }
+
   holdKeys(id, on) { const f = this.frames.get(id); try { f?.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'holdkeys', on: Boolean(on) }, '*'); } catch { /* gone */ } }
   /** Tell a sketch whether to send its pointer and keys on (to the twin in an output window). */
   sendForward(f) { try { f.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'fwd', on: Boolean(this.app.outputs?.live(f.id)) }, '*'); } catch { /* gone */ } }
@@ -630,6 +639,7 @@ export class BoardFrames {
     if (d.type === 'perf') { this.perf.set(id, { fps: d.fps, calls: d.calls, ms: d.ms, at: performance.now() }); return; }
     if (d.type === 'input') { this.app.outputs?.forward(id, d.ev, d.amsFrame); return; }
     // A key the studio keeps for itself, pressed while the sketch had the focus: the studio gets it too.
+    if (d.type === 'present?') { try { e.source?.postMessage({ amsFrame: d.amsFrame, type: 'present', on: Boolean(this.app.presenting) }, '*'); } catch { /* gone */ } return; }
     if (d.type === 'hotkey' && d.ev) { document.body.dispatchEvent(new KeyboardEvent('keydown', { ...d.ev, bubbles: true, cancelable: true })); return; }
     if (d.type === 'pipe') { const cb = this.pipes?.get(id); if (cb && d.bitmap) cb(d.bitmap); else d.bitmap?.close?.(); return; }
     if (d.type === 'snapshot') { if (d.url) { this.snapshots.set(id, d.url); if (f?.still) f.still.innerHTML = `<img src="${d.url}" alt="">`; } return; }
