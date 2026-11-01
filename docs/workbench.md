@@ -643,6 +643,36 @@ A declaration at the start of a line (`const`, `let` or `var`, with nothing afte
 
 A p5 board runs while it is live and on screen, like a drawing. Paused, it shows its last picture. Errors appear under the code and in the Log. A frame takes the pointer only on the board you are on.
 
+### Taking a sketch out of the studio
+
+The same sketch can leave in several ways. What each one keeps:
+
+| You do | You get | The library | The controls (`/* 0..4 */`, `// @panel`) |
+| --- | --- | --- | --- |
+| Run it on a board | the studio, with the code view, snippets and help | bundled (three.js r187) | sliders, menus, colours… in the code and, with `// @panel`, a panel on the board |
+| **Perform** (Ctrl+Opt+P) | the board full screen, no interface | bundled | the panel, starting hidden (`// @panel open` shows it) |
+| Export → **Standalone page** | one HTML file, offline | inside the file | none: the sketch runs with the values as written |
+| Export → **Page with controls** | one HTML file, offline | inside the file | a panel (H, the gear, `</>` shows the code); `// @panel hidden` starts it closed, `off` leaves it out |
+| **Copy the code** into another editor | the sketch's text | the editor's | plain comments: it runs with the values as written, with no sliders |
+
+**Why the controls are not elsewhere.** The sliders are made by the studio from the comments next to the values. Another editor does not read them, so there they are only comments, and the sketch runs with the numbers, colours and choices written in the code. Nothing breaks: change a number in the code to change the sketch. To demonstrate with the controls, use the studio, Perform, or a page exported *with controls*.
+
+**Moving the code to another editor** (Codevre, CodePen, a plain `index.html`, a Vite project). The code is plain: `import * as THREE from 'three'`, `import { OrbitControls } from 'three/addons/controls/OrbitControls.js'` and `innerWidth` / `innerHeight` (the same in every browser; p5.js's `windowWidth` is its own name). What the other editor needs is a way to find `'three'` and `'three/addons/…'`:
+- **A project with npm** (Vite and the like): `npm i three`, and the code runs as it is.
+- **A page without a build step** (Codevre's *Three.js* and *Three.js Modules* templates, CodePen, any static page): an import map in `index.html` before the script, and the code as a module (`<script type="module" src="app.js">`):
+```html
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+} }
+</script>
+```
+  Codevre's templates map `three` to `three@latest` on esm.sh and have no `three/addons/` line: for `OrbitControls` and the other addons add that line, and keep the version equal to the studio's (0.187.0) so the code means the same thing. A page that says `latest` changes when three.js does.
+- **An editor that takes one JS file and no import map:** the bare names cannot work; write the full URLs in the `import` lines.
+
+**Options for the export to come.** The exports above are the ones there are. The ones worth adding, as options of the export menu: a project folder for native ES modules with the import map and the version as a choice (pinned to the studio's, or `latest`), and one for Vite (`package.json`, `vite.config.js`); and, for either, whether the panel comes along as a small module that reads the same comments. The reason to choose is the audience: a student copying the code needs the plain code and a sentence about the comments; a demo needs the panel.
+
 ### Converting, baking, copying, pasting
 
 - **Convert** (a board's menu, or `/convert p5|studio`): a drawing's studio code becomes a new p5 board running the sketch the export writes, and the same code pastes into the p5 editor as it is.
