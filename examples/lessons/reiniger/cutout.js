@@ -31,10 +31,16 @@ function limb(len, w0, w1) {
   s.lineTo(w1 / 2, -len); s.absarc(0, -len, w1 / 2, 0, Math.PI, true); s.lineTo(-w0 / 2, 0);
   return s;
 }
-function torso() {                                                  // a long jacket, narrower at the waist
+function pelvis() {                                                 // the hips: the legs hang from here
   const s = new THREE.Shape();
-  s.moveTo(-0.3, 0); s.bezierCurveTo(-0.38, 0.4, -0.34, 0.8, -0.26, 1.08); s.lineTo(0.2, 1.08);
-  s.bezierCurveTo(0.34, 0.8, 0.38, 0.4, 0.3, 0); s.lineTo(-0.3, 0);
+  s.moveTo(-0.27, -0.06); s.bezierCurveTo(-0.32, 0.1, -0.28, 0.3, -0.22, 0.42); s.lineTo(0.2, 0.42);
+  s.bezierCurveTo(0.3, 0.3, 0.34, 0.1, 0.28, -0.06); s.lineTo(-0.27, -0.06);
+  return s;
+}
+function chest() {                                                  // the ribs and shoulders, a waist below
+  const s = new THREE.Shape();
+  s.moveTo(-0.22, -0.02); s.bezierCurveTo(-0.3, 0.2, -0.36, 0.5, -0.28, 0.76); s.lineTo(0.2, 0.76);
+  s.bezierCurveTo(0.34, 0.5, 0.32, 0.2, 0.22, -0.02); s.lineTo(-0.22, -0.02);
   return s;
 }
 function head() {                                                   // a profile: forehead, nose, chin, a turban
@@ -53,19 +59,20 @@ function neck() { const s = new THREE.Shape(); s.moveTo(-0.07, -0.02); s.lineTo(
 // Each part: where its hinge is (in its parent), its shape, its tip (where you grab it: the far end), how far it may turn.
 // A hinge turns its part to point at the pointer, so any part, whatever its shape, is moved the same way.
 const PARTS = [
-  { id: 'torso', at: [0, 0], shape: torso(), tip: [0, 1.0], limit: [-0.6, 0.6], z: 0.02 },
-  { id: 'neck', parent: 'torso', at: [0.02, 1.05], shape: neck(), tip: [0, 0.22], limit: [-0.5, 0.5], z: 0.025 },
+  { id: 'pelvis', at: [0, 0], shape: pelvis(), tip: [0, 0.4], limit: [-0.5, 0.5], z: 0.02 },
+  { id: 'chest', parent: 'pelvis', at: [0, 0.4], shape: chest(), tip: [0, 0.74], limit: [-0.7, 0.7], z: 0.022 },
+  { id: 'neck', parent: 'chest', at: [0.02, 0.76], shape: neck(), tip: [0, 0.22], limit: [-0.5, 0.5], z: 0.025 },
   { id: 'head', parent: 'neck', at: [0, 0.2], shape: head(), tip: [0.03, 0.5], limit: [-0.7, 0.7], z: 0.03 },
-  { id: 'armA', parent: 'torso', at: [0, 0.95], shape: limb(0.62, 0.17, 0.12), tip: [0, -0.62], limit: [-3.1, 3.1], z: 0.04 },
+  { id: 'armA', parent: 'chest', at: [0, 0.68], shape: limb(0.62, 0.17, 0.12), tip: [0, -0.62], limit: [-3.1, 3.1], z: 0.04 },
   { id: 'foreA', parent: 'armA', at: [0, -0.62], shape: limb(0.58, 0.12, 0.09), tip: [0, -0.58], limit: [-0.1, 2.7], z: 0.05 },
   { id: 'handA', parent: 'foreA', at: [0, -0.58], shape: limb(0.2, 0.09, 0.06), tip: [0, -0.2], limit: [-1.0, 1.0], z: 0.06 },
-  { id: 'armB', parent: 'torso', at: [0, 0.95], shape: limb(0.62, 0.17, 0.12), tip: [0, -0.62], limit: [-3.1, 3.1], z: -0.04 },
+  { id: 'armB', parent: 'chest', at: [0, 0.68], shape: limb(0.62, 0.17, 0.12), tip: [0, -0.62], limit: [-3.1, 3.1], z: -0.04 },
   { id: 'foreB', parent: 'armB', at: [0, -0.62], shape: limb(0.58, 0.12, 0.09), tip: [0, -0.58], limit: [-0.1, 2.7], z: -0.05 },
   { id: 'handB', parent: 'foreB', at: [0, -0.58], shape: limb(0.2, 0.09, 0.06), tip: [0, -0.2], limit: [-1.0, 1.0], z: -0.06 },
-  { id: 'thighA', parent: 'torso', at: [0, 0], shape: limb(0.85, 0.26, 0.16), tip: [0, -0.85], limit: [-1.5, 1.5], z: 0.01 },
+  { id: 'thighA', parent: 'pelvis', at: [0, 0], shape: limb(0.85, 0.26, 0.16), tip: [0, -0.85], limit: [-1.5, 1.5], z: 0.01 },
   { id: 'shinA', parent: 'thighA', at: [0, -0.85], shape: limb(0.85, 0.16, 0.08), tip: [0, -0.85], limit: [-2.5, 0.1], z: 0.015 },
   { id: 'footA', parent: 'shinA', at: [0, -0.85], shape: foot(), tip: [0.5, 0.02], limit: [-0.9, 0.9], z: 0.02 },
-  { id: 'thighB', parent: 'torso', at: [0, 0], shape: limb(0.85, 0.26, 0.16), tip: [0, -0.85], limit: [-1.5, 1.5], z: -0.01 },
+  { id: 'thighB', parent: 'pelvis', at: [0, 0], shape: limb(0.85, 0.26, 0.16), tip: [0, -0.85], limit: [-1.5, 1.5], z: -0.01 },
   { id: 'shinB', parent: 'thighB', at: [0, -0.85], shape: limb(0.85, 0.16, 0.08), tip: [0, -0.85], limit: [-2.5, 0.1], z: -0.015 },
   { id: 'footB', parent: 'shinB', at: [0, -0.85], shape: foot(), tip: [0.5, 0.02], limit: [-0.9, 0.9], z: -0.02 },
 ];
@@ -86,7 +93,7 @@ for (const p of PARTS) {
   (p.parent ? node[p.parent].group : puppet).add(g);
   node[p.id] = { ...p, group: g, mesh: m, pin, pose: 0, depth: p.parent ? node[p.parent].depth + 1 : 0 };
 }
-node.torso.group.position.y = 1.75;                                  // the hip: the legs hang from it, the body rises from it
+node.pelvis.group.position.y = 1.75;                                 // the hip joint: the legs hang from it, the body rises from it
 const REST = { armA: 0.5, foreA: 0.7, armB: -0.4, foreB: 0.4, thighA: 0.2, thighB: -0.15, shinA: -0.1, shinB: -0.1, head: 0.05 };
 for (const [id, a] of Object.entries(REST)) node[id].pose = a;
 
@@ -137,7 +144,7 @@ const world = e => {
 function reach(at) {                                                   // the part whose bone passes nearest `at`
   let best = null, bd = 0.3;
   for (const n of Object.values(node)) {
-    if (n.id === 'torso') continue;
+    if (n.id === 'pelvis' || n.id === 'chest') continue;
     const a = n.group.getWorldPosition(new THREE.Vector3()), b = n.group.localToWorld(new THREE.Vector3(n.tip[0], n.tip[1], 0));
     const ab = b.clone().sub(a), t = Math.min(1, Math.max(0, at.clone().sub(a).dot(ab) / ab.lengthSq()));
     const d = at.distanceTo(a.add(ab.multiplyScalar(t))) - 0.01 * n.depth;       // (the far end wins a tie)
@@ -145,13 +152,13 @@ function reach(at) {                                                   // the pa
   }
   return best;
 }
-const inBody = at => ray.intersectObject(node.torso.mesh, false).length > 0;
+const inBody = () => ray.intersectObjects([node.pelvis.mesh, node.chest.mesh], false)[0]?.object === node.chest.mesh ? node.chest : ray.intersectObject(node.pelvis.mesh, false).length ? node.pelvis : null;
 renderer.domElement.addEventListener('pointerdown', e => {
   if (view !== 'film') return;
   const at = world(e); if (!at) return;
   const part = reach(at);
   if (part) held = part;
-  else if (inBody(at)) { held = node.torso; grab = { at: at.clone(), home: home.clone(), lean: e.shiftKey }; }
+  else if ((held = inBody())) { grab = { at: at.clone(), home: home.clone(), lean: e.shiftKey }; }
   if (held) renderer.domElement.setPointerCapture(e.pointerId);
 });
 renderer.domElement.addEventListener('pointermove', e => {
@@ -171,7 +178,7 @@ function worldAngle(g) { const q = g.getWorldQuaternion(new THREE.Quaternion());
 function stride(t) {
   const k = walk * Math.sin(t * 4);
   return { thighA: 0.55 * k, shinA: -0.5 * Math.max(0, -k) - 0.1 * walk, thighB: -0.55 * k, shinB: -0.5 * Math.max(0, k) - 0.1 * walk,
-    armA: -0.5 * k, foreA: 0.4 * walk, armB: 0.5 * k, foreB: 0.4 * walk, torso: 0.04 * walk, head: 0, neck: 0 };
+    armA: -0.5 * k, foreA: 0.4 * walk, armB: 0.5 * k, foreB: 0.4 * walk, chest: 0.05 * walk, head: 0, neck: 0 };
 }
 
 renderer.setAnimationLoop(now => {
