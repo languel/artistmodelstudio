@@ -15,7 +15,8 @@
  * The page can be opened in the studio again.
  */
 import { boardsOf, boardKind, boardDoc, marksOf, findBoard, isFrame, boardsInFrame, MAIN } from './boards.js';
-import { renderMarkdown, md } from './markdown.js';
+import { renderMarkdown, md, mathHtml } from './markdown.js';
+import { renderPseudo, pseudoCss } from './pseudo.js';
 import boardsSrc from './boards.js?raw';
 import envelopeSrc from './envelope.js?raw';
 import documentSrc from './document.js?raw';
@@ -109,7 +110,7 @@ export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.me
     const min = Boolean(b.codeMin);   // a bar of tabs only, until one is clicked
     return `<div class="codebox${min ? ' min' : ''}">
     <div class="tabs" role="tablist">${tabs.map(([k, t]) => `<button role="tab" data-tab="${k}" aria-selected="${!min && k === first}" title="Click the open tab to minimize">${t}</button>`).join('')}<button class="copy" type="button" aria-label="Copy" title="Copy">${COPY_ICON}</button></div>
-    ${tabs.map(([k]) => `<pre data-pane="${k}"${!min && k === first ? '' : ' hidden'}><code${k === 'studio' && boardKind(b) === 'drawing' ? ` data-code-for="${esc(b.id)}"` : ''}>${esc(c[k])}</code></pre>`).join('\n    ')}
+    ${tabs.map(([k]) => k === 'pseudo' ? `<div class="pane-pseudo" data-pane="pseudo"${!min && k === first ? '' : ' hidden'} data-raw="${esc(c.pseudo)}">${renderPseudo(c.pseudo, mathHtml)}</div>` : `<pre data-pane="${k}"${!min && k === first ? '' : ' hidden'}><code${k === 'studio' && boardKind(b) === 'drawing' ? ` data-code-for="${esc(b.id)}"` : ''}>${esc(c[k])}</code></pre>`).join('\n    ')}
   </div>`;
   };
   // Notes' folded code callouts (pseudocode, the other language) are the code box's tabs on the page.
@@ -195,6 +196,7 @@ export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.me
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 ${usesMath ? '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.9/dist/katex.min.css">' : ''}
 <style>
+${pseudoCss('', { fg: 'var(--text)', muted: 'var(--muted)', line: 'var(--line)' })}
 /* Artist Model Studio's dark theme: near-greyscale, quiet, one warm accent. */
 :root { color-scheme: dark; --bg: #1b1b1b; --panel: #222; --line: #353535; --text: #dadada; --soft: #bdbdbd; --muted: #8c8c8c; --accent: #c9c7c2; --warm: #c8664f; --code: #141414;
   --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; --mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
@@ -483,7 +485,7 @@ const PAGE_UI = String.raw`
     copy.addEventListener('click', () => {
       const pane = box.querySelector('[data-pane]:not([hidden])');
       if (!pane) return;
-      navigator.clipboard?.writeText(pane.textContent).then(() => { copy.classList.add('done'); setTimeout(() => copy.classList.remove('done'), 900); });
+      navigator.clipboard?.writeText(pane.dataset.raw ?? pane.textContent).then(() => { copy.classList.add('done'); setTimeout(() => copy.classList.remove('done'), 900); });
     });
   }
 

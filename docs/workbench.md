@@ -604,6 +604,7 @@ Documents show as you type. Marks drawn on a document board stay on top of it, a
 - tables, task lists, `==highlights==`, `#tags`, front matter (not shown);
 - math with KaTeX: `$…$`, `$$…$$`, `\(…\)`, `\[…\]`;
 - Mermaid diagrams in ```` ```mermaid ```` fences;
+- Pseudocode set like a paper in ```` ```pseudo ```` fences (also `algorithm`): numbered lines, two spaces per level of indentation, bold small-caps keywords (`for`, `while`, `repeat`, `until`, `if`, `else`, `then`, `return`, `do`…), `<-` as ←, `->` as →, `!=` ≠, `<=` ≤, `>=` ≥, `...` …, `#` or `//` for a comment set at the right, `$…$` anywhere for LaTeX (KaTeX), and a first line `Algorithm 2: Title` for a caption. The lessons' pseudocode tabs use it, on exported pages too;
 - callouts: `> [!note] Title`, or `> [!tip]- Folded`;
 - links into the drawing: `[[Board]]`, `[[Board|label]]` and `[[scene:Title]]`;
 - embeds: `![[Board]]` shows a board's picture, `![[asset:Title]]` an asset.

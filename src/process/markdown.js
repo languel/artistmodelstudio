@@ -15,6 +15,7 @@
  */
 import { Marked } from 'marked';
 import katex from 'katex';
+import { renderPseudo } from './pseudo.js';
 
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -42,6 +43,7 @@ export function linksOf(src) {
   return [...String(src || '').matchAll(/(!?)\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]/g)].map(m => ({ target: m[2].trim(), embed: m[1] === '!' }));
 }
 
+export const mathHtml = (expr, displayMode) => math(expr, displayMode);
 const math = (expr, displayMode) => {
   try { return katex.renderToString(expr, { displayMode, throwOnError: false, strict: 'ignore', output: 'html' }); }
   catch { return `<code class="md-math-error">${esc(expr)}</code>`; }
@@ -103,6 +105,7 @@ export function renderMarkdown(source, { resolve = null } = {}) {
         const l = String(lang || '').trim().split(/\s/)[0].toLowerCase();
         if (l === 'mermaid') return `<pre class="mermaid">${esc(text)}</pre>`;
         if (l === 'math' || l === 'latex') return math(text, true);
+        if (l === 'pseudo' || l === 'algorithm') return renderPseudo(text, math);
         return `<pre class="md-code"><code${l ? ` class="language-${esc(l)}"` : ''}>${esc(text)}</code></pre>`;
       },
       blockquote({ tokens }) {

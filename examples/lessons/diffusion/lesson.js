@@ -46,12 +46,13 @@ export const LESSON = {
       boards: [
         { id: 'process', title: '0.1 · Two directions', w: 800, h: 600, ground: '#141414',
           idea: 'Forward: take a picture x₀ and add a little Gaussian noise, again and again. After T steps (about a thousand) nothing of the picture is left: x_T is pure noise, a distribution we can sample from. Reverse: a network learns to undo one step, and running it T times turns noise into a picture. The forward direction has no parameters, only the reverse is learned.',
-          pseudo: `x ← a picture from the data
-for t = 1 … T:
-  x ← √(1 − βₜ) · x + √βₜ · (fresh noise)        # forward: destroy
-x is now noise
-for t = T … 1:
-  x ← a slightly less noisy x, using the network   # reverse: create`,
+          pseudo: `Algorithm 1: Two directions
+$x \\leftarrow$ a picture from the data
+for $t = 1 \\ldots T$ do
+  $x \\leftarrow \\sqrt{1-\\beta_t}\\,x + \\sqrt{\\beta_t}\\,\\varepsilon$, $\\varepsilon \\sim \\mathcal{N}(0, I)$    # forward: destroy
+$x$ is now noise
+for $t = T \\ldots 1$ do
+  $x \\leftarrow$ a slightly less noisy $x$, using the network    # reverse: create`,
           code: HELP + `// Diffusion in one picture: noise added a little at a time (forward), and a network that takes it out again (reverse).
 const N = 12, n = 6, pw = 0.105, gap = 0.058, x0 = 0.04, y0 = 0.35
 const ab = [1, 0.93, 0.72, 0.42, 0.14, 0]                       // how much of the picture is left at each panel (abar)
@@ -81,9 +82,9 @@ label(0.04, 0.88, 'To make a new picture: draw x_T from the noise, then run the 
 ` },
         { id: 'schedule', title: '0.2 · The noise schedule', w: 800, h: 600, ground: '#141414',
           idea: 'Because every step adds Gaussian noise, we can jump from x₀ straight to any step: x_t = √ᾱ_t · x₀ + √(1−ᾱ_t) · ε. ᾱ_t, the product of (1 − β_s) up to t, says how much of the picture is left. The schedule of β sets how quickly it goes: the linear one of Ho et al. (2020) has lost most of the picture by t ≈ 500; the cosine one of Nichol and Dhariwal (2021) loses it more evenly.',
-          pseudo: `β[t] ← small numbers that grow with t
-ᾱ[t] ← (1 − β[1]) · (1 − β[2]) ⋯ (1 − β[t])
-x_t ← √ᾱ[t] · x₀ + √(1 − ᾱ[t]) · ε        # ε: Gaussian noise`,
+          pseudo: `$\\beta_t \\leftarrow$ small numbers that grow with $t$
+$\\bar\\alpha_t \\leftarrow \\prod_{s=1}^{t} (1 - \\beta_s)$
+$x_t \\leftarrow \\sqrt{\\bar\\alpha_t}\\,x_0 + \\sqrt{1-\\bar\\alpha_t}\\,\\varepsilon$    # $\\varepsilon$: Gaussian noise`,
           code: HELP + `// The noise schedule: how much picture (gold) and how much noise (red) is in x_t, for t = 0 … T.
 const T = 1000
 const lin = [], cos = []
@@ -117,13 +118,15 @@ label(0.66, 0.77, 'Linear: the picture is mostly gone by t ≈ 500, and the last
 ` },
         { id: 'training', title: '0.3 · Training: guess the noise', w: 800, h: 600, ground: '#141414',
           idea: 'Training is a game of guessing the noise. Take a training picture, choose a random step t and a random noise ε, mix them into x_t, and ask the network which noise was added. The loss is the squared difference. The network never sees x₀, only x_t and t, so to answer it has to learn what pictures look like. Averaged over many pictures, steps and noises, that is all of the training.',
-          pseudo: `repeat:
-  x₀ ← a picture from the training set
-  t ← a random step,  ε ← Gaussian noise
-  x_t ← √ᾱ[t] · x₀ + √(1 − ᾱ[t]) · ε
-  ε̂ ← network(x_t, t)
-  loss ← average of (ε − ε̂)² over the pixels
-  change the network a little to lower the loss`,
+          pseudo: `Algorithm 2: Training
+repeat
+  $x_0 \\sim q(x_0)$    # a picture from the training set
+  $t \\sim \\mathrm{Uniform}\\{1, \\ldots, T\\}$, $\\varepsilon \\sim \\mathcal{N}(0, I)$
+  $x_t \\leftarrow \\sqrt{\\bar\\alpha_t}\\,x_0 + \\sqrt{1-\\bar\\alpha_t}\\,\\varepsilon$
+  $\\hat\\varepsilon \\leftarrow \\varepsilon_\\theta(x_t, t)$
+  $\\mathcal{L} \\leftarrow \\lVert \\varepsilon - \\hat\\varepsilon \\rVert^2$    # averaged over the pixels
+  take a gradient step on $\\nabla_\\theta \\mathcal{L}$
+until converged`,
           code: HELP + `// Training: guess the noise that was added.
 card(0.04, 0.09, 0.26, 0.17, 'x₀', 'a picture from the training set')
 card(0.04, 0.38, 0.26, 0.17, 't, ε', 'a random step, and Gaussian noise ε ~ N(0, I)', WARM)
@@ -143,12 +146,13 @@ label(0.04, 0.9, 'Lower the loss over many pictures, steps and noises: that is t
 ` },
         { id: 'sampling', title: '0.4 · Sampling: from noise to picture', w: 800, h: 600, ground: '#141414',
           idea: 'Sampling runs the network in a loop. From the current x_t it predicts the noise, from which we get a guess x̂₀ of the clean picture; then we step to a slightly less noisy x_{t−1}, keeping a bit of the guess and a bit of the noise. DDPM adds fresh noise at every step. DDIM (Song et al. 2021) takes the same kind of step with none: a fixed starting noise gives a fixed picture, and much larger steps work, 20 to 50 instead of a thousand.',
-          pseudo: `x ← Gaussian noise                                 # x_T
-for t = T … 1:
-  ε̂ ← network(x, t)
-  x̂₀ ← (x − √(1 − ᾱ[t]) · ε̂) / √ᾱ[t]             # a guess of the clean picture
-  x ← √ᾱ[t−1] · x̂₀ + √(1 − ᾱ[t−1]) · ε̂           # DDIM; DDPM also adds fresh noise
-x is the new picture`,
+          pseudo: `Algorithm 3: Sampling (DDIM)
+$x \\leftarrow x_T \\sim \\mathcal{N}(0, I)$
+for $t = T \\ldots 1$ do
+  $\\hat\\varepsilon \\leftarrow \\varepsilon_\\theta(x, t)$
+  $\\hat x_0 \\leftarrow (x - \\sqrt{1-\\bar\\alpha_t}\\,\\hat\\varepsilon) / \\sqrt{\\bar\\alpha_t}$    # a guess of the clean picture
+  $x \\leftarrow \\sqrt{\\bar\\alpha_{t-1}}\\,\\hat x_0 + \\sqrt{1-\\bar\\alpha_{t-1}}\\,\\hat\\varepsilon$    # DDPM also adds fresh noise
+return $x$`,
           code: HELP + `// Sampling: the loop that turns noise into a picture.
 card(0.04, 0.1, 0.24, 0.14, 'x_T', 'pure noise: N(0, I)', WARM)
 card(0.36, 0.1, 0.28, 0.14, '1 · predict the noise', 'ε̂ = ε_θ(x_t, t)', GOLD)
@@ -167,12 +171,13 @@ label(0.04, 0.6, 'DDIM: add none. A fixed x_T gives a fixed picture, and steps c
 ` },
         { id: 'latent', title: '0.5 · Latent space, a prompt, guidance', w: 800, h: 600, ground: '#141414',
           idea: 'Stable Diffusion and its relatives (Rombach et al. 2022) run the diffusion in the small latent space of an autoencoder instead of on pixels: a 512 × 512 picture becomes a 64 × 64 × 4 tensor, 48 times fewer numbers. A text encoder (CLIP, later also T5) turns the prompt into vectors that the denoiser attends to. Classifier-free guidance (Ho and Salimans 2022) runs the denoiser with and without the prompt and pushes the result away from the answer without it, by a factor w (often 5 to 8): the closer the picture follows the words, the less varied the pictures are.',
-          pseudo: `c ← text_encoder(prompt)
-z ← Gaussian noise, in latent space             # 64 × 64 × 4
-for t = T … 1:
-  ε̂ ← ε(z, t, ∅) + w · (ε(z, t, c) − ε(z, t, ∅))   # with and without the prompt
-  z ← the sampling step, with ε̂
-picture ← decoder(z)                             # 512 × 512 × 3`,
+          pseudo: `Algorithm 4: Text to picture
+$c \\leftarrow \\mathrm{text\\_encoder}(\\text{prompt})$
+$z \\sim \\mathcal{N}(0, I)$    # in latent space, 64 × 64 × 4
+for $t = T \\ldots 1$ do
+  $\\hat\\varepsilon \\leftarrow \\varepsilon(z,t,\\varnothing) + w\\,\\bigl(\\varepsilon(z,t,c) - \\varepsilon(z,t,\\varnothing)\\bigr)$    # with and without the prompt
+  $z \\leftarrow$ the sampling step, with $\\hat\\varepsilon$
+return $\\mathrm{decoder}(z)$    # 512 × 512 × 3`,
           code: HELP + `// Latent diffusion with a prompt and guidance.
 card(0.04, 0.05, 0.24, 0.13, 'prompt', 'a red house by the sea')
 card(0.34, 0.05, 0.26, 0.13, 'text encoder', 'CLIP (or T5): one vector per word', GOLD)
@@ -194,9 +199,9 @@ label(0.04, 0.83, 'Everything else is as before: noise the latent, learn to pred
 ` },
         { id: 'score', title: '0.6 · The score: a field pointing to the data', w: 800, h: 600, ground: '#141414',
           idea: 'The same thing seen another way. The score ∇ₓ log p(x) points, from any x, toward where the data is denser. The noise the network predicts is that direction, upside down and rescaled: ∇ₓ log p_t(x_t) = −ε / √(1−ᾱ_t). Generating is following this field from noise into the data, and the field itself changes as the noise level falls: wide and smooth at first, sharp at the end. This is the view of Song and Ermon (2019), of the SDE formulation of Song et al. (2021), and of denoising score matching (Vincent 2011). (Here x has two numbers, so it can be drawn.)',
-          pseudo: `s(x) ← the direction, at x, in which the data is more likely
-x ← x + a small step along s(x) + a little noise       # Langevin dynamics
-network(x_t, t) ≈ −√(1 − ᾱ[t]) · s(x_t)                # what it learns`,
+          pseudo: `$s(x) \\leftarrow \\nabla_x \\log p(x)$    # the direction in which the data is more likely
+$x \\leftarrow x + \\eta\\, s(x) + \\sqrt{2\\eta}\\,z$    # Langevin dynamics
+$\\varepsilon_\\theta(x_t, t) \\approx -\\sqrt{1-\\bar\\alpha_t}\\; s(x_t)$    # what the network learns`,
           code: HELP + `// The score field of two clusters of data (only two numbers per point, so it can be drawn).
 const W = width, H = height, C = [[190, 230], [360, 395]], S = 46, Sf = 78    // cluster centers, their spread, the spread of the field
 for (const [cx, cy] of C) for (let i = 0; i < 240; i++)
@@ -230,10 +235,10 @@ label(0.73, 0.68, 'Sampling follows the arrows from noise into the data, while t
       boards: [
         { id: 'forward-image', title: '1.1 · Noising a picture', w: 800, h: 600, ground: '#141414',
           idea: 'x_t = √ᾱ_t · x₀ + √(1−ᾱ_t) · ε, with the same noise ε at every t. Move t: at first the picture is still there under a veil; the coarse shapes last longest and the fine detail goes first; near T only noise is left. Switch the schedule to see the cosine one keep more of the picture for longer. The picture is 64 × 64 and drawn by the sketch.',
-          pseudo: `x₀ ← the picture, scaled to −1 … 1
-ε ← Gaussian noise, one number per pixel (the seed fixes it)
-x_t ← √ᾱ[t] · x₀ + √(1 − ᾱ[t]) · ε
-show x_t`,
+          pseudo: `$x_0 \\leftarrow$ the picture, scaled to $[-1, 1]$
+$\\varepsilon \\sim \\mathcal{N}(0, I)$, one number per pixel (the seed fixes it)
+$x_t \\leftarrow \\sqrt{\\bar\\alpha_t}\\,x_0 + \\sqrt{1-\\bar\\alpha_t}\\,\\varepsilon$
+show $x_t$`,
           p5: `// 1.1 Noising a picture: x_t = sqrt(abar_t) * x0 + sqrt(1 - abar_t) * eps, with the same eps at every t.
 const t = 300 /* 0..999 */
 const schedule = 0 /* 0..1 */
@@ -299,10 +304,10 @@ function draw() {
 ` },
         { id: 'forward-points', title: '1.2 · The forward process on points', w: 800, h: 600, ground: '#141414',
           idea: 'The same on a cloud of 1200 points in the plane (a spiral, colored by where each starts). Each step shrinks the cloud a hair and adds a little noise. The last states have forgotten the spiral: whatever the data, the end is a round Gaussian cloud with standard deviation about 1, a distribution we can sample. The lines follow 10 of the points.',
-          pseudo: `p ← a cloud of points (the data)
-for t = 1 … T:
-  each point ← √(1 − β[t]) · point + √β[t] · (fresh noise)
-show the cloud after t steps`,
+          pseudo: `$p \\leftarrow$ a cloud of points (the data)
+for $t = 1 \\ldots T$ do
+  each point $\\leftarrow \\sqrt{1-\\beta_t}\\cdot\\text{point} + \\sqrt{\\beta_t}\\cdot\\text{noise}$
+show the cloud after $t$ steps`,
           p5: `// 1.2 The forward process on a cloud of points: each step keeps a little less of the data and adds a little noise.
 const play = 1 /* 0..1 */
 const hold = 400 /* 0..1000 */
@@ -366,12 +371,12 @@ function draw() {
 ` },
         { id: 'reverse-points', title: '1.3 · The reverse process, with an exact score', w: 800, h: 600, ground: '#141414',
           idea: 'The reverse process with a perfect network. The data is six Gaussian blobs on a ring, so p_t and its score at every noise level are formulas: a mixture of Gaussians that shrinks toward the center and widens as the noise grows. Points start as Gaussian noise and are moved by the DDIM / DDPM update using that score (arrows: the field at the current noise level). At high noise the field points toward the middle; as the noise falls the blobs separate. η = 0 is DDIM (smooth, deterministic paths); η = 1 is DDPM (fresh noise at every step). Fewer steps make coarser paths.',
-          pseudo: `x ← Gaussian noise (many points)
-for each step, from noisy to clean (ᾱ_now, ᾱ_next):
-  ε̂ ← −√(1 − ᾱ_now) · score(x, ᾱ_now)            # exact, for this data
-  x̂₀ ← (x − √(1 − ᾱ_now) · ε̂) / √ᾱ_now
-  σ ← η · √((1−ᾱ_next)/(1−ᾱ_now)) · √(1 − ᾱ_now/ᾱ_next)
-  x ← √ᾱ_next · x̂₀ + √(1 − ᾱ_next − σ²) · ε̂ + σ · noise`,
+          pseudo: `$x \\sim \\mathcal{N}(0, I)$ (many points)
+for each step, from noisy to clean $(\\bar\\alpha_\\mathrm{now}, \\bar\\alpha_\\mathrm{next})$ do
+  $\\hat\\varepsilon \\leftarrow -\\sqrt{1-\\bar\\alpha_\\mathrm{now}}\\;\\mathrm{score}(x, \\bar\\alpha_\\mathrm{now})$    # exact, for this data
+  $\\hat x_0 \\leftarrow (x - \\sqrt{1-\\bar\\alpha_\\mathrm{now}}\\,\\hat\\varepsilon) / \\sqrt{\\bar\\alpha_\\mathrm{now}}$
+  $\\sigma \\leftarrow \\eta \\sqrt{\\tfrac{1-\\bar\\alpha_\\mathrm{next}}{1-\\bar\\alpha_\\mathrm{now}}} \\sqrt{1 - \\tfrac{\\bar\\alpha_\\mathrm{now}}{\\bar\\alpha_\\mathrm{next}}}$
+  $x \\leftarrow \\sqrt{\\bar\\alpha_\\mathrm{next}}\\,\\hat x_0 + \\sqrt{1-\\bar\\alpha_\\mathrm{next}-\\sigma^2}\\,\\hat\\varepsilon + \\sigma z$`,
           p5: `// 1.3 The reverse process with the exact score of six Gaussian blobs (a perfect "network").
 const steps = 40 /* 5..200 */
 const eta = 0 /* 0..1 */
@@ -449,12 +454,12 @@ function draw() {
 ` },
         { id: 'sample-image', title: '1.4 · Sampling a picture', w: 800, h: 600, ground: '#141414',
           idea: 'Sampling pictures with a denoiser that knows exactly three: a sunrise, a moon over the sea and a tree. The ideal denoiser’s guess x̂₀ is a weighted average of the three, with weights given by how well each explains the current x_t. At first all three are equally plausible and x̂₀ is their blurry average; at some noise level the noise in x_t happens to favor one, the weights snap to it, and the picture commits: which one depends only on the noise it started from (the seed). A trained network does not memorize like this, but it has the same job: guess the clean picture from the noisy one, more exactly as the noise falls.',
-          pseudo: `x ← Gaussian noise (one number per pixel and color)
-for each step, from noisy to clean:
-  w[i] ← how well picture i explains x     (softmax of −‖x − √ᾱ · picture[i]‖² / (2(1 − ᾱ)))
-  x̂₀ ← Σ w[i] · picture[i]                 # the best guess of the clean picture
-  ε̂ ← (x − √ᾱ · x̂₀) / √(1 − ᾱ)
-  x ← the DDIM step with ε̂`,
+          pseudo: `$x \\sim \\mathcal{N}(0, I)$ (one number per pixel and color)
+for each step, from noisy to clean do
+  $w_i \\leftarrow \\mathrm{softmax}_i\\!\\bigl(-\\lVert x - \\sqrt{\\bar\\alpha}\\,\\mathrm{picture}_i \\rVert^2 / 2(1-\\bar\\alpha)\\bigr)$    # how well picture $i$ explains $x$
+  $\\hat x_0 \\leftarrow \\sum_i w_i\\,\\mathrm{picture}_i$    # the best guess of the clean picture
+  $\\hat\\varepsilon \\leftarrow (x - \\sqrt{\\bar\\alpha}\\,\\hat x_0) / \\sqrt{1-\\bar\\alpha}$
+  $x \\leftarrow$ the DDIM step with $\\hat\\varepsilon$`,
           p5: `// 1.4 Sampling a picture with an ideal denoiser that has "learned" three pictures (exact posterior mean).
 const steps = 30 /* 5..100 */
 const eta = 0 /* 0..1 */

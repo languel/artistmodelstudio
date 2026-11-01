@@ -40,7 +40,7 @@ function notesFor(b, sec, language, lesson, expl = false, callout) {
   return [
     `## ${b.title}`,
     b.idea,
-    b.pseudo ? quote(`[!abstract]- Pseudocode\n${fence(b.pseudo)}`) : '',
+    b.pseudo ? quote(`[!abstract]- Pseudocode\n${fence(b.pseudo, 'pseudo')}`) : '',
     (b.code || native || b.p5expl) && !panel ? quote(`[!example]- ${p5Label}\n${other}`) : '',
     panel
       ? `The code is the editor below: it is this board's own code, so what you write changes the sketch. Back to [[${intro(sec)}]].`
