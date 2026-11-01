@@ -52,7 +52,7 @@ describe('exported pages', () => {
     const html = await sketchPage({ kind: 'p5', title: 'p', code: 'const n = 3 /* 0..9 */\nfunction draw() {}', controls: true, p5Source: '/*p5*/window.p5=1;' });
     expect(html.indexOf('window.p5=1')).toBeLessThan(html.lastIndexOf('function draw'));   // (the sketch comes last; the panel holds a copy to show)
     expect(html).toContain('let n = 3 /* 0..9 */; __ctl("n"');
-    expect(html).not.toContain('windowWidth: { get');   // p5 has its own
+    expect(html).not.toContain('innerWidth: { get');   // p5 has its own
   });
 });
 
@@ -61,7 +61,7 @@ describe('templates and snippets', () => {
     expect(TEMPLATES.three).toContain('renderer.render(scene, camera)');
     expect(TEMPLATES.three).not.toContain('setAnimationLoop');
     expect(TEMPLATES.three).not.toContain('Mesh');
-    expect(TEMPLATES.p5).toContain('createCanvas(windowWidth, windowHeight)');
+    expect(TEMPLATES.p5).toContain('createCanvas(innerWidth, innerHeight)');
     expect(TEMPLATES.p5).not.toContain('circle');
     expect(isBlank('three', TEMPLATES.three)).toBe(true);
     expect(isBlank('three', '')).toBe(true);
@@ -69,7 +69,7 @@ describe('templates and snippets', () => {
   });
   it('every snippet is code a sketch can start from', () => {
     for (const list of Object.values(SNIPPETS)) for (const s of list) expect(s.code.trim().length).toBeGreaterThan(10);
-    expect(SNIPPETS.three.some(s => /windowWidth/.test(s.code))).toBe(true);
+    expect(SNIPPETS.three.some(s => /innerWidth/.test(s.code))).toBe(true);
     expect(JSON.stringify(SNIPPETS)).not.toContain('ams.width');
   });
   it('every control comment in the catalog is read as a control', () => {

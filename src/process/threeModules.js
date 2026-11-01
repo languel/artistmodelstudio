@@ -72,10 +72,10 @@ export const THREE_STARTER = `import * as THREE from 'three';
 
 // A scene, a camera that looks at it, and a renderer that draws it onto the board.
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, windowWidth / windowHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
 camera.position.z = 3;
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setSize(windowWidth, windowHeight);
+renderer.setSize(innerWidth, innerHeight);
 document.body.append(renderer.domElement);
 
 // Something to look at, and a light to see it by.

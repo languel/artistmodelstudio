@@ -10,7 +10,7 @@ export const TEMPLATES = {
 // Drag a slider, or Cmd-drag any number. Insert a snippet from the { } button.
 `,
   p5: `function setup() {
-  createCanvas(windowWidth, windowHeight);
+  createCanvas(innerWidth, innerHeight);
 }
 
 function draw() {
@@ -20,11 +20,11 @@ function draw() {
   three: `import * as THREE from 'three';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(windowWidth, windowHeight);
+renderer.setSize(innerWidth, innerHeight);
 document.body.append(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, windowWidth / windowHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
 camera.position.z = 3;
 
 renderer.render(scene, camera);
@@ -47,11 +47,11 @@ renderer.render(scene, camera);
 const THREE_CUBE = `import * as THREE from 'three';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(windowWidth, windowHeight);
+renderer.setSize(innerWidth, innerHeight);
 document.body.append(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, windowWidth / windowHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
 camera.position.z = 3;
 
 const cube = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ color: '#e0a030' }));
@@ -73,11 +73,11 @@ const colors = ['#e63946', '#f1c453', '#2a9d8f', '#457b9d'] /* palette */;
 const back = '#111111' /* color */;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(windowWidth, windowHeight);
+renderer.setSize(innerWidth, innerHeight);
 document.body.append(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, windowWidth / windowHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
 camera.position.z = 6;
 
 const geometries = {
@@ -107,11 +107,11 @@ const THREE_ORBIT = `import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(windowWidth, windowHeight);
+renderer.setSize(innerWidth, innerHeight);
 document.body.append(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, windowWidth / windowHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
 camera.position.set(2, 2, 4);
 
 const controls = new OrbitControls(camera, renderer.domElement);   // drag to orbit, wheel to zoom
@@ -131,11 +131,11 @@ const size = 0.03 /* 0.005..0.1 step:0.005 */;
 const tint = '#ffd27a' /* color */;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(windowWidth, windowHeight);
+renderer.setSize(innerWidth, innerHeight);
 document.body.append(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, windowWidth / windowHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
 camera.position.z = 4;
 
 const material = new THREE.PointsMaterial({ size, color: tint });
@@ -160,7 +160,7 @@ renderer.setAnimationLoop(t => {
 `;
 
 const P5_CIRCLE = `function setup() {
-  createCanvas(windowWidth, windowHeight);
+  createCanvas(innerWidth, innerHeight);
 }
 
 function draw() {
@@ -180,7 +180,7 @@ const palette = ['#e63946', '#f1c453', '#2a9d8f', '#457b9d'] /* palette */;
 const back = '#141414' /* color */;
 
 function setup() {
-  createCanvas(windowWidth, windowHeight);
+  createCanvas(innerWidth, innerHeight);
   noStroke();
 }
 
@@ -200,7 +200,7 @@ const P5_TRAIL = `const fade = 0.15 /* 0.01..1 */;
 const tint = '#ffffff' /* color */;
 
 function setup() {
-  createCanvas(windowWidth, windowHeight);
+  createCanvas(innerWidth, innerHeight);
   background(20);
 }
 
