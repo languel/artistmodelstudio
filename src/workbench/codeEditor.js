@@ -152,6 +152,14 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
           ...closeBracketsKeymap, ...completionKeymap, ...searchKeymap, ...foldKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap
         ]),
         EditorView.updateListener.of(u => { if (u.docChanged) { onChange?.(u.state.doc.toString()); for (const f of docFns) f(); view.dispatch(setDiagnostics(u.state, [])); } }),
+        // Code is typed as it is: no autocorrect, and the "smart" punctuation a system may substitute (…, “ ”, —) goes back to plain characters.
+        EditorView.contentAttributes.of({ spellcheck: 'false', autocorrect: 'off', autocapitalize: 'off', 'data-gramm': 'false' }),
+        EditorView.inputHandler.of((v, from, to, text) => {
+          if (language === 'markdown' || !/[…“”‘’—–]/.test(text)) return false;
+          const plain = text.replace(/…/g, '...').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/—/g, '--').replace(/–/g, '-');
+          v.dispatch({ changes: { from, to, insert: plain }, selection: { anchor: from + plain.length }, userEvent: 'input.type' });
+          return true;
+        }),
         // Keep workbench shortcuts (V, H, P…) from firing while typing.
         EditorView.domEventHandlers({ keydown: e => {
           lastEditor = api;
