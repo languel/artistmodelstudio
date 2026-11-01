@@ -691,6 +691,12 @@ The boards are linked by `[[title]]`. The boards inside a frame have their title
 
 The simulations use the real DDPM / DDIM updates. The networks are replaced by the ideal denoiser, which is a formula for these toy data (a mixture of Gaussians; three pictures). A trained network only approximates it. `test/lessonDiffusion.test.js` runs them without p5 and checks that the samplers land on the data. Flow matching is the next lecture.
 
+### Three.js for body and sound
+
+`/lesson threejs` builds *Three.js for body and sound* (`examples/lessons/threejs/lesson.js`) as a scene of slides, each a live three.js board beside its notes: *A scene from nothing* (the route, a spinning cube, the anatomy of a scene, **controls in code**), *The body as data* (joints, a pin screen, the body in metres), *Playing the air* (a laser harp and a body drum), *Dressing, drawing, painting* (costumes, one line, paint marks) and **Out of the studio** (an installation to perform and export). A dancer made of numbers stands in for the body tracker, so it needs no camera or models; the course with real tracking is the threejslessons repository.
+
+It uses what the studio has for code: every sketch reads `innerWidth` and `innerHeight` (so it runs in any page); the pinboard, the laser harp, *0.3 · Controls in code* and *4.1 · An installation* have controls (sliders, a toggle, a waveform menu, colours, a palette) that change them while they run; and the last board is the one to **perform** (Ctrl+Opt+P) and to **export** (board menu → Export → *Page with controls*). The tour (Docs → Lessons → *Take the tour*) goes through them, and through the editor, snippets and code help on the way. A lesson scene built by an earlier version is kept as "(older)" and the tour builds the current one.
+
 ## Agents
 
 The same actions are MCP tools on `window.ams`, on WebMCP where the browser supports it, and over the dev

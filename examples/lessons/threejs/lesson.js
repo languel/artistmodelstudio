@@ -13,7 +13,7 @@ const REPO = 'https://github.com/languel/threejslessons';
 // Every sketch starts here: a renderer on the board, a scene, a camera you can orbit, light.
 const BASE = `import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-const W = ams.width, H = ams.height, V = (x, y, z) => new THREE.Vector3(x, y, z), s = Math.sin, c = Math.cos;
+const W = innerWidth, H = innerHeight, V = (x, y, z) => new THREE.Vector3(x, y, z), s = Math.sin, c = Math.cos;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(W, H); renderer.setClearColor(0x141414);
 document.body.append(renderer.domElement);
@@ -110,7 +110,24 @@ every frame: move the light; the balls shade differently`,
 });
 const bulb = new THREE.PointLight(0xffd080, 14); const glow = new THREE.Mesh(new THREE.SphereGeometry(0.07), new THREE.MeshBasicMaterial({ color: 0xffd080 })); bulb.add(glow); scene.add(bulb);
 scene.add(new THREE.GridHelper(6, 12, 0x444444, 0x2a2a2a));
-tick = t => { bulb.position.set(2.2 * c(t), 1.8 + 0.6 * s(t * 1.7), 2.2 * s(t)); group.rotation.y = 0.3 * s(t * 0.4); };`) }
+tick = t => { bulb.position.set(2.2 * c(t), 1.8 + 0.6 * s(t * 1.7), 2.2 * s(t)); group.rotation.y = 0.3 * s(t * 0.4); };`) },
+        { id: 'controls', title: '0.3 · Controls in code', w: 800, h: 600, ground: '#141414',
+          idea: 'A comment beside a value makes it a **control**: `0..4` a slider, `toggle` a checkbox, `box|sphere|…` a menu (a shape name shows its picture), `color` a colour, `palette` a row of colours. Drag one and the sketch changes **while it runs**, with no restart; the number in the code changes with it. They show in Code → Board (on the lines, or beside the board), and the same comments become the panel of an exported page.',
+          pseudo: `speed, spin, shape, colours, ground = values with a comment
+every frame: read them again (the loop sees the new value)
+(something built once from a value must be built again when it changes)`,
+          three: sketch([BASE], `const speed = 1 /* 0..4 */;
+const spin = true /* toggle */
+const shape = 'torus' /* box|sphere|cone|torus|cylinder */
+const colors = ['#e0a030', '#c8664f', '#7fb069', '#5b7fd1'] /* palette */;
+const ground = '#141414' /* color */;
+const geometries = { box: new THREE.BoxGeometry(0.9, 0.9, 0.9), sphere: new THREE.SphereGeometry(0.55, 32, 16), cone: new THREE.ConeGeometry(0.55, 1.1, 32), torus: new THREE.TorusGeometry(0.45, 0.18, 16, 40), cylinder: new THREE.CylinderGeometry(0.45, 0.45, 1, 32) };
+const shapes = colors.map((_, i) => { const m = new THREE.Mesh(geometries.box, new THREE.MeshStandardMaterial()); m.position.set((i - 1.5) * 1.5, 1, 0); scene.add(m); return m; });
+scene.add(new THREE.GridHelper(6, 12, 0x444444, 0x2a2a2a));
+tick = t => {
+  renderer.setClearColor(ground);
+  shapes.forEach((m, i) => { m.geometry = geometries[shape]; m.material.color.set(colors[i % colors.length]); if (spin) m.rotation.set(t * 0.6 * speed, t * 0.9 * speed, 0); });
+};`) }
       ]
     },
     {
@@ -132,15 +149,18 @@ tick = t => { const j = dancer(t); names.forEach(n => dots[n].position.copy(j[n]
   d = distance from (x, y) to the nearest bone
   height = smooth falloff of d          # near a bone: tall
 instanced mesh: set every pin's height each frame`,
-          three: sketch([BASE, DANCER], `const N = 56, pins = new THREE.InstancedMesh(new THREE.BoxGeometry(0.04, 1, 0.04), new THREE.MeshStandardMaterial({ color: '#e0a030' }), N * N), m = new THREE.Matrix4();
+          three: sketch([BASE, DANCER], `const pinHeight = 0.5 /* 0.1..1.2 */;
+const pinColor = '#e0a030' /* color */;
+const N = 56, pins = new THREE.InstancedMesh(new THREE.BoxGeometry(0.04, 1, 0.04), new THREE.MeshStandardMaterial({ color: '#e0a030' }), N * N), m = new THREE.Matrix4();
 scene.add(pins); camera.position.set(0, 1.6, 4.4);
 const seg = (p, a, b) => { const ab = b.clone().sub(a), t = Math.max(0, Math.min(1, p.clone().sub(a).dot(ab) / ab.lengthSq())); return p.distanceTo(a.clone().add(ab.multiplyScalar(t))); };
 tick = t => {
   const j = dancer(t), p = V(0, 0, 0);
+  pins.material.color.set(pinColor);
   for (let i = 0; i < N; i++) for (let k = 0; k < N; k++) {
     p.set((i / N - 0.5) * 2.4, k / N * 2.2 - 0.1, 0);
     let d = 9; for (const [a, b] of BONES) d = Math.min(d, seg(p, j[a].clone().setZ(0), j[b].clone().setZ(0)));
-    const h = 0.02 + Math.max(0, 1 - d / 0.14) ** 1.5 * 0.5;
+    const h = 0.02 + Math.max(0, 1 - d / 0.14) ** 1.5 * pinHeight;
     m.makeScale(1, h, 1).setPosition(p.x, p.y, h / 2); pins.setMatrixAt(i * N + k, m);
   }
   pins.instanceMatrix.needsUpdate = true;
@@ -178,7 +198,10 @@ tick = t => {
 each frame: if the right hand is within 5 cm of a beam (in x) and in the beam's plane
   cut the beam at the hand's height; if it was not cut a moment ago: start the note
 else: beam reaches full height`,
-          three: sketch([BASE, DANCER, AUDIO], `const scale = [0, 2, 4, 7, 9, 12, 14, 16, 19], beams = scale.map((st, i) => {
+          three: sketch([BASE, DANCER, AUDIO], `const reach = 0.06 /* 0.02..0.2 step:0.01 */;
+const voice = 'sawtooth' /* sawtooth|sine|square|triangle */
+const beamColor = '#ff2a55' /* color */;
+const scale = [0, 2, 4, 7, 9, 12, 14, 16, 19], beams = scale.map((st, i) => {
   const m = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 8), new THREE.MeshBasicMaterial({ color: '#ff2a55', transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
   m.position.x = (i - 4) * 0.28; m.hit = false; scene.add(m); return m;
 });
@@ -186,9 +209,10 @@ const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05), new THREE.MeshBasicM
 tick = t => {
   hand.position.set(1.2 * s(t * 0.7), 1.0 + 0.45 * s(t * 1.9), 0);   // a hand sweeping the beams (the tracker's fingertip, in the course)
   beams.forEach((b, i) => {
-    const cut = Math.abs(hand.position.x - b.position.x) < 0.06, top = cut ? hand.position.y : 2.2;
+    const cut = Math.abs(hand.position.x - b.position.x) < reach, top = cut ? hand.position.y : 2.2;
     b.scale.y = top; b.position.y = top / 2;
-    if (cut && !b.hit) tone(220 * 2 ** (scale[i] / 12), 0.6, 'sawtooth');
+    b.material.color.set(beamColor);
+    if (cut && !b.hit) tone(220 * 2 ** (scale[i] / 12), 0.6, voice);
     b.hit = cut;
   });
 };`) },
@@ -253,6 +277,33 @@ scene.add(new THREE.GridHelper(6, 12, 0x444444, 0x2a2a2a)); camera.position.set(
 tick = t => {
   const j = dancer(t);
   trails.forEach(tr => { const p = j[tr.n], a = tr.g.attributes.position; if (tr.count < MAX) { a.setXYZ(tr.count++, p.x, p.y, p.z); } else { a.array.copyWithin(0, 3); a.setXYZ(MAX - 1, p.x, p.y, p.z); } a.needsUpdate = true; tr.g.setDrawRange(0, tr.count); });
+};`) }
+      ]
+    },
+    {
+      id: 'out', title: 'Out of the studio', label: 'Examples',
+      text: 'A board is a place to work. To show it, **perform** it: Ctrl+Opt+P fills the screen with the board and nothing else (Esc leaves; the controls wait in the top right corner). To take it away, **export** it: the board\'s Export menu → *Page with controls* is one HTML file with three.js inside, that opens offline on any machine, with the same controls as a small panel.',
+      boards: [
+        { id: 'install', title: '4.1 · An installation', w: 800, h: 600, ground: '#101010',
+          idea: 'Four joints leave ribbons in the air, in a palette you can change. Press **Ctrl+Opt+P** to fill the screen with it, then bring the controls up from the top right corner. Export it (board menu → Export → *Page with controls*) and the page runs on its own: the panel opens with **H**, **Shift+H** hides it all, **</>** shows the code, and **F** is full screen. The code is the same code, so what you build here is what is shown there.',
+          pseudo: `a ribbon for each of four joints, kept as its last n positions
+every frame: add the joint's position, drop the oldest, redraw
+length, colours and ground are controls: change them while it runs`,
+          three: sketch([BASE, DANCER], `const length = 240 /* 20..600 step:10 */;
+const colors = ['#f2c14e', '#ff6a3d', '#7fd1b9', '#5b7fd1'] /* palette */;
+const ground = '#101010' /* color */;
+const joints = ['lwr', 'rwr', 'lan', 'ran'];
+const ribbons = joints.map(name => { const line = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial()); line.frustumCulled = false; scene.add(line); return { name, line, trail: [] }; });
+scene.add(new THREE.GridHelper(6, 12, 0x444444, 0x2a2a2a)); camera.position.set(2.8, 1.4, 4.2);
+tick = t => {
+  renderer.setClearColor(ground);
+  const j = dancer(t);
+  ribbons.forEach((r, i) => {
+    r.trail.push(j[r.name].clone());
+    while (r.trail.length > length) r.trail.shift();
+    r.line.geometry.setFromPoints(r.trail);
+    r.line.material.color.set(colors[i % colors.length]);
+  });
 };`) }
       ]
     }

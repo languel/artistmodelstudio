@@ -52,6 +52,13 @@ function goTo(app, title) {
   if (b) app.goToBoard(b.id, { animate: true });
 }
 
+/** Open a board's code in the Code panel, by its title. */
+function openBoardCode(app, title) {
+  // (a slide is a frame with the sketch's title: the sketch is the board that is not the frame, notes or text)
+  const b = app.store.doc.boards.find(x => x.title === title && ['three', 'p5', 'html'].includes(x.kind));
+  if (b) app.openCode?.('board', b.id);
+}
+
 /** A lesson (lessons.js) as the open scene: built the first time, opened after that. */
 async function openLesson(app, id, language = 'studio') {
   const { LESSONS, buildLesson } = await import('./lessons.js');
@@ -59,7 +66,15 @@ async function openLesson(app, id, language = 'studio') {
   const isExpl = id === 'sampling-expl' || language === 'expl';
   const title = `Lesson: ${L.title}${isExpl ? ' (p5.js expl)' : language === 'p5' ? ' (p5.js)' : ''}`;
   const have = app.scenes.all.find(s => s.title === title);
-  if (have) await app.scenes.switchTo(have.id); else await buildLesson(app, id, { language, expl: isExpl });
+  if (have) {
+    await app.scenes.switchTo(have.id);
+    // Built by an earlier version of the lesson (without its newest board): keep it under another name and build the lesson as it is now.
+    const { LESSON_NEWEST } = await import('./lessons.js');
+    if (LESSON_NEWEST[id] && !app.store.doc.boards.some(b => b.title === LESSON_NEWEST[id])) {
+      app.scenes.rename(have.id, `${title} (older)`);
+      await buildLesson(app, id, { language, expl: isExpl });
+    }
+  } else await buildLesson(app, id, { language, expl: isExpl });
 }
 
 export const WALKTHROUGHS = [
@@ -202,24 +217,26 @@ export const WALKTHROUGHS = [
   {
     id: 'lesson-threejs',
     title: 'Lesson: three.js for body and sound',
-    summary: 'Builds the lecture and walks through it: a spinning cube, the anatomy of a scene, a body as joints, a pin screen, the body in metres, a laser harp, a body drum, costumes, one line and paint marks, each a live three.js board.',
+    summary: 'Builds the lecture and walks through it: a spinning cube, the anatomy of a scene, controls in code, a body as joints, a pin screen, the body in metres, a laser harp, a body drum, costumes, one line, paint marks and an installation, each a live three.js board, with the editor, snippets, controls, Perform and export along the way.',
     steps: [
       { say: 'A three.js scene is a few objects and a loop. Give it a body (joints in metres) and instruments, costumes, drawings and paint are rules that read those joints. This builds the lecture as a scene; every example is a live three.js board.',
         run: async ({ app, save }) => { await save(); await openLesson(app, 'threejs'); goTo(app, 'Three.js for body and sound'); }, hold: 1500 },
       { say: 'The route: ten programs in four steps. Here the body is a dancer made of numbers; in the course it is a camera and MediaPipe.',
         run: ({ app }) => goTo(app, '0.0 · The route') },
-      { say: 'The whole program: a scene, a camera, a renderer, one mesh and a loop. Drag the board to orbit; its code is in Code → Board.',
-        run: ({ app }) => goTo(app, '0.1 · A spinning cube'), hold: 3000 },
+      { say: 'The whole program: a scene, a camera, a renderer, one mesh and a loop. Drag the board to orbit. Its code is in Code → Board, and the editor helps: hover a three.js word for its docs, type a dot for what an object can do, Alt+Shift+F formats. The { } Snippets dropdown starts a board from a cube, orbit controls, particles or a sketch with controls.',
+        run: ({ app }) => { goTo(app, '0.1 · A spinning cube'); setTimeout(() => openBoardCode(app, '0.1 · A spinning cube'), 700); }, hold: 5000 },
       { say: 'The same cube taken apart: three materials that answer light differently, and a light you can see because it is an object too.',
         run: ({ app }) => goTo(app, '0.2 · Anatomy of a scene'), hold: 3000 },
+      { say: 'Controls in code. A comment beside a value makes a control: 0..4 a slider, toggle a checkbox, a|b a menu (a shape name shows its picture), color a colour, palette a row of colours. They show above the code (or on its lines); drag one and the sketch changes while it runs, and the number in the code changes with it.',
+        run: ({ app }) => { goTo(app, '0.3 · Controls in code'); setTimeout(() => openBoardCode(app, '0.3 · Controls in code'), 700); }, hold: 5500 },
       { say: 'A body as data: joints become spheres and bones become cylinders. These numbers are what a tracker returns.',
         run: ({ app }) => goTo(app, '1.1 · A body in the scene'), hold: 3000 },
-      { say: 'A pin screen: pins rise where the person is, and by how far. One instanced mesh, thousands of pins.',
-        run: ({ app }) => goTo(app, '1.2 · Pinboard'), hold: 3000 },
+      { say: 'A pin screen: pins rise where the person is, and by how far. One instanced mesh, thousands of pins. pinHeight and pinColor are controls: try them.',
+        run: ({ app }) => { goTo(app, '1.2 · Pinboard'); setTimeout(() => openBoardCode(app, '1.2 · Pinboard'), 700); }, hold: 4000 },
       { say: 'The body in metres, beside a two-metre ruler. A known distance is what lets the room become an instrument.',
         run: ({ app }) => goTo(app, '1.3 · The body in metres'), hold: 2500 },
-      { say: 'The laser harp, after Jarre: beams in the air, cut where the hand reaches in. Click the board once to let it sound.',
-        run: ({ app }) => goTo(app, '2.1 · Laser harp'), hold: 3500 },
+      { say: 'The laser harp, after Jarre: beams in the air, cut where the hand reaches in. Click the board once to let it sound. Its reach is a slider, its voice a menu of waveforms and its beams a colour.',
+        run: ({ app }) => { goTo(app, '2.1 · Laser harp'); setTimeout(() => openBoardCode(app, '2.1 · Laser harp'), 700); }, hold: 4500 },
       { say: 'A body drum, after Laurie Anderson: pads on the body, struck by a hand or foot that arrives fast.',
         run: ({ app }) => goTo(app, '2.2 · Body drum'), hold: 3500 },
       { say: 'Costumes as geometry sized to the body, after Schlemmer: a sphere, a cone, a disc and tubes.',
@@ -228,6 +245,8 @@ export const WALKTHROUGHS = [
         run: ({ app }) => goTo(app, '3.2 · One line'), hold: 4000 },
       { say: 'Paint marks, after Ghostcatching: hands, head and feet leave strokes that stay in space. Orbit the board to walk around the dance.',
         run: ({ app }) => goTo(app, '3.3 · Paint marks'), hold: 4000 },
+      { say: 'Out of the studio. This board is the work, and there are two ways to show it. Ctrl+Opt+P performs it: it fills the screen with nothing else, and the controls wait in the top right corner (H shows them, Shift+H hides them). And the board menu → Export → Page with controls is one HTML file with three.js inside, that runs offline on any machine with the same panel.',
+        run: ({ app }) => goTo(app, '4.1 · An installation'), hold: 6000 },
       { say: 'The course itself, with real body tracking, depth and the full instruments, is the threejslessons site and repository (languel.github.io/threejslessons); it is linked here with the artists and papers.',
         run: ({ app }) => goTo(app, 'Bibliography') }
     ]
