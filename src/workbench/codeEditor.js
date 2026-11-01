@@ -17,7 +17,7 @@ import { tags as t } from '@lezer/highlight';
 import { SCRIPT_VOCAB } from '../process/script.js';
 import { BRUSHES } from '../process/brushes.js';
 import { codeParams } from './codeParams.js';
-import { codeView, onCodeView } from './codeView.js';
+import { codeView, onCodeView, bumpCodeFont } from './codeView.js';
 
 const VOCAB = new Map(SCRIPT_VOCAB.map(v => [v.name, v]));
 const KIT_DOCS = [
@@ -47,7 +47,7 @@ const highlight = HighlightStyle.define([
 ]);
 
 const theme = EditorView.theme({
-  '&': { height: '100%', fontSize: '12px', background: 'var(--wb-panel-2)', color: 'var(--wb-text)', borderRadius: '6px', border: '1px solid var(--wb-line)' },
+  '&': { height: '100%', fontSize: 'var(--code-fs, 12px)', background: 'var(--wb-panel-2)', color: 'var(--wb-text)', borderRadius: '6px', border: '1px solid var(--wb-line)' },
   '&.cm-focused': { outline: 'none', borderColor: 'var(--wb-muted)' },
   '.cm-scroller': { fontFamily: 'var(--font-mono, ui-monospace, Menlo, monospace)', lineHeight: '1.5' },
   '.cm-content': { caretColor: 'var(--wb-text)', padding: '6px 0' },
@@ -133,6 +133,10 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
         placeholder ? placeholderExt(placeholder) : [],
         keymap.of([
           { key: 'Mod-Enter', run: () => { onRun?.(); return true; } },
+          { key: 'Mod-Shift-=', run: () => { bumpCodeFont(1); return true; } },
+          { key: 'Mod-Shift-+', run: () => { bumpCodeFont(1); return true; } },
+          { key: 'Mod-Shift--', run: () => { bumpCodeFont(-1); return true; } },
+          { key: 'Mod-Shift-_', run: () => { bumpCodeFont(-1); return true; } },
           ...closeBracketsKeymap, ...completionKeymap, ...searchKeymap, ...foldKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap
         ]),
         EditorView.updateListener.of(u => { if (u.docChanged) { onChange?.(u.state.doc.toString()); for (const f of docFns) f(); view.dispatch(setDiagnostics(u.state, [])); } }),

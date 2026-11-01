@@ -37,7 +37,7 @@ function makeChoice(c, view) {
     // A chip that opens the studio's menu (a native dropdown does not hold up inside the editor).
     input = document.createElement('button'); input.type = 'button'; input.className = 'wb-pick'; input.value = c.value;
     const text = document.createElement('span'); text.className = 'wb-pick-text'; text.textContent = c.value;
-    const caret = document.createElement('span'); caret.className = 'wb-pick-caret'; caret.textContent = '▾';
+    const caret = document.createElement('span'); caret.className = 'wb-pick-caret'; caret.innerHTML = '<svg viewBox="0 0 10 10" width="100%" height="100%"><path d="M2.3 3.8 5 6.4 7.7 3.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     input.append(text, caret);
     input.addEventListener('click', () => { const r = input.getBoundingClientRect(); showMenu(c.options.map(o => ({ label: o, active: o === input.value, run: () => { set(o); fire(); } })), r.left, r.bottom + 2); });
   }

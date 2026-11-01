@@ -112,6 +112,8 @@ export function mountBoardCode(root, app) {
     const b = id && boardById(app.store.doc, id);
     if (!b) return;
     const code = kind === 'frame' ? b.code : !b.code || Object.values(TEMPLATES).includes(b.code) ? (kind === 'drawing' ? undefined : TEMPLATES[kind]) : b.code;
+    // A drawing's code made marks; a sketch does not, so they go with the change (undo brings them back).
+    if (boardKind(b) === 'drawing' && kind !== 'drawing') app.store.change('change board kind', d => { d.elements = d.elements.filter(e => !(e.by?.kind === 'code' && e.by?.name === id)); });
     app.store.updateBoard(id, { kind, ...(code !== b.code ? { code: code ?? '' } : {}) });
     load(id, true);
   };
