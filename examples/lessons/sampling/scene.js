@@ -108,8 +108,8 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
   const st = app.store, run = app.runScript || runScript;
   for (const [name, def] of Object.entries(LESSON.sources || {})) {
     if (app.sources.def(name)) continue;
-    const blob = await (await fetch(new URL(`./media/${def.file}`, import.meta.url))).blob();
-    const a = await app.assetStore.add(blob, { title: def.title, kind: 'import', folder: 'Lessons/Sampling', tags: ['source', 'public-domain'], meta: { source: def.commons, license: 'Public domain (Wikimedia Commons)' } });
+    const blob = await (await fetch(def.url || new URL(`./media/${def.file}`, import.meta.url))).blob();
+    const a = await app.assetStore.add(blob, { title: def.title, kind: 'import', folder: LESSON.folder || 'Lessons/Sampling', tags: ['source', 'public-domain'], meta: { source: def.commons, license: def.license || 'Public domain (Wikimedia Commons)' } });
     await app.sources.add({ kind: 'asset', assetId: a.id, name });
   }
   // The pictures must be sampled before any code reads them (after a reload they are still loading).

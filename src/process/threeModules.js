@@ -16,7 +16,11 @@ export const THREE_SHIM = 'three';
 
 /** A shim for 'three': everything in three.js, except a renderer that keeps its drawing buffer so the board can keep a still picture while paused. */
 export const threeShim = `export * from '@@dep:${CORE}@@';
-import { WebGLRenderer as R } from '@@dep:${CORE}@@';
+import { WebGLRenderer as R, TextureLoader as TL, ImageLoader as IL } from '@@dep:${CORE}@@';
+// A picture loaded by name (loader.load('pond.jpg')) is the studio's source or asset of that name (the page gets them as data URLs).
+const at = p => (typeof p === 'string' && window.__amsFiles && (window.__amsFiles[p] || window.__amsFiles[p.split('/').pop()])) || p;
+export class TextureLoader extends TL { load(u, ...r) { return super.load(at(u), ...r); } loadAsync(u, ...r) { return super.loadAsync(at(u), ...r); } }
+export class ImageLoader extends IL { load(u, ...r) { return super.load(at(u), ...r); } loadAsync(u, ...r) { return super.loadAsync(at(u), ...r); } }
 // The studio sets window.devicePixelRatio to how large the board is shown (zoom × the screen's), so a canvas keeps its sharpness when the board is enlarged.
 export class WebGLRenderer extends R { constructor(p = {}) { super({ preserveDrawingBuffer: true, ...p }); this.setPixelRatio(window.devicePixelRatio || 1); (window.__amsRenderers ||= []).push(this); } }
 `;

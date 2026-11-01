@@ -68,7 +68,11 @@ async function renderMermaid(nodes, dark) {
  * into the p5 editor (and uploads the picture beside) runs here unchanged.
  */
 const LOADERS = ['loadImage', 'createVideo', 'createAudio', 'loadJSON', 'loadStrings', 'loadTable', 'loadBytes', 'loadFont', 'loadModel', 'loadXML'];
-export const filesOf = code => [...new Set([...String(code || '').matchAll(new RegExp(`(?:${LOADERS.join('|')})\\(\\s*["'\`]([^"'\`]+)["'\`]`, 'g'))].map(m => m[1]))];
+export const filesOf = (code, kind = 'p5') => [...new Set([
+  ...String(code || '').matchAll(new RegExp(`(?:${LOADERS.join('|')})\\(\\s*["'\`]([^"'\`]+)["'\`]`, 'g')),
+  // three.js: loader.load('x.jpg') and loader.loadAsync('x.jpg') (TextureLoader, ImageLoader) read a picture by name too
+  ...(kind === 'three' ? String(code || '').matchAll(/\.load(?:Async)?\(\s*["'`]([^"'`]+\.(?:jpe?g|png|gif|webp))["'`]/gi) : [])
+].map(m => m[1]))];
 const fileLoader = files => `(() => {
   const F = ${JSON.stringify(files).replace(/</g, '\\u003c')};
   const at = p => (typeof p === 'string' && (F[p] || F[p.split('/').pop()])) || p;
@@ -180,7 +184,7 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   const wanted = new Set([...(kind === 'three' ? code.matchAll(/getElementById\(\s*['"](stage|hud|inset|tabs|panel|tree)['"]\s*\)/g) : [])].map(m => m[1]));
   const scaffold = !wanted.size ? '' : `<style>#stage{position:fixed;inset:0}#hud{position:fixed;left:8px;bottom:6px;font:11px ui-monospace,monospace;color:rgba(255,255,255,.6);pointer-events:none;z-index:2}#inset{position:fixed;right:12px;top:12px;border:1px solid #f2b84b;pointer-events:none;z-index:2}#side{position:fixed;left:8px;top:8px;width:min(260px,45%);max-height:calc(100% - 40px);overflow:auto;z-index:2;background:rgba(20,20,24,.82);color:#ddd;font:12px system-ui,sans-serif;padding:6px 8px;border-radius:6px}#side .row{display:flex;gap:6px;align-items:center;margin:3px 0}#side .row label{flex:0 0 70px}#side pre{white-space:pre-wrap;font-size:11px}#side button,#side select{font:inherit}#tabs{display:flex;flex-wrap:wrap;gap:4px}</style><div id="stage"></div><div id="hud"></div><div id="inset"></div><div id="side"><div id="tabs"></div><section id="panel"></section><div id="tree"></div></div>`;
   const body = kind === 'three'
-    ? `${scaffold}<script>${bridge}</script><script type="application/json" id="three-modules">${JSON.stringify(threeMods?.modules || {}).replace(/</g, '\\u003c')}</script><script type="module">${threeLoader(token)}</script>`
+    ? `${scaffold}<script>${bridge}</script><script>window.__amsFiles = ${JSON.stringify(files).replace(/</g, '\\u003c')};</script><script type="application/json" id="three-modules">${JSON.stringify(threeMods?.modules || {}).replace(/</g, '\\u003c')}</script><script type="module">${threeLoader(token)}</script>`
     : kind === 'p5'
     ? `<script>${bridge}</script><script>${p5Source.replace(/<\/script/gi, '<\\/script')}</script><script>${fileLoader(files)}</script>${/\bml5\./.test(code) ? '<script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/ml5@1/dist/ml5.min.js"></script>' : ''}<script>${code.replace(/<\/script/gi, '<\\/script')}</script>`
     : `<script>${bridge}</script>${code}`;
@@ -371,7 +375,7 @@ export class BoardFrames {
       if (!f.threeMods) return;
     }
     // The files it loads by name, from the sources (read once, kept as data URLs).
-    const wanted = f.kind === 'p5' ? filesOf(code) : [];
+    const wanted = f.kind === 'p5' || f.kind === 'three' ? filesOf(code, f.kind) : [];
     this.loadFiles(wanted.filter(n => !(n in this.files)));
     if (wanted.some(n => this.files[n] === undefined)) return;   // still reading: the sketch starts when they are here
     const files = Object.fromEntries(wanted.filter(n => this.files[n]).map(n => [n, this.files[n]]));

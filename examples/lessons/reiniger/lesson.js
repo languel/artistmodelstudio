@@ -74,7 +74,16 @@ export const LESSON = {
   idea: 'In 1926 Lotte Reiniger cut a feature film out of black paper: every figure a set of pieces joined at hinges, laid on a glass table lit from below, moved a little, photographed, moved again. Here the paper is a three.js shape, the hinge is a group, the lightbox is a glowing plane and the camera is a camera: the method, in a few hundred lines you can read.',
   main: 'route',
   codePanel: true,
-  sources: {},
+  folder: 'Lessons/Silhouette film',
+  // A photograph for the backdrop: the one outside picture in the lesson (see RIGHTS.md for what is and is not clear about it).
+  sources: {
+    'pond-moonlight': {
+      url: new URL('./media/pond-moonlight.jpg', import.meta.url),
+      title: 'The Pond—Moonlight (Edward Steichen, 1904)',
+      commons: 'https://commons.wikimedia.org/wiki/File:ThePondMoonlight.jpg',
+      license: 'Public domain in the United States (photographed 1904; Steichen died 1973, so it is protected in the EU until 2043). Wikimedia Commons.'
+    }
+  },
   sections: [
     {
       id: 'build', title: 'Build the scene', label: 'Examples',
@@ -306,6 +315,41 @@ renderer.render = (s, c) => {
   night.position.set(pool.x, pool.y, 5);
   frame(s, c);
 };`) }
+      ,
+        { id: 'pond', title: '2.3 · A photograph, traversed', ...BOARD,
+          idea: 'An old photograph as the backdrop: *The Pond—Moonlight* (Edward Steichen, 1904), dark trunks around a pale gap of moonlight, a good partner for a black puppet. A **texture** is loaded by name, then only a **window** of it is shown: `zoom` makes the window smaller, `x` and `y` slide it. With `travel` on, the window drifts across the picture while the puppet walks in place: the walk cycle plus a moving backdrop is how a figure crosses a landscape without leaving the table. `gain` brightens the print so the silhouette reads against it.',
+          pseudo: `photo = a texture loaded from the picture's name
+window = the part of the photo that fills the frame: size 1 / zoom, centre (x, y)
+texture.repeat = window size, texture.offset = window corner
+travel: slide the window across the photo over time; the puppet walks in place`,
+          three: WHOLE(`
+// --- a photograph as the backdrop: a window onto it that zooms and travels ---------------------------------------------
+let zoom = 1.6 /* 1.1..5 */;
+let x = 0.5 /* 0..1 */;
+let y = 0.5 /* 0..1 */;
+let gain = 2.4 /* 0.5..4 */;
+let travel = true /* toggle */;
+const print = new THREE.TextureLoader().load('pond-moonlight.jpg');   // a picture of that name, from the studio's sources
+print.colorSpace = THREE.SRGBColorSpace;
+const ASPECT = 1400 / 1150, EDGE = { u0: 0.04, u1: 0.96, v0: 0.1, v1: 0.97 };   // the usable part of the print: inside its mount and above the signature
+const back = new THREE.Mesh(new THREE.PlaneGeometry(FRAME * W / H, FRAME), new THREE.MeshBasicMaterial({ map: print, depthWrite: false }));
+back.position.z = -4.6;
+scene.add(back);
+far.visible = false;                                                // the photograph takes the place of the tissue hills
+const lookAt = (t) => {
+  const w = Math.min(EDGE.u1 - EDGE.u0, (1 / zoom) * (W / H) / ASPECT), h = Math.min(EDGE.v1 - EDGE.v0, 1 / zoom);
+  const drift = travel ? 0.5 + 0.5 * Math.sin(t * 0.12) : x;       // 0..1 across the photograph
+  print.repeat.set(w, h);
+  print.offset.set(EDGE.u0 + (EDGE.u1 - EDGE.u0 - w) * drift, EDGE.v0 + (EDGE.v1 - EDGE.v0 - h) * y);
+  back.material.color.setScalar(gain);
+};
+const shot = renderer.render.bind(renderer);
+renderer.render = (s, c) => {
+  const t = performance.now() / 1000;
+  lookAt(t);
+  if (travel) puppet.position.x = home.x;                           // the puppet walks in place; the backdrop does the travelling
+  shot(s, c);
+};`, { patch: c => c.replace("let walk = 0 /*", "let walk = 0.7 /*").replace("let moon = true", "let moon = false") }) }
       ]
     },
     {
@@ -405,6 +449,11 @@ renderer.render = (s, c) => {
       ['Lotte Reiniger, on Wikipedia', 'https://en.wikipedia.org/wiki/Lotte_Reiniger'],
       ['Animation Resources: Reiniger\'s Prince Achmed (portfolio of prints, Berlin 1926)', 'https://animationresources.org/category/silhouette/'],
       ['Silhouette animation, on Wikipedia', 'https://en.wikipedia.org/wiki/Silhouette_animation']
+    ] },
+    { title: 'The photograph', items: [
+      ['The Pond—Moonlight (Edward Steichen, 1904), on Wikipedia', 'https://en.wikipedia.org/wiki/The_Pond%E2%80%94Moonlight'],
+      ['The picture used, on Wikimedia Commons', 'https://commons.wikimedia.org/wiki/File:ThePondMoonlight.jpg'],
+      ['Edward Steichen, on Wikipedia', 'https://en.wikipedia.org/wiki/Edward_Steichen']
     ] },
     { title: 'Tools', items: [
       ['three.js: ShapeGeometry', 'https://threejs.org/docs/#api/en/geometries/ShapeGeometry'],
