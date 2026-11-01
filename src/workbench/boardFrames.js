@@ -269,7 +269,7 @@ export class BoardFrames {
     if (!f?.iframe || !f.running) return;
     const vals = liveValues(code);
     for (const [key, value] of Object.entries(vals)) {
-      if (f.vals && f.vals[key] === value) continue;
+      if (f.vals && JSON.stringify(f.vals[key]) === JSON.stringify(value)) continue;
       (f.vals ||= {})[key] = value;
       try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'ctl', key, value }, '*'); } catch { /* gone */ }
       this.app.outputs?.ctl(id, key, value, f.token);

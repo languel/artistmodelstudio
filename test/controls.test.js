@@ -60,3 +60,14 @@ describe('colours and dots', () => {
     expect(findControls('// @param s = 1 (0.2...3 step:0.1)')[0]).toMatchObject({ min: 0.2, max: 3, step: 0.1 });
   });
 });
+
+describe('palette', () => {
+  const src = "const colors = ['#e63946', 'steelblue', 0xf1faee] /* palette */;\nlet i = 0";
+  it('is an array of colours, live in place', () => {
+    const c = findControls(src).find(x => x.kind === 'palette');
+    expect(c).toMatchObject({ name: 'colors', live: true, css: ['#e63946', 'steelblue', '#f1faee'], value: ['#e63946', 'steelblue', 0xf1faee] });
+    expect(src.slice(c.from, c.to)).toBe("['#e63946', 'steelblue', 0xf1faee]");
+    expect(literalOf(c, ['#e63946', '#4682b4', '#f1faee', '#000000'])).toBe("['#e63946', '#4682b4', 0xf1faee, '#000000']");
+    expect(instrument(src).code).toContain('colors.splice(0, colors.length, ...v)');
+  });
+});

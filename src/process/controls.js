@@ -29,6 +29,8 @@ function paramBlocks(text) {
 const IDENT = '[A-Za-z_$][\\w$]*';
 const TOGGLE_RE = /\b(true|false)(\s*\/\*\s*(?:toggle|on\/off|bool(?:ean)?)\s*\*\/)/g;
 const COLOR_RE = /(['"])([^'"\n]+)\1(\s*\/\*\s*colou?r\s*\*\/)|\b(0x[0-9a-fA-F]{3,8})\b(\s*\/\*\s*colou?r\s*\*\/)/g;   // any CSS colour in quotes (#fa0, red, rgb(…), hsl(…)), or a 0xrrggbb number
+const PALETTE_RE = /\[([^\[\]\n]*)\](\s*\/\*\s*palette\s*\*\/)/g;   // ['#e63946', 'steelblue', 0xf1faee] /* palette */
+const PALETTE_ITEM_RE = /(['"])([^'"\n]+)\1|\b0x[0-9a-fA-F]{3,8}\b/g;
 const SELECT_RE = /(['"])([^'"\n]*)\1(\s*\/\*\s*([^*\n|]+(?:\|[^*\n|]+)+?)\s*\*\/)/g;
 // underscores' form: // @param name = value (min..max step:s) | (color) | (boolean) | (a|b|c)
 const PARAM_LINE_RE = new RegExp(`^([ \\t]*//[ \\t]*@param[ \\t]+)(${IDENT})([ \\t]*=[ \\t]*)(.*?)[ \\t]*\\(([^)\\n]*)\\)[ \\t]*$`, 'gm');
@@ -83,6 +85,12 @@ export function findControls(text) {
     else named(`c:${n++}`, 'color', t.index, t.index + t[2].length + 2, t.index + t[0].length, { value: t[2], css: t[2], q: t[1] });
   }
   n = 0;
+  for (const t of text.matchAll(PALETTE_RE)) {
+    const items = [...t[1].matchAll(PALETTE_ITEM_RE)].map(m => (m[0].startsWith('0x') ? { num: true, css: `#${m[0].slice(2).padStart(6, '0').slice(0, 6)}`, value: parseInt(m[0], 16) } : { q: m[1], css: m[2], value: m[2] }));
+    if (!items.length) continue;
+    named(`k:${n++}`, 'palette', t.index, t.index + t[0].length - t[2].length, t.index + t[0].length, { value: items.map(i => i.value), css: items.map(i => i.css), items });
+  }
+  n = 0;
   for (const t of text.matchAll(SELECT_RE)) {
     const options = t[4].split('|').map(x => x.trim()).filter(Boolean);
     if (options.length < 2 || /(?:\.{2,3}|…)\s*-?\d/.test(t[4])) continue;
@@ -102,7 +110,8 @@ export function findControls(text) {
 }
 
 /** The text a control's value is written as. */
-export const literalOf = (c, v) => (c.kind === 'toggle' ? String(Boolean(v)) : c.kind === 'range' ? String(v) : c.num ? `0x${String(v).replace('#', '')}` : `${c.q || ''}${v}${c.q || ''}`);
+const itemLiteral = (f, v) => (f.num ? `0x${String(v).replace('#', '')}` : `${f.q || "'"}${v}${f.q || "'"}`);
+export const literalOf = (c, v) => (c.kind === 'palette' ? `[${v.map((x, i) => itemLiteral(c.items[i] || c.items[0], x)).join(', ')}]` : c.kind === 'toggle' ? String(Boolean(v)) : c.kind === 'range' ? String(v) : c.num ? `0x${String(v).replace('#', '')}` : `${c.q || ''}${v}${c.q || ''}`);
 
 /** The values of the controls that can change without starting the sketch again: { name: value }. */
 export function liveValues(text) {
@@ -122,7 +131,8 @@ export function instrument(text) {
   for (const c of [...cs].sort((a, b) => b.from - a.from)) sig = sig.slice(0, c.from) + '\0' + sig.slice(c.to);
   for (const c of [...cs].filter(c => c.decl).sort((a, b) => b.from - a.from)) {
     const d = c.decl;
-    code = code.slice(0, d.end) + `; __ctl(${JSON.stringify(c.name)}, v => { ${c.name} = v; });` + code.slice(d.end);
+    // (a palette is changed where it stands, so what the sketch already holds of it stays right)
+    code = code.slice(0, d.end) + `; __ctl(${JSON.stringify(c.name)}, v => { ${c.kind === 'palette' ? `${c.name}.splice(0, ${c.name}.length, ...v)` : `${c.name} = v`}; });` + code.slice(d.end);
     code = code.slice(0, d.kwFrom) + 'let' + code.slice(d.kwTo);
   }
   return { code, sig, values: Object.fromEntries(cs.map(c => [c.name, c.value])) };

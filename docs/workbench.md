@@ -610,6 +610,8 @@ A document longer than its board scrolls inside it: the wheel over it scrolls it
 - `let spin = true /* toggle */` a checkbox;
 - `const shape = 'box' /* box|sphere */` a select;
 - `const tint = '#4488ff' /* color */` a colour: any CSS colour in quotes (`'red'`, `'rgb(10,20,30)'`, `'hsl(200,60%,20%)'`) or a number like `0x4488ff`; a round swatch opens the studio's picker, and the colour stays as written until you change it;
+- `const shape = 'torus' /* box|sphere|cone|torus|cylinder */`: an option named like a shape (box, sphere, cone, torus, cylinder, circle, square, plane, triangle, ring, star…) shows its picture in the menu and on the chip;
+- `const colors = ['#e63946', 'steelblue', 0xf1faee] /* palette */` a colour array, shown as overlapping dots: click one to change it, right-click to duplicate or remove, **+** to add. The array changes where it stands, so a sketch that already holds it keeps working;
 - `// @param size = 1 (0.2..3 step:0.1)` as in Underscores (also `(color)`, `(boolean)`, `(a|b|c)`): read as `ams.params.size`, live.
 
 A declaration at the start of a line (`const`, `let` or `var`, with nothing after the comment) is live: the studio makes it a `let` and sets it as you drag. A number elsewhere in the code still gets its slider, but it rewrites the code and the sketch starts again. The sketch also starts again when anything else in the code changes. An output window's copy gets the same values.

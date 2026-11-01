@@ -20,6 +20,28 @@ import { rangeInput, paintRange } from './rangeInput.js';
 import { showMenu } from './menu.js';
 import { openPicker, parseColor } from './colorPicker.js';
 
+
+const g = d => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const SHAPES = {
+  box: g('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>'),
+  sphere: g('<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12c2 3 5 4 8.5 4s6.500-1 8.500-4"/>'),
+  circle: g('<circle cx="12" cy="12" r="8"/>'),
+  square: g('<rect x="4.500" y="4.500" width="15" height="15" rx="1"/>'),
+  plane: g('<path d="M3 16l5-9h13l-5 9z"/>'),
+  triangle: g('<path d="M12 4l9 15H3z"/>'),
+  cone: g('<path d="M12 3l7 15c-2 2-12 2-14 0z"/><path d="M5 18c2 1.500 12 1.500 14 0" opacity=".5"/>'),
+  cylinder: g('<ellipse cx="12" cy="6" rx="7" ry="2.500"/><path d="M5 6v12c0 1.400 3 2.500 7 2.500s7-1.100 7-2.500V6"/>'),
+  torus: g('<ellipse cx="12" cy="12" rx="9" ry="6"/><ellipse cx="12" cy="12" rx="3.500" ry="1.800"/>'),
+  ring: g('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.500"/>'),
+  star: g('<path d="M12 3.500l2.600 5.400 5.900.8-4.300 4.100 1 5.800L12 16.800 6.800 19.600l1-5.800L3.500 9.700l5.900-.8z"/>'),
+  line: g('<path d="M4 18L20 6"/>'),
+  dot: g('<circle cx="12" cy="12" r="3.500" fill="currentColor"/>'),
+  point: g('<circle cx="12" cy="12" r="3.500" fill="currentColor"/>')
+};
+SHAPES.cube = SHAPES.box; SHAPES.disc = SHAPES.circle; SHAPES.rect = SHAPES.square; SHAPES.rectangle = SHAPES.square; SHAPES.donut = SHAPES.torus; SHAPES.ball = SHAPES.sphere;
+/** A small picture for an option named like a shape (box, sphere, torus…), or ''. */
+export const shapeGlyph = name => SHAPES[String(name).trim().toLowerCase()] || '';
+
 /** Any CSS colour (a name, #fa0, rgb(…), hsl(…)) as '#rrggbb'. */
 function cssToHex(css) {
   try {
@@ -36,7 +58,7 @@ export { rangeInput, paintRange };
  * else it rewrites the number in the code (found again by id, as positions move while typing).
  */
 export function makeControl(c, view, liveSrc) {
-  return c.kind === 'range' || c.kind === 'param' ? makeSlider(c, view, liveSrc) : makeChoice(c, view);
+  return c.kind === 'range' || c.kind === 'param' ? makeSlider(c, view, liveSrc) : c.kind === 'palette' ? makePalette(c, view) : makeChoice(c, view);
 }
 
 /** A toggle, a select or a colour: the code keeps the value as a literal (true, 'name', '#rrggbb'). */
@@ -50,10 +72,11 @@ function makeChoice(c, view) {
   else {
     // A chip that opens the studio's menu (a native dropdown does not hold up inside the editor).
     input = document.createElement('button'); input.type = 'button'; input.className = 'wb-pick'; input.value = c.value;
+    const glyph = document.createElement('span'); glyph.className = 'wb-pick-glyph'; glyph.innerHTML = shapeGlyph(c.value); glyph.hidden = !glyph.innerHTML;
     const text = document.createElement('span'); text.className = 'wb-pick-text'; text.textContent = c.value;
     const caret = document.createElement('span'); caret.className = 'wb-pick-caret'; caret.innerHTML = '<svg viewBox="0 0 10 10" width="100%" height="100%"><path d="M2.3 3.8 5 6.4 7.7 3.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    input.append(text, caret);
-    input.addEventListener('click', () => { const r = input.getBoundingClientRect(); showMenu(c.options.map(o => ({ label: o, active: o === input.value, run: () => { set(o); fire(); } })), r.left, r.bottom + 2); });
+    input.append(glyph, text, caret);
+    input.addEventListener('click', () => { const r = input.getBoundingClientRect(); showMenu(c.options.map(o => ({ label: o, icon: shapeGlyph(o) || undefined, active: o === input.value, run: () => { set(o); fire(); } })), r.left, r.bottom + 2); });
   }
   const name = c.name || 'value';
   input.title = name;
@@ -67,8 +90,42 @@ function makeChoice(c, view) {
   };
   if (c.kind === 'toggle') input.addEventListener('change', fire);
   for (const ev of ['mousedown', 'pointerdown', 'keydown', 'click']) input.addEventListener(ev, e => e.stopPropagation());
-  function set(v) { if (c.kind === 'toggle') input.checked = Boolean(v); else { input.value = String(v); if (c.kind === 'color') input.style.background = String(v); const t = input.querySelector('.wb-pick-text'); if (t) t.textContent = String(v); } }
+  function set(v) { if (c.kind === 'toggle') input.checked = Boolean(v); else { input.value = String(v); if (c.kind === 'color') input.style.background = String(v); const t = input.querySelector('.wb-pick-text'); if (t) t.textContent = String(v); const gl = input.querySelector('.wb-pick-glyph'); if (gl) { gl.innerHTML = shapeGlyph(v); gl.hidden = !gl.innerHTML; } } }
   return { input, step: 1, name, onInput: f => listeners.push(f), value: read, set };
+}
+
+
+/** A colour array (['#e63946', 'steelblue'] /* palette *\/): its colours as overlapping dots; click one to change it, right-click to remove, + to add. */
+function makePalette(c, view) {
+  let cols = [...c.css];
+  const wrap = document.createElement('span'); wrap.className = 'wb-palette'; wrap.title = c.name || 'palette';
+  const listeners = [];
+  const fire = () => {
+    for (const f of listeners) f([...cols]);
+    const cur = findControls(view.state.doc.toString()).find(x => x.id === c.id);
+    if (cur) view.dispatch({ changes: { from: cur.from, to: cur.to, insert: literalOf(cur, cols) } });
+  };
+  const draw = () => {
+    wrap.replaceChildren();
+    cols.forEach((col, i) => {
+      const dot = document.createElement('button'); dot.type = 'button'; dot.className = 'wb-color-input wb-palette-dot'; dot.style.background = col; dot.title = `${c.name || 'palette'}[${i}] ${col} (right-click: more)`;
+      dot.addEventListener('click', () => { const start = cssToHex(col).toLowerCase(); openPicker(dot, { hex: start, alpha: 1 }, p => { if (p.hex.toLowerCase() === start) return; cols[i] = p.hex; dot.style.background = p.hex; fire(); }, null); });
+      dot.addEventListener('contextmenu', e => {
+        e.preventDefault(); e.stopPropagation();
+        showMenu([
+          { label: 'Duplicate', run: () => { cols.splice(i + 1, 0, cols[i]); draw(); fire(); } },
+          { label: 'Remove', disabled: cols.length < 2, run: () => { cols.splice(i, 1); draw(); fire(); } }
+        ], e.clientX, e.clientY);
+      });
+      wrap.append(dot);
+    });
+    const add = document.createElement('button'); add.type = 'button'; add.className = 'wb-palette-add'; add.title = 'Add a colour'; add.textContent = '+';
+    add.addEventListener('click', () => { cols.push(cols[cols.length - 1] || '#888888'); draw(); fire(); });
+    wrap.append(add);
+  };
+  draw();
+  for (const ev of ['mousedown', 'pointerdown', 'keydown', 'click', 'contextmenu']) wrap.addEventListener(ev, e => e.stopPropagation());
+  return { input: wrap, step: 1, name: c.name || 'palette', onInput: f => listeners.push(f), value: () => [...cols], set: v => { cols = [...v]; draw(); } };
 }
 
 function makeSlider(c, view, liveSrc) {
@@ -98,7 +155,7 @@ function makeSlider(c, view, liveSrc) {
 class LineControls extends WidgetType {
   constructor(cs, view, live) { super(); this.cs = cs; this.view = view; this.live = live; }
   sig() { return `${this.live ? 'L' : ''}${this.cs.map(c => `${c.id}:${c.kind}:${c.min}:${c.max}:${c.options || ''}`).join('|')}`; }
-  eq(o) { return this.sig() === o.sig() && o.cs.every((c, i) => c.value === this.cs[i].value); }
+  eq(o) { return this.sig() === o.sig() && o.cs.every((c, i) => JSON.stringify(c.value) === JSON.stringify(this.cs[i].value)); }
   toDOM() {
     const wrap = document.createElement('span');
     wrap.className = 'cm-param';
@@ -110,7 +167,7 @@ class LineControls extends WidgetType {
   // The same controls with another value (an edit, an undo, a drag): keep the elements, show the value.
   updateDOM(dom) {
     if (dom._sig !== this.sig()) return false;
-    this.cs.forEach((c, i) => { const ctl = dom._ctls[i]; const v = c.css ?? c.value; if (document.activeElement !== ctl.input && String(ctl.value()) !== String(v)) ctl.set(v); });
+    this.cs.forEach((c, i) => { const ctl = dom._ctls[i]; const v = c.css ?? c.value; if (document.activeElement !== ctl.input && JSON.stringify(ctl.value()) !== JSON.stringify(v) && String(ctl.value()) !== String(v)) ctl.set(v); });
     return true;
   }
   ignoreEvent() { return true; }
