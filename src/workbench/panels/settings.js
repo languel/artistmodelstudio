@@ -3,7 +3,8 @@ import { icon } from '../icons.js';
 import { h, row, numberField, selectField, section } from '../ui.js';
 import { colorField } from '../colorPicker.js';
 import { modelSection } from './modelSettings.js';
-import { codeView, setCodeView } from '../codeView.js';
+import { codeView, setCodeView, CODE_FONTS, fontInstalled } from '../codeView.js';
+import { askText } from '../dialog.js';
 
 const PRESETS = [
   ['square', 'Square', 1000, 1000], ['a4', 'A4', 794, 1123], ['letter', 'Letter', 816, 1056], ['4:3', '4 : 3', 1200, 900],
@@ -82,6 +83,17 @@ export function mountSettings(root, app) {
         row('Smoothing', numberField({ value: app.lazy.smoothing, min: 0, max: 0.95, step: 0.01, def: 0, title: 'Each step the pen covers only part of the way (0.5 = half): higher is smoother and lags more. 0 = off', onChange: v => app.setLazy({ smoothing: v }) }))),
       section('Code editor', true,
         row('Code help', check(codeView().help, v => setCodeView({ help: v }), 'Completion and hover docs for p5.js and three.js sketches, from the libraries’ own types (TypeScript’s language service, loaded the first time a sketch is edited)')),
+        row('Font', (() => {
+          const cur = codeView().fontFamily || '';
+          const have = CODE_FONTS.filter(f => fontInstalled(f));
+          const opts = [['', 'Default (JetBrains Mono)'], ...have.filter(f => f !== 'JetBrains Mono').map(f => [f, f]), ...(cur && !have.includes(cur) ? [[cur, cur]] : []), ['__other', 'Other…']];
+          return selectField(opts, cur, async v => {
+            if (v !== '__other') { setCodeView({ fontFamily: v }); return; }
+            const name = await askText('A font installed on this computer', cur);
+            setCodeView({ fontFamily: name ? name.trim() : cur });
+            render();
+          });
+        })(), 'The font of code editors: those installed on this computer, or any font by name'),
         row('Text size', numberField({ value: codeView().fontSize, min: 8, max: 28, step: 1, def: 12, title: 'The text size in code editors (Cmd+Shift +/−)', onChange: v => setCodeView({ fontSize: v }) })),
         row('Indent', selectField([['2', '2 spaces'], ['4', '4 spaces']], String(codeView().tabSize || 2), v => setCodeView({ tabSize: Number(v) }))),
         row('Line numbers', check(codeView().lineNumbers, v => setCodeView({ lineNumbers: v }))),

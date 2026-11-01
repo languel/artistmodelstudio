@@ -52,7 +52,7 @@ const highlight = HighlightStyle.define([
 const theme = EditorView.theme({
   '&': { height: '100%', fontSize: 'var(--code-fs, 12px)', background: 'var(--wb-panel-2)', color: 'var(--wb-text)', borderRadius: '6px', border: '1px solid var(--wb-line)' },
   '&.cm-focused': { outline: 'none', borderColor: 'var(--wb-muted)' },
-  '.cm-scroller': { fontFamily: 'var(--font-mono, ui-monospace, Menlo, monospace)', lineHeight: '1.5', fontVariantLigatures: 'var(--code-lig, none)', fontFeatureSettings: 'var(--code-feat, "liga" 0, "calt" 0)' },
+  '.cm-scroller': { fontFamily: 'var(--code-font, var(--font-mono, ui-monospace, Menlo, monospace))', lineHeight: '1.5', fontVariantLigatures: 'var(--code-lig, none)', fontFeatureSettings: 'var(--code-feat, "liga" 0, "calt" 0)' },
   '.cm-content': { caretColor: 'var(--wb-text)', padding: '6px 0' },
   '.cm-gutters': { background: 'transparent', color: 'var(--wb-muted)', border: 'none' },
   '.cm-activeLine, .cm-activeLineGutter': { background: 'color-mix(in srgb, var(--wb-text) 5%, transparent)' },
@@ -179,6 +179,7 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
     if (v.help !== helped) { helped = v.help; effects.push(lang.reconfigure(languageFor(language, getDocLines, helped))); }
     if ((v.wrap !== false) !== wrapping) { wrapping = v.wrap !== false; effects.push(wrap.reconfigure(wrapping ? EditorView.lineWrapping : [])); }
     view.dispatch({ effects });
+    view.requestMeasure();   // (a new font or size changes the width of a character)
   });
   // Replace the text by changing only what differs (the cursor, scroll and undo stay sensible).
   const replace = (from, to, text) => {
