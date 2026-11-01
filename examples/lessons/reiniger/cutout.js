@@ -31,18 +31,16 @@ function limb(len, w0, w1) {
   s.lineTo(w1 / 2, -len); s.absarc(0, -len, w1 / 2, 0, Math.PI, true); s.lineTo(-w0 / 2, 0);
   return s;
 }
-function pelvis() {                                                 // the hips: the legs hang from here
+// This puppet is a stick figure: the body is two limbs standing up, as thin as the arms and legs (seen from the side there is
+// no pelvis or shoulder to see). A rounded piece of paper from its hinge up to its far end.
+function stick(len, w0, w1) {
   const s = new THREE.Shape();
-  s.moveTo(-0.27, -0.06); s.bezierCurveTo(-0.32, 0.1, -0.28, 0.3, -0.22, 0.42); s.lineTo(0.2, 0.42);
-  s.bezierCurveTo(0.3, 0.3, 0.34, 0.1, 0.28, -0.06); s.lineTo(-0.27, -0.06);
+  s.absarc(0, 0, w0 / 2, Math.PI, 0, false);
+  s.lineTo(w1 / 2, len); s.absarc(0, len, w1 / 2, 0, Math.PI, false); s.lineTo(-w0 / 2, 0);
   return s;
 }
-function chest() {                                                  // the ribs and shoulders, a waist below
-  const s = new THREE.Shape();
-  s.moveTo(-0.22, -0.02); s.bezierCurveTo(-0.3, 0.2, -0.36, 0.5, -0.28, 0.76); s.lineTo(0.2, 0.76);
-  s.bezierCurveTo(0.34, 0.5, 0.32, 0.2, 0.22, -0.02); s.lineTo(-0.22, -0.02);
-  return s;
-}
+const pelvis = () => stick(0.4, 0.26, 0.2);                           // the hips: the legs hang from here
+const chest = () => stick(0.74, 0.2, 0.17);                           // up to the shoulders: the arms and the neck
 function head() {                                                   // a profile: forehead, nose, chin, a turban
   const s = new THREE.Shape();
   s.moveTo(-0.05, 0); s.lineTo(0.14, 0.02); s.lineTo(0.17, 0.12); s.lineTo(0.3, 0.2); s.lineTo(0.17, 0.26); s.lineTo(0.2, 0.36);
@@ -54,7 +52,7 @@ function foot() {                                                   // a slipper
   s.bezierCurveTo(0.5, 0.0, 0.42, -0.1, 0.3, -0.11); s.lineTo(-0.1, -0.12); s.lineTo(-0.1, 0.1);
   return s;
 }
-function neck() { const s = new THREE.Shape(); s.moveTo(-0.07, -0.02); s.lineTo(0.08, -0.02); s.lineTo(0.06, 0.24); s.lineTo(-0.07, 0.24); return s; }
+const neck = () => stick(0.22, 0.11, 0.09);
 
 // Each part: where its hinge is (in its parent), its shape, its tip (where you grab it: the far end), how far it may turn.
 // A hinge turns its part to point at the pointer, so any part, whatever its shape, is moved the same way.
