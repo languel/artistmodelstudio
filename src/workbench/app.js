@@ -918,7 +918,9 @@ export class Workbench {
     const b = boardById(this.store.doc, id);
     if (!b || !['p5', 'three'].includes(b.kind)) return;
     const { mountPanel, controlSpecs } = await import('./controlsPanel.js');
-    const { rewriteControl } = await import('../process/controls.js');
+    const { rewriteControl, panelOf } = await import('../process/controls.js');
+    const mode = panelOf(b.code || '');   // // @panel open | hidden | off
+    if (mode === 'off') return;
     if (this.performing !== id) return;   // (left again while this loaded)
     const set = (name, value) => {
       const cur = boardById(this.store.doc, id);
@@ -930,7 +932,7 @@ export class Workbench {
       if (this.canvas.previewDoc && this.performing === id) this.canvas.previewDoc = { ...this.canvas.previewDoc, artboard: id === MAIN ? this.store.doc.artboard : this.canvas.previewDoc.artboard, boards: (this.store.doc.boards || []).filter(x => x.id === id) };
       this.frames?.ctl(id, code);
     };
-    this.performUI = mountPanel(controlSpecs(b.code || ''), b.code || '', set, { start: 'hidden', keys: false, zone: true });
+    this.performUI = mountPanel(controlSpecs(b.code || ''), b.code || '', set, { start: mode === 'open' ? undefined : 'hidden', keys: false, zone: true });
     this.frames?.holdKeys(id, true);
     setTimeout(() => this.frames?.holdKeys(id, true), 600);   // (once the sketch has started)
   }

@@ -637,6 +637,8 @@ All the code editors (board, brush, sculpt, selection, clip) share these, and **
 - `const colors = ['#e63946', 'steelblue', 0xf1faee] /* palette */` a colour array, shown as overlapping dots: click one to change it, right-click to duplicate or remove, **+** to add. The array changes where it stands, so a sketch that already holds it keeps working;
 - `// @param size = 1 (0.2..3 step:0.1)` as in Underscores (also `(color)`, `(boolean)`, `(a|b|c)`): read as `ams.params.size`, live.
 
+**The panel on the board:** a line `// @panel open` in a sketch shows its control panel on its board in the studio (sliders, toggles, menus, colours: what you change is written into the code, like the code panel's sliders); `// @panel hidden` shows only a gear that comes up when the pointer is near its corner; `// @panel off` means no panel, even on an exported page. It also sets how the panel starts in Perform (which otherwise starts hidden) and on an exported page (which otherwise starts open). A code view of a sketch with the line starts scrolled to it.
+
 A declaration at the start of a line (`const`, `let` or `var`, with nothing after the comment) is live: the studio makes it a `let` and sets it as you drag. A number elsewhere in the code still gets its slider, but it rewrites the code and the sketch starts again. The sketch also starts again when anything else in the code changes. An output window's copy gets the same values.
 
 A p5 board runs while it is live and on screen, like a drawing. Paused, it shows its last picture. Errors appear under the code and in the Log. A frame takes the pointer only on the board you are on.

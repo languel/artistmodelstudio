@@ -48,6 +48,16 @@ describe('exported pages', () => {
     for (const src of scripts(html)) expect(() => new Function(src)).not.toThrow();
   });
 
+  it('honours // @panel: off has no panel, hidden starts as only the gear, open (or none) starts open', async () => {
+    const mk = line => sketchPage({ kind: 'p5', title: 'p', code: `${line}\nconst n = 3 /* 0..9 */\nfunction draw() {}`, controls: true, p5Source: '/*p5*/' });
+    expect(await mk('// @panel off')).not.toContain('ams-ui');
+    expect(await mk('// @panel hidden')).toContain('{"start":"hidden"}');
+    const open = await mk('// @panel open');
+    expect(open).toContain('ams-ui');
+    expect(open).not.toContain('{"start":"hidden"}');
+    expect(await mk('')).toContain('ams-ui');
+  });
+
   it('a p5.js page inlines p5 and the instrumented sketch', async () => {
     const html = await sketchPage({ kind: 'p5', title: 'p', code: 'const n = 3 /* 0..9 */\nfunction draw() {}', controls: true, p5Source: '/*p5*/window.p5=1;' });
     expect(html.indexOf('window.p5=1')).toBeLessThan(html.lastIndexOf('function draw'));   // (the sketch comes last; the panel holds a copy to show)

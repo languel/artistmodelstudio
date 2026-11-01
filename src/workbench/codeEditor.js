@@ -197,6 +197,8 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
     /** Switch the language ('ams', 'p5', 'markdown', 'html'). */
     setLanguage(l) { if (l !== language) { language = l; view.dispatch({ effects: lang.reconfigure(languageFor(l, getDocLines)) }); } },
     get language() { return language; },
+    /** Scroll a line (1-based) to the top of the editor. */
+    scrollToLine(n) { const l = view.state.doc.line(Math.max(1, Math.min(view.state.doc.lines, n))); view.dispatch({ effects: EditorView.scrollIntoView(l.from, { y: 'start', yMargin: 6 }) }); },
     /** Take the editor down (its listeners go with it). */
     destroy() { view.destroy(); },
     /** Insert text at the cursor (it replaces the selection). */

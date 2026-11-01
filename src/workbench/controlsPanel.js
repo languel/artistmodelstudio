@@ -26,6 +26,7 @@ export function controlSpecs(code) {
  */
 export function mountPanel(specs, source, set, opts) {
   opts = opts || {};
+  const rid = opts.id || 'ams-ui', cid = rid + '-code';
   // Light or dark: the studio's theme (a page of its own is dark).
   const light = (opts.theme || (document.documentElement.dataset && document.documentElement.dataset.theme)) === 'light';
   const P = light
@@ -49,12 +50,16 @@ export function mountPanel(specs, source, set, opts) {
     + '#ams-code{position:fixed;inset:0;z-index:2147482999;background:' + P.veil + ';backdrop-filter:blur(8px);color:' + P.fg + ';display:flex}'
     + '#ams-code[hidden]{display:none}'
     + '#ams-code pre{flex:1;margin:0;padding:14px 56px 16px 16px;overflow:auto;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;tab-size:2}';
+  style.textContent = style.textContent.replace(/#ams-ui/g, '#' + rid).replace(/#ams-code/g, '#' + cid);
   document.head.append(style);
-  const root = document.createElement('div'); root.id = 'ams-ui';
+  const root = document.createElement('div'); root.id = rid;
   if (opts.zone) { const z = document.createElement('div'); z.className = 'z'; root.append(z); root.zone = z; }
   const gear = document.createElement('button'); gear.className = 'g'; gear.textContent = '⚙'; gear.title = 'Controls (H; Shift+H hides it all)';
   const box = document.createElement('div'); box.className = 'p';
-  root.append(gear, box); document.body.append(root);
+  root.append(gear, box);
+  const host = opts.container || document.body;
+  if (opts.container) { root.style.position = 'absolute'; root.style.pointerEvents = 'auto'; root.style.zIndex = '5'; }   // (on a board: it lies on it, and takes the pointer)
+  host.append(root);
   const toHex = css => { try { const g = document.createElement('canvas').getContext('2d'); g.fillStyle = '#000'; g.fillStyle = css; const v = g.fillStyle; if (v[0] === '#') return v; const m = v.match(/\d+/g); return '#' + m.slice(0, 3).map(n => (+n).toString(16).padStart(2, '0')).join(''); } catch (e) { return '#888888'; } };
   const out = (hex, num) => (num ? parseInt(hex.slice(1), 16) : hex);
   const add = (spec, ...cells) => { const l = document.createElement('span'); l.className = 'l'; l.textContent = spec.name; box.append(l, ...cells); };
@@ -82,12 +87,13 @@ export function mountPanel(specs, source, set, opts) {
     }
   }
   // The code, over the page: the glyph at the bottom of the panel shows it (and copies it); the glyph again, or Esc, hides it.
-  const code = document.createElement('div'); code.id = 'ams-code'; code.hidden = true;
+  const code = document.createElement('div'); code.id = cid; code.hidden = true;
+  if (opts.container) code.style.position = 'absolute';
   const pre = document.createElement('pre'); pre.textContent = source;
-  code.append(pre); document.body.append(code);
+  code.append(pre); host.append(code);
   const foot = document.createElement('div'); foot.className = 'f';
   const cb = document.createElement('button'); cb.textContent = '</>'; cb.title = 'Show the code (and copy it)';
-  foot.append(cb); box.append(foot);
+  foot.append(cb); if (opts.code !== false) box.append(foot);
   let timer = 0;
   const showCode = on => {
     code.hidden = !on;
@@ -100,7 +106,7 @@ export function mountPanel(specs, source, set, opts) {
   const show = on => { box.hidden = !on; root.classList.toggle('open', on); };
   const hideAll = () => { wasOpen = !box.hidden; show(false); showCode(false); stealth = true; };
   gear.onclick = () => { stealth = false; show(box.hidden); };
-  if (opts.start === 'hidden' || /[?&]ui=0/.test(location.search) || location.hash === '#noui') hideAll(); else show(true);
+  if (opts.start === 'hidden' || (!opts.container && (/[?&]ui=0/.test(location.search) || location.hash === '#noui'))) hideAll(); else show(true);
   // The gear shows when the pointer is near it (and stays while the panel is open).
   const near = e => { const r = root.getBoundingClientRect(); const d = Math.hypot(Math.max(r.left - e.clientX, 0, e.clientX - r.right), Math.max(r.top - e.clientY, 0, e.clientY - r.bottom)); root.classList.toggle('near', d < 90); };
   const leave = () => root.classList.remove('near');
@@ -119,9 +125,10 @@ export function mountPanel(specs, source, set, opts) {
   return {
     onKey,
     codeOpen: () => !code.hidden,
+    isOpen: () => !box.hidden,
     destroy() { removeEventListener('keydown', listener); removeEventListener('pointermove', near); removeEventListener('pointerdown', near); document.documentElement.removeEventListener('pointerleave', leave); style.remove(); root.remove(); code.remove(); }
   };
 }
 
 /** The script of an exported page: the panel, mounted. */
-export const panelScript = (specs, source) => `(${mountPanel.toString()})(${JSON.stringify(specs).replace(/</g, '\\u003c')}, ${JSON.stringify(source).replace(/</g, '\\u003c')}, __set, {});`;
+export const panelScript = (specs, source, opts = {}) => `(${mountPanel.toString()})(${JSON.stringify(specs).replace(/</g, '\\u003c')}, ${JSON.stringify(source).replace(/</g, '\\u003c')}, __set, ${JSON.stringify(opts)});`;

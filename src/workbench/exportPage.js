@@ -5,7 +5,7 @@
  * studio, export, open the file.
  */
 import { collectThree, threeLoader } from '../process/threeModules.js';
-import { instrument } from '../process/controls.js';
+import { instrument, panelOf } from '../process/controls.js';
 import { controlSpecs, panelScript } from './controlsPanel.js';
 export { controlSpecs };
 
@@ -35,7 +35,8 @@ export async function sketchPage({ kind, title, code, ground, controls = false, 
   const inst = instrument(code);
   const specs = controlSpecs(code);
   const parts = [head(title, ground), `<script>${shim(inst.values, title, kind === 'p5')}</script>`];
-  if (controls) parts.push(`<script>${panelScript(specs, code)}</script>`);
+  const mode = panelOf(code);   // // @panel open | hidden | off
+  if (controls && mode !== 'off') parts.push(`<script>${panelScript(specs, code, mode === 'hidden' ? { start: 'hidden' } : {})}</script>`);
   if (kind === 'three') {
     const m = await collectThree(inst.code, loadFile);
     parts.push(`<script type="application/json" id="three-modules">${json(m.modules)}</script><script type="module">${threeLoader(null)}</script>`);

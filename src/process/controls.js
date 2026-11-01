@@ -152,3 +152,13 @@ export function rewriteControl(text, name, value) {
   else if (c.kind === 'color') v = hex(value);
   return text.slice(0, c.from) + literalOf(c, v) + text.slice(c.to);
 }
+
+/**
+ * `// @panel open | hidden | off` in a sketch: how its control panel starts. open: shown (on its board in the studio, in Perform,
+ * on an exported page); hidden: only the gear, which comes up when the pointer is near; off: no panel. Without it a board in the
+ * studio has no panel, Perform starts hidden and an exported page starts open. Returns 'open' | 'hidden' | 'off' | null.
+ */
+export function panelOf(text) {
+  const m = /^[ \t]*\/\/[ \t]*@panel[ \t]+(open|hidden|off)\b/m.exec(String(text || ''));
+  return m ? m[1] : null;
+}

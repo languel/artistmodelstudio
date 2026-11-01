@@ -47,4 +47,10 @@ describe('the three.js lesson', () => {
     expect(asked).toContain('0.3 · Controls in code');
     expect(asked).toContain('4.1 · An installation');
   });
+
+  it('shows the controls: the controls slide opens its panel, the later boards with controls have the gear', () => {
+    const by = id => boards.find(b => b.id === id).three;
+    expect(by('controls')).toMatch(/^\/\/ @panel open$/m);
+    for (const id of ['pinboard', 'harp', 'install']) expect(by(id), id).toMatch(/^\/\/ @panel hidden$/m);
+  });
 });

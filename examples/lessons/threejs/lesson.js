@@ -114,11 +114,12 @@ const bulb = new THREE.PointLight(0xffd080, 14); const glow = new THREE.Mesh(new
 scene.add(new THREE.GridHelper(6, 12, 0x444444, 0x2a2a2a));
 tick = t => { bulb.position.set(2.2 * c(t), 1.8 + 0.6 * s(t * 1.7), 2.2 * s(t)); group.rotation.y = 0.3 * s(t * 0.4); };`) },
         { id: 'controls', title: '0.3 · Controls in code', w: 800, h: 600, ground: '#141414',
-          idea: 'A comment beside a value makes it a **control**: `0..4` a slider, `toggle` a checkbox, `box|sphere|…` a menu (a shape name shows its picture), `color` a colour, `palette` a row of colours. Drag one and the sketch changes **while it runs**, with no restart; the number in the code changes with it. They show in Code → Board (on the lines, or beside the board), and the same comments become the panel of an exported page.',
+          idea: 'A comment beside a value makes it a **control**: `0..4` a slider, `toggle` a checkbox, `box|sphere|…` a menu (a shape name shows its picture), `color` a colour, `palette` a row of colours. Drag one and the sketch changes **while it runs**, with no restart; the number in the code changes with it. They show in the code (on its lines), and as a **panel on the board**: a line `// @panel open` in the code shows it from the start (`hidden`: only a gear that comes up near the corner; `off`: none). The same panel opens in Perform and on an exported page.',
           pseudo: `speed, spin, shape, colours, ground = values with a comment
 every frame: read them again (the loop sees the new value)
 (something built once from a value must be built again when it changes)`,
-          three: sketch([BASE], `const speed = 1 /* 0..4 */;
+          three: sketch([BASE], `// @panel open
+const speed = 1 /* 0..4 */;
 const spin = true /* toggle */
 const shape = 'torus' /* box|sphere|cone|torus|cylinder */
 const colors = ['#e0a030', '#c8664f', '#7fb069', '#5b7fd1'] /* palette */;
@@ -151,7 +152,8 @@ tick = t => { const j = dancer(t); names.forEach(n => dots[n].position.copy(j[n]
   d = distance from (x, y) to the nearest bone
   height = smooth falloff of d          # near a bone: tall
 instanced mesh: set every pin's height each frame`,
-          three: sketch([BASE, DANCER], `const pinHeight = 0.5 /* 0.1..1.2 */;
+          three: sketch([BASE, DANCER], `// @panel hidden
+const pinHeight = 0.5 /* 0.1..1.2 */;
 const pinColor = '#e0a030' /* color */;
 const N = 56, pins = new THREE.InstancedMesh(new THREE.BoxGeometry(0.04, 1, 0.04), new THREE.MeshStandardMaterial({ color: '#e0a030' }), N * N), m = new THREE.Matrix4();
 scene.add(pins); camera.position.set(0, 1.6, 4.4);
@@ -200,7 +202,8 @@ tick = t => {
 each frame: if the right hand is within 5 cm of a beam (in x) and in the beam's plane
   cut the beam at the hand's height; if it was not cut a moment ago: start the note
 else: beam reaches full height`,
-          three: sketch([BASE, DANCER, AUDIO], `const reach = 0.06 /* 0.02..0.2 step:0.01 */;
+          three: sketch([BASE, DANCER, AUDIO], `// @panel hidden
+const reach = 0.06 /* 0.02..0.2 step:0.01 */;
 const voice = 'sawtooth' /* sawtooth|sine|square|triangle */
 const beamColor = '#ff2a55' /* color */;
 const scale = [0, 2, 4, 7, 9, 12, 14, 16, 19], beams = scale.map((st, i) => {
@@ -291,7 +294,8 @@ tick = t => {
           pseudo: `a ribbon for each of four joints, kept as its last n positions
 every frame: add the joint's position, drop the oldest, redraw
 length, colours and ground are controls: change them while it runs`,
-          three: sketch([BASE, DANCER], `const length = 240 /* 20..600 step:10 */;
+          three: sketch([BASE, DANCER], `// @panel hidden
+const length = 240 /* 20..600 step:10 */;
 const colors = ['#f2c14e', '#ff6a3d', '#7fd1b9', '#5b7fd1'] /* palette */;
 const ground = '#101010' /* color */;
 const joints = ['lwr', 'rwr', 'lan', 'ran'];

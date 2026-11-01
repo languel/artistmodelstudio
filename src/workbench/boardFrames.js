@@ -20,7 +20,8 @@ import { boardsOf, boardKind, boardById, findBoard, MAIN, opacityOf, blendOf, cs
 import { renderMarkdown, esc } from '../process/markdown.js';
 import { renderToCanvas } from '../process/render.js';
 import { collectThree, threeLoader } from '../process/threeModules.js';
-import { instrument, liveValues } from '../process/controls.js';
+import { instrument, liveValues, rewriteControl, panelOf } from '../process/controls.js';
+import { mountPanel, controlSpecs } from './controlsPanel.js';
 import { createCodeEditor } from './codeEditor.js';
 import { runScript } from '../process/script.js';
 import { icon } from './icons.js';
@@ -305,7 +306,7 @@ export class BoardFrames {
 
   release(id, f) {
     this.frames.delete(id);
-    clearTimeout(f.timer); f.editor?.destroy();
+    clearTimeout(f.timer); f.editor?.destroy(); f.panel?.destroy();
     if ((f.kind === 'p5' || f.kind === 'three') && f.running) { this.snap(f); setTimeout(() => f.el.remove(), 400); }   // its last picture first
     else f.el.remove();
   }
@@ -315,6 +316,7 @@ export class BoardFrames {
     f.el.classList.toggle('dark', dark);
     f.el.style.setProperty('--ground', b.ground || '#f3efe6');
     const raw = b.code || '';
+    if (f.kind === 'p5' || f.kind === 'three') this.syncPanel(f, b, raw);
     // p5 and three: values of controls the code declares are changed in the running sketch, so only the rest of the code starts it again.
     const inst = f.kind === 'p5' || f.kind === 'three' ? instrument(raw) : { code: raw, sig: raw, values: {} };
     const code = inst.code;
@@ -388,6 +390,35 @@ export class BoardFrames {
   }
 
   /**
+   * The control panel of a sketch on its own board: for a sketch with `// @panel open` (the panel shows) or `// @panel hidden` (the gear
+   * comes up when the pointer is near). What is changed in it is written into the board's code, like the code panel's sliders. Not while
+   * performing: Perform has its own.
+   */
+  syncPanel(f, b, raw) {
+    const mode = panelOf(raw);
+    const specs = mode === 'open' || mode === 'hidden' ? controlSpecs(raw) : [];
+    const want = specs.length > 0 && !this.app.performing;
+    const sig = want ? `${mode}|${JSON.stringify(specs)}` : '';
+    if (f.panelSig === sig) return;
+    f.panelSig = sig;
+    const wasOpen = f.panel?.isOpen?.();
+    f.panel?.destroy(); f.panel = null;
+    if (!want) return;
+    f.panel = mountPanel(specs, raw, (name, value) => this.setControl(f, name, value), { id: `ams-ui-${b.id}`, container: f.el, code: false, keys: false, start: (wasOpen === undefined ? mode : wasOpen ? 'open' : 'hidden') === 'hidden' ? 'hidden' : undefined });
+  }
+
+  /** A control of a sketch's own panel changed: its code says so, and the sketch (and its window) follow at once. */
+  setControl(f, name, value) {
+    const cur = boardById(this.app.store.doc, f.id);
+    if (!cur) return;
+    const code = rewriteControl(cur.code || '', name, value);
+    if (code === cur.code) return;
+    this.app.store.updateBoard(f.id, { code });
+    this.ctl(f.id, code);
+    f.panelSig = `${panelOf(code)}|${JSON.stringify(controlSpecs(code))}`;   // (its own change: the panel stays as it is)
+  }
+
+  /**
    * A code board: an editor on the code of another board (`b.of`), for teaching: what is written here is that board's code (and a
    * sketch changes as you type), and what changes that board's code from elsewhere (a slider, the Code panel) shows here.
    */
@@ -419,6 +450,9 @@ export class BoardFrames {
         }
       });
       f.lang = lang; f.lastCode = code;
+      // The code starts at its panel line (a sketch's controls are below its setup): what a lesson is about is the first thing seen.
+      const at = /^[ \t]*\/\/[ \t]*@panel\b/m.exec(code);
+      if (at) requestAnimationFrame(() => requestAnimationFrame(() => { try { f.editor?.scrollToLine(code.slice(0, at.index).split('\n').length); } catch { /* gone */ } }));
     }
     f.tk = tk;
     f.title = target ? `${target.title} · ${lang === 'ams' ? 'studio code' : lang === 'three' ? 'three.js' : lang === 'p5' ? 'p5.js' : lang}` : 'No board to show';
