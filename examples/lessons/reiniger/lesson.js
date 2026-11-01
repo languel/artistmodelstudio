@@ -409,7 +409,7 @@ at the end: the moon settles on his hand and is knocked out of the frame; the sk
 every frame: t = the film's clock; exposure = floor(t × fps)
   pose = ease between the two keys around the exposure's time, plus a tiny random error
   moon = rises with t; sky colour = from the key colours at t
-  paper opacity falls to 0 near the end; the hinges glow as stars; lines join them
+  paper opacity falls to 0 near the end; the hinges glow as stars
   stars appear by their own times; a few shooting stars cross at random times`,
           three: WHOLE(`
 // --- the film: a table of keyframes and a function that eases between them ---------------------------------------------
@@ -417,7 +417,7 @@ let play = true /* toggle */;
 let loop = true /* toggle */;
 let scrub = 0 /* 0..1 */;
 let fps = 8 /* 3..24 */;                                          // exposures a second (24 is smooth; 8 is on threes; 4 is halting)
-const DURATION = 16, HOLD = 2;                                      // seconds of film, and a rest before it starts again
+const DURATION = 16, HOLD = 5;                                      // seconds of film, and a rest before it starts again
 const ease = u => u * u * (3 - 2 * u);
 const BASE = { pelvis: 0, chest: 0, neck: 0, head: 0, armA: 0, foreA: 0, handA: 0, armB: 0, foreB: 0, handB: 0, thighA: 0, shinA: 0, footA: 0, thighB: 0, shinB: 0, footB: 0 };
 // Poses: an angle for every hinge (0 is the rest pose; a positive angle turns a piece counter-clockwise, away from the way he faces).
@@ -436,7 +436,7 @@ const DRIFT = { ...FALL, chest: -0.4, armA: 2.6, armB: 2.5, thighA: 0.2, thighB:
 //            time  pose    hip height  tilt   forward  lift
 const KEYS = [[0, SIT, 0.14, 0, 0, 0], [3.5, LOOK, 0.14, 0, 0, 0], [5.2, LOOK, 0.14, 0, 0, 0], [6.0, LEAN, 0.14, 0, 0, 0], [6.9, LEAN, 0.14, 0, 0, 0],
   [7.7, HALF, 0.95, 0, 0, 0], [8.2, HALF, 1.0, 0, 0, 0], [9.0, STAND, 1.75, 0, 0, 0], [9.5, STAND, 1.75, 0, 0, 0], [10.2, REACH, 1.78, 0, 0, 0], [11.0, STRETCH, 1.8, 0, 0, 0],
-  [11.5, STRETCH, 1.8, 0, 0, 0], [12.2, LUNGE, 1.68, -0.3, 0.7, 0], [13.0, FALL, 1.55, -0.75, 1.5, 0.15], [14.4, DRIFT, 1.5, -1.0, 2.0, 1.0], [DURATION, DRIFT, 1.5, -1.1, 2.3, 1.7]];
+  [11.5, STRETCH, 1.8, 0, 0, 0], [12.2, LUNGE, 1.68, -0.3, 0.7, 0], [13.0, FALL, 1.55, -0.75, 1.2, 0.15], [14.4, DRIFT, 1.5, -1.0, 1.3, 1.0], [DURATION, DRIFT, 1.5, -1.1, 1.5, 1.7]];
 const track = t => {                                                // the pose, hip height, tilt, step forward and lift at time t
   let i = 0; while (i < KEYS.length - 2 && t > KEYS[i + 1][0]) i++;
   const [t0, p0, h0, r0, f0, l0] = KEYS[i], [t1, p1, h1, r1, f1, l1] = KEYS[i + 1];
@@ -464,8 +464,6 @@ for (const n of Object.values(node)) {                              // each hing
   n.dot = new THREE.Mesh(new THREE.CircleGeometry(0.05, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }));   // the ring fills in as the paper goes
   n.dot.position.z = 0.3; n.group.add(n.dot);
 }
-const lines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false }));
-scene.add(lines);
 
 // Sky stars: each has a place and a time it appears. Shooting stars: a few, at random times, each a streak that fades.
 let rnd = 1;
@@ -483,14 +481,14 @@ const reseed = () => {
   streaks = Array.from({ length: 6 }, () => {
     const mesh = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false }));
     mesh.position.z = -4.7; scene.add(mesh);
-    return { mesh, at: 4 + rand() * 9.5, x: (rand() - 0.2) * FRAME * W / H * 0.5, y: 0.8 + rand() * 2.4, a: -0.35 - rand() * 0.5 };
+    return { mesh, at: 4 + rand() * 16, x: (rand() - 0.2) * FRAME * W / H * 0.5, y: 0.8 + rand() * 2.4, a: -0.35 - rand() * 0.5 };
   });
 };
-const showSky = (t, night) => {
+const showSky = (t, night, live) => {
   for (const m of skyStars) {
     const d = m.userData, on = ease(Math.min(1, Math.max(0, (t - d.at) / 1.5))) * night;
-    m.material.opacity = on * (0.65 + 0.35 * Math.sin(t * 3 + d.twinkle));
-    m.scale.setScalar(d.size * (0.8 + 0.4 * Math.sin(t * 2 + d.twinkle)));
+    m.material.opacity = on * (0.65 + 0.35 * Math.sin(live * 3 + d.twinkle));
+    m.scale.setScalar(d.size * (0.8 + 0.4 * Math.sin(live * 2 + d.twinkle)));
   }
   for (const s of streaks) {
     const u = (t - s.at) / 0.8;
@@ -517,17 +515,16 @@ renderer.render = (sc, cam) => {
   if (still > 10.2 && still < 12) node.armA.group.rotation.z += 0.035 * Math.sin(frameNo * 2.3);   // reaching: a tremble
   node.pelvis.group.position.y = k.hip;
   puppet.position.set(home.x + k.step, home.y + k.lift, 0);
-  puppet.rotation.z = k.tilt;
-  // the paper dissolves; the hinges become stars; lines join them
+  const after = Math.max(0, t - DURATION);                          // after the last key the film does not stop: he keeps drifting, slowly
+  puppet.position.y += after * 0.08; puppet.position.x += after * 0.03;
+  puppet.rotation.z = k.tilt - after * 0.015;
+  // the paper dissolves; the hinges become stars
   const fade = ease(Math.min(1, Math.max(0, (clock - 12.6) / 1.5)));
   figure.opacity = 1 - fade;
   for (const n of Object.values(node)) {                              // the white hinge rings stay; they fill in and glow, and are the stars
     n.pin.visible = true; n.dot.material.opacity = fade;
-    n.star.material.opacity = fade; n.star.scale.setScalar(0.4 + 1.1 * fade * (0.85 + 0.15 * Math.sin(clock * 5 + n.depth * 2)));
+    n.star.material.opacity = 0.45 * fade; n.star.scale.setScalar(0.35 + 0.6 * fade * (0.85 + 0.15 * Math.sin(t * 4 + n.depth * 2)));
   }
-  const pts = [];
-  for (const n of Object.values(node)) if (n.parent) { pts.push(node[n.parent].group.getWorldPosition(new THREE.Vector3()), n.group.getWorldPosition(new THREE.Vector3())); }
-  lines.geometry.setFromPoints(pts); lines.material.opacity = 0.5 * fade;
   // the sky, the moon, the hills' colour
   lightbox.material.color.copy(sky(clock));
   const rise = Math.min(1, Math.floor(clock * 12) / 12 / 11);        // the moon climbs on the diagonal, up and to the right (a frame at a time too)
@@ -541,7 +538,7 @@ renderer.render = (sc, cam) => {
   }
   moonDisc.visible = true; moonDisc.position.set(mx, my, -4.9);
   mid.material.color.setHex(0x1a1610).lerp(new THREE.Color(0x060810), night);
-  showSky(clock, night);
+  showSky(clock, night, t);
   reel(sc, cam);
 };`, { patch: c => c.replace(/^let joints = .*\n/m, 'const joints = false;\n').replace(/^let walk = .*\n/m, 'const walk = 0;\n').replace(/^let tint = .*\n/m, "const tint = '#f0d9a0';\n").replace(/^let moon = .*\n/m, 'const moon = true;\n') }) }
       ]
