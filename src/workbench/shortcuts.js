@@ -73,6 +73,7 @@ export function defaultCommands(app) {
     cmd('scene.next', 'View', 'Next scene', ['alt+pagedown'], () => app.scenes.step(1)),
     cmd('scene.prev', 'View', 'Previous scene', ['alt+pageup'], () => app.scenes.step(-1)),
     cmd('scene.new', 'File', 'New scene', ['mod+alt+n'], () => app.scenes.create()),
+    cmd('board.toAssets', 'File', 'Save the active board\'s picture to Assets, as a reference (its menu has the drawing and the code too)', ['mod+shift+s'], () => app.saveBoardToAssets(app.activeBoard, 'png')),
     cmd('board.next', 'View', 'Next board (PageDown), as in a presentation: from the active board down the list, whatever the mode', ['alt+arrowright', 'pagedown'], () => app.stepBoard(1)),
     cmd('board.prev', 'View', 'Previous board (PageUp)', ['alt+arrowleft', 'pageup'], () => app.stepBoard(-1)),
     cmd('view.toggle', 'View', 'Picture / process view', ['\\'], () => app.setViewMode(app.view.mode === 'picture' ? 'process' : 'picture')),

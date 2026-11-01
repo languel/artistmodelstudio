@@ -17,6 +17,7 @@ import { ProcessStore, createDocument, themeGround, normalizeDocument, normalize
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
 import { dslToProcess } from '../process/fromDsl.js';
 import { canvasBlob } from './ui.js';
+import { activeCodeEditor } from './codeEditor.js';
 import { renderToCanvas, renderDocument } from '../process/render.js';
 import { EXERCISES } from '../process/exercises.js';
 import { runScript } from '../process/script.js';
@@ -958,6 +959,16 @@ export class Workbench {
     this.goToBoard(bs[(this.slideIndex(bs) + delta + bs.length) % bs.length].id);
   }
 
+  /** The menu of ways to keep a board in Assets. */
+  assetItems(id) {
+    const b = boardById(this.store.doc, id), kind = boardKind(b);
+    return [
+      { label: 'Picture (PNG)', keys: this.shortcuts.label('board.toAssets'), hint: 'What the board shows now', run: () => this.saveBoardToAssets(id, 'png') },
+      kind === 'drawing' ? { label: 'Drawing (SVG)', hint: 'Its marks as vectors', run: () => this.saveBoardToAssets(id, 'svg') } : null,
+      b?.code ? { label: 'Code (snippet)', hint: 'Its code, to bring back into a board\'s code', run: () => this.saveBoardToAssets(id, 'code') } : null
+    ].filter(Boolean);
+  }
+
   /** Rename a board in place: on its title above the board, or in the Boards panel. */
   renameBoard(id) {
     const b = boardById(this.store.doc, id);
@@ -984,6 +995,7 @@ export class Workbench {
       { label: `${b.title}` },
       { label: 'Go to', run: () => this.goToBoard(id) },
       { label: 'Rename…', run: () => this.renameBoard(id) },
+      { label: 'Save to Assets', hint: 'Keep this board\'s output as a reference: its picture, its drawing (SVG) or its code (a snippet)', items: this.assetItems(id) },
       { label: 'Board', items: [
         { label: b.locked ? 'Unlock' : 'Lock', hint: 'Locked: its marks cannot be selected or changed, and it cannot be moved or resized', run: () => this.setBoardFlag(id, 'locked', !b.locked) },
         { label: b.hidden ? 'Show' : 'Hide', hint: 'Hidden: not drawn and not run (a dashed outline marks where it is)', run: () => this.setBoardFlag(id, 'hidden', !b.hidden) },
@@ -2297,6 +2309,11 @@ export class Workbench {
       this.log(`Placed the drawing “${a.title}” as a group (${ids.length} marks).`);
       return;
     }
+    if (a.kind === 'snippet') {                                  // a snippet goes into the code of the board being edited
+      const text = await a.blob.text(), ed = activeCodeEditor();
+      if (ed) { ed.insert(text); this.log(`Inserted “${a.title}” into the code.`); return; }
+      this.log('Open a board\'s code first (a snippet is inserted where the cursor is).'); return;
+    }
     if (a.kind === 'text') {
       const text = (await a.blob.text()).trim().slice(0, 4000);
       const el = this.store.addElement({ role: 'note', stage: this.activeStage.id, points: [[at[0], at[1], 0, 0.5]], text, note: structuredClone(this.defaults('note').note || {}), label: a.title, why: `from “${a.title}”` });
@@ -2845,6 +2862,38 @@ export class Workbench {
   }
 
   async saveToAssets() { return this.saveDocToAssets(this.store.doc); }
+
+  /**
+   * A board's output as an asset, to keep as a reference: its picture ('png': what the board shows now, a running sketch included),
+   * its drawing ('svg', for a drawing board) or its code ('code': a snippet, which can go back into a board's code).
+   */
+  async saveBoardToAssets(id = this.activeBoard || MAIN, how = 'png') {
+    const b = boardById(this.store.doc, id);
+    if (!b) return null;
+    const kind = boardKind(b), folder = this.assetPanel?.folder || '', tags = ['board', kind];
+    let blob, fields;
+    if (how === 'code') {
+      const text = String(b.code || '');
+      if (!text.trim()) { this.log(`“${b.title}” has no code to keep.`); return null; }
+      blob = new Blob([text], { type: 'text/plain' }); blob.kindHint = 'text';
+      fields = { title: b.title, kind: 'snippet', folder, tags: [...tags, 'snippet'], meta: { language: kind, board: b.title, lines: text.split('\n').length } };
+    } else if (how === 'svg') {
+      blob = new Blob([toSVG(boardDoc(this.store.doc, b.id), { mode: 'picture' })], { type: 'image/svg+xml' });
+      fields = { title: `${b.title} (svg)`, kind: 'import', folder, tags: [...tags, 'svg'], meta: { source: 'board', board: b.title } };
+    } else {
+      const f = this.frames?.frames?.get(b.id);
+      if (f?.iframe && ['p5', 'three'].includes(kind)) {          // a running sketch: ask the frame for what it shows now
+        this.frames.snap(f); await new Promise(r => setTimeout(r, 250));
+        const url = this.frames.snapshots.get(b.id);
+        if (url) blob = await (await fetch(url)).blob();
+      }
+      blob ||= await canvasBlob(this.boardPicture(b, 2, 'picture'));
+      fields = { title: b.title, kind: 'import', folder, tags: [...tags, 'picture'], meta: { source: 'board', board: b.title } };
+    }
+    const a = await this.assetStore.add(blob, fields);
+    this.log(`Saved “${a.title}” to Assets${how === 'code' ? ' as a snippet' : ''}.`);
+    return a;
+  }
 
   async saveDocToAssets(doc, { tags = [] } = {}) {
     const blob = canvasBlob(renderToCanvas(doc, { scale: Math.min(1, 1200 / Math.max(doc.artboard.width, doc.artboard.height)), mode: 'picture' }));

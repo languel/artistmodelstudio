@@ -16,9 +16,9 @@ import { rangeInput } from '../workbench/rangeInput.js';
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return null; };
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-const KIND_ICONS = { audio: 'play', text: 'script', take: 'play', walkthrough: 'play', dataset: 'database', process: 'paintBrush', variation: 'squaresPlus', painting: 'paintBrush', import: 'arrowUpTray', klee: 'photo' };
-const KIND_TIPS = { process: 'Process document (workbench)', variation: 'Variation (generated candidate)', painting: 'Painting (continuous mode)', import: 'Imported image', klee: 'Bundled Klee reference' };
-const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', walkthrough: 'Walkthroughs', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee', stream: 'Streams' };
+const KIND_ICONS = { audio: 'play', text: 'script', snippet: 'script', take: 'play', walkthrough: 'play', dataset: 'database', process: 'paintBrush', variation: 'squaresPlus', painting: 'paintBrush', import: 'arrowUpTray', klee: 'photo' };
+const KIND_TIPS = { process: 'Process document (workbench)', snippet: 'A board\'s code, kept: place it to insert it into the code being edited', variation: 'Variation (generated candidate)', painting: 'Painting (continuous mode)', import: 'Imported image', klee: 'Bundled Klee reference' };
+const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', snippet: 'Snippets', walkthrough: 'Walkthroughs', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee', stream: 'Streams' };
 
 export class AssetPanel {
   constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect, onPlaylist }) {
@@ -269,7 +269,7 @@ export class AssetPanel {
         const au = document.createElement('audio'); au.controls = true; au.src = URL.createObjectURL(a.blob); au.className = 'assets-preview-audio';
         body.append(au);
         info.textContent = a.meta?.file || 'audio';
-      } else if (a.kind === 'text' && a.blob) {
+      } else if ((a.kind === 'text' || a.kind === 'snippet') && a.blob) {
         const pre = document.createElement('pre'); pre.className = 'assets-preview-text';
         a.blob.text().then(t => { pre.textContent = t.slice(0, 4000) + (t.length > 4000 ? '\n…' : ''); });
         body.append(pre);

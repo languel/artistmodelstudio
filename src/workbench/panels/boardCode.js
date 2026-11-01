@@ -79,6 +79,7 @@ export function mountBoardCode(root, app) {
       h('span', { class: 'wb-muted wb-small wb-board-name', style: { flex: 1, cursor: b ? 'text' : '' }, title: b ? 'Double-click to rename the board (its snippet is saved under this name)' : '', ondblclick: e => { if (b) editInPlace(e.currentTarget, v => app.store.updateBoard(id, { title: v }), b.title, () => drawHead()); } }, b ? b.title : 'Select a board (its title) or go to one'),
       b ? h('select', { class: 'wb-select', title: 'What the board holds: a drawing (studio code), a Markdown document, an HTML page, a p5.js sketch or a three.js sketch', onchange: e => setKind(e.target.value) }, ...KIND_LABELS.map(([k, l]) => h('option', { value: k, selected: boardKind(b) === k }, l))) : null,
       ['frame', 'player'].includes(boardKind(b)) ? null : snippetSelect(b),
+      b ? h('button', { class: 'wb-icon-btn', title: 'Keep this board in Assets: its picture (Cmd+Shift+S), its drawing or its code', html: icon('save'), onclick: e => showMenu(app.assetItems(id), e.clientX, e.clientY) }) : null,
       ['p5', 'three', 'html'].includes(boardKind(b)) ? h('button', { class: 'wb-icon-btn', title: 'Export this sketch as a standalone page', html: icon('export'), onclick: e => showMenu(app.sketchExportItems(id), e.clientX, e.clientY) }) : null);
   };
 
