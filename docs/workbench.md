@@ -680,7 +680,13 @@ The same sketch can leave in several ways. What each one keeps:
 
 The same applies when you paste into a three.js or p5.js board's own editor: a page becomes its script, and CDN imports become the bare names. The studio bundles three.js r187 with its addons (controls, loaders, exporters, postprocessing, `lil-gui`, `Stats`, `RoomEnvironment`, the CSS2D and CSS3D renderers, `VRButton`…), so a demo that uses them runs offline. A demo that loads its own images or models by a relative path (`textures/…`, `models/…`) needs those files at a URL.
 
-**Still to come, as options of the export menu:** a project folder for native ES modules (an `index.html` with the import map and the version as a choice: the studio's, or `latest`, and the sketch as `src/main.js`), one for Vite (`package.json`, `vite.config.js`), and whether the panel comes along as a small module that reads the same comments. The reason to choose is the audience: a student copying the code needs the plain code and a sentence about the comments; a demo needs the panel.
+**Projects.** Export → *Project: ES modules (zip)*, *Project: Vite (zip)* (three.js) or *Project: page and sketch.js (zip)* (p5.js) makes a folder in a zip that opens elsewhere:
+- **ES modules:** `index.html` with the import map (`three` and `three/addons/`, no build step) and `src/main.js`, the sketch as written. Open it in Codevre, serve it with any static server (`npx serve .`), or copy the code and the import map into CodePen.
+- **Vite:** `package.json` (three installed), `vite.config.js`, `index.html` and `src/main.js`: `npm install`, `npm run dev`.
+- **p5.js:** `index.html` with p5.js from a CDN and `src/sketch.js`.
+- A `README.md` says what the folder is and why the comments next to values are only comments there.
+
+The export menu has **Project options**: *Library: the studio's version* (the sketch means the same thing there) or *latest* (it may change when the library does); and **With the controls panel**: `src/controls.js` makes the panel of the sketch's controls (H, the gear, `</>` for the code, as on an exported page), and the sketch carries the small `__ctl(...)` lines that let it change the values. Without the option the sketch is plain code, which is what a student should copy.
 
 ### Converting, baking, copying, pasting
 

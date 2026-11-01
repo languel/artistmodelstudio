@@ -13,7 +13,7 @@ const json = v => JSON.stringify(v).replace(/</g, '\\u003c');
 const escHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /** The page's own bridge: the controls' values, `ams.params`, and the window's size as p5.js names it. */
-const shim = (vals, title, p5) => `(() => {
+export const shim = (vals, title, p5) => `(() => {
   const vals = ${json(vals)}, sets = {}, params = { ...vals };
   window.__ctl = (k, f) => { sets[k] = f; if (k in vals) f(vals[k]); };
   window.__set = (k, v) => { vals[k] = params[k] = v; try { sets[k] && sets[k](v); } catch (e) { console.error(e); } };

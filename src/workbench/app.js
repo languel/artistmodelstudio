@@ -2616,8 +2616,40 @@ export class Workbench {
       { label: 'Page with controls', hint: 'The same, with the sliders, toggles, selects, colours and palettes the code declares as a small panel (H shows or hides it, Shift+H hides the button too; ?ui=0 starts it hidden)', run: () => this.exportSketch(id, true) },
       '-',
       { label: 'Copy as a page for CodePen, Codevre…', hint: `The code as a page that loads ${lib} from a CDN at the studio's version (an import map): paste it into another editor's HTML. The control comments are only comments there`, run: () => this.exportSketch(id, false, 'copy') },
-      { label: 'Page for other editors (file)', hint: `The same as a file: ${lib} from a CDN, small and readable`, run: () => this.exportSketch(id, false, 'cdn') }
+      { label: 'Page for other editors (file)', hint: `The same as a file: ${lib} from a CDN, small and readable`, run: () => this.exportSketch(id, false, 'cdn') },
+      '-',
+      ...(b.kind === 'three' ? [
+        { label: 'Project: ES modules (zip)', hint: 'A folder with an index.html (an import map for three and three/addons, no build step) and src/main.js: opens in Codevre or on any static server', run: () => this.exportProject(id, 'modules') },
+        { label: 'Project: Vite (zip)', hint: 'A Vite project with three installed: npm install, npm run dev', run: () => this.exportProject(id, 'vite') }
+      ] : [
+        { label: 'Project: page and sketch.js (zip)', hint: 'A folder with an index.html (p5.js from a CDN) and src/sketch.js', run: () => this.exportProject(id, 'modules') }
+      ]),
+      { label: 'Project options' },
+      { label: `Library: the studio's version`, hint: 'The project uses the version the studio runs, so the sketch means the same thing there', active: !this.projectPrefs().latest, run: () => this.setProjectPref('latest', false) },
+      { label: 'Library: latest', hint: 'The project asks for the latest version of the library (it may change when the library does)', active: this.projectPrefs().latest, run: () => this.setProjectPref('latest', true) },
+      { label: 'With the controls panel', hint: 'src/controls.js makes a panel of the sketch\'s controls; the sketch gets the lines that let it change the values (without it: plain code, the comments are only comments)', active: this.projectPrefs().panel, run: () => this.setProjectPref('panel', !this.projectPrefs().panel) }
     ];
+  }
+
+  /** What the project exports take: the library version (the studio's or the latest) and the controls panel. */
+  projectPrefs() { try { return { latest: false, panel: false, ...JSON.parse(localStorage.getItem('ams_export_project') || '{}') }; } catch { return { latest: false, panel: false }; } }
+  setProjectPref(key, value) {
+    const prefs = { ...this.projectPrefs(), [key]: value };
+    try { localStorage.setItem('ams_export_project', JSON.stringify(prefs)); } catch { /* ignore */ }
+    this.log(`Project exports: ${prefs.latest ? 'the latest library' : 'the library at the studio\'s version'}, ${prefs.panel ? 'with' : 'without'} the controls panel.`);
+  }
+
+  /** A sketch as a project folder in a zip (see exportProject.js). */
+  async exportProject(id, flavor) {
+    const b = boardById(this.store.doc, id);
+    if (!b) return;
+    try {
+      const [{ projectFiles, slugOf }, bf] = await Promise.all([import('./exportProject.js'), import('./boardFrames.js')]);
+      const prefs = this.projectPrefs();
+      const files = projectFiles({ kind: b.kind, flavor, title: b.title, code: b.code || '', ground: b.ground, versions: { three: await bf.threeVersion(), p5: await bf.p5Version() }, latest: prefs.latest, panel: prefs.panel });
+      download(new Blob([createZip(files)], { type: 'application/zip' }), `${slugOf(b.title)}.zip`, 'application/zip');
+      this.log(`“${b.title}” saved as ${slugOf(b.title)}.zip: ${files.map(f => f.name.split('/').slice(1).join('/')).join(', ')}.`);
+    } catch (err) { this.log(`Export failed: ${err.message}`, 'error'); }
   }
 
   async exportSketch(id, controls, how = 'file') {
