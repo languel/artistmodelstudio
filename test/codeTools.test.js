@@ -34,4 +34,16 @@ describe('format and minimize', () => {
     expect(r.text).toContain('/* 0..5 */');
     expect(findControls(r.text).filter(c => c.live).map(c => c.name).sort()).toEqual(['colors', 'size', 'speed', 'spin']);
   });
+
+  it('keeps every control attached to its value in code with semicolons (Prettier puts the comment after the semicolon)', async () => {
+    const src = "const speed = 1 /* 0..4 */;\nconst spin = true /* toggle */\nconst shape = 'torus' /* box|sphere */\nconst colors = ['#e0a030', '#c8664f'] /* palette */;\nconst ground = '#141414' /* color */;\nlet n = 3 /* 0..9 */, m = 4;\nfunction f(a,b){return a+b}\n";
+    const r = await formatSource(src, 'three', null, { width: 72 });
+    expect(r.error).toBeUndefined();
+    expect(r.text).toContain('function f(a, b) {');
+    const before = findControls(src).map(c => `${c.kind}:${c.name || ''}`).sort(), after = findControls(r.text).map(c => `${c.kind}:${c.name || ''}`).sort();
+    expect(after).toEqual(before);
+    expect(findControls(r.text).filter(c => c.live).length).toBe(5);   // the declarations stay live
+    expect(r.text).toContain('const speed = 1 /* 0..4 */;');
+    expect(r.text).not.toMatch(/;\s*\/\*\s*(0\.\.4|toggle|color|palette)/);
+  });
 });

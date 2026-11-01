@@ -94,6 +94,9 @@ export function mountBoardCode(root, app) {
   };
 
   const load = (next, force = false) => {
+    // A code board has no code of its own: the panel shows the code it is on.
+    const on = next && boardById(app.store.doc, next);
+    if (on && boardKind(on) === 'code' && on.of) next = on.of;
     if (!force && next === id) return;
     id = next;
     const b = id && boardById(app.store.doc, id);

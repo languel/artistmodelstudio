@@ -1004,3 +1004,11 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .cm-ts-doc code { display: block; white-space: pre-wrap; font-family: var(--font-mono, monospace); color: var(--wb-text); }
 .cm-ts-doc-text { margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; opacity: .8; max-width: 420px; }
 .cm-tooltip .cm-ts-doc { max-width: min(440px, calc(100vw - 32px)); }
+
+/* A code board: an editor on another board's code (a lesson's right column). It takes the pointer when it is the board you are on. */
+.wb-bframe-code { display: flex; flex-direction: column; background: var(--wb-panel-2, #1e1e1e); border-radius: 6px; }
+.wb-bframe-code.interactive { pointer-events: auto; }
+.wb-cb-head { flex: none; display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px 0 12px; color: var(--wb-muted); font: 12px var(--font-ui, system-ui, sans-serif); }
+.wb-cb-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wb-cb-host { flex: 1; min-height: 0; padding: 0 6px 6px; }
+.wb-cb-host .cm-editor { height: 100%; border-color: transparent; background: transparent; }

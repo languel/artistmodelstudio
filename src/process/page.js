@@ -56,7 +56,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<':
  * each row left to right): every document and program board, and drawings with marks, text or code.
  */
 export function pageBoards(doc) {
-  const list = boardsOf(doc).filter(b => !b.hidden && b.kind !== 'player' && b.kind !== 'playlist').filter(b => boardKind(b) !== 'drawing' || marksOf(doc, b.id).length || b.text || b.code || b.source || !b.main);
+  const list = boardsOf(doc).filter(b => !b.hidden && b.kind !== 'player' && b.kind !== 'playlist' && b.kind !== 'code').filter(b => boardKind(b) !== 'drawing' || marksOf(doc, b.id).length || b.text || b.code || b.source || !b.main);
   return list.sort((a, b) => (Math.abs(a.y - b.y) < 40 ? a.x - b.x : a.y - b.y));
 }
 
@@ -145,7 +145,7 @@ export function sceneHtml(doc, { title = doc.title || 'Untitled', intro = doc.me
     const kind = boardKind(b);
     if (kind === 'frame') {
       // A frame (a slide): its boards side by side, in rows as on the canvas, sized as they are there.
-      const inside = boardsInFrame(doc, b);
+      const inside = boardsInFrame(doc, b).filter(x => x.kind !== 'code');   // (an editor on a board's code: the board's own code box is on the page)
       // Rows: boards that overlap vertically sit side by side (left to right), as on the canvas.
       const rows = [];
       for (const x of [...inside].sort((a, c) => a.y - c.y)) {

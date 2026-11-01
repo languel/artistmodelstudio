@@ -16,11 +16,13 @@
  *   await ams.frame(name)                a source's current picture (an ImageBitmap)
  * Marks drawn on a document board stay visible over it (annotations).
  */
-import { boardsOf, boardKind, findBoard, MAIN, opacityOf, blendOf, cssBlend } from '../process/boards.js';
+import { boardsOf, boardKind, boardById, findBoard, MAIN, opacityOf, blendOf, cssBlend } from '../process/boards.js';
 import { renderMarkdown, esc } from '../process/markdown.js';
 import { renderToCanvas } from '../process/render.js';
 import { collectThree, threeLoader } from '../process/threeModules.js';
 import { instrument, liveValues } from '../process/controls.js';
+import { createCodeEditor } from './codeEditor.js';
+import { icon } from './icons.js';
 // p5.js for sketches, bundled with the studio as plain text (no network needed; the package does not
 // export the file by name), loaded when a sketch first runs.
 const loadP5 = () => import('../../node_modules/p5/lib/p5.min.js?raw').then(m => m.default);
@@ -203,7 +205,7 @@ export class BoardFrames {
     if (e.ctrlKey || e.metaKey) return;
     const z = this.canvas.cam.z, inside = (el, r = el.getBoundingClientRect()) => e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
     for (const f of this.frames.values()) {
-      const md = f.kind === 'markdown' && f.el.firstElementChild;
+      const md = (f.kind === 'markdown' && f.el.firstElementChild) || (f.kind === 'code' && f.editor?.view.scrollDOM);
       if (!md || !inside(f.el)) continue;
       const sideways = Math.abs(e.deltaX) > Math.abs(e.deltaY);
       const box = sideways ? [...md.querySelectorAll('pre')].find(p => p.scrollWidth > p.clientWidth + 1 && inside(p)) : md;
@@ -302,6 +304,7 @@ export class BoardFrames {
 
   release(id, f) {
     this.frames.delete(id);
+    clearTimeout(f.timer); f.editor?.destroy();
     if ((f.kind === 'p5' || f.kind === 'three') && f.running) { this.snap(f); setTimeout(() => f.el.remove(), 400); }   // its last picture first
     else f.el.remove();
   }
@@ -316,6 +319,7 @@ export class BoardFrames {
     const code = inst.code;
     if (f.kind === 'player') { this.refreshPlayer(f, b); return; }
     if (f.kind === 'playlist') { this.refreshPlaylist(f, b); return; }
+    if (f.kind === 'code') { this.refreshCode(f, b); return; }
     if (f.kind === 'markdown') {
       if (f.code !== code || f.version !== this.linkVersion) {
         f.code = code; f.version = this.linkVersion;
@@ -380,6 +384,56 @@ export class BoardFrames {
     // Its performance shown or not: the sketch times its draw() only while it is.
     const perf = Boolean(this.app.perfWanted?.(b));
     if (f.iframe && f.perf !== perf) { f.perf = perf; f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'perf', on: perf }, '*'); if (!perf) this.perf.delete(b.id); }
+  }
+
+  /**
+   * A code board: an editor on the code of another board (`b.of`), for teaching: what is written here is that board's code (and a
+   * sketch changes as you type), and what changes that board's code from elsewhere (a slider, the Code panel) shows here.
+   */
+  refreshCode(f, b) {
+    const target = b.of ? boardById(this.app.store.doc, b.of) : null;
+    const tk = target ? boardKind(target) : null;
+    const lang = { three: 'three', p5: 'p5', html: 'html', markdown: 'markdown', drawing: 'ams' }[tk] || 'p5';
+    f.of = b.of;
+    f.el.classList.toggle('interactive', (this.app.activeBoard || MAIN) === b.id);
+    const code = target?.code || '';
+    if (!f.editor) {
+      f.el.classList.add('wb-code-board');
+      const head = document.createElement('div'); head.className = 'wb-cb-head';
+      f.name = document.createElement('span'); f.name.className = 'wb-cb-name';
+      const mk = (glyph, title, fn) => { const x = document.createElement('button'); x.className = 'wb-icon-btn'; x.title = title; x.innerHTML = icon(glyph); x.addEventListener('click', fn); return x; };
+      head.append(f.name, document.createElement('span'), mk('format', 'Format the code (Alt+Shift+F)', () => f.editor.format()), mk('play', 'Run: start the sketch again (Cmd+Enter)', () => this.restart(f.of)));
+      head.children[1].style.flex = '1';
+      const host = document.createElement('div'); host.className = 'wb-cb-host';
+      f.el.append(head, host);
+      f.editor = createCodeEditor(host, {
+        value: code, language: lang,
+        onRun: () => this.restart(f.of),
+        onChange: () => {
+          if (f.loading) return;
+          f.dirty = true;
+          if (['p5', 'three'].includes(f.tk)) this.ctl(f.of, f.editor.value);   // (a control moved: the sketch follows at once)
+          clearTimeout(f.timer);
+          f.timer = setTimeout(() => this.pushCode(f), 300);
+        }
+      });
+      f.lang = lang; f.lastCode = code;
+    }
+    f.tk = tk;
+    if (f.name) f.name.textContent = target ? `${target.title} · ${lang === 'ams' ? 'studio code' : lang === 'three' ? 'three.js' : lang === 'p5' ? 'p5.js' : lang}` : 'No board to show';
+    if (f.lang !== lang) { f.lang = lang; f.editor.setLanguage(lang); }
+    // What the board's code is now, when it was changed somewhere else (not while this editor is being used).
+    if (target && !f.dirty && f.editor.value !== code && !f.editor.view.hasFocus) { f.loading = true; f.editor.value = code; f.loading = false; f.lastCode = code; }
+  }
+
+  /** The code board's text goes to the board it is on. */
+  pushCode(f) {
+    const t = f.of ? boardById(this.app.store.doc, f.of) : null;
+    f.dirty = false;
+    if (!t || (t.code || '') === f.editor.value) return;
+    const code = f.editor.value;
+    if (boardKind(t) === 'drawing') { if (this.app.runScript) this.app.store.runBoardCode(t.id, code, this.app.runScript); return; }
+    this.app.store.updateBoard(t.id, { code });
   }
 
   /** A playlist board: its list and controls; every edit writes the board's code. */

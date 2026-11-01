@@ -479,7 +479,7 @@ export class ProcessStore {
       for (const k of BOARD_FLAGS) if (k in patch) { if (patch[k]) b[k] = true; else delete b[k]; }
       if ('rate' in patch) { if (rateOf(patch)) b.rate = rateOf(patch); else delete b.rate; }
       patchFx(b, patch); patchLayer(b, patch);
-      for (const k of ['text', 'code', 'pseudo', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete b[k]; else b[k] = String(patch[k]); }
+      for (const k of ['text', 'code', 'pseudo', 'kind', 'of']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete b[k]; else b[k] = String(patch[k]); }
       // A p5 board is its sketch's canvas: resized, the sketch's createCanvas(w, h) follows.
       if (b.kind === 'p5' && b.code && ('width' in patch || 'height' in patch)) b.code = b.code.replace(/createCanvas\(\s*\d+\s*,\s*\d+/, `createCanvas(${Math.round(b.width)}, ${Math.round(b.height)}`);
     }, opts);

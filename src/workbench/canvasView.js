@@ -908,7 +908,7 @@ export class CanvasView {
         // (its title may be hidden, as on a lesson's slide, so the title is not the only way in).
         if (tool === 'select' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !this.hitTest(wx, wy)) {
           const sb = boardAt(this.store.doc, wx, wy);
-          if (sb && !sb.hidden && ['p5', 'three', 'html'].includes(sb.kind)) this.onBoardActivate?.(sb.id);
+          if (sb && !sb.hidden && ['p5', 'three', 'html', 'code'].includes(sb.kind)) this.onBoardActivate?.(sb.id);
         }
         if (this.selectedBoard && !this.hitTest(wx, wy) && !e.shiftKey) this.selectBoard(null);
       }

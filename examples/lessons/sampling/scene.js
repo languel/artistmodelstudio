@@ -40,8 +40,10 @@ function notesFor(b, sec, language, lesson, expl = false) {
     `## ${b.title}`,
     b.idea,
     b.pseudo ? quote(`[!abstract]- Pseudocode\n${fence(b.pseudo)}`) : '',
-    b.code || native || b.p5expl ? quote(`[!example]- ${p5Label}\n${other}`) : '',
-    `${b.three ? 'Its three.js code' : native || language === 'p5' || language === 'expl' ? 'Its p5.js code' : 'Its studio code'}: Code → Board.${ref ? ` Source: [[${ref.title}]].` : ''} Back to [[${intro(sec)}]].`
+    (b.code || native || b.p5expl) && !(lesson.codePanel && native) ? quote(`[!example]- ${p5Label}\n${other}`) : '',
+    lesson.codePanel && native
+      ? `The code is the editor below: it is this board's own code, so what you write changes the sketch. Back to [[${intro(sec)}]].`
+      : `${b.three ? 'Its three.js code' : native || language === 'p5' || language === 'expl' ? 'Its p5.js code' : 'Its studio code'}: Code → Board.${ref ? ` Source: [[${ref.title}]].` : ''} Back to [[${intro(sec)}]].`
   ].filter(Boolean).join('\n\n');
 }
 
@@ -87,6 +89,12 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
   const bibTitle = t => `Bibliography: ${t.toLowerCase()}`, bib1 = bibTitle(bibs[0].title);
   const mainId = LESSON.main || 'seurat';
   await app.scenes.create({ title });
+  // A lesson with a code panel shows the sketches' code in an editor: formatted (Prettier, for a column of this width), once.
+  const formatted = new Map();
+  if (LESSON.codePanel) {
+    const { formatSource } = await import('../../../src/workbench/codeTools.js');
+    for (const sec of LESSON.sections) for (const b of sec.boards) for (const key of ['three', 'p5']) if (b[key]) { const r = await formatSource(b[key], key, null, { width: 72 }); formatted.set(b, r.text || b[key]); }
+  }
   const st = app.store, run = app.runScript || runScript;
   for (const [name, def] of Object.entries(LESSON.sources || {})) {
     if (app.sources.def(name)) continue;
@@ -106,8 +114,8 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
     st.updateBoard(id, { text: b.idea, hideLabel: true, ...(b.pseudo ? { pseudo: b.pseudo } : {}), ...(sec?.diagram ? { codeMin: true } : {}) });
     if (b.reference) app.setBoardSource(id, b.source, 1, b.fit || 'cover');
     if (b.live) app.setBoardLive(id, true);
-    if (b.three) st.updateBoard(id, { kind: 'three', code: b.three });   // a three.js sketch
-    else if (b.p5) st.updateBoard(id, { kind: 'p5', code: b.p5 });   // written as a p5 sketch (a simulation)
+    if (b.three) st.updateBoard(id, { kind: 'three', code: formatted.get(b) || b.three });   // a three.js sketch
+    else if (b.p5) st.updateBoard(id, { kind: 'p5', code: formatted.get(b) || b.p5 });   // written as a p5 sketch (a simulation)
     else if (b.code) {
       if ((language === 'expl' || (language === 'p5' && expl)) && b.p5expl) {
         st.updateBoard(id, { kind: 'p5', code: b.p5expl });
@@ -146,8 +154,15 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
     let k = 1;
     for (const b of sec.boards.filter(x => !x.reference)) {
       frame(b.title, fx(k), y);
-      drawing(b, ...left(fx(k), y), sec);
-      doc(`${b.title} · notes`, fx(k) + PAD + BW + PAD, y + PAD, notesFor(b, sec, language, LESSON, expl));
+      const sketch = drawing(b, ...left(fx(k), y), sec);
+      const note = doc(`${b.title} · notes`, fx(k) + PAD + BW + PAD, y + PAD, notesFor(b, sec, language, LESSON, expl));
+      // The right column fills the frame: the notes above, and below them an editor on the sketch's own code.
+      if (LESSON.codePanel && (b.three || b.p5)) {
+        const NH = 300, GAP = 16;
+        st.updateBoard(note.id, { height: NH });
+        const cb = st.addBoard({ title: `${b.title} · code`, width: NW, height: FH - 2 * PAD - NH - GAP, x: fx(k) + PAD + BW + PAD, y: y + PAD + NH + GAP, ground: DARK });
+        st.updateBoard(cb.id, { kind: 'code', of: sketch, hideLabel: true });
+      }
       k++;
     }
   }

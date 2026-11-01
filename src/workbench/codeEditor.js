@@ -197,6 +197,8 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
     /** Switch the language ('ams', 'p5', 'markdown', 'html'). */
     setLanguage(l) { if (l !== language) { language = l; view.dispatch({ effects: lang.reconfigure(languageFor(l, getDocLines)) }); } },
     get language() { return language; },
+    /** Take the editor down (its listeners go with it). */
+    destroy() { view.destroy(); },
     /** Insert text at the cursor (it replaces the selection). */
     insert(text) { view.dispatch(view.state.replaceSelection(text)); },
     /** What is selected ('' if nothing). */

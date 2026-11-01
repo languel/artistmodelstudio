@@ -43,7 +43,8 @@ const DANCER = `function dancer(t) {
   return j;
 }
 const BONES = [['head', 'neck'], ['neck', 'lsh'], ['neck', 'rsh'], ['lsh', 'lel'], ['lel', 'lwr'], ['rsh', 'rel'], ['rel', 'rwr'], ['neck', 'hip'], ['hip', 'lhi'], ['hip', 'rhi'], ['lhi', 'lkn'], ['lkn', 'lan'], ['rhi', 'rkn'], ['rkn', 'ran']];
-// A cylinder between two points: how a limb, a beam or a costume part follows the joints.
+// A cylinder between two points: how a limb, a beam or a costume
+// part follows the joints.
 function between(mesh, a, b) { mesh.position.copy(a).lerp(b, 0.5); mesh.scale.y = a.distanceTo(b); mesh.quaternion.setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize()); }
 `;
 
@@ -73,6 +74,7 @@ export const LESSON = {
   subtitle: 'From a spinning cube to a body you can play, dress, draw with and paint with.',
   idea: 'A three.js scene is a few objects and a loop. Give it a body (joints in metres) and everything else, instruments, costumes, drawings, paint, is a rule that reads those joints.',
   main: 'route',
+  codePanel: true,   // each slide's right column: the notes, and an editor on the sketch's code
   sources: {},
   sections: [
     {

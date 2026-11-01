@@ -40,7 +40,7 @@ describe('the three.js lesson', () => {
     const src = readFileSync(new URL('../src/workbench/walkthroughs.js', import.meta.url), 'utf8');
     const block = src.slice(src.indexOf("id: 'lesson-threejs'"), src.indexOf("id: 'lesson-diffusion'"));
     const titles = new Set([...LESSON.sections.flatMap(s => s.boards).map(b => b.title), 'Three.js for body and sound', 'Bibliography']);
-    const asked = [...block.matchAll(/(?:goTo|openBoardCode)\(app, '([^']+)'\)/g)].map(m => m[1]);
+    const asked = [...block.matchAll(/goTo\(app, '([^']+)'\)/g)].map(m => m[1]);
     expect(asked.length).toBeGreaterThanOrEqual(14);
     for (const t of asked) expect(titles.has(t), t).toBe(true);
     // and the new boards are on the tour

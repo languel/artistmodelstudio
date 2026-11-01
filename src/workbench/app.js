@@ -987,6 +987,7 @@ export class Workbench {
         { label: b.perf ? 'Hide performance' : 'Show performance', hint: 'A line under it: runs a second, code time, source fps (measured only while shown)', run: () => this.setBoardFlag(id, 'perf', !b.perf) }
       ] },
       { label: 'Code', hint: 'The board’s own code: it redraws the board, live', run: () => this.openCode?.('board', id) },
+      ['p5', 'three', 'html'].includes(b.kind) ? { label: 'Code view', hint: 'A board beside this one that shows and edits its code, for teaching', run: () => this.addCodeBoard(id) } : null,
       this.sources.list.length ? { label: 'Source underneath', hint: 'A source shown under the board: a reference, not part of its picture', items: [{ label: 'None', active: !b.source, run: () => this.setBoardSource(id, null) }, ...this.sources.list.map(s => ({ label: s.name, active: b.source === s.name, run: () => this.setBoardSource(id, s.name, b.source ? b.sourceOpacity : 1) }))] } : null,
       boardKind(b) === 'drawing' ? { label: 'Mask', hint: 'Show the board through a source or another board (opt-in): the mask\'s light or alpha decides what shows', items: [
         { label: 'None', active: !b.maskWith, run: () => this.setBoardMask(id, null) },
@@ -2587,6 +2588,18 @@ export class Workbench {
       codes[b.id] = { pseudo: b.pseudo || '', studio: studio || '', p5: p5 || '' };
     }
     return sceneHtml(doc, { ...opts, media, pictures, p5Source, codes });
+  }
+
+  /** A code board beside a board: an editor on that board's code (one board has one). */
+  addCodeBoard(id) {
+    const b = boardById(this.store.doc, id);
+    if (!b) return null;
+    const have = boardsOf(this.store.doc).find(x => x.kind === 'code' && x.of === id);
+    if (have) { this.goToBoard(have.id); return have.id; }
+    const nb = this.store.addBoard({ title: `${b.title} · code`, width: 640, height: b.height, x: Math.round(b.x + b.width + 40), y: b.y, ground: '#141414' });
+    this.store.updateBoard(nb.id, { kind: 'code', of: id });
+    this.goToBoard(nb.id);
+    return nb.id;
   }
 
   /** Export items for a p5.js, three.js or HTML board: the sketch as a page that runs on its own. */

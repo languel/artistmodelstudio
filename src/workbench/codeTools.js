@@ -14,7 +14,7 @@ const errorOf = e => ({ message: String(e?.message || e).split('\n')[0].replace(
  * The text formatted. `range` ({ from, to }, offsets): only that part is formatted (Prettier widens it to whole statements).
  * Resolves { text } or { error: { message, line } }.
  */
-export async function formatSource(text, language, range = null) {
+export async function formatSource(text, language, range = null, opts = {}) {
   const parser = PARSER[language];
   if (!parser) return { error: { message: 'Nothing to format here.', line: 0 } };
   try {
@@ -22,8 +22,10 @@ export async function formatSource(text, language, range = null) {
     // Studio code is written without semicolons; keep whichever the text mostly uses.
     const lines = text.split('\n').filter(l => l.trim() && !/^\s*(\/\/|\/\*|\*)/.test(l));
     const semi = lines.filter(l => /;\s*(\/\/.*)?$/.test(l)).length * 2 >= lines.length;
-    const out = await format(text, { parser, plugins, semi, singleQuote: true, tabWidth: 2, printWidth: 90, embeddedLanguageFormatting: 'off', ...(range ? { rangeStart: range.from, rangeEnd: range.to } : {}) });
-    return { text: out };
+    const out = await format(text, { parser, plugins, semi, singleQuote: true, tabWidth: 2, printWidth: opts.width || 90, embeddedLanguageFormatting: 'off', ...(range ? { rangeStart: range.from, rangeEnd: range.to } : {}) });
+    // Prettier puts a comment after the semicolon (1; /* 0..4 */): a control's comment belongs right after its value (1 /* 0..4 */;).
+    const home = out.replace(/;([ \t]*)(\/\*([^*]*(?:\*(?!\/)[^*]*)*)\*\/)/g, (m, sp, c, body) => (isControlComment(body) ? ` ${c};` : m));
+    return { text: home };
   } catch (e) { return { error: errorOf(e) }; }
 }
 async function loadPlugins(parser) {

@@ -52,13 +52,6 @@ function goTo(app, title) {
   if (b) app.goToBoard(b.id, { animate: true });
 }
 
-/** Open a board's code in the Code panel, by its title. */
-function openBoardCode(app, title) {
-  // (a slide is a frame with the sketch's title: the sketch is the board that is not the frame, notes or text)
-  const b = app.store.doc.boards.find(x => x.title === title && ['three', 'p5', 'html'].includes(x.kind));
-  if (b) app.openCode?.('board', b.id);
-}
-
 /** A lesson (lessons.js) as the open scene: built the first time, opened after that. */
 async function openLesson(app, id, language = 'studio') {
   const { LESSONS, buildLesson } = await import('./lessons.js');
@@ -223,20 +216,20 @@ export const WALKTHROUGHS = [
         run: async ({ app, save }) => { await save(); await openLesson(app, 'threejs'); goTo(app, 'Three.js for body and sound'); }, hold: 1500 },
       { say: 'The route: ten programs in four steps. Here the body is a dancer made of numbers; in the course it is a camera and MediaPipe.',
         run: ({ app }) => goTo(app, '0.0 · The route') },
-      { say: 'The whole program: a scene, a camera, a renderer, one mesh and a loop. Drag the board to orbit. Its code is in Code → Board, and the editor helps: hover a three.js word for its docs, type a dot for what an object can do, Alt+Shift+F formats. The { } Snippets dropdown starts a board from a cube, orbit controls, particles or a sketch with controls.',
-        run: ({ app }) => { goTo(app, '0.1 · A spinning cube'); setTimeout(() => openBoardCode(app, '0.1 · A spinning cube'), 700); }, hold: 5000 },
+      { say: 'The whole program: a scene, a camera, a renderer, one mesh and a loop. Drag the board to orbit. Its code is the editor at the right, which is the board’s own code: change it and the cube changes. (The same editor is in Code → Board.) It helps: hover a three.js word for its docs, type a dot for what an object can do, Alt+Shift+F formats. The { } Snippets dropdown starts a board from a cube, orbit controls, particles or a sketch with controls.',
+        run: ({ app }) => goTo(app, '0.1 · A spinning cube'), hold: 5500 },
       { say: 'The same cube taken apart: three materials that answer light differently, and a light you can see because it is an object too.',
         run: ({ app }) => goTo(app, '0.2 · Anatomy of a scene'), hold: 3000 },
-      { say: 'Controls in code. A comment beside a value makes a control: 0..4 a slider, toggle a checkbox, a|b a menu (a shape name shows its picture), color a colour, palette a row of colours. They show above the code (or on its lines); drag one and the sketch changes while it runs, and the number in the code changes with it.',
-        run: ({ app }) => { goTo(app, '0.3 · Controls in code'); setTimeout(() => openBoardCode(app, '0.3 · Controls in code'), 700); }, hold: 5500 },
+      { say: 'Controls in code. A comment beside a value makes a control: 0..4 a slider, toggle a checkbox, a|b a menu (a shape name shows its picture), color a colour, palette a row of colours. They show in the editor, on its lines; drag one and the sketch changes while it runs, and the number in the code changes with it.',
+        run: ({ app }) => goTo(app, '0.3 · Controls in code'), hold: 5500 },
       { say: 'A body as data: joints become spheres and bones become cylinders. These numbers are what a tracker returns.',
         run: ({ app }) => goTo(app, '1.1 · A body in the scene'), hold: 3000 },
       { say: 'A pin screen: pins rise where the person is, and by how far. One instanced mesh, thousands of pins. pinHeight and pinColor are controls: try them.',
-        run: ({ app }) => { goTo(app, '1.2 · Pinboard'); setTimeout(() => openBoardCode(app, '1.2 · Pinboard'), 700); }, hold: 4000 },
+        run: ({ app }) => goTo(app, '1.2 · Pinboard'), hold: 4000 },
       { say: 'The body in metres, beside a two-metre ruler. A known distance is what lets the room become an instrument.',
         run: ({ app }) => goTo(app, '1.3 · The body in metres'), hold: 2500 },
       { say: 'The laser harp, after Jarre: beams in the air, cut where the hand reaches in. Click the board once to let it sound. Its reach is a slider, its voice a menu of waveforms and its beams a colour.',
-        run: ({ app }) => { goTo(app, '2.1 · Laser harp'); setTimeout(() => openBoardCode(app, '2.1 · Laser harp'), 700); }, hold: 4500 },
+        run: ({ app }) => goTo(app, '2.1 · Laser harp'), hold: 4500 },
       { say: 'A body drum, after Laurie Anderson: pads on the body, struck by a hand or foot that arrives fast.',
         run: ({ app }) => goTo(app, '2.2 · Body drum'), hold: 3500 },
       { say: 'Costumes as geometry sized to the body, after Schlemmer: a sphere, a cone, a disc and tubes.',
