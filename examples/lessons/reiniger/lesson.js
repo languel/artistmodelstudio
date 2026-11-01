@@ -400,13 +400,13 @@ renderer.render = (s, c) => {
     },
     {
       id: 'short', title: 'A short film', label: 'Examples',
-      text: 'Everything so far, in fourteen seconds: the same set, the same puppet, and a story told by **keyframes**. A keyframe is a pose at a time; the frames between are made by easing from one pose to the next. A sitting figure, a rising moon, a stand, a reach, a fall.',
+      text: 'Everything so far, in sixteen seconds: the same set, the same puppet, and a story told by **keyframes**. A keyframe is a pose at a time; the frames between are made by easing from one pose to the next. A sitting figure, a rising moon, a stand, a reach, a fall. And the **rhythm** of the film: it is photographed a frame at a time and moved only between exposures, so it moves in small jumps and hesitates.',
       boards: [
         { id: 'moon', title: '4.1 · The moon', ...BOARD,
-          idea: 'A figure sits on a dune and watches the moon rise. When it nears the edge of the sky he stands, reaches for it, and cannot. He loses his balance. As the sky goes dark the paper dissolves and only his hinges are left, a constellation. Stars appear as the light fades; now and then one falls. The film is a table of **keyframes**, each a pose and a time, and a function that eases between them. `play` runs it (and repeats it with `loop`); turn it off and `scrub` moves through the film by hand. `view` set to inspect lets you orbit the set.',
-          pseudo: `keys = [ (time, pose, hip height, tilt, lift), … ]       # sit, sit, stand, reach, fall, drift
-every frame: t = the film's clock
-  pose = ease between the two keys around t
+          idea: 'A figure sits on a dune and watches the moon rise. When it nears the edge of the sky he stands, reaches for it, and cannot. He loses his balance. As the sky goes dark the paper dissolves and only his hinges are left, a constellation. Stars appear as the light fades; now and then one falls. The film is a table of **keyframes**, each a pose and a time, and a function that eases between them. The puppet is moved only on each exposure, `fps` times a second (8 is on threes, as a hand-animated film is; 24 is smooth; 4 is halting), and every exposure is a little imprecise. `play` runs it (and repeats it with `loop`); turn it off and `scrub` moves through the film by hand. `view` set to inspect lets you orbit the set.',
+          pseudo: `keys = [ (time, pose, hip height, tilt, step, lift), … ]    # sit, look, lean, half-stand, stand, reach, stretch, lunge, fall, drift
+every frame: t = the film's clock; exposure = floor(t × fps)
+  pose = ease between the two keys around the exposure's time, plus a tiny random error
   moon = rises with t; sky colour = from the key colours at t
   paper opacity falls to 0 near the end; the hinges glow as stars; lines join them
   stars appear by their own times; a few shooting stars cross at random times`,
@@ -415,31 +415,42 @@ every frame: t = the film's clock
 let play = true /* toggle */;
 let loop = true /* toggle */;
 let scrub = 0 /* 0..1 */;
-const DURATION = 14, HOLD = 2;                                      // seconds of film, and a rest before it starts again
+let fps = 8 /* 3..24 */;                                          // exposures a second (24 is smooth; 8 is on threes; 4 is halting)
+const DURATION = 16, HOLD = 2;                                      // seconds of film, and a rest before it starts again
 const ease = u => u * u * (3 - 2 * u);
 const BASE = { pelvis: 0, chest: 0, neck: 0, head: 0, armA: 0, foreA: 0, handA: 0, armB: 0, foreB: 0, handB: 0, thighA: 0, shinA: 0, footA: 0, thighB: 0, shinB: 0, footB: 0 };
 // Poses: an angle for every hinge (0 is the rest pose; a positive angle turns a piece counter-clockwise, away from the way he faces).
-const SIT = { ...BASE, neck: -0.15, head: -0.35, armA: 0.35, foreA: 2.1, handA: 0.2, armB: 0.9, foreB: 0.8, thighA: 1.75, shinA: -2.95, footA: 1.2, thighB: 1.55, shinB: -2.8, footB: 1.25 };
-const STAND = { ...BASE, chest: 0.03, neck: -0.1, head: -0.35, armA: 0.15, foreA: 0.25, armB: -0.15, foreB: 0.2, thighA: 0.1, shinA: -0.05, footA: -0.05, thighB: -0.1, shinB: -0.05 };
-const REACH = { ...BASE, chest: -0.14, neck: -0.12, head: -0.5, armA: 2.75, foreA: 0.1, handA: 0.1, armB: -0.85, foreB: 0.3, thighA: 0.2, shinA: -0.25, footA: 0.3, thighB: -0.15, shinB: -0.05 };
-const FALL = { ...BASE, chest: 0.5, neck: 0.1, head: 0.25, armA: 2.3, foreA: 0.5, armB: 2.7, foreB: 0.3, handB: 0.3, thighA: 0.95, shinA: -0.7, footA: 0.2, thighB: 0.35, shinB: -1.0 };
-const DRIFT = { ...FALL, chest: 0.2, head: 0.1, armA: 1.7, armB: 2.2, thighA: 0.5, thighB: 0.2 };
-//            time  pose   hip height  tilt  lift
-const KEYS = [[0, SIT, 0.14, 0, 0], [7.2, SIT, 0.14, 0, 0], [8.3, STAND, 1.75, 0, 0], [9.1, REACH, 1.78, 0, 0], [9.9, REACH, 1.78, -0.02, 0],
-  [10.8, FALL, 1.6, 0.7, 0], [12, DRIFT, 1.5, 0.95, 0.5], [DURATION, DRIFT, 1.5, 1.1, 1.0]];
-const track = t => {                                                // the pose, hip height, tilt and lift at time t
+const SIT = { ...BASE, neck: 0.05, head: 0.2, armA: 0.35, foreA: 2.1, handA: 0.2, armB: 0.9, foreB: 0.8, thighA: 1.75, shinA: -2.95, footA: 1.2, thighB: 1.55, shinB: -2.8, footB: 1.25 };
+const LOOK = { ...SIT, neck: 0.15, head: 0.55, armA: 0.45, foreA: 1.9 };                                                          // chin up: the moon has cleared the hills
+const LEAN = { ...SIT, chest: -0.2, neck: 0.1, head: 0.35, armA: 0.9, foreA: 0.5, armB: 1.0, foreB: 0.4, thighA: 1.85, shinA: -3.0 };   // a hand on each knee, to push
+const HALF = { ...BASE, chest: -0.45, neck: 0.1, head: 0.3, armA: 1.0, foreA: 0.4, armB: 1.1, foreB: 0.35, thighA: 1.15, shinA: -1.8, footA: 0.65, thighB: 1.05, shinB: -1.7, footB: 0.6 };
+const STAND = { ...BASE, chest: 0.03, neck: 0.05, head: 0.35, armA: 0.15, foreA: 0.25, armB: -0.15, foreB: 0.2, thighA: 0.1, shinA: -0.05, footA: -0.05, thighB: -0.1, shinB: -0.05 };
+const REACH = { ...BASE, chest: -0.16, neck: 0.1, head: 0.5, armA: 2.35, foreA: 0.12, handA: 0.12, armB: -0.9, foreB: 0.3, thighA: 0.2, shinA: -0.25, footA: 0.3, thighB: -0.15, shinB: -0.05 };
+const STRETCH = { ...REACH, chest: -0.26, head: 0.65, armA: 2.55, handA: 0.3, thighA: 0.3, shinA: -0.3, footA: 0.9, thighB: -0.1 };          // on tiptoe: still too far
+const LUNGE = { ...BASE, chest: -0.5, neck: 0.1, head: 0.55, armA: 2.5, foreA: 0.1, armB: 2.1, foreB: 0.2, thighA: 0.75, shinA: -0.45, footA: 0.2, thighB: -0.55, shinB: -0.9, footB: 0.5 };   // a step after the moon
+const FALL = { ...BASE, chest: -0.6, neck: 0.1, head: 0.5, armA: 2.7, foreA: 0.1, armB: 2.3, foreB: 0.15, thighA: 0.5, shinA: -0.2, footA: -0.2, thighB: -0.9, shinB: -1.1, footB: 0.6 };
+const DRIFT = { ...FALL, chest: -0.4, armA: 2.6, armB: 2.5, thighA: 0.2, thighB: -0.4, shinB: -0.5 };
+// A film made on threes: the puppet is moved, photographed, held for three frames of the 24 a second, moved again. Halting, a little
+// hesitant: the keys hold (the same pose twice) where he thinks, and move quickly where he lunges.
+//            time  pose    hip height  tilt   forward  lift
+const KEYS = [[0, SIT, 0.14, 0, 0, 0], [3.5, LOOK, 0.14, 0, 0, 0], [5.2, LOOK, 0.14, 0, 0, 0], [6.0, LEAN, 0.14, 0, 0, 0], [6.9, LEAN, 0.14, 0, 0, 0],
+  [7.7, HALF, 0.95, 0, 0, 0], [8.2, HALF, 1.0, 0, 0, 0], [9.0, STAND, 1.75, 0, 0, 0], [9.5, STAND, 1.75, 0, 0, 0], [10.2, REACH, 1.78, 0, 0, 0], [11.0, STRETCH, 1.8, 0, 0, 0],
+  [11.5, STRETCH, 1.8, 0, 0, 0], [12.2, LUNGE, 1.68, -0.3, 0.7, 0], [13.0, FALL, 1.55, -0.75, 1.5, 0.15], [14.4, DRIFT, 1.5, -1.0, 2.5, 1.0], [DURATION, DRIFT, 1.5, -1.1, 3.1, 1.9]];
+const track = t => {                                                // the pose, hip height, tilt, step forward and lift at time t
   let i = 0; while (i < KEYS.length - 2 && t > KEYS[i + 1][0]) i++;
-  const [t0, p0, h0, r0, l0] = KEYS[i], [t1, p1, h1, r1, l1] = KEYS[i + 1];
+  const [t0, p0, h0, r0, f0, l0] = KEYS[i], [t1, p1, h1, r1, f1, l1] = KEYS[i + 1];
   const u = ease(Math.min(1, Math.max(0, (t - t0) / (t1 - t0)))), mix = (a, b) => a + (b - a) * u;
-  return { pose: Object.fromEntries(Object.keys(BASE).map(k => [k, mix(p0[k], p1[k])])), hip: mix(h0, h1), tilt: mix(r0, r1), lift: mix(l0, l1) };
+  return { pose: Object.fromEntries(Object.keys(BASE).map(k => [k, mix(p0[k], p1[k])])), hip: mix(h0, h1), tilt: mix(r0, r1), step: mix(f0, f1), lift: mix(l0, l1) };
 };
-// The sky: colours at times, and the moon's climb.
-const SKY = [[0, '#f0d9a0'], [5, '#e0b98e'], [8, '#b08e92'], [10, '#5b5a86'], [11.4, '#1d2750'], [13, '#0a1130']].map(([t, c]) => [t, new THREE.Color(c)]);
-const sky = t => { let i = 0; while (i < SKY.length - 2 && t > SKY[i + 1][0]) i++; const [a, ca] = SKY[i], [b, cb] = SKY[i + 1]; return ca.clone().lerp(cb, ease(Math.min(1, Math.max(0, (t - a) / (b - a))))); };
-const dark = t => Math.min(1, Math.max(0, (t - 3) / 9));            // 0 at the start, 1 when the sky is night
+const hash = (a, b) => { const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return x - Math.floor(x); };
 
-home.set(-1.2, -2.35);
-const dune = new THREE.Shape(); dune.moveTo(-4.2, -3.6); dune.quadraticCurveTo(-2.6, -2.4, -1.2, -2.4); dune.quadraticCurveTo(0.4, -2.4, 1.6, -3.6);
+// The sky: colours at times, and the moon's climb.
+const SKY = [[0, '#f0d9a0'], [5.5, '#e0b98e'], [9, '#b08e92'], [11.5, '#5b5a86'], [13, '#1d2750'], [15, '#0a1130']].map(([t, c]) => [t, new THREE.Color(c)]);
+const sky = t => { let i = 0; while (i < SKY.length - 2 && t > SKY[i + 1][0]) i++; const [a, ca] = SKY[i], [b, cb] = SKY[i + 1]; return ca.clone().lerp(cb, ease(Math.min(1, Math.max(0, (t - a) / (b - a))))); };
+const dark = t => Math.min(1, Math.max(0, (t - 3) / 11));            // 0 at the start, 1 when the sky is night
+
+home.set(-3.0, -2.35);
+const dune = new THREE.Shape(); dune.moveTo(-6, -3.6); dune.quadraticCurveTo(-4.4, -2.4, -3.0, -2.4); dune.quadraticCurveTo(-1.4, -2.4, -0.2, -3.6);
 scene.add(cut(dune, -0.2));
 const figure = new THREE.MeshBasicMaterial({ color: 0x0b0a0a, transparent: true, side: THREE.DoubleSide });
 for (const n of Object.values(node)) n.mesh.material = figure;     // the puppet's paper has a material of its own, so it can fade alone
@@ -496,14 +507,16 @@ renderer.render = (sc, cam) => {
   if (play && t > length) { if (loop) { startedAt = performance.now(); t = 0; } else t = DURATION; }
   const clock = Math.min(t, DURATION), run2 = Math.floor((performance.now() - startedAt) / 1000 / length);
   if (run !== (play ? startedAt : 0)) { run = play ? startedAt : 0; reseed(); }   // new random stars each time round
-  const k = track(clock), night = dark(clock) * dark(clock) * (3 - 2 * dark(clock));
-  for (const [id, a] of Object.entries(k.pose)) node[id].group.rotation.z = a;
+  // the puppet is photographed a frame at a time: its pose changes only on an exposure, and each is a little imprecise
+  const frameNo = Math.floor(clock * fps), still = frameNo / fps;
+  const k = track(still), night = dark(clock) * dark(clock) * (3 - 2 * dark(clock));
+  Object.keys(k.pose).forEach((id, i) => { node[id].group.rotation.z = k.pose[id] + 0.025 * (hash(frameNo, i) - 0.5); });
+  if (still > 10.2 && still < 12) node.armA.group.rotation.z += 0.035 * Math.sin(frameNo * 2.3);   // reaching: a tremble
   node.pelvis.group.position.y = k.hip;
-  puppet.position.set(home.x, home.y + k.lift, 0);
+  puppet.position.set(home.x + k.step, home.y + k.lift, 0);
   puppet.rotation.z = k.tilt;
-  puppet.position.x = home.x + Math.sin(k.tilt) * 1.7;           // (he tips back about his feet and drifts into the sky: keep him in the frame)
   // the paper dissolves; the hinges become stars; lines join them
-  const fade = ease(Math.min(1, Math.max(0, (clock - 10.5) / 1.3)));
+  const fade = ease(Math.min(1, Math.max(0, (clock - 12.6) / 1.5)));
   figure.opacity = 1 - fade;
   for (const n of Object.values(node)) { n.pin.visible = false; n.star.material.opacity = fade; n.star.scale.setScalar(0.4 + 1.1 * fade * (0.85 + 0.15 * Math.sin(clock * 5 + n.depth * 2))); }
   const pts = [];
@@ -511,7 +524,8 @@ renderer.render = (sc, cam) => {
   lines.geometry.setFromPoints(pts); lines.material.opacity = 0.5 * fade;
   // the sky, the moon, the hills' colour
   lightbox.material.color.copy(sky(clock));
-  moonDisc.visible = true; moonDisc.position.set(0.9, -1.5 + 4.6 * ease(Math.min(1, clock / 10.3)), -4.9);
+  const rise = Math.floor(clock * 12) / 12 / 11;                       // the moon climbs on the diagonal, up and to the right (a frame at a time too)
+  moonDisc.visible = true; moonDisc.position.set(-0.4 + 3.6 * ease(Math.min(1, rise)), -1.5 + 4.7 * ease(Math.min(1, rise)), -4.9);
   mid.material.color.setHex(0x1a1610).lerp(new THREE.Color(0x060810), night);
   showSky(clock, night);
   reel(sc, cam);
