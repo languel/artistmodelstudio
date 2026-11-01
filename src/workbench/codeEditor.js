@@ -151,7 +151,12 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
         ]),
         EditorView.updateListener.of(u => { if (u.docChanged) { onChange?.(u.state.doc.toString()); for (const f of docFns) f(); view.dispatch(setDiagnostics(u.state, [])); } }),
         // Keep workbench shortcuts (V, H, P…) from firing while typing.
-        EditorView.domEventHandlers({ keydown: e => { lastEditor = api; e.stopPropagation(); return false; }, mousedown: () => { lastEditor = api; return false; }, focus: () => { lastEditor = api; return false; } })
+        EditorView.domEventHandlers({ keydown: e => {
+          lastEditor = api; e.stopPropagation();
+          // Option+Shift+letter types a character on a Mac (Ï, Ò…), which a keymap skips: go by the physical key.
+          if (e.altKey && e.shiftKey && !e.metaKey && !e.ctrlKey && (e.code === 'KeyF' || e.code === 'KeyM')) { e.preventDefault(); if (e.code === 'KeyF') api.format(); else api.minimize(); return true; }
+          return false;
+        }, mousedown: () => { lastEditor = api; return false; }, focus: () => { lastEditor = api; return false; } })
       ]
     })
   });
