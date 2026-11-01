@@ -26,19 +26,27 @@ export function controlSpecs(code) {
  */
 export function mountPanel(specs, source, set, opts) {
   opts = opts || {};
+  // Light or dark: the studio's theme (a page of its own is dark).
+  const light = (opts.theme || (document.documentElement.dataset && document.documentElement.dataset.theme)) === 'light';
+  const P = light
+    ? { bg: 'rgba(247,245,241,.92)', fg: '#1d1b19', soft: 'rgba(0,0,0,.08)', soft2: 'rgba(0,0,0,.16)', field: '#ffffff', line: '#bdb8ae', accent: '#c8664f', veil: 'rgba(247,245,241,.88)' }
+    : { bg: 'rgba(20,20,22,.82)', fg: '#e8e8e8', soft: 'rgba(255,255,255,.1)', soft2: 'rgba(255,255,255,.2)', field: '#2a2a2e', line: '#4a4a50', accent: '#e0a030', veil: 'rgba(10,10,12,.84)' };
+  const chevron = 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M2.3 3.8 5 6.4 7.7 3.8" fill="none" stroke="' + P.fg + '" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>') + '")';
   const style = document.createElement('style');
-  style.textContent = '#ams-ui{position:fixed;top:10px;right:10px;z-index:2147483000;font:12px/1.4 system-ui,sans-serif;color:#e8e8e8;text-align:right}'
+  style.textContent = '#ams-ui{position:fixed;top:10px;right:10px;z-index:2147483000;font:12px/1.4 system-ui,sans-serif;color:' + P.fg + ';text-align:right;color-scheme:' + (light ? 'light' : 'dark') + '}'
     + '#ams-ui .z{position:fixed;top:0;right:0;width:150px;height:150px}'
-    + '#ams-ui button.g{position:relative;width:28px;height:28px;border:0;border-radius:14px;background:rgba(20,20,22,.75);color:#e8e8e8;font-size:15px;cursor:pointer;opacity:0;transition:opacity .25s}'
+    + '#ams-ui button.g{position:relative;width:28px;height:28px;border:0;border-radius:14px;background:' + P.bg + ';color:' + P.fg + ';font-size:15px;cursor:pointer;opacity:0;transition:opacity .25s}'
     + '#ams-ui.near button.g,#ams-ui.open button.g,#ams-ui button.g:focus-visible{opacity:1}'
-    + '#ams-ui .p{position:relative;margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(20,20,22,.82);backdrop-filter:blur(6px);display:grid;grid-template-columns:auto 130px auto;gap:6px 8px;align-items:center;text-align:left;max-height:80vh;overflow:auto}'
+    + '#ams-ui .p{position:relative;margin-top:6px;padding:8px 10px;border-radius:8px;background:' + P.bg + ';backdrop-filter:blur(6px);display:grid;grid-template-columns:auto 130px auto;gap:6px 8px;align-items:center;text-align:left;max-height:80vh;overflow:auto}'
     + '#ams-ui .p[hidden]{display:none}#ams-ui .l{opacity:.7}#ams-ui .v{opacity:.55;min-width:34px;text-align:right;font:11px ui-monospace,monospace}'
-    + '#ams-ui input[type=range]{width:100%;accent-color:#e0a030}#ams-ui input[type=color]{width:26px;height:20px;padding:0;border:0;background:none}#ams-ui select{width:100%;font:inherit;background:#2a2a2e;color:#e8e8e8;border:1px solid #4a4a50;border-radius:4px;padding:1px 3px}'
+    + '#ams-ui input[type=range]{width:100%;accent-color:' + P.accent + '}#ams-ui input[type=color]{width:26px;height:20px;padding:0;border:0;background:none}'
+    + '#ams-ui select{width:100%;font:inherit;appearance:none;-webkit-appearance:none;background:' + P.field + ' ' + chevron + ' no-repeat right 6px center/10px;color:' + P.fg + ';border:1px solid ' + P.line + ';border-radius:5px;padding:2px 22px 2px 6px}'
+    + '#ams-ui select option{background:' + P.field + ';color:' + P.fg + '}'
     + '#ams-ui .c{grid-column:2/4;display:flex;gap:4px}'
     + '#ams-ui .f{grid-column:1/-1;display:flex;justify-content:flex-end;gap:4px;margin-top:2px}'
-    + '#ams-ui .f button{height:24px;min-width:28px;padding:0 9px;border:0;border-radius:12px;background:rgba(255,255,255,.1);color:#e8e8e8;font:12px ui-monospace,monospace;cursor:pointer}'
-    + '#ams-ui .f button:hover{background:rgba(255,255,255,.2)}'
-    + '#ams-code{position:fixed;inset:0;z-index:2147482999;background:rgba(10,10,12,.84);backdrop-filter:blur(8px);color:#e8e8e8;display:flex}'
+    + '#ams-ui .f button{height:24px;min-width:28px;padding:0 9px;border:0;border-radius:12px;background:' + P.soft + ';color:' + P.fg + ';font:12px ui-monospace,monospace;cursor:pointer}'
+    + '#ams-ui .f button:hover{background:' + P.soft2 + '}'
+    + '#ams-code{position:fixed;inset:0;z-index:2147482999;background:' + P.veil + ';backdrop-filter:blur(8px);color:' + P.fg + ';display:flex}'
     + '#ams-code[hidden]{display:none}'
     + '#ams-code pre{flex:1;margin:0;padding:14px 56px 16px 16px;overflow:auto;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;tab-size:2}';
   document.head.append(style);

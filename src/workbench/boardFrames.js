@@ -66,7 +66,7 @@ const fileLoader = files => `(() => {
 })();`;
 
 /** The page a frame runs: the bridge, then (for p5) p5.js and its files, then the board's code. */
-function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false, threeMods = null, seed = null, ctl = {}) {
+function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false, threeMods = null, seed = null, ctl = {}, scale = 1) {
   const bridge = `(() => {
   // A sandboxed frame has no storage: reading it throws. Libraries that touch it (ml5, tfjs) get a
   // stand-in that forgets on reload.
@@ -97,6 +97,9 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
     if (!((e.altKey && (e.ctrlKey || e.metaKey)) || e.key === 'Escape' || (holdKeys && (e.key === 'h' || e.key === 'H') && !e.altKey && !e.ctrlKey && !e.metaKey))) return;
     parent.postMessage({ amsFrame: token, type: 'hotkey', ev: { key: e.key, code: e.code, keyCode: e.keyCode, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey } }, '*');
   }, true);
+  // How large the board is shown, as the pixel ratio: a canvas drawn at it stays sharp when the board is enlarged (Perform, zoom).
+  let ratio = ${Math.max(1, Number(scale) || 1)};
+  try { Object.defineProperty(window, 'devicePixelRatio', { get: () => ratio, configurable: true }); } catch { /* keep the browser's */ }
   let fwd = false;
   for (const t of ['pointermove', 'pointerdown', 'pointerup', 'mousemove', 'mousedown', 'mouseup', 'click', 'wheel', 'keydown', 'keyup']) {
     addEventListener(t, e => {
@@ -127,6 +130,7 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
     if (d.type === 'perf') perfOn = Boolean(d.on);
     if (d.type === 'fwd') fwd = Boolean(d.on);
     if (d.type === 'holdkeys') holdKeys = Boolean(d.on);
+    if (d.type === 'scale') { ratio = Math.max(1, Number(d.value) || 1); for (const r of window.__amsRenderers || []) { try { r.setPixelRatio(ratio); } catch { /* a renderer that is gone */ } } }
     if (d.type === 'ctl') { ctlVals[d.key] = params[d.key] = d.value; try { ctlSet[d.key]?.(d.value); } catch { /* the sketch's own error */ } }
     if (d.type === 'input' && d.ev) { try { replay(d.ev); } catch { /* an event the sketch cannot take */ } }
     if (d.type === 'run') { if (d.on && held) { const q = held; held = null; q.forEach(cb => raf0(cb)); } else if (!d.on && !held) held = []; }
@@ -227,6 +231,8 @@ export class BoardFrames {
       if (f && f.kind !== kind) { f.el.remove(); f = null; }
       if (!f) { f = this.create(b, kind); this.frames.set(b.id, f); }
       this.refresh(f, b);
+      // The board's zoom changed enough to matter: the sketch draws at the new pixel ratio.
+      if (f.iframe && f.running) { const want = this.pixelRatioFor(), had = f.scaleSent || 1; if (Math.abs(want - had) / had > 0.15) { f.scaleSent = want; try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'scale', value: want }, '*'); } catch { /* gone */ } } }
       const [sx, sy] = this.canvas.toScreen(b.x, b.y);
       f.el.style.width = `${b.width}px`; f.el.style.height = `${b.height}px`;
       if (!this.canvas.boardOnScreen(b, 0.05)) {
@@ -274,6 +280,8 @@ export class BoardFrames {
     const f = this.frames.get(id), b = boardsOf(this.app.store.doc).find(x => x.id === id);
     if (f?.iframe && b) { f.code = null; this.refresh(f, b); } else this.canvas.invalidate();
   }
+  /** The pixel ratio a board is shown at: its zoom times the screen's, between 1 and 4. */
+  pixelRatioFor() { return Math.min(4, Math.max(1, this.canvas.cam.z * (window.devicePixelRatio || 1))); }
   /** Send a running sketch the values its controls now have in `code` (the ones that changed), and the same to its windows. */
   ctl(id, code) {
     const f = this.frames.get(id);
@@ -362,7 +370,7 @@ export class BoardFrames {
       iframe.setAttribute('credentialless', '');
       iframe.title = b.title;
       f.perf = Boolean(this.app.perfWanted?.(b));
-      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods, this.seeds.get(b.id) ?? null, f.vals);
+      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods, this.seeds.get(b.id) ?? null, f.vals, f.scaleSent = this.pixelRatioFor());
       f.iframe = iframe;
       iframe.addEventListener('load', () => { this.sendPipe(f); this.sendForward(f); });   // (an output may be waiting for it)
       f.el.append(iframe);
