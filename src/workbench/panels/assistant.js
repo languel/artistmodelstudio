@@ -40,12 +40,34 @@ Reply with ONE JSON object and nothing else:
 Set "done": false only if you need to see the results of your actions before continuing.`;
 }
 
-function parseReply(text) {
-  const t = String(text || '').trim();
-  const block = t.match(/```(?:json)?\s*([\s\S]*?)```/)?.[1] || t;
-  const start = block.indexOf('{'), end = block.lastIndexOf('}');
-  if (start >= 0 && end > start) {
-    try { const j = JSON.parse(block.slice(start, end + 1)); return { say: j.say || '', actions: Array.isArray(j.actions) ? j.actions : [], done: j.done !== false }; } catch { /* fall through */ }
+/** Every top-level {...} in a text (string-aware brace matching), in order. */
+function objectsIn(text) {
+  const out = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== '{') continue;
+    let depth = 0, str = false;
+    for (let k = i; k < text.length; k++) {
+      const c = text[k];
+      if (str) { if (c === '\\') k++; else if (c === '"') str = false; continue; }
+      if (c === '"') str = true;
+      else if (c === '{') depth++;
+      else if (c === '}' && --depth === 0) { out.push(text.slice(i, k + 1)); i = k; break; }
+    }
+  }
+  return out;
+}
+
+/**
+ * The model's reply: the first JSON object that says or does something. Models stray: thinking tags, the object
+ * twice, prose around it; none of that is the reply, and a second copy must not run its actions again.
+ */
+export function parseReply(text) {
+  const t = String(text || '').replace(/<(think|thinking|antThinking)>[\s\S]*?<\/\1>/gi, '').replace(/<\/?(think|thinking|antThinking)>/gi, '').trim();
+  for (const src of objectsIn(t)) {
+    try {
+      const j = JSON.parse(src);
+      if (j && typeof j === 'object' && ('say' in j || 'actions' in j)) return { say: String(j.say || ''), actions: Array.isArray(j.actions) ? j.actions : [], done: j.done !== false };
+    } catch { /* not JSON: the next one */ }
   }
   return { say: t, actions: [], done: true };
 }

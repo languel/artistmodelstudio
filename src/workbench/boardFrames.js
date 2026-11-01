@@ -146,8 +146,12 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   });
 })();`;
   const style = `html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}canvas{display:block;width:100%!important;height:100%!important;object-fit:contain}`;   // a canvas of another size than the board: fitted whole
+  // A lesson written for a page expects its elements (#stage to draw in, #tabs #panel #tree for its controls, #hud, #inset):
+  // a three.js board that asks for them by id gets them, the controls in a small floating column.
+  const wanted = new Set([...(kind === 'three' ? code.matchAll(/getElementById\(\s*['"](stage|hud|inset|tabs|panel|tree)['"]\s*\)/g) : [])].map(m => m[1]));
+  const scaffold = !wanted.size ? '' : `<style>#stage{position:fixed;inset:0}#hud{position:fixed;left:8px;bottom:6px;font:11px ui-monospace,monospace;color:rgba(255,255,255,.6);pointer-events:none;z-index:2}#inset{position:fixed;right:12px;top:12px;border:1px solid #f2b84b;pointer-events:none;z-index:2}#side{position:fixed;left:8px;top:8px;width:min(260px,45%);max-height:calc(100% - 40px);overflow:auto;z-index:2;background:rgba(20,20,24,.82);color:#ddd;font:12px system-ui,sans-serif;padding:6px 8px;border-radius:6px}#side .row{display:flex;gap:6px;align-items:center;margin:3px 0}#side .row label{flex:0 0 70px}#side pre{white-space:pre-wrap;font-size:11px}#side button,#side select{font:inherit}#tabs{display:flex;flex-wrap:wrap;gap:4px}</style><div id="stage"></div><div id="hud"></div><div id="inset"></div><div id="side"><div id="tabs"></div><section id="panel"></section><div id="tree"></div></div>`;
   const body = kind === 'three'
-    ? `<script>${bridge}</script><script type="application/json" id="three-modules">${JSON.stringify(threeMods?.modules || {}).replace(/</g, '\\u003c')}</script><script type="module">${threeLoader(token)}</script>`
+    ? `${scaffold}<script>${bridge}</script><script type="application/json" id="three-modules">${JSON.stringify(threeMods?.modules || {}).replace(/</g, '\\u003c')}</script><script type="module">${threeLoader(token)}</script>`
     : kind === 'p5'
     ? `<script>${bridge}</script><script>${p5Source.replace(/<\/script/gi, '<\\/script')}</script><script>${fileLoader(files)}</script>${/\bml5\./.test(code) ? '<script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/ml5@1/dist/ml5.min.js"></script>' : ''}<script>${code.replace(/<\/script/gi, '<\\/script')}</script>`
     : `<script>${bridge}</script>${code}`;
