@@ -131,7 +131,8 @@ function glow() {                                                               
 
 // --- hold a piece and turn it about its hinge ------------------------------------------------------------------
 // The piece you grab is the one whose bone (hinge to tip) is nearest the pointer, so a thin hand or a hidden arm is as easy
-// to catch as the body. Nothing near a bone: the body itself, which moves the whole puppet (Shift: leans it).
+// to catch as the body. Nothing near a bone: the chest (it bends at the waist) or the hips (they move the whole puppet;
+// Shift tilts them instead; Alt moves the puppet from the chest too).
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 let held = null, over = null, grab = null;
 const camera = () => (view === 'film' ? film : eye);
@@ -158,7 +159,9 @@ renderer.domElement.addEventListener('pointerdown', e => {
   const at = world(e); if (!at) return;
   const part = reach(at);
   if (part) held = part;
-  else if ((held = inBody())) { grab = { at: at.clone(), home: home.clone(), lean: e.shiftKey }; }
+  else if ((held = inBody())) {                                         // the chest bends at the waist; the hips carry the puppet (Alt: from anywhere)
+    if (held === node.pelvis || e.altKey) { held = node.pelvis; grab = { at: at.clone(), home: home.clone(), lean: e.shiftKey && !e.altKey }; }
+  }
   if (held) renderer.domElement.setPointerCapture(e.pointerId);
 });
 renderer.domElement.addEventListener('pointermove', e => {
