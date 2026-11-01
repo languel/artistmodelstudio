@@ -617,8 +617,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, [contentedita
 /* Param sliders: on the lines (right side, over the text) or beside the preview */
 .cm-line.cm-has-param { position: relative; }
 /* After the line's text (never over it): a long line wraps and the sliders follow its end. */
-.cm-param { display: inline-flex; vertical-align: middle; margin-left: 10px; gap: 4px; padding: 2px 4px; border-radius: 6px; background: color-mix(in srgb, var(--wb-panel) 80%, transparent); }
-.cm-param .wb-range { width: 72px; }
+.cm-param { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 5px 0 1px; gap: 4px; }
+.cm-param .wb-range { width: 56px; }
 .wb-preview-row { display: flex; gap: 8px; align-items: stretch; flex: none; }
 .wb-ctl-strip { flex: 1 1 40%; min-width: 150px; display: flex; flex-direction: column; justify-content: center; gap: 5px; overflow: auto; }
 .wb-ctl-strip[hidden], .wb-code-view:not(.sliders-preview) .wb-ctl-strip { display: none; }
@@ -626,7 +626,16 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, [contentedita
 .wb-ctl-label { color: var(--wb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-ctl-row .wb-range { width: 100%; }
 .wb-ctl-choice > :nth-child(2) { justify-self: start; max-width: 100%; }
-.wb-color-input { width: 34px; height: 20px; padding: 0; border: 1px solid var(--wb-muted); border-radius: 3px; background: none; cursor: pointer; }
+.wb-color-input { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; padding: 0; margin: 0 2px; border: 1px solid var(--wb-muted); border-radius: 50%; background: none; cursor: pointer; flex: none; overflow: hidden; }
+.wb-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+.wb-color-input::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.wb-color-input::-moz-color-swatch { border: 0; border-radius: 50%; }
+.wb-color-input:hover { border-color: var(--wb-text); }
+.wb-pick { display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 5px; border: 1px solid var(--wb-muted); border-radius: 8px; background: transparent; color: var(--wb-text); font: 11px var(--font-ui, system-ui, sans-serif); cursor: pointer; }
+.wb-pick:hover { border-color: var(--wb-text); }
+.wb-pick-caret { color: var(--wb-muted); font-size: 9px; }
+.cm-param .wb-pick { padding: 0 4px; }
+.cm-param .wb-pick-text { display: none; }
 .wb-ctl-value { text-align: right; font: 10.5px var(--font-mono, ui-monospace, monospace); color: var(--wb-muted); }
 .wb-code-view { flex: 1 1 auto; }
 .wb-code-toggles { margin-left: auto; display: flex; gap: 2px; }

@@ -17,6 +17,7 @@ import { NUM, decimalsOf, fmt, stepFor, findControls, literalOf } from '../proce
 export { findControls };
 
 import { rangeInput, paintRange } from './rangeInput.js';
+import { showMenu } from './menu.js';
 export { rangeInput, paintRange };
 
 /**
@@ -32,19 +33,27 @@ function makeChoice(c, view) {
   let input;
   if (c.kind === 'toggle') { input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(c.value); }
   else if (c.kind === 'color') { input = document.createElement('input'); input.type = 'color'; input.className = 'wb-color-input'; input.value = /^#[0-9a-f]{6}$/i.test(c.value) ? c.value : '#888888'; }
-  else { input = document.createElement('select'); input.className = 'wb-select'; for (const o of c.options) { const op = document.createElement('option'); op.value = op.textContent = o; input.append(op); } input.value = c.value; }
+  else {
+    // A chip that opens the studio's menu (a native dropdown does not hold up inside the editor).
+    input = document.createElement('button'); input.type = 'button'; input.className = 'wb-pick'; input.value = c.value;
+    const text = document.createElement('span'); text.className = 'wb-pick-text'; text.textContent = c.value;
+    const caret = document.createElement('span'); caret.className = 'wb-pick-caret'; caret.textContent = '▾';
+    input.append(text, caret);
+    input.addEventListener('click', () => { const r = input.getBoundingClientRect(); showMenu(c.options.map(o => ({ label: o, active: o === input.value, run: () => { set(o); fire(); } })), r.left, r.bottom + 2); });
+  }
   const name = c.name || 'value';
   input.title = name;
   const read = () => (c.kind === 'toggle' ? input.checked : input.value);
   const listeners = [];
-  input.addEventListener(c.kind === 'color' ? 'input' : 'change', () => {
+  const fire = () => {
     const v = read();
     for (const f of listeners) f(v);
     const cur = findControls(view.state.doc.toString()).find(x => x.id === c.id);
     if (cur) view.dispatch({ changes: { from: cur.from, to: cur.to, insert: literalOf(cur, v) } });
-  });
+  };
+  if (c.kind !== 'select') input.addEventListener(c.kind === 'color' ? 'input' : 'change', fire);
   for (const ev of ['mousedown', 'pointerdown', 'keydown', 'click']) input.addEventListener(ev, e => e.stopPropagation());
-  const set = v => { if (c.kind === 'toggle') input.checked = Boolean(v); else input.value = String(v); };
+  function set(v) { if (c.kind === 'toggle') input.checked = Boolean(v); else { input.value = String(v); const t = input.querySelector('.wb-pick-text'); if (t) t.textContent = String(v); } }
   return { input, step: 1, name, onInput: f => listeners.push(f), value: read, set };
 }
 
@@ -74,7 +83,7 @@ function makeSlider(c, view, liveSrc) {
 /** The sliders of one line, overlaid on the line's right side. */
 class LineControls extends WidgetType {
   constructor(cs, view, live) { super(); this.cs = cs; this.view = view; this.live = live; }
-  eq(o) { return o.live === this.live && o.cs.length === this.cs.length && o.cs.every((c, i) => c.id === this.cs[i].id && c.min === this.cs[i].min && c.max === this.cs[i].max); }
+  eq(o) { return o.live === this.live && o.cs.length === this.cs.length && o.cs.every((c, i) => c.id === this.cs[i].id && c.kind === this.cs[i].kind && c.min === this.cs[i].min && c.max === this.cs[i].max && String(c.options) === String(this.cs[i].options)); }
   toDOM() {
     const wrap = document.createElement('span');
     wrap.className = 'cm-param';
@@ -85,16 +94,14 @@ class LineControls extends WidgetType {
 }
 
 const lineMark = Decoration.line({ class: 'cm-has-param' });
+// Each control sits just before the value it sets (after the closing bracket for a params block).
 function build(view, live) {
-  const byLine = new Map();
+  const out = [], lines = new Set();
   for (const c of findControls(view.state.doc.toString())) {
-    const line = view.state.doc.lineAt(c.from);
-    if (!byLine.has(line.from)) byLine.set(line.from, { line, cs: [] });
-    byLine.get(line.from).cs.push(c);
-  }
-  const out = [];
-  for (const { line, cs } of [...byLine.values()].sort((a, b) => a.line.from - b.line.from)) {
-    out.push(lineMark.range(line.from), Decoration.widget({ widget: new LineControls(cs, view, live), side: 1 }).range(line.to));
+    const pos = c.kind === 'param' ? c.at : c.from;
+    const line = view.state.doc.lineAt(pos);
+    if (!lines.has(line.from)) { lines.add(line.from); out.push(lineMark.range(line.from)); }
+    out.push(Decoration.widget({ widget: new LineControls([c], view, live), side: c.kind === 'param' ? 1 : -1 }).range(pos));
   }
   return Decoration.set(out, true);
 }
