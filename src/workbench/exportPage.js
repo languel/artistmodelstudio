@@ -64,3 +64,18 @@ export function modulePage({ kind, title, code, ground, version, p5Version }) {
   }
   return `${head}\n<script src="https://cdn.jsdelivr.net/npm/p5@${p5Version}/lib/p5.min.js"></script>\n</head><body>\n${shim}<script>\n${code.replace(/<\/script/gi, '<\\/script').trimEnd()}\n</script>\n</body></html>\n`;
 }
+
+/**
+ * A three.js sketch as an app.js for a page whose import map only names `three` (Codevre's "Three.js" template:
+ * <script type="importmap">{"imports":{"three":"https://esm.sh/three@latest"}}</script> and <script type="module" src="./app.js">).
+ * The addons are imported from esm.sh with `three` left bare (?external=three), so they share the page's one three.js.
+ */
+export function appJsFor(code) {
+  const swap = spec => {
+    const addon = /^three\/(?:addons|examples\/jsm)\/(.+)$/.exec(spec);
+    if (addon) return `https://esm.sh/three@latest/addons/${addon[1]}?external=three`;
+    if (spec === 'lil-gui') return 'https://esm.sh/lil-gui';
+    return spec;
+  };
+  return code.replace(/(\bfrom\s*|\bimport\s*\(?\s*)(['"])([^'"\n]+)\2/g, (all, pre, q, spec) => `${pre}${q}${swap(spec)}${q}`);
+}

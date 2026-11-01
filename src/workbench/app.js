@@ -2617,6 +2617,10 @@ export class Workbench {
       '-',
       { label: 'Copy as a page for CodePen, Codevre…', hint: `The code as a page that loads ${lib} from a CDN at the studio's version (an import map): paste it into another editor's HTML. The control comments are only comments there`, run: () => this.exportSketch(id, false, 'copy') },
       { label: 'Page for other editors (file)', hint: `The same as a file: ${lib} from a CDN, small and readable`, run: () => this.exportSketch(id, false, 'cdn') },
+      ...(b.kind === 'three' ? [
+        { label: 'app.js for Codevre\'s Three.js template (copy)', hint: 'The code as the app.js of Codevre\'s Three.js template (an import map for three only): three/addons imports point at esm.sh, with three shared. Paste it over app.js', run: () => this.exportSketch(id, false, 'appjs-copy') },
+        { label: 'app.js (file)', hint: 'The same as a file', run: () => this.exportSketch(id, false, 'appjs') }
+      ] : []),
       '-',
       ...(b.kind === 'three' ? [
         { label: 'Project: ES modules (zip)', hint: 'A folder with an index.html (an import map for three and three/addons, no build step) and src/main.js: opens in Codevre or on any static server', run: () => this.exportProject(id, 'modules') },
@@ -2658,6 +2662,13 @@ export class Workbench {
     const name = `${this.slug()}-${String(b.title).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.replace(/-+$/, '');
     try {
       if (b.kind === 'html') { download(/^\s*<!doctype/i.test(b.code || '') ? b.code : `<!doctype html>\n${b.code || ''}`, `${name}.html`, 'text/html'); return; }
+      if (how === 'appjs' || how === 'appjs-copy') {
+        const { appJsFor } = await import('./exportPage.js');
+        const js = appJsFor(b.code || '');
+        if (how === 'appjs-copy') { await navigator.clipboard.writeText(js); this.log(`“${b.title}” copied as an app.js for Codevre's Three.js template: paste it over app.js (the control comments are only comments there).`); }
+        else { download(js, 'app.js', 'text/javascript'); this.log(`“${b.title}” saved as app.js for Codevre's Three.js template.`); }
+        return;
+      }
       if (how === 'copy' || how === 'cdn') {
         const [{ modulePage }, bf] = await Promise.all([import('./exportPage.js'), import('./boardFrames.js')]);
         const html = modulePage({ kind: b.kind, title: b.title, code: b.code || '', ground: b.ground, version: await bf.threeVersion(), p5Version: await bf.p5Version() });

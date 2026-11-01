@@ -137,3 +137,13 @@ describe('a page for other editors', () => {
     expect(modulePage({ kind: 'three', title: 't', code: "const s = '</script><b>';", version: '0.187.0' })).not.toMatch(/'<\/script>/);
   });
 });
+
+describe('app.js for a template that maps only three', () => {
+  it('points addons at esm.sh with three shared, and leaves three alone', async () => {
+    const { appJsFor } = await import('../src/workbench/exportPage.js');
+    const out = appJsFor(`import * as THREE from 'three';\nimport { OrbitControls } from "three/addons/controls/OrbitControls.js";\nimport GUI from 'lil-gui';\nconst x = 1;`);
+    expect(out).toContain(`from 'three';`);
+    expect(out).toContain('https://esm.sh/three@latest/addons/controls/OrbitControls.js?external=three');
+    expect(out).toContain(`from 'https://esm.sh/lil-gui'`);
+  });
+});
