@@ -19,6 +19,21 @@ const eye = new THREE.PerspectiveCamera(40, W / H, 0.1, 100);
 eye.position.set(5, 2.5, 9);
 const controls = new OrbitControls(eye, renderer.domElement);
 
+// --- the lightbox: a glowing sheet behind everything, and the moon, which is a hole in the paper -------------------
+const lightbox = new THREE.Mesh(new THREE.PlaneGeometry(40, 24), new THREE.MeshBasicMaterial({ map: glow(), depthWrite: false }));
+lightbox.position.z = -5;
+scene.add(lightbox);
+const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(0.9, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }));
+moonDisc.position.set(3.4, 2.1, -4.9);
+scene.add(moonDisc);
+function glow() {                                                               // the lightbox: bright in the middle, falling off at the edges
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const g = c.getContext('2d'), r = g.createRadialGradient(256, 256, 20, 256, 256, 360);
+  r.addColorStop(0, '#ffffff'); r.addColorStop(0.55, '#bdbdbd'); r.addColorStop(1, '#4a4a4a');
+  g.fillStyle = r; g.fillRect(0, 0, 512, 512);
+  return new THREE.CanvasTexture(c);
+}
+
 // --- paper -----------------------------------------------------------------------------------------------------
 const paper = (color = 0x0b0a0a, opacity = 1) => new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, side: THREE.DoubleSide, depthWrite: opacity === 1 });
 const BLACK = paper();
@@ -120,20 +135,6 @@ for (let i = 0; i < 26; i++) {                                                  
   reeds.add(cut(s, 1.2));
 }
 scene.add(far, mid, ground, reeds);
-
-const lightbox = new THREE.Mesh(new THREE.PlaneGeometry(40, 24), new THREE.MeshBasicMaterial({ map: glow(), depthWrite: false }));
-lightbox.position.z = -5;
-scene.add(lightbox);
-const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(0.9, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }));
-moonDisc.position.set(3.4, 2.1, -4.9);
-scene.add(moonDisc);
-function glow() {                                                               // the lightbox: bright in the middle, falling off at the edges
-  const c = document.createElement('canvas'); c.width = c.height = 512;
-  const g = c.getContext('2d'), r = g.createRadialGradient(256, 256, 20, 256, 256, 360);
-  r.addColorStop(0, '#ffffff'); r.addColorStop(0.55, '#bdbdbd'); r.addColorStop(1, '#4a4a4a');
-  g.fillStyle = r; g.fillRect(0, 0, 512, 512);
-  return new THREE.CanvasTexture(c);
-}
 
 // --- hold a piece and turn it about its hinge ------------------------------------------------------------------
 // The piece you grab is the one whose bone (hinge to tip) is nearest the pointer, so a thin hand or a hidden arm is as easy

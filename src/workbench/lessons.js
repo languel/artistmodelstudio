@@ -7,6 +7,7 @@ export const LESSONS = [
   { id: 'sampling', title: 'Pointillism and Expressionism, by sampling', summary: 'Seurat, Munch and Muybridge as sources: sample a picture, decide what to draw there. Diagrams of the eye, ten examples, a body as a source.', languages: ['studio', 'p5', 'expl'] },
   { id: 'sampling-expl', title: 'Pointillism and Expressionism, by sampling (p5.js expl)', summary: 'The sampling lesson with barebones, copy-pasteable p5.js code under pseudocode for each art demo.', languages: ['studio', 'p5', 'expl'] },
   { id: 'threejs', title: 'Three.js for body and sound', summary: 'From a spinning cube to a body you can play, dress, draw with and paint with: ten three.js boards (a dancer made of numbers stands in for the tracker; no camera or models), with the course repository linked.', languages: ['studio'] },
+  { id: 'reiniger', title: 'The silhouette film', summary: 'Rebuild the method behind The Adventures of Prince Achmed: a lightbox, paper, hinges, a puppet, a set in layers, two cameras and a walk, step by step in three.js (original drawings; outside material only if clearly public domain).', languages: ['studio'] },
   { id: 'diffusion', title: 'Diffusion models: from noise to picture', summary: 'Six diagrams (forward and reverse, the schedule, training, sampling, latent space, the score) and five p5.js simulations, with a bibliography.', languages: ['studio'] }
 ];
 
@@ -19,7 +20,7 @@ export async function buildLesson(app, id = 'sampling', { language = 'studio', e
   const baseId = id.replace(/-expl$/, '');
   const [{ buildLessonScene }, lesson] = await Promise.all([
     import('../../examples/lessons/sampling/scene.js'),
-    baseId === 'diffusion' ? import('../../examples/lessons/diffusion/lesson.js').then(m => m.LESSON) : baseId === 'threejs' ? import('../../examples/lessons/threejs/lesson.js').then(m => m.LESSON) : null
+    baseId === 'diffusion' ? import('../../examples/lessons/diffusion/lesson.js').then(m => m.LESSON) : baseId === 'threejs' ? import('../../examples/lessons/threejs/lesson.js').then(m => m.LESSON) : baseId === 'reiniger' ? import('../../examples/lessons/reiniger/lesson.js').then(m => m.LESSON) : null
   ]);
   return buildLessonScene(app, { language, expl: isExpl, ...(lesson ? { lesson } : {}) });
 }
