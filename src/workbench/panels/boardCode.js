@@ -7,14 +7,14 @@
  *   p5        a p5.js sketch, running while the board is live (window.ams: the bridge to the studio)
  * The three document kinds show as you type.
  */
-import { h } from '../ui.js';
+import { h, editInPlace } from '../ui.js';
 import { icon } from '../icons.js';
 import { createCodeEditor } from '../codeEditor.js';
 import { controlStrip } from '../codeParams.js';
 import { runScript } from '../../process/script.js';
 import { boardById, boardKind, boardsInFrame, MAIN } from '../../process/boards.js';
 import { showMenu } from '../menu.js';
-import { askText } from '../dialog.js';
+import { askConfirm } from '../dialog.js';
 import { TEMPLATES, snippetsFor, saveSnippet, deleteSnippet, isBlank } from '../snippets.js';
 
 const LANGUAGE = { drawing: 'ams', markdown: 'markdown', html: 'html', p5: 'p5', three: 'three', frame: 'markdown', playlist: 'p5' };
@@ -49,41 +49,37 @@ export function mountBoardCode(root, app) {
   // Sliders beside the preview: here the board is the preview, so they sit above the code.
   strip.append(controlStrip(editor));
 
-  // Snippets: the catalog for this kind of board, and the user's own.
-  const insertSnippet = sn => {
-    const kind = kindOf();
-    if (isBlank(kind, editor.value)) editor.value = sn.code; else editor.insert(sn.code);
-    editor.focus();
-  };
-  const snippetMenu = e => {
-    const kind = kindOf(), { builtin, user } = snippetsFor(kind);
-    const picked = editor.selectionText();
-    const saveHere = async () => {
-      const text = picked || editor.value;
-      if (!text.trim()) return;
-      const title = await askText(picked ? 'Name this snippet (the selection)' : 'Name this snippet (all the code)', '');
-      if (title) { saveSnippet(kind, title, text); app.log?.(`Snippet “${title}” saved for ${kind} boards.`); }
-    };
-    showMenu([
-      ...builtin.map(s => ({ label: s.title, hint: s.note, run: () => insertSnippet(s) })),
-      ...(user.length ? ['-', { label: 'Yours' }, ...user.map(s => ({ label: s.title, run: () => insertSnippet(s) }))] : []),
-      '-',
-      { label: picked ? 'Save the selection as a snippet…' : 'Save the code as a snippet…', run: saveHere },
-      ...(user.length ? [{ label: 'Remove a snippet', items: user.map(s => ({ label: s.title, run: () => deleteSnippet(kind, s.id) })) }] : [])
-    ], e.clientX, e.clientY);
+  // Snippets: a dropdown like the kind's. Choosing one starts the board from it (undo brings the code back); a board saves as
+  // a snippet under its own name.
+  const snippetSelect = b => {
+    const kind = boardKind(b), { builtin, user } = snippetsFor(kind);
+    const opt = (value, label) => h('option', { value }, label);
+    const sel = h('select', { class: 'wb-select wb-snippets', title: 'Snippets: start this board from one (Cmd+Z undoes it). “Save” keeps this code as a snippet named after the board', onchange: async () => {
+      const v = sel.value; sel.value = ''; sel.blur();
+      if (v === 'save') { const text = editor.selectionText() || editor.value; if (text.trim()) { saveSnippet(kind, b.title, text); app.log?.(`Snippet “${b.title}” saved for ${kind} boards.`); drawHead(); } return; }
+      if (v.startsWith('rm:')) { deleteSnippet(kind, v.slice(3)); drawHead(); return; }
+      const sn = [...builtin, ...user].find(x => x.id === v);
+      if (!sn) return;
+      if (!isBlank(kind, editor.value) && !(await askConfirm(`Replace this board's code with “${sn.title}”? Cmd+Z brings it back.`))) return;
+      editor.value = sn.code; editor.focus();
+    } },
+      opt('', '{ } Snippets'),
+      builtin.length ? h('optgroup', { label: 'Built in' }, ...builtin.map(x => opt(x.id, x.title))) : null,
+      user.length ? h('optgroup', { label: 'Yours' }, ...user.map(x => opt(x.id, x.title))) : null,
+      h('optgroup', { label: 'Keep' }, opt('save', `Save as “${b.title}”`), ...user.map(x => opt(`rm:${x.id}`, `Remove “${x.title}”`))));
+    return sel;
   };
 
   const drawHead = () => {
     const b = id && boardById(app.store.doc, id);
     head.replaceChildren(
-      h('span', { class: 'wb-muted wb-small', style: { flex: 1 } }, b ? b.title : 'Select a board (its title) or go to one'),
+      h('span', { class: 'wb-muted wb-small wb-board-name', style: { flex: 1, cursor: b ? 'text' : '' }, title: b ? 'Double-click to rename the board (its snippet is saved under this name)' : '', ondblclick: e => { if (b) editInPlace(e.currentTarget, v => app.store.updateBoard(id, { title: v }), b.title, () => drawHead()); } }, b ? b.title : 'Select a board (its title) or go to one'),
       b ? h('select', { class: 'wb-select', title: 'What the board holds: a drawing (studio code), a Markdown document, an HTML page, a p5.js sketch or a three.js sketch', onchange: e => setKind(e.target.value) }, ...KIND_LABELS.map(([k, l]) => h('option', { value: k, selected: boardKind(b) === k }, l))) : null,
       h('button', { class: `wb-icon-btn${live ? ' on' : ''}`, title: live ? 'Live: runs as you edit (click for Cmd+Enter only)' : 'Runs with Cmd+Enter (click to run as you edit)', html: '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M13 3L5 14h6l-1 7 8-11h-6z" fill="currentColor"/></svg>', onclick: () => { live = !live; try { localStorage.setItem('ams_board_live', live ? '1' : '0'); } catch { /* ignore */ } drawHead(); } }),
       boardKind(b) !== 'drawing' ? null : h('button', { class: `wb-icon-btn${b?.follow ? ' on' : ''}`, title: b?.follow ? 'Following its sources: the code re-runs on each new frame (click to stop)' : 'Follow sources: re-run the code on each new frame of the sources it reads (source(\'…\'), fit(\'…\'))', html: icon('follow'), onclick: () => { if (b) app.setBoardFollow(b.id, !b.follow); } }),
       ['markdown', 'html', 'frame', 'playlist'].includes(boardKind(b)) ? null : h('button', { class: 'wb-icon-btn', title: boardKind(b) === 'p5' || boardKind(b) === 'three' ? 'Run (Cmd+Enter): restart the sketch' : 'Run (Cmd+Enter): the board is redrawn from its code', html: icon('play'), onclick: run }),
-      ['frame', 'player'].includes(boardKind(b)) ? null : h('button', { class: 'wb-icon-btn', title: 'Snippets: insert one, or save your own', html: icon('snippet'), onclick: e => snippetMenu(e) }),
-      ['p5', 'three', 'html'].includes(boardKind(b)) ? h('button', { class: 'wb-icon-btn', title: 'Export this sketch as a standalone page', html: icon('export'), onclick: e => showMenu(app.sketchExportItems(id), e.clientX, e.clientY) }) : null,
-      boardKind(b) === 'frame' ? null : h('button', { class: 'wb-icon-btn', title: 'Clear: remove the marks the code made, and the code', html: icon('trash'), onclick: () => { if (!id) return; app.store.change('clear board code', d => { d.elements = d.elements.filter(e => !(e.by?.kind === 'code' && e.by?.name === id)); if (id === MAIN) delete d.artboard.code; else delete d.boards.find(x => x.id === id).code; }); load(id, true); } }));
+      ['frame', 'player'].includes(boardKind(b)) ? null : snippetSelect(b),
+      ['p5', 'three', 'html'].includes(boardKind(b)) ? h('button', { class: 'wb-icon-btn', title: 'Export this sketch as a standalone page', html: icon('export'), onclick: e => showMenu(app.sketchExportItems(id), e.clientX, e.clientY) }) : null);
   };
 
   // Change what the board holds; an empty board (or one still showing a template) gets the new template.
