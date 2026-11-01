@@ -3,6 +3,7 @@
  * snippets to insert, built in and the user's own (kept in this browser). After Underscores' templates and examples.
  */
 import { PLAYLIST_TEMPLATE } from '../process/playlist.js';
+import { STOPMOTION_TEMPLATE } from '../process/stopmotion.js';
 
 // ---- blank starts ----------------------------------------------------------------------
 export const TEMPLATES = {
@@ -40,7 +41,8 @@ renderer.render(scene, camera);
   markdown: `# 
 
 `,
-  playlist: PLAYLIST_TEMPLATE
+  playlist: PLAYLIST_TEMPLATE,
+  stopmotion: STOPMOTION_TEMPLATE
 };
 
 // ---- the catalog -----------------------------------------------------------------------
@@ -292,7 +294,8 @@ export const SNIPPETS = {
   markdown: [
     { id: 'page', title: 'A page with callouts, a table and links', note: '', code: MARKDOWN_PAGE }
   ],
-  playlist: []
+  playlist: [],
+  stopmotion: []
 };
 
 // ---- the user's own --------------------------------------------------------------------

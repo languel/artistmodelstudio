@@ -18,7 +18,7 @@ const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k)
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const KIND_ICONS = { audio: 'play', text: 'script', snippet: 'script', take: 'play', walkthrough: 'play', dataset: 'database', process: 'paintBrush', variation: 'squaresPlus', painting: 'paintBrush', import: 'arrowUpTray', klee: 'photo' };
 const KIND_TIPS = { process: 'Process document (workbench)', snippet: 'A board\'s code, kept: place it to insert it into the code being edited', variation: 'Variation (generated candidate)', painting: 'Painting (continuous mode)', import: 'Imported image', klee: 'Bundled Klee reference' };
-const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', snippet: 'Snippets', walkthrough: 'Walkthroughs', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee', stream: 'Streams' };
+const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', snippet: 'Snippets', frame: 'Stop-motion frames', walkthrough: 'Walkthroughs', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee', stream: 'Streams' };
 
 export class AssetPanel {
   constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect, onPlaylist }) {
@@ -115,7 +115,7 @@ export class AssetPanel {
   visible() {
     const f = this.folder;
     const inFolder = a => (this.query ? (a.folder === f || !f || a.folder.startsWith(f + '/')) : a.folder === f);
-    return this.assets.filter(a => inFolder(a) && (this.kind === 'all' || a.kind === this.kind) && matches(a, this.query));
+    return this.assets.filter(a => inFolder(a) && ((this.kind === 'all' && a.kind !== 'frame') || a.kind === this.kind) && matches(a, this.query));
   }
 
   draw() {

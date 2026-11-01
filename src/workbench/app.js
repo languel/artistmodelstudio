@@ -85,6 +85,8 @@ import { mountSources } from './panels/sources.js';
 import { mountGestures } from './panels/gestures.js';
 import { Gestures } from './gestures.js';
 import { Playlists } from './playlists.js';
+import { StopMotion } from './stopmotion.js';
+import { writeStopmotion } from '../process/stopmotion.js';
 import { writePlaylist } from '../process/playlist.js';
 import { SOURCE_DEMOS } from './sourceDemos.js';
 
@@ -181,6 +183,7 @@ export class Workbench {
     this.composer = new Composer(this);
     this.gestures = new Gestures(this);
     this.playlists = new Playlists(this);
+    this.stopmotion = new StopMotion(this);
     this.artists = new ArtistRegistry();
     this.store.subscribe((doc, reason) => {
       // At most one save per interval (3 s while boards run live: a large scene is a large save), not a
@@ -805,6 +808,50 @@ export class Workbench {
     ], x, y);
   }
 
+  // ---- stop motion ---------------------------------------------------------------------------
+  /** What a board shows now, as a canvas: a running sketch is asked for its picture; anything else is drawn. */
+  async boardOutput(id) {
+    const b = boardById(this.store.doc, id); if (!b) return null;
+    const kind = boardKind(b);
+    if (kind === 'p5' || kind === 'three') {
+      const url = await this.frames?.snapshotNow(id);
+      if (url) {
+        const bmp = await createImageBitmap(await (await fetch(url)).blob());
+        const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; c.getContext('2d').drawImage(bmp, 0, 0);
+        return c;
+      }
+    }
+    return this.boardPicture(b, 1, 'picture');
+  }
+
+  /** A new stop-motion board beside a board, photographing it. */
+  newStopmotion(near = null) {
+    const src = near || boardById(this.store.doc, this.activeBoard) || null;
+    const at = src || { x: 0, y: 0, width: 400, height: 300 };
+    const b = this.store.addBoard({ title: 'Stop motion', x: Math.round(at.x + at.width + 80), y: Math.round(at.y), width: 640, height: 520, ground: '#141414', adopt: false });
+    this.store.updateBoard(b.id, { kind: 'stopmotion', code: writeStopmotion({ source: src?.id || '', fps: 8, hold: 1, onion: 0.35, advance: true, loop: true, frames: [] }) });
+    this.setBoardLive?.(b.id, true);
+    this.goToBoard(b.id);
+    return b;
+  }
+
+  /** The stop-motion board the shutter key works: the active one, or the first that photographs the active board. */
+  stopmotionFor(id = this.activeBoard) {
+    const list = boardsOf(this.store.doc).filter(b => b.kind === 'stopmotion');
+    const own = list.find(b => b.id === id); if (own) return own;
+    const from = boardById(this.store.doc, id);
+    return list.find(b => from && [from.id, from.title].includes(this.stopmotion.spec(b).sm?.source)) || null;
+  }
+
+  stopmotionSaveMenu(id, x, y) {
+    const S = this.stopmotion, items = fmt => [{ label: 'Save to Assets', run: () => S.save(id, fmt, 'assets') }, { label: 'Download', run: () => S.save(id, fmt, 'download') }];
+    showMenu([
+      { label: 'WebM', hint: 'Video, the usual choice', items: items('webm') },
+      { label: 'MP4', hint: 'Video (if this browser can record it)', items: items('mp4') },
+      { label: 'GIF', hint: 'A looping picture, 480 px wide', items: items('gif') }
+    ], x, y);
+  }
+
   // ---- presenting ---------------------------------------------------------------------
   /**
    * Present: the boards full-window, in order, with eased moves between them. → / Space / PageDown
@@ -995,6 +1042,7 @@ export class Workbench {
       { label: `${b.title}` },
       { label: 'Go to', run: () => this.goToBoard(id) },
       { label: 'Rename…', run: () => this.renameBoard(id) },
+      { label: 'Stop-motion board', hint: 'A new board that photographs this one a frame at a time (Alt+Enter takes a frame), with an onion skin and playback, saved as WebM, MP4 or GIF', run: () => this.newStopmotion(b) },
       { label: 'Save to Assets', hint: 'Keep this board\'s output as a reference: its picture, its drawing (SVG) or its code (a snippet)', items: this.assetItems(id) },
       { label: 'Board', items: [
         { label: b.locked ? 'Unlock' : 'Lock', hint: 'Locked: its marks cannot be selected or changed, and it cannot be moved or resized', run: () => this.setBoardFlag(id, 'locked', !b.locked) },

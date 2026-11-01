@@ -20,7 +20,7 @@ export const BLACKBOARD = '_';
  * document), 'html' (a page), 'p5' (a sketch), 'three' (a three.js sketch), 'code' (an editor on another board's code: `of` is that board's id), or 'frame': a slide, an area that holds the boards
  * whose centres lie inside it (they move with it, present together and export side by side).
  */
-export const BOARD_KINDS = ['drawing', 'markdown', 'html', 'p5', 'three', 'code', 'frame', 'player', 'playlist'];
+export const BOARD_KINDS = ['drawing', 'markdown', 'html', 'p5', 'three', 'code', 'frame', 'player', 'playlist', 'stopmotion'];
 export const boardKind = b => (BOARD_KINDS.includes(b?.kind) ? b.kind : 'drawing');
 export const isFrame = b => b?.kind === 'frame';
 /** A player: controls (play, scrub, step, speed) for the source it names (board.source). */

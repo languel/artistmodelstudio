@@ -1025,3 +1025,21 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-md .pseudo .arrow { padding: 0 0.1em; }
 .wb-md .pseudo .cm { margin-left: auto; color: var(--wb-muted); font-style: italic; white-space: nowrap; }
 .wb-md .pseudo .cm::before { content: '▹ '; }
+
+/* Stop motion board */
+.wb-sm { box-sizing: border-box; width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--ground, #141414); color: #c9c7c2; font: 12px 'Inter', system-ui, sans-serif; }
+.wb-sm .sm-view { position: relative; flex: 1; min-height: 0; background: #101010; }
+.wb-sm .sm-view canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wb-sm .sm-badge { position: absolute; left: 8px; top: 6px; padding: 2px 7px; border-radius: 9px; background: rgba(0, 0, 0, 0.55); font-size: 11px; }
+.wb-sm .sm-err { position: absolute; left: 8px; bottom: 6px; color: #e0827a; font-size: 11px; }
+.wb-sm .sm-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 6px 8px; border-top: 1px solid #333; }
+.wb-sm button { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; color: inherit; background: transparent; border: 1px solid #3c3c3c; border-radius: 5px; cursor: pointer; }
+.wb-sm button:hover { border-color: #8c8c8c; }
+.wb-sm button.on { color: #e0a030; border-color: #8c6a2a; }
+.wb-sm button.shoot { color: #e0594a; border-color: #8a3a32; width: 36px; }
+.wb-sm label { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; color: #9a9893; }
+.wb-sm input[type=number] { width: 44px; height: 24px; background: #1c1c1c; color: inherit; border: 1px solid #3c3c3c; border-radius: 4px; padding: 0 4px; }
+.wb-sm select { height: 28px; max-width: 140px; background: #1c1c1c; color: inherit; border: 1px solid #3c3c3c; border-radius: 4px; }
+.wb-sm .sm-strip { display: flex; gap: 3px; height: 54px; padding: 4px 8px 8px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.wb-sm .sm-th { height: 100%; flex: none; border: 1px solid #333; border-radius: 3px; cursor: pointer; opacity: 0.75; }
+.wb-sm .sm-th.on { border-color: #e0a030; opacity: 1; }

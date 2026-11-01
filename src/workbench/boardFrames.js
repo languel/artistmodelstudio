@@ -325,7 +325,7 @@ export class BoardFrames {
 
   release(id, f) {
     this.frames.delete(id);
-    clearTimeout(f.timer); f.editor?.destroy(); f.panel?.destroy();
+    clearTimeout(f.timer); clearInterval(f.liveTimer); f.editor?.destroy(); f.panel?.destroy();
     if ((f.kind === 'p5' || f.kind === 'three') && f.running) { this.snap(f); setTimeout(() => f.el.remove(), 400); }   // its last picture first
     else f.el.remove();
   }
@@ -341,6 +341,7 @@ export class BoardFrames {
     const code = inst.code;
     if (f.kind === 'player') { this.refreshPlayer(f, b); return; }
     if (f.kind === 'playlist') { this.refreshPlaylist(f, b); return; }
+    if (f.kind === 'stopmotion') { this.refreshStopmotion(f, b); return; }
     if (f.kind === 'code') { this.refreshCode(f, b); return; }
     if (f.kind === 'markdown') {
       if (f.code !== code || f.version !== this.linkVersion) {
@@ -543,6 +544,118 @@ export class BoardFrames {
     f.el.addEventListener('change', e => { if (e.target.dataset.a === 'target') P.edit(b.id, p => { p.target = e.target.value; }); });
   }
 
+
+  /** A stop-motion board: the live source with the last shot over it, a shutter, the frames; every control writes the board's code. */
+  refreshStopmotion(f, b) {
+    const SM = this.app.stopmotion, { sm, error } = SM.spec(b), s = SM.state(b.id);
+    const doc = this.app.store.doc, src = sm && SM.sourceOf(sm);
+    const g = d => `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">${d}</svg>`;
+    if (!f.built) {
+      f.built = true;
+      const ic = { shoot: g('<circle cx="12" cy="12" r="6.5"/>'), first: g('<path d="M6 5h2v14H6zM18 5v14l-9-7z"/>'), prev: g('<path d="M17 5v14l-9-7z"/>'), next: g('<path d="M7 5v14l9-7z"/>'), live: g('<path d="M7 5v14l9-7zM17 5h2v14h-2z"/>'),
+        play: g('<path d="M8 5l11 7-11 7z"/>'), stop: g('<path d="M7 6h10v12H7z"/>'), del: g('<path d="M6 7h12M9 7V5h6v2M8 7l1 12h6l1-12"/>').replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"'),
+        onion: g('<circle cx="9.5" cy="12" r="5.5" fill-opacity=".9"/><circle cx="14.5" cy="12" r="5.5" fill-opacity=".45"/>'), loop: g('<path d="M17 3l3 3-3 3M4 11V9a3 3 0 013-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 01-3 3H4"/>').replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.8"'),
+        save: g('<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>').replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.8"') };
+      f.icons = ic;
+      f.el.innerHTML = `<div class="wb-sm">
+        <div class="sm-view"><canvas></canvas><span class="sm-badge"></span><span class="sm-err"></span></div>
+        <div class="sm-bar">
+          <button data-a="shoot" class="shoot" title="Take a frame (Alt+Enter, from any board it photographs)">${ic.shoot}</button>
+          <button data-a="first" title="First frame">${ic.first}</button><button data-a="prev" title="Back a frame (Alt+Shift+←)">${ic.prev}</button>
+          <button data-a="next" title="Forward a frame (Alt+Shift+→)">${ic.next}</button><button data-a="live" title="Back to the live view">${ic.live}</button>
+          <button data-a="play" title="Play the frames at the fps (and stop)">${ic.play}</button>
+          <button data-a="del" title="Remove the frame shown (the last one when live: Alt+Backspace)">${ic.del}</button>
+          <button data-a="onion" title="The last frame faintly over the live view (onion skin)">${ic.onion}</button>
+          <button data-a="loop" title="Loop when playing">${ic.loop}</button>
+          <label title="Frames a second, in playback and in the film">fps <input data-a="fps" type="number" min="1" max="60"></label>
+          <label title="Exposures for each shot: 2 is on twos">hold <input data-a="hold" type="number" min="1" max="12"></label>
+          <select data-a="source" title="The board it photographs"></select>
+          <button data-a="save" title="Keep the film: in Assets or as a file, as WebM, MP4 or GIF">${ic.save}</button>
+        </div>
+        <div class="sm-strip"></div>
+      </div>`;
+      f.sm = { view: f.el.querySelector('canvas'), badge: f.el.querySelector('.sm-badge'), err: f.el.querySelector('.sm-err'), strip: f.el.querySelector('.sm-strip'), bar: f.el.querySelector('.sm-bar') };
+      f.el.addEventListener('click', e => {
+        const t = e.target.closest('button,.sm-th'); if (!t) return;
+        const cur = boardById(this.app.store.doc, b.id), now = cur && SM.spec(cur).sm;
+        if (t.classList.contains('sm-th')) { SM.stop(b.id, false); SM.go(b.id, Number(t.dataset.i)); return; }
+        const a = t.dataset.a;
+        if (a === 'shoot') SM.shoot(b.id);
+        else if (a === 'first') { SM.stop(b.id, false); SM.go(b.id, 0); }
+        else if (a === 'prev') { SM.stop(b.id, false); SM.step(b.id, -1); }
+        else if (a === 'next') { SM.stop(b.id, false); SM.step(b.id, 1); }
+        else if (a === 'live') { SM.stop(b.id, false); SM.go(b.id, null); }
+        else if (a === 'play') SM.toggle(b.id);
+        else if (a === 'del') SM.remove(b.id);
+        else if (a === 'onion') SM.edit(b.id, m => { m.onion = m.onion > 0 ? 0 : 0.35; });
+        else if (a === 'loop') SM.edit(b.id, m => { m.loop = !m.loop; });
+        else if (a === 'save') { const r = t.getBoundingClientRect(); this.app.stopmotionSaveMenu(b.id, r.left, r.bottom); }
+        void now;
+      });
+      f.el.addEventListener('change', e => {
+        const a = e.target.dataset.a;
+        if (a === 'fps') SM.edit(b.id, m => { m.fps = Math.min(60, Math.max(1, Number(e.target.value) || 8)); });
+        else if (a === 'hold') SM.edit(b.id, m => { m.hold = Math.min(12, Math.max(1, Math.round(Number(e.target.value)) || 1)); });
+        else if (a === 'source') SM.edit(b.id, m => { m.source = e.target.value; });
+      });
+      f.el.addEventListener('keydown', e => e.stopPropagation());   // typing in its fields is not a studio shortcut
+      // the live view: the source's picture a few times a second while this board is shown and not playing
+      f.liveTimer = setInterval(async () => {
+        const st = SM.state(b.id);
+        if (st.playing || st.busy || st.at != null || !f.el.isConnected || f.el.style.opacity === '0') return;
+        await SM.look(b.id).catch(() => null);
+        this.drawStopmotion(f, b.id);
+      }, 300);
+    }
+    // the controls show the spec
+    const bar = f.sm.bar, set = (a, v) => { const el = bar.querySelector(`[data-a="${a}"]`); if (el && document.activeElement !== el) el.value = v; };
+    if (sm) { set('fps', sm.fps); set('hold', sm.hold); }
+    const sel = bar.querySelector('[data-a="source"]');
+    const cands = boardsOf(doc).filter(x => x.id !== b.id && x.kind !== 'frame' && x.kind !== 'stopmotion' && x.kind !== 'playlist' && x.kind !== 'code');
+    const sig = JSON.stringify([cands.map(x => [x.id, x.title]), src?.id]);
+    if (sel && f.smSel !== sig) { f.smSel = sig; sel.innerHTML = [['', '(a board)'], ...cands.map(x => [x.id, x.title])].map(([v, n]) => `<option value="${esc(v)}"${v === (src?.id ?? '') ? ' selected' : ''}>${esc(n)}</option>`).join(''); }
+    bar.querySelector('[data-a="onion"]')?.classList.toggle('on', Boolean(sm && sm.onion > 0));
+    bar.querySelector('[data-a="loop"]')?.classList.toggle('on', Boolean(sm?.loop));
+    const play = bar.querySelector('[data-a="play"]'); if (play) play.innerHTML = s.playing ? f.icons.stop : f.icons.play;
+    f.sm.err.textContent = error || '';
+    // the strip of frames (rebuilt when the list changes)
+    const key = JSON.stringify(sm?.frames || []);
+    if (f.smFrames !== key) {
+      f.smFrames = key;
+      f.sm.strip.innerHTML = (sm?.frames || []).map((a, i) => `<img class="sm-th" data-i="${i}" alt="" draggable="false">`).join('');
+      (sm?.frames || []).forEach((a, i) => SM.url(b.id, a).then(u => { const im = f.sm.strip.children[i]; if (im && u) im.src = u; }));
+      if (sm?.frames.length) f.sm.strip.scrollLeft = f.sm.strip.scrollWidth;
+    }
+    [...f.sm.strip.children].forEach((im, i) => im.classList.toggle('on', i === (s.at ?? -1)));
+    this.drawStopmotion(f, b.id);
+  }
+
+  /** The stop-motion view: the frame shown, or the live source with the last frame over it. */
+  async drawStopmotion(f, id) {
+    const SM = this.app.stopmotion, b = boardById(this.app.store.doc, id); if (!b || !f.sm) return;
+    const { sm } = SM.spec(b), s = SM.state(id);
+    const c = f.sm.view, r = c.getBoundingClientRect(), W = Math.max(2, Math.round((c.clientWidth || r.width) * 2)), H = Math.max(2, Math.round((c.clientHeight || r.height) * 2));
+    if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+    const g = c.getContext('2d');
+    g.fillStyle = '#101010'; g.fillRect(0, 0, W, H);
+    const fit = (img, alpha = 1) => {
+      const w = img.width, h = img.height, k = Math.min(W / w, H / h);
+      g.globalAlpha = alpha; g.drawImage(img, (W - w * k) / 2, (H - h * k) / 2, w * k, h * k); g.globalAlpha = 1;
+    };
+    const frames = sm?.frames || [];
+    let label = '';
+    if (s.at != null && frames[s.at]) {
+      const img = await SM.image(id, frames[s.at]); if (img) fit(img);
+      label = `${s.at + 1} / ${frames.length}`;
+    } else {
+      if (s.live) fit(s.live);
+      const last = frames[frames.length - 1];
+      if (last && sm.onion > 0) { const img = await SM.image(id, last); if (img && s.live) fit(img, sm.onion); }
+      label = `live · ${frames.length} frame${frames.length === 1 ? '' : 's'}`;
+    }
+    if (f.sm.badge) f.sm.badge.textContent = `${label} · ${((frames.length) / (sm?.fps || 8)).toFixed(1)} s`;
+  }
+
   /** A player's controls, built once and updated with each redraw (a new frame of its source redraws the canvas). */
   refreshPlayer(f, b) {
     const S = this.app.sources, name = b.source, def = S.def(name), live = S.entries.get(name)?.live;
@@ -626,6 +739,18 @@ export class BoardFrames {
   /** Run a sketch again from the start (its code unchanged). */
   restart(id) { const f = this.frames.get(id); if (f) { f.running = false; this.canvas.invalidate(); } }
 
+  /** What a running sketch shows now, as a data URL (null when it is not running or says nothing in a second). */
+  snapshotNow(id) {
+    const f = this.frames.get(id);
+    if (!f?.iframe || !f.running) return Promise.resolve(null);
+    return new Promise(ok => {
+      const w = (this.shotWaiters ||= new Map()), list = w.get(id) || [];
+      list.push(ok); w.set(id, list);
+      this.snap(f);
+      setTimeout(() => { const l = w.get(id); if (l?.includes(ok)) { l.splice(l.indexOf(ok), 1); ok(null); } }, 1000);
+    });
+  }
+
   /** Ask a running sketch for its picture (kept to show while it is paused). */
   snap(f) { try { f.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'snapshot' }, '*'); } catch { /* gone */ } }
 
@@ -642,7 +767,7 @@ export class BoardFrames {
     if (d.type === 'present?') { try { e.source?.postMessage({ amsFrame: d.amsFrame, type: 'present', on: Boolean(this.app.presenting) }, '*'); } catch { /* gone */ } return; }
     if (d.type === 'hotkey' && d.ev) { document.body.dispatchEvent(new KeyboardEvent('keydown', { ...d.ev, bubbles: true, cancelable: true })); return; }
     if (d.type === 'pipe') { const cb = this.pipes?.get(id); if (cb && d.bitmap) cb(d.bitmap); else d.bitmap?.close?.(); return; }
-    if (d.type === 'snapshot') { if (d.url) { this.snapshots.set(id, d.url); if (f?.still) f.still.innerHTML = `<img src="${d.url}" alt="">`; } return; }
+    if (d.type === 'snapshot') { if (d.url) { this.snapshots.set(id, d.url); if (f?.still) f.still.innerHTML = `<img src="${d.url}" alt="">`; } for (const w of this.shotWaiters?.get(id) || []) w(d.url || null); this.shotWaiters?.delete(id); return; }
     if (d.type === 'error') { this.app.log(`Board “${boardsOf(this.app.store.doc).find(b => b.id === id)?.title || '?'}”: ${d.message}${d.line ? ` (line ${d.line})` : ''}`, 'error'); if (f) (f.errors ||= []).push(d); this.app.emit('frame-error', id, d); return; }
     if (d.type === 'call') {
       Promise.resolve(window.ams?.callTool?.(d.tool, d.args || {}))

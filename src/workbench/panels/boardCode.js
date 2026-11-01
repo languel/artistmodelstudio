@@ -17,8 +17,8 @@ import { showMenu } from '../menu.js';
 import { askConfirm } from '../dialog.js';
 import { TEMPLATES, snippetsFor, saveSnippet, deleteSnippet, isBlank } from '../snippets.js';
 
-const LANGUAGE = { drawing: 'ams', markdown: 'markdown', html: 'html', p5: 'p5', three: 'three', frame: 'markdown', playlist: 'p5' };
-const KIND_LABELS = [['drawing', 'Drawing (studio code)'], ['markdown', 'Markdown'], ['html', 'HTML'], ['p5', 'p5.js'], ['three', 'three.js'], ['playlist', 'Playlist'], ['frame', 'Frame (a slide)']];
+const LANGUAGE = { drawing: 'ams', markdown: 'markdown', html: 'html', p5: 'p5', three: 'three', frame: 'markdown', playlist: 'p5', stopmotion: 'p5' };
+const KIND_LABELS = [['drawing', 'Drawing (studio code)'], ['markdown', 'Markdown'], ['html', 'HTML'], ['p5', 'p5.js'], ['three', 'three.js'], ['playlist', 'Playlist'], ['stopmotion', 'Stop motion'], ['frame', 'Frame (a slide)']];
 
 export function mountBoardCode(root, app) {
   let id = null, timer = 0, loading = false;
@@ -73,7 +73,7 @@ export function mountBoardCode(root, app) {
   const drawHead = () => {
     const b = id && boardById(app.store.doc, id);
     head.replaceChildren(
-      ['markdown', 'html', 'frame', 'playlist'].includes(boardKind(b)) ? null : h('button', { class: 'wb-icon-btn', title: boardKind(b) === 'p5' || boardKind(b) === 'three' ? 'Run (Cmd+Enter): restart the sketch' : 'Run (Cmd+Enter): the board is redrawn from its code', html: icon('play'), onclick: run }),
+      ['markdown', 'html', 'frame', 'playlist', 'stopmotion'].includes(boardKind(b)) ? null : h('button', { class: 'wb-icon-btn', title: boardKind(b) === 'p5' || boardKind(b) === 'three' ? 'Run (Cmd+Enter): restart the sketch' : 'Run (Cmd+Enter): the board is redrawn from its code', html: icon('play'), onclick: run }),
       h('button', { class: `wb-icon-btn${live ? ' on' : ''}`, title: live ? 'Live: runs as you edit (click for Cmd+Enter only)' : 'Runs with Cmd+Enter (click to run as you edit)', html: '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M13 3L5 14h6l-1 7 8-11h-6z" fill="currentColor"/></svg>', onclick: () => { live = !live; try { localStorage.setItem('ams_board_live', live ? '1' : '0'); } catch { /* ignore */ } drawHead(); } }),
       boardKind(b) !== 'drawing' ? null : h('button', { class: `wb-icon-btn${b?.follow ? ' on' : ''}`, title: b?.follow ? 'Following its sources: the code re-runs on each new frame (click to stop)' : 'Follow sources: re-run the code on each new frame of the sources it reads (source(\'…\'), fit(\'…\'))', html: icon('follow'), onclick: () => { if (b) app.setBoardFollow(b.id, !b.follow); } }),
       h('span', { class: 'wb-muted wb-small wb-board-name', style: { flex: 1, cursor: b ? 'text' : '' }, title: b ? 'Double-click to rename the board (its snippet is saved under this name)' : '', ondblclick: e => { if (b) editInPlace(e.currentTarget, v => app.store.updateBoard(id, { title: v }), b.title, () => drawHead()); } }, b ? b.title : 'Select a board (its title) or go to one'),
