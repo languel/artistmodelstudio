@@ -63,6 +63,36 @@ const box = (x, y, w, h, c = INK) => line(rect(x, y, w, h), { brush: 'pen', widt
 const arrow = (a, b, c = MUTED) => { line([a, b], { brush: 'pen', width: 2, color: c, path: 'straight' }); line([[b[0] - 0.012, b[1] - 0.016], b, [b[0] - 0.012, b[1] + 0.016]], { brush: 'pen', width: 2, color: c, path: 'straight' }) }
 `;
 
+// The look of film (board 3.2): the scene is drawn to a picture, and a shader adds grain, flicker, weave, a vignette and dust. It needs the
+// numbers grain, flicker, weave, vignette and dust to be defined before it.
+const POST = `const target = new THREE.WebGLRenderTarget(W * 2, H * 2);
+const post = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const filmMat = new THREE.ShaderMaterial({
+  uniforms: { tex: { value: target.texture }, time: { value: 0 }, grain: { value: 0 }, flicker: { value: 0 }, weave: { value: 0 }, vignette: { value: 0 }, dust: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: \`
+    varying vec2 vUv; uniform sampler2D tex; uniform float time, grain, flicker, weave, vignette, dust;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main() {
+      float frame = floor(time * 12.0);                                         // the film runs at 12 frames a second
+      vec2 shift = weave * vec2(hash(vec2(frame, 1.0)) - 0.5, hash(vec2(frame, 2.0)) - 0.5);
+      vec3 c = texture2D(tex, vUv + shift).rgb;
+      c += grain * (hash(vUv * 900.0 + frame) - 0.5);                           // grain: new noise every frame
+      c *= 1.0 + flicker * (hash(vec2(frame, 3.0)) - 0.5) * 2.0;                // flicker
+      c *= 1.0 - vignette * smoothstep(0.35, 0.95, length(vUv - 0.5) * 1.4);    // dark corners
+      float speck = step(0.9993, hash(floor(vUv * 220.0) + frame));             // dust: a few pale specks
+      c = mix(c, vec3(0.92), speck * dust);
+      gl_FragColor = vec4(c, 1.0);
+    }\`
+});
+post.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), filmMat));
+const draw = renderer.render.bind(renderer);
+renderer.render = (s, c) => {
+  Object.assign(filmMat.uniforms, { time: { value: performance.now() / 1000 }, grain: { value: grain }, flicker: { value: flicker }, weave: { value: weave }, vignette: { value: vignette }, dust: { value: dust } });
+  renderer.setRenderTarget(target); draw(s, c);                     // the scene, into the picture
+  renderer.setRenderTarget(null); draw(post, postCam);               // the picture, through the shader, to the screen
+};`;
+
 // The whole program plus a few lines: the later sections add one idea each to the finished scene.
 const WHOLE = (add, { controls = '', patch = c => c } = {}) => patch(SRC.replace(/^let tint = .*\n/m, m => m + controls)) + '\n' + add;
 
@@ -369,33 +399,7 @@ let flicker = 0.08 /* 0..0.3 */;
 let weave = 0.004 /* 0..0.02 */;
 let vignette = 0.6 /* 0..1 */;
 let dust = 0.4 /* 0..1 */;
-const target = new THREE.WebGLRenderTarget(W * 2, H * 2);
-const post = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-const filmMat = new THREE.ShaderMaterial({
-  uniforms: { tex: { value: target.texture }, time: { value: 0 }, grain: { value: 0 }, flicker: { value: 0 }, weave: { value: 0 }, vignette: { value: 0 }, dust: { value: 0 } },
-  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-  fragmentShader: \`
-    varying vec2 vUv; uniform sampler2D tex; uniform float time, grain, flicker, weave, vignette, dust;
-    float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-    void main() {
-      float frame = floor(time * 12.0);                                         // the film runs at 12 frames a second
-      vec2 shift = weave * vec2(hash(vec2(frame, 1.0)) - 0.5, hash(vec2(frame, 2.0)) - 0.5);
-      vec3 c = texture2D(tex, vUv + shift).rgb;
-      c += grain * (hash(vUv * 900.0 + frame) - 0.5);                           // grain: new noise every frame
-      c *= 1.0 + flicker * (hash(vec2(frame, 3.0)) - 0.5) * 2.0;                // flicker
-      c *= 1.0 - vignette * smoothstep(0.35, 0.95, length(vUv - 0.5) * 1.4);    // dark corners
-      float speck = step(0.9993, hash(floor(vUv * 220.0) + frame));             // dust: a few pale specks
-      c = mix(c, vec3(0.92), speck * dust);
-      gl_FragColor = vec4(c, 1.0);
-    }\`
-});
-post.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), filmMat));
-const draw = renderer.render.bind(renderer);
-renderer.render = (s, c) => {
-  Object.assign(filmMat.uniforms, { time: { value: performance.now() / 1000 }, grain: { value: grain }, flicker: { value: flicker }, weave: { value: weave }, vignette: { value: vignette }, dust: { value: dust } });
-  renderer.setRenderTarget(target); draw(s, c);                     // the scene, into the picture
-  renderer.setRenderTarget(null); draw(post, postCam);               // the picture, through the shader, to the screen
-};`) }
+${POST}`) }
       ]
     },
     {
@@ -427,29 +431,30 @@ const STAND = { ...BASE, chest: 0.03, neck: 0.05, head: 0.35, armA: 0.15, foreA:
 const REACH = { ...BASE, chest: -0.16, neck: 0.1, head: 0.5, armA: 2.35, foreA: 0.12, handA: 0.12, armB: -0.9, foreB: 0.3, thighA: 0.2, shinA: -0.25, footA: 0.3, thighB: -0.15, shinB: -0.05 };
 const STRETCH = { ...REACH, chest: -0.26, head: 0.65, armA: 2.55, handA: 0.3, thighA: 0.3, shinA: -0.3, footA: 0.9, thighB: -0.1 };          // on tiptoe: still too far
 const LUNGE = { ...BASE, chest: -0.5, neck: 0.1, head: 0.55, armA: 2.85, foreA: 0.1, armB: 2.55, foreB: 0.2, thighA: 0.75, shinA: -0.45, footA: 0.2, thighB: -0.55, shinB: -0.9, footB: 0.5 };   // a step after the moon
-const FALL = { ...BASE, chest: -0.6, neck: 0.1, head: 0.5, armA: 3.2, foreA: 0.1, armB: 2.95, foreB: 0.15, thighA: 0.5, shinA: -0.2, footA: -0.2, thighB: -0.9, shinB: -1.1, footB: 0.6 };
-const DRIFT = { ...FALL, chest: -0.4, armA: 3.1, armB: 2.9, thighA: 0.2, thighB: -0.4, shinB: -0.5 };
+const TRIP = { ...LUNGE, chest: -0.8, head: 0.2, neck: 0, armA: 3.0, foreA: 0.3, armB: 2.4, thighA: 0.9, shinA: -0.5, thighB: -1.1, shinB: -0.3, footB: 0.9 };                               // a foot catches
+const TUCK = { ...BASE, chest: -0.7, neck: -0.2, head: -0.5, armA: 0.9, foreA: 2.3, armB: 0.8, foreB: 2.2, thighA: 2.2, shinA: -2.7, footA: 1.0, thighB: 2.0, shinB: -2.5, footB: 0.9 };      // knees to the chest, in the air
+const OPEN = { ...BASE, chest: 0.1, neck: 0.05, head: 0.3, armA: 2.2, foreA: 0.15, handA: 0.1, armB: 2.6, foreB: 0.1, thighA: 0.5, shinA: -0.2, footA: 0.2, thighB: -0.5, shinB: -0.15, footB: -0.2 };
+const DRIFT = { ...OPEN, armA: 2.0, armB: 2.5 };
 // A film made on threes: the puppet is moved, photographed, held for three frames of the 24 a second, moved again. Halting, a little
 // hesitant: the keys hold (the same pose twice) where he thinks, and move quickly where he lunges.
 //            time  pose    hip height  tilt   forward  lift
-const KEYS = [[0, SIT, 0.14, 0, 0, 0], [2.8, LOOK, 0.14, 0, 0, 0], [4.0, LOOK, 0.14, 0, 0, 0], [4.7, LEAN, 0.14, 0, 0, 0], [5.4, LEAN, 0.14, 0, 0, 0],
-  [6.1, HALF, 0.95, 0, 0, 0], [6.5, HALF, 1.0, 0, 0, 0], [7.2, STAND, 1.75, 0, 0, 0], [7.7, STAND, 1.75, 0, 0, 0], [8.3, REACH, 1.78, 0, 0, 0], [8.9, STRETCH, 1.8, 0, 0, 0],
-  [9.3, STRETCH, 1.8, 0, 0, 0], [9.9, LUNGE, 1.68, -0.3, 0.7, 0], [10.6, FALL, 1.55, -0.75, 1.2, 0.15], [11.7, DRIFT, 1.5, -1.0, 1.3, 1.0], [DURATION, DRIFT, 1.5, -1.1, 1.5, 1.7]];
+const KEYS = [[0, SIT, 0.14, 0, 0, 0], [1.6, LOOK, 0.14, 0, 0, 0], [2.4, LOOK, 0.14, 0, 0, 0], [2.9, LEAN, 0.14, 0, 0, 0], [3.4, LEAN, 0.14, 0, 0, 0],
+  [3.9, HALF, 0.95, 0, 0, 0], [4.2, HALF, 1.0, 0, 0, 0], [4.8, STAND, 1.75, 0, 0, 0], [5.4, STAND, 1.75, 0, 0, 0], [6.2, REACH, 1.78, 0, 0, 0], [7.6, REACH, 1.78, 0, 0, 0],
+  [8.4, STRETCH, 1.8, 0, 0, 0], [9.1, STRETCH, 1.8, 0, 0, 0], [9.7, LUNGE, 1.68, -0.3, 0.7, 0], [10.2, TRIP, 1.6, -0.9, 1.1, 0], [11.0, TUCK, 1.5, -3.5, 1.5, 0.9],
+  [12.0, OPEN, 1.5, -6.3, 1.8, 1.2], [DURATION, DRIFT, 1.5, -6.5, 1.9, 1.5]];
 const track = t => {                                                // the pose, hip height, tilt, step forward and lift at time t
   let i = 0; while (i < KEYS.length - 2 && t > KEYS[i + 1][0]) i++;
   const [t0, p0, h0, r0, f0, l0] = KEYS[i], [t1, p1, h1, r1, f1, l1] = KEYS[i + 1];
-  const u = ease(Math.min(1, Math.max(0, (t - t0) / (t1 - t0)))), mix = (a, b) => a + (b - a) * u;
+  const lin = Math.min(1, Math.max(0, (t - t0) / (t1 - t0))), u = t0 >= 10.2 ? lin : ease(lin), mix = (a, b) => a + (b - a) * u;   // (in the air he turns steadily)
   return { pose: Object.fromEntries(Object.keys(BASE).map(k => [k, mix(p0[k], p1[k])])), hip: mix(h0, h1), tilt: mix(r0, r1), step: mix(f0, f1), lift: mix(l0, l1) };
 };
 const hash = (a, b) => { const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return x - Math.floor(x); };
 
 // The sky: colours at times, and the moon's climb.
-const KNOCK = 10.2;                                                  // when the moon slips out of reach for good and the light begins to go
-const SKY = [[0, '#f0d9a0'], [4.5, '#e6c394'], [KNOCK, '#b38f8e']].map(([t, c]) => [t, new THREE.Color(c)]);   // a slow dusk
-const NIGHT = new THREE.Color('#03050d');
-const gone = t => ease(Math.min(1, Math.max(0, (t - KNOCK) / 2.6)));                 // the moon leaves: the light goes with it
-const sky = t => { let i = 0; while (i < SKY.length - 2 && t > SKY[i + 1][0]) i++; const [a, ca] = SKY[i], [b, cb] = SKY[i + 1]; return ca.clone().lerp(cb, ease(Math.min(1, Math.max(0, (t - a) / (b - a))))).lerp(NIGHT, gone(t)); };
-const dark = t => 0.35 * ease(Math.min(1, t / KNOCK)) + 0.65 * gone(t);          // how dark it is: a little by dusk, all of it when the moon is gone
+const UP = 10.0;                                                       // when he leaves the ground
+const SKY = [[0, '#f0d9a0'], [3, '#e6c394'], [6, '#c49c8c'], [8.2, '#8a6f8a'], [9.6, '#4a4678'], [11, '#2a3366'], [12.5, '#141b45'], [DURATION, '#0d1235']].map(([t, c]) => [t, new THREE.Color(c)]);   // dusk, a little at a time
+const sky = t => { let i = 0; while (i < SKY.length - 2 && t > SKY[i + 1][0]) i++; const [a, ca] = SKY[i], [b, cb] = SKY[i + 1]; return ca.clone().lerp(cb, ease(Math.min(1, Math.max(0, (t - a) / (b - a))))); };
+const dark = t => ease(Math.min(1, t / 12));                          // how dark it is: by the time he is in the air it is nearly night
 
 home.set(-3.0, -2.35);
 const dune = new THREE.Shape(); dune.moveTo(-6, -3.6); dune.quadraticCurveTo(-4.4, -2.4, -3.0, -2.4); dune.quadraticCurveTo(-1.4, -2.4, -0.2, -3.6);
@@ -541,30 +546,38 @@ renderer.render = (sc, cam) => {
   // the puppet is photographed a frame at a time: its pose changes only on an exposure, and each is a little imprecise
   const frameNo = Math.floor(clock * fps), still = frameNo / fps;
   const k = track(still), night = dark(clock);
-  Object.keys(k.pose).forEach((id, i) => { node[id].group.rotation.z = k.pose[id] + 0.025 * (hash(frameNo, i) - 0.5); });
-  if (still > 8.3 && still < 9.6) node.armA.group.rotation.z += 0.035 * Math.sin(frameNo * 2.3);   // reaching: a tremble
+  Object.keys(k.pose).forEach((id, i) => { node[id].group.rotation.z = k.pose[id] + 0.012 * (hash(frameNo, i) - 0.5); });
+  if (still > 7.6 && still < 9.4) node.armA.group.rotation.z += 0.012 * Math.sin(frameNo * 2.3);   // reaching: the slightest tremble
   node.pelvis.group.position.y = k.hip;
-  puppet.position.set(home.x + k.step, home.y + k.lift, 0);
   const after = Math.max(0, t - DURATION);                          // after the last key the film does not stop: he keeps drifting, slowly
-  puppet.position.y += after * 0.08; puppet.position.x += after * 0.03;
-  puppet.rotation.z = k.tilt - after * 0.015;
+  const spin = k.tilt - after * 0.015, air = ease(Math.min(1, Math.max(0, (clock - 10) / 0.5))), pivot = air * k.hip * puppet.scale.x;
+  // on the ground he tips about his feet; in the air (the somersault) about his hips, which follow their own path
+  puppet.rotation.z = spin;
+  puppet.position.set(home.x + k.step + after * 0.03 + pivot * Math.sin(spin), home.y + k.lift + after * 0.05 + pivot - pivot * Math.cos(spin), 0);
   // the moon first, then his gaze follows it: the neck and head turn to face it all the way up
   puppet.updateMatrixWorld(true);
-  // The moon rises on the diagonal, up and to the right, a frame at a time, and does not wait for him: it slows near the edge of the
-  // sky (he is reaching), then slips away out of the frame as he falls short.
-  const u = Math.floor(clock * 12) / 12 / 9, rise = ease(Math.min(1, u)) + Math.pow(Math.max(0, u - 1), 2) * 4.2;
-  let mx = -0.4 + 3.6 * rise, my = -1.5 + 4.7 * rise;
+  // The moon rises slowly, up and to the right, a frame at a time: hidden behind the hills at first, at the top of the back hill by
+  // the time he is standing, and ahead of his fingertips as he reaches. It does not wait for him: it slips out of the sky as he trips.
+  const q = Math.floor(clock * 12) / 12;
+  const mx = -2.0 + 0.244 * q, my = q < 4.5 ? -3.4 + 0.667 * q : q < 9 ? -0.4 + 0.756 * (q - 4.5) : 3.0 + 0.756 * (q - 9) + 0.5 * Math.pow(q - 9, 2);
   moonDisc.visible = true; moonDisc.position.set(mx, my, -4.9);
+  // his gaze follows the moon, and so does the reaching arm: pointed at it, and always a little short
   const eyeAt = node.head.group.getWorldPosition(new THREE.Vector3());
-  const want = Math.min(1.25, Math.max(-0.1, Math.atan2(my - eyeAt.y, mx - eyeAt.x)));                    // the angle to the moon, from his head
-  const turn = Math.max(-0.5, Math.min(1.05, want - (puppet.rotation.z + node.pelvis.group.rotation.z + node.chest.group.rotation.z)));
-  node.neck.group.rotation.z = 0.35 * turn + 0.025 * (hash(frameNo, 20) - 0.5);
-  node.head.group.rotation.z = 0.65 * turn + 0.025 * (hash(frameNo, 21) - 0.5);
-  // the paper dissolves; the hinges become stars
+  const want = Math.min(1.25, Math.max(-0.1, Math.atan2(my - eyeAt.y, mx - eyeAt.x)));
+  const lean = puppet.rotation.z + node.pelvis.group.rotation.z + node.chest.group.rotation.z;
+  const watch = 1 - ease(Math.min(1, Math.max(0, (still - 10) / 0.4))), turn = Math.max(-0.5, Math.min(1.05, want - lean));
+  node.neck.group.rotation.z = k.pose.neck + (0.35 * turn - k.pose.neck) * watch + 0.012 * (hash(frameNo, 20) - 0.5);
+  node.head.group.rotation.z = k.pose.head + (0.65 * turn - k.pose.head) * watch + 0.012 * (hash(frameNo, 21) - 0.5);
+  const hand = node.armA.group.getWorldPosition(new THREE.Vector3());
+  let aim = Math.atan2(my - hand.y, mx - hand.x) + Math.PI / 2 - lean; aim = Math.atan2(Math.sin(aim), Math.cos(aim));
+  const reach = ease(Math.min(1, Math.max(0, (still - 5.2) / 1.0))) * (1 - ease(Math.min(1, Math.max(0, (still - 10) / 0.5))));
+  node.armA.group.rotation.z += (aim - node.armA.group.rotation.z) * reach; node.foreA.group.rotation.z *= 1 - reach * 0.8;
+  const both = reach * ease(Math.min(1, Math.max(0, (still - 9.3) / 0.4)));
+  node.armB.group.rotation.z += (aim - 0.35 - node.armB.group.rotation.z) * both;
   // the paper goes a piece at a time, as if each were lifted off the table between exposures; the white hinge is left, a star
   const ORDER = ['handA', 'handB', 'footA', 'footB', 'foreA', 'foreB', 'shinA', 'shinB', 'armA', 'armB', 'thighA', 'thighB', 'head', 'neck', 'chest', 'pelvis'];
   for (const n of Object.values(node)) {
-    const out = KNOCK + 0.3 + ORDER.indexOf(n.id) * 0.13, gone1 = still >= out;
+    const out = UP + 1.0 + ORDER.indexOf(n.id) * 0.12, gone1 = still >= out;
     n.mesh.visible = !gone1;
     n.pin.visible = true; n.dot.material.opacity = gone1 ? 1 : 0;
     n.star.material.opacity = gone1 ? 0.4 : 0; n.star.scale.setScalar(0.35 + 0.6 * (0.85 + 0.15 * Math.sin(t * 4 + n.depth * 2)));
@@ -574,7 +587,11 @@ renderer.render = (sc, cam) => {
   mid.material.color.setHex(0x1a1610).lerp(new THREE.Color(0x060810), night);
   showSky(clock, night, t);
   reel(sc, cam);
-};`, { patch: c => c.replace(/^let joints = .*\n/m, 'const joints = false;\n').replace(/^let walk = .*\n/m, 'const walk = 0;\n').replace(/^let tint = .*\n/m, "const tint = '#f0d9a0';\n").replace(/^let moon = .*\n/m, 'const moon = true;\n') }) }
+};
+
+// grain and a vignette: the look of film (board 3.2), kept soft
+const grain = 0.22, flicker = 0.03, weave = 0.002, vignette = 0.6, dust = 0.15;
+${POST}`, { patch: c => c.replace(/^let joints = .*\n/m, 'const joints = false;\n').replace(/^let walk = .*\n/m, 'const walk = 0;\n').replace(/^let tint = .*\n/m, "const tint = '#f0d9a0';\n").replace(/^let moon = .*\n/m, 'const moon = true;\n') }) }
       ]
     }
   ],
