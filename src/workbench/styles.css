@@ -625,6 +625,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, [contentedita
 .wb-ctl-row { display: grid; grid-template-columns: minmax(40px, 70px) 1fr 34px; gap: 6px; align-items: center; font-size: 11px; }
 .wb-ctl-label { color: var(--wb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-ctl-row .wb-range { width: 100%; }
+.wb-ctl-choice > :nth-child(2) { justify-self: start; max-width: 100%; }
+.wb-color-input { width: 34px; height: 20px; padding: 0; border: 1px solid var(--wb-muted); border-radius: 3px; background: none; cursor: pointer; }
 .wb-ctl-value { text-align: right; font: 10.5px var(--font-mono, ui-monospace, monospace); color: var(--wb-muted); }
 .wb-code-view { flex: 1 1 auto; }
 .wb-code-toggles { margin-left: auto; display: flex; gap: 2px; }

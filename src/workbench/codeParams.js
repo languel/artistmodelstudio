@@ -13,7 +13,7 @@
  */
 import { ViewPlugin, EditorView, Decoration, WidgetType } from '@codemirror/view';
 
-import { NUM, decimalsOf, fmt, stepFor, findControls } from '../process/controls.js';
+import { NUM, decimalsOf, fmt, stepFor, findControls, literalOf } from '../process/controls.js';
 export { findControls };
 
 import { rangeInput, paintRange } from './rangeInput.js';
@@ -24,6 +24,31 @@ export { rangeInput, paintRange };
  * else it rewrites the number in the code (found again by id, as positions move while typing).
  */
 export function makeControl(c, view, liveSrc) {
+  return c.kind === 'range' || c.kind === 'param' ? makeSlider(c, view, liveSrc) : makeChoice(c, view);
+}
+
+/** A toggle, a select or a colour: the code keeps the value as a literal (true, 'name', '#rrggbb'). */
+function makeChoice(c, view) {
+  let input;
+  if (c.kind === 'toggle') { input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(c.value); }
+  else if (c.kind === 'color') { input = document.createElement('input'); input.type = 'color'; input.className = 'wb-color-input'; input.value = /^#[0-9a-f]{6}$/i.test(c.value) ? c.value : '#888888'; }
+  else { input = document.createElement('select'); input.className = 'wb-select'; for (const o of c.options) { const op = document.createElement('option'); op.value = op.textContent = o; input.append(op); } input.value = c.value; }
+  const name = c.name || 'value';
+  input.title = name;
+  const read = () => (c.kind === 'toggle' ? input.checked : input.value);
+  const listeners = [];
+  input.addEventListener(c.kind === 'color' ? 'input' : 'change', () => {
+    const v = read();
+    for (const f of listeners) f(v);
+    const cur = findControls(view.state.doc.toString()).find(x => x.id === c.id);
+    if (cur) view.dispatch({ changes: { from: cur.from, to: cur.to, insert: literalOf(cur, v) } });
+  });
+  for (const ev of ['mousedown', 'pointerdown', 'keydown', 'click']) input.addEventListener(ev, e => e.stopPropagation());
+  const set = v => { if (c.kind === 'toggle') input.checked = Boolean(v); else input.value = String(v); };
+  return { input, step: 1, name, onInput: f => listeners.push(f), value: read, set };
+}
+
+function makeSlider(c, view, liveSrc) {
   const step = c.step || stepFor(c.min, c.max);
   const target = liveSrc && c.kind === 'param' ? liveSrc.target?.() : null;
   const live = liveSrc && c.kind === 'param' && !(liveSrc.target && !target) ? liveSrc : null;
@@ -43,7 +68,7 @@ export function makeControl(c, view, liveSrc) {
     if (cur) view.dispatch({ changes: { from: cur.from, to: cur.to, insert: fmt(v, step) } });
   });
   for (const ev of ['mousedown', 'pointerdown', 'keydown', 'click']) input.addEventListener(ev, e => e.stopPropagation());
-  return { input, step, name, onInput: f => listeners.push(f), value: () => Number(input.value) };
+  return { input, step, name, onInput: f => listeners.push(f), value: () => Number(input.value), set: v => { input.value = String(v); paintRange(input); } };
 }
 
 /** The sliders of one line, overlaid on the line's right side. */
@@ -85,23 +110,25 @@ export function controlStrip(editor) {
   const refresh = () => {
     const cs = findControls(editor.value);
     const live = editor.getLive?.();
-    const next = cs.map(c => `${c.id}:${c.min}:${c.max}`).join('|') + (live ? `#${live.target?.() || 'live'}` : '');
+    const next = cs.map(c => `${c.id}:${c.min}:${c.max}:${c.options || ''}`).join('|') + (live ? `#${live.target?.() || 'live'}` : '');
     if (next === sig) {
       // Same controls: only follow values changed in the code (not the one being dragged).
-      rows.forEach((r, i) => { if (document.activeElement !== r.ctl.input && !r.live) { r.ctl.input.value = String(cs[i].value); paintRange(r.ctl.input); r.out.textContent = fmt(cs[i].value, r.ctl.step); } });
+      rows.forEach((r, i) => { if (document.activeElement !== r.ctl.input && !r.live) { r.ctl.set(cs[i].value); r.out.textContent = r.show(cs[i].value); } });
       return;
     }
     sig = next;
     el.replaceChildren();
     rows = cs.map(c => {
       const ctl = makeControl(c, editor.view, live);
-      const out = document.createElement('span'); out.className = 'wb-ctl-value'; out.textContent = fmt(ctl.value(), ctl.step);
-      ctl.onInput(v => { out.textContent = fmt(v, ctl.step); });
+      const num = c.kind === 'range' || c.kind === 'param';
+      const show = v => (num ? fmt(v, ctl.step) : '');
+      const out = document.createElement('span'); out.className = 'wb-ctl-value'; out.textContent = show(ctl.value());
+      ctl.onInput(v => { out.textContent = show(v); });
       const lab = document.createElement('span'); lab.className = 'wb-ctl-label'; lab.textContent = c.kind === 'param' ? c.key : c.name || `line ${editor.view.state.doc.lineAt(c.from).number}`;
-      const row = document.createElement('label'); row.className = 'wb-ctl-row'; row.title = ctl.input.title;
+      const row = document.createElement('label'); row.className = `wb-ctl-row${c.kind === 'range' || c.kind === 'param' ? '' : ' wb-ctl-choice'}`; row.title = ctl.input.title;
       row.append(lab, ctl.input, out);
       el.append(row);
-      return { ctl, out, live: ctl.input.classList.contains('live') };
+      return { ctl, out, show, live: ctl.input.classList.contains('live') };
     });
     el.hidden = !rows.length;
   };

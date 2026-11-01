@@ -605,6 +605,15 @@ A document longer than its board scrolls inside it: the wheel over it scrolls it
 - `await ams.mark(role, points, opts)`: add a mark to the board;
 - `await ams.frame('source')`: a source's picture.
 
+**Controls in code** (p5.js and three.js boards): a value with a comment beside it becomes a control in the board's code panel, and changing it changes the running sketch without starting it again.
+- `const speed = 1 /* 0..5 */` a slider (a step too: `/* 0..5 step:0.5 */`);
+- `let spin = true /* toggle */` a checkbox;
+- `const shape = 'box' /* box|sphere */` a select;
+- `const tint = '#4488ff' /* color */` a colour;
+- `// @param size = 1 (0.2..3 step:0.1)` as in Underscores (also `(color)`, `(boolean)`, `(a|b|c)`): read as `ams.params.size`, live.
+
+A declaration at the start of a line (`const`, `let` or `var`, with nothing after the comment) is live: the studio makes it a `let` and sets it as you drag. A number elsewhere in the code still gets its slider, but it rewrites the code and the sketch starts again. The sketch also starts again when anything else in the code changes. An output window's copy gets the same values.
+
 A p5 board runs while it is live and on screen, like a drawing. Paused, it shows its last picture. Errors appear under the code and in the Log. A frame takes the pointer only on the board you are on.
 
 ### Converting, baking, copying, pasting

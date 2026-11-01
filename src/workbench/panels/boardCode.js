@@ -90,7 +90,7 @@ export function mountBoardCode(root, app) {
   const editor = createCodeEditor(host, { value: '', onRun: run, onChange: () => {
     if (loading) return;
     clearTimeout(timer);
-    if (kindOf() !== 'drawing') { timer = setTimeout(save, 400); return; }
+    if (kindOf() !== 'drawing') { if (kindOf() === 'p5' || kindOf() === 'three') app.frames?.ctl?.(id, editor.value); timer = setTimeout(save, 400); return; }
     if (live) timer = setTimeout(run, 250);
   } });
   // Sliders beside the preview: here the board is the preview, so they sit above the code.

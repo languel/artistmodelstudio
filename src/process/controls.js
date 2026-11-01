@@ -25,7 +25,24 @@ function paramBlocks(text) {
   return out;
 }
 
-/** Every control in the text: { kind, id, from, to (the number to rewrite), at (widget pos), min, max, value, key }. */
+const IDENT = '[A-Za-z_$][\\w$]*';
+const TOGGLE_RE = /\b(true|false)(\s*\/\*\s*(?:toggle|on\/off|bool(?:ean)?)\s*\*\/)/g;
+const COLOR_RE = /(['"])(#[0-9a-fA-F]{3,8})\1(\s*\/\*\s*colou?r\s*\*\/)/g;
+const SELECT_RE = /(['"])([^'"\n]*)\1(\s*\/\*\s*([^*\n|]+(?:\|[^*\n|]+)+?)\s*\*\/)/g;
+// underscores' form: // @param name = value (min..max step:s) | (color) | (boolean) | (a|b|c)
+const PARAM_LINE_RE = new RegExp(`^([ \\t]*//[ \\t]*@param[ \\t]+)(${IDENT})([ \\t]*=[ \\t]*)(.*?)[ \\t]*\\(([^)\\n]*)\\)[ \\t]*$`, 'gm');
+
+// A control declared at the start of a line (const name = <literal> followed by its comment), with nothing after it: it can be made live.
+function declOf(text, from, end) {
+  const ls = text.lastIndexOf('\n', from - 1) + 1;
+  const m = new RegExp(`^(const|let|var)\\s+(${IDENT})\\s*=\\s*$`).exec(text.slice(ls, from));
+  if (!m) return null;
+  const le = text.indexOf('\n', end);
+  if (!/^\s*(;\s*)?(\/\/.*)?$/.test(text.slice(end, le < 0 ? text.length : le))) return null;
+  return { kw: m[1], name: m[2], kwFrom: ls, kwTo: ls + m[1].length, end };
+}
+
+/** Every control in the text: { kind: param|range|toggle|select|color, id, from, to (the value to rewrite), at (widget pos), value, name, live, … }. */
 export function findControls(text) {
   const out = [];
   for (const [a, b] of paramBlocks(text)) {
@@ -50,7 +67,59 @@ export function findControls(text) {
     // Named by what it is assigned to (const turn = 9 /* 0..30 */), if anything.
     const before = text.slice(text.lastIndexOf('\n', m.index) + 1, m.index);
     const name = (before.match(/([A-Za-z_$][\w$]*)\s*[:=]\s*$/) || [])[1];
-    out.push({ kind: 'range', id: `r:${n++}`, ...(name ? { name } : {}), min, max, step: m[5] ? Number(m[5]) : null, value: Number(m[1]), from: m.index, to: m.index + m[1].length, at: m.index });
+    const decl = declOf(text, m.index, m.index + m[0].length);
+    out.push({ kind: 'range', id: `r:${n++}`, ...(name ? { name } : {}), min, max, step: m[5] ? Number(m[5]) : null, value: Number(m[1]), from: m.index, to: m.index + m[1].length, at: m.index, ...(decl ? { decl, live: true } : {}) });
+  }
+  const named = (id, kind, from, to, end, extra) => {
+    const decl = declOf(text, from, end);
+    out.push({ kind, id, ...(decl ? { name: decl.name, decl, live: true } : {}), from, to, at: from, ...extra });
+  };
+  n = 0;
+  for (const t of text.matchAll(TOGGLE_RE)) named(`t:${n++}`, 'toggle', t.index, t.index + t[1].length, t.index + t[0].length, { value: t[1] === 'true' });
+  n = 0;
+  for (const t of text.matchAll(COLOR_RE)) named(`c:${n++}`, 'color', t.index, t.index + t[2].length + 2, t.index + t[0].length, { value: t[2], q: t[1] });
+  n = 0;
+  for (const t of text.matchAll(SELECT_RE)) {
+    const options = t[4].split('|').map(x => x.trim()).filter(Boolean);
+    if (options.length < 2 || /\.\.\s*-?\d/.test(t[4])) continue;
+    named(`s:${n++}`, 'select', t.index, t.index + t[2].length + 2, t.index + t[0].length, { value: t[2], q: t[1], options });
+  }
+  for (const t of text.matchAll(PARAM_LINE_RE)) {
+    const [, head, name, eq, raw, spec] = t;
+    const from = t.index + head.length + name.length + eq.length, to = from + raw.length, base = { id: `a:${name}`, name, from, to, at: from, live: true, line: true };
+    const sp = spec.trim(), r = new RegExp(`^(${NUM})\\s*\\.\\.\\s*(${NUM})(?:\\s+step\\s*:\\s*(${NUM}))?$`).exec(sp), q = /^['"]/.test(raw) ? raw[0] : '';
+    const bare = q ? raw.slice(1, -1) : raw;
+    if (r && Number.isFinite(Number(raw))) out.push({ ...base, kind: 'range', min: Number(r[1]), max: Number(r[2]), step: r[3] ? Number(r[3]) : null, value: Number(raw) });
+    else if (/^colou?r$/i.test(sp)) out.push({ ...base, kind: 'color', value: bare, q });
+    else if (/^bool(ean)?$/i.test(sp)) out.push({ ...base, kind: 'toggle', value: /^(true|yes|on|1)$/i.test(bare) });
+    else if (sp.includes('|')) out.push({ ...base, kind: 'select', value: bare, q, options: sp.split('|').map(x => x.trim()).filter(Boolean) });
   }
   return out;
+}
+
+/** The text a control's value is written as. */
+export const literalOf = (c, v) => (c.kind === 'toggle' ? String(Boolean(v)) : c.kind === 'range' ? String(v) : `${c.q || ''}${v}${c.q || ''}`);
+
+/** The values of the controls that can change without starting the sketch again: { name: value }. */
+export function liveValues(text) {
+  const o = {};
+  for (const c of findControls(text)) if (c.live && c.name) o[c.name] = c.value;
+  return o;
+}
+
+/**
+ * A sketch's code for a frame: each live control declared at the top (const n = 6 with a range comment) is made
+ * a `let` with a setter registered (`__ctl`), so the studio can change it while the sketch runs. `sig` is the
+ * code with the live values blanked: the sketch starts again only when that changes.
+ */
+export function instrument(text) {
+  const cs = findControls(text).filter(c => c.live && c.name);
+  let sig = text, code = text;
+  for (const c of [...cs].sort((a, b) => b.from - a.from)) sig = sig.slice(0, c.from) + '\0' + sig.slice(c.to);
+  for (const c of [...cs].filter(c => c.decl).sort((a, b) => b.from - a.from)) {
+    const d = c.decl;
+    code = code.slice(0, d.end) + `; __ctl(${JSON.stringify(c.name)}, v => { ${c.name} = v; });` + code.slice(d.end);
+    code = code.slice(0, d.kwFrom) + 'let' + code.slice(d.kwTo);
+  }
+  return { code, sig, values: Object.fromEntries(cs.map(c => [c.name, c.value])) };
 }

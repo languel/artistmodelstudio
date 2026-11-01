@@ -45,6 +45,8 @@ export class Outputs {
   run(id, on, token) { for (const o of this.twins(id)) { try { o.frame.contentWindow?.postMessage({ amsFrame: token, type: 'run', on }, '*'); } catch { /* reloading */ } } }
   /** What is done in the studio's copy (pointer, keys, wheel) is done in the window's. */
   forward(id, ev, token) { for (const o of this.twins(id)) { try { o.frame.contentWindow?.postMessage({ amsFrame: token, type: 'input', ev }, '*'); } catch { /* reloading */ } } }
+  /** A control changed in the studio's copy: it changes in the window's. */
+  ctl(id, key, value, token) { for (const o of this.twins(id)) { try { o.frame.contentWindow?.postMessage({ amsFrame: token, type: 'ctl', key, value }, '*'); } catch { /* reloading */ } } }
   /** Show another board in an open window. */
   retarget(key, id) {
     const o = this.items.get(key), b = boardById(this.app.store.doc, id);

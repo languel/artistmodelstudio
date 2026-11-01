@@ -20,6 +20,7 @@ import { boardsOf, boardKind, findBoard, MAIN, opacityOf, blendOf, cssBlend } fr
 import { renderMarkdown, esc } from '../process/markdown.js';
 import { renderToCanvas } from '../process/render.js';
 import { collectThree, threeLoader } from '../process/threeModules.js';
+import { instrument, liveValues } from '../process/controls.js';
 // p5.js for sketches, bundled with the studio as plain text (no network needed; the package does not
 // export the file by name), loaded when a sketch first runs.
 const loadP5 = () => import('../../node_modules/p5/lib/p5.min.js?raw').then(m => m.default);
@@ -65,7 +66,7 @@ const fileLoader = files => `(() => {
 })();`;
 
 /** The page a frame runs: the bridge, then (for p5) p5.js and its files, then the board's code. */
-function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false, threeMods = null, seed = null) {
+function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false, threeMods = null, seed = null, ctl = {}) {
   const bridge = `(() => {
   // A sandboxed frame has no storage: reading it throws. Libraries that touch it (ml5, tfjs) get a
   // stand-in that forgets on reload.
@@ -85,6 +86,9 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   if (seed !== null) { let s = seed; Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   let held = null; const raf0 = window.requestAnimationFrame.bind(window);
   window.requestAnimationFrame = cb => raf0(t => { if (held) held.push(cb); else cb(t); });
+  // Controls the code declares (const n = 6 /* 1..40 */, // @param …): their values, live while the sketch runs.
+  const ctlVals = ${JSON.stringify(ctl).replace(/</g, '\\u003c')}, ctlSet = {}, params = { ...ctlVals };
+  window.__ctl = (k, f) => { ctlSet[k] = f; if (k in ctlVals) f(ctlVals[k]); };
   let fwd = false;
   for (const t of ['pointermove', 'pointerdown', 'pointerup', 'mousemove', 'mousedown', 'mouseup', 'click', 'wheel', 'keydown', 'keyup']) {
     addEventListener(t, e => {
@@ -114,6 +118,7 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
     const d = e.data; if (!d || d.amsFrame !== token) return;
     if (d.type === 'perf') perfOn = Boolean(d.on);
     if (d.type === 'fwd') fwd = Boolean(d.on);
+    if (d.type === 'ctl') { ctlVals[d.key] = params[d.key] = d.value; try { ctlSet[d.key]?.(d.value); } catch { /* the sketch's own error */ } }
     if (d.type === 'input' && d.ev) { try { replay(d.ev); } catch { /* an event the sketch cannot take */ } }
     if (d.type === 'run') { if (d.on && held) { const q = held; held = null; q.forEach(cb => raf0(cb)); } else if (!d.on && !held) held = []; }
     if (d.type === 'reply') { const p = pending.get(d.id); if (p) { pending.delete(d.id); d.error ? p.fail(new Error(d.error)) : p.ok(d.result); } }
@@ -140,6 +145,7 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   addEventListener('unhandledrejection', e => parent.postMessage({ amsFrame: token, type: 'error', message: String(e.reason && e.reason.message || e.reason) }, '*'));
   window.ams = Object.freeze({
     board: ${JSON.stringify(board.title)}, width: ${board.width}, height: ${board.height},
+    params,
     call: (tool, args = {}) => ask('call', { tool, args }),
     mark: (role, points, opts = {}) => ask('call', { tool: 'ams_add', args: { role, points, board: ${JSON.stringify(board.id)}, ...opts } }),
     frame: name => ask('frame', { name })
@@ -257,6 +263,18 @@ export class BoardFrames {
     const f = this.frames.get(id), b = boardsOf(this.app.store.doc).find(x => x.id === id);
     if (f?.iframe && b) { f.code = null; this.refresh(f, b); } else this.canvas.invalidate();
   }
+  /** Send a running sketch the values its controls now have in `code` (the ones that changed), and the same to its windows. */
+  ctl(id, code) {
+    const f = this.frames.get(id);
+    if (!f?.iframe || !f.running) return;
+    const vals = liveValues(code);
+    for (const [key, value] of Object.entries(vals)) {
+      if (f.vals && f.vals[key] === value) continue;
+      (f.vals ||= {})[key] = value;
+      try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'ctl', key, value }, '*'); } catch { /* gone */ }
+      this.app.outputs?.ctl(id, key, value, f.token);
+    }
+  }
   /** Tell a sketch whether to send its pointer and keys on (to the twin in an output window). */
   sendForward(f) { try { f.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'fwd', on: Boolean(this.app.outputs?.live(f.id)) }, '*'); } catch { /* gone */ } }
   sendPipe(f) { try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'pipe', on: Boolean(this.pipes?.has(f.id)) }, '*'); } catch { /* gone */ } }
@@ -271,7 +289,10 @@ export class BoardFrames {
     const dark = luminance(b.ground) < 0.45;
     f.el.classList.toggle('dark', dark);
     f.el.style.setProperty('--ground', b.ground || '#f3efe6');
-    const code = b.code || '';
+    const raw = b.code || '';
+    // p5 and three: values of controls the code declares are changed in the running sketch, so only the rest of the code starts it again.
+    const inst = f.kind === 'p5' || f.kind === 'three' ? instrument(raw) : { code: raw, sig: raw, values: {} };
+    const code = inst.code;
     if (f.kind === 'player') { this.refreshPlayer(f, b); return; }
     if (f.kind === 'playlist') { this.refreshPlaylist(f, b); return; }
     if (f.kind === 'markdown') {
@@ -308,10 +329,10 @@ export class BoardFrames {
     }
     // three.js: find and read the modules the sketch imports (once for each version of the code).
     if (f.kind === 'three') {
-      if (f.threeFor !== code) {
-        f.threeFor = code; f.threeMods = null;
-        collectThree(code, loadThreeFile).then(m => { if (f.threeFor === code) { f.threeMods = m; this.canvas.invalidate(); } })
-          .catch(err => { if (f.threeFor === code) { this.app.log(`Board “${b.title}”: ${err.message}`, 'error'); } });
+      if (f.threeFor !== inst.sig) {
+        const mine = f.threeFor = inst.sig; f.threeMods = null;
+        collectThree(code, loadThreeFile).then(m => { if (f.threeFor === mine) { f.threeMods = m; this.canvas.invalidate(); } })
+          .catch(err => { if (f.threeFor === inst.sig) { this.app.log(`Board “${b.title}”: ${err.message}`, 'error'); } });
       }
       if (!f.threeMods) return;
     }
@@ -320,20 +341,21 @@ export class BoardFrames {
     this.loadFiles(wanted.filter(n => !(n in this.files)));
     if (wanted.some(n => this.files[n] === undefined)) return;   // still reading: the sketch starts when they are here
     const files = Object.fromEntries(wanted.filter(n => this.files[n]).map(n => [n, this.files[n]]));
-    if (!f.running || f.code !== code || f.size !== `${b.width}x${b.height}`) {
-      f.code = code; f.size = `${b.width}x${b.height}`; f.running = true; f.errors = [];
+    if (!f.running || f.code !== inst.sig || f.size !== `${b.width}x${b.height}`) {
+      f.code = inst.sig; f.vals = { ...inst.values }; f.size = `${b.width}x${b.height}`; f.running = true; f.errors = [];
       f.iframe?.remove();
       const iframe = document.createElement('iframe');
       iframe.setAttribute('sandbox', 'allow-scripts');
       iframe.setAttribute('credentialless', '');
       iframe.title = b.title;
       f.perf = Boolean(this.app.perfWanted?.(b));
-      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods, this.seeds.get(b.id) ?? null);
+      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods, this.seeds.get(b.id) ?? null, f.vals);
       f.iframe = iframe;
       iframe.addEventListener('load', () => { this.sendPipe(f); this.sendForward(f); });   // (an output may be waiting for it)
       f.el.append(iframe);
       this.app.outputs?.reload(b.id, iframe.srcdoc);   // (a window showing it starts again with it)
     }
+    else this.ctl(b.id, raw);   // the same sketch, other values
     // Its performance shown or not: the sketch times its draw() only while it is.
     const perf = Boolean(this.app.perfWanted?.(b));
     if (f.iframe && f.perf !== perf) { f.perf = perf; f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'perf', on: perf }, '*'); if (!perf) this.perf.delete(b.id); }
