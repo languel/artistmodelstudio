@@ -400,10 +400,10 @@ renderer.render = (s, c) => {
     },
     {
       id: 'short', title: 'A short film', label: 'Examples',
-      text: 'Everything so far, in sixteen seconds: the same set, the same puppet, and a story told by **keyframes**. A keyframe is a pose at a time; the frames between are made by easing from one pose to the next. A sitting figure, a rising moon, a stand, a reach, a fall. And the **rhythm** of the film: it is photographed a frame at a time and moved only between exposures, so it moves in small jumps and hesitates.',
+      text: 'Everything so far, in thirteen seconds: the same set, the same puppet, and a story told by **keyframes**. A keyframe is a pose at a time; the frames between are made by easing from one pose to the next. A sitting figure, a rising moon, a stand, a reach, a fall. And the **rhythm** of the film: it is photographed a frame at a time and moved only between exposures, so it moves in small jumps and hesitates.',
       boards: [
         { id: 'moon', title: '4.1 · The moon', ...BOARD,
-          idea: 'A figure sits on a dune and watches the moon rise. When it nears the edge of the sky he stands, reaches for it, and cannot. He lunges after it and his hand just touches it: the moon is knocked out of the frame. The sky goes black, the paper dissolves and only his hinges are left, a constellation among the stars. Stars appear as the light fades; now and then one falls. The film is a table of **keyframes**, each a pose and a time, and a function that eases between them. The puppet is moved only on each exposure, `fps` times a second (8 is on threes, as a hand-animated film is; 24 is smooth; 4 is halting), and every exposure is a little imprecise. `play` runs it (and repeats it with `loop`); turn it off and `scrub` moves through the film by hand. `view` set to inspect lets you orbit the set.',
+          idea: 'A figure sits on a dune and watches the moon rise. When it nears the edge of the sky he stands, reaches for it, and cannot. He lunges after it and his hand just touches it: the moon is knocked out of the frame. The light goes with it: the sky goes black, the paper is lifted away piece by piece and only his hinges are left, a constellation among the stars. Stars come out as the sky dims; now and then one falls. The film is a table of **keyframes**, each a pose and a time, and a function that eases between them. The puppet is moved only on each exposure, `fps` times a second (8 is on threes, as a hand-animated film is; 24 is smooth; 4 is halting), and every exposure is a little imprecise. The bar along the bottom plays and pauses the film (or press Space) and scrubs through it; `loop` repeats it. `view` set to inspect lets you orbit the set.',
           pseudo: `keys = [ (time, pose, hip height, tilt, step, lift), … ]    # sit, look, lean, half-stand, stand, reach, stretch, lunge, fall, drift
 at the end: the moon settles on his hand and is knocked out of the frame; the sky goes black, only stars are left
 every frame: t = the film's clock; exposure = floor(t × fps)
@@ -413,11 +413,9 @@ every frame: t = the film's clock; exposure = floor(t × fps)
   stars appear by their own times; a few shooting stars cross at random times`,
           three: WHOLE(`
 // --- the film: a table of keyframes and a function that eases between them ---------------------------------------------
-let play = true /* toggle */;
 let loop = true /* toggle */;
-let scrub = 0 /* 0..1 */;
 let fps = 8 /* 3..24 */;                                          // exposures a second (24 is smooth; 8 is on threes; 4 is halting)
-const DURATION = 16, HOLD = 5;                                      // seconds of film, and a rest before it starts again
+const DURATION = 13, HOLD = 4;                                      // seconds of film, and a rest before it starts again
 const ease = u => u * u * (3 - 2 * u);
 const BASE = { pelvis: 0, chest: 0, neck: 0, head: 0, armA: 0, foreA: 0, handA: 0, armB: 0, foreB: 0, handB: 0, thighA: 0, shinA: 0, footA: 0, thighB: 0, shinB: 0, footB: 0 };
 // Poses: an angle for every hinge (0 is the rest pose; a positive angle turns a piece counter-clockwise, away from the way he faces).
@@ -434,9 +432,9 @@ const DRIFT = { ...FALL, chest: -0.4, armA: 2.6, armB: 2.5, thighA: 0.2, thighB:
 // A film made on threes: the puppet is moved, photographed, held for three frames of the 24 a second, moved again. Halting, a little
 // hesitant: the keys hold (the same pose twice) where he thinks, and move quickly where he lunges.
 //            time  pose    hip height  tilt   forward  lift
-const KEYS = [[0, SIT, 0.14, 0, 0, 0], [3.5, LOOK, 0.14, 0, 0, 0], [5.2, LOOK, 0.14, 0, 0, 0], [6.0, LEAN, 0.14, 0, 0, 0], [6.9, LEAN, 0.14, 0, 0, 0],
-  [7.7, HALF, 0.95, 0, 0, 0], [8.2, HALF, 1.0, 0, 0, 0], [9.0, STAND, 1.75, 0, 0, 0], [9.5, STAND, 1.75, 0, 0, 0], [10.2, REACH, 1.78, 0, 0, 0], [11.0, STRETCH, 1.8, 0, 0, 0],
-  [11.5, STRETCH, 1.8, 0, 0, 0], [12.2, LUNGE, 1.68, -0.3, 0.7, 0], [13.0, FALL, 1.55, -0.75, 1.2, 0.15], [14.4, DRIFT, 1.5, -1.0, 1.3, 1.0], [DURATION, DRIFT, 1.5, -1.1, 1.5, 1.7]];
+const KEYS = [[0, SIT, 0.14, 0, 0, 0], [2.8, LOOK, 0.14, 0, 0, 0], [4.0, LOOK, 0.14, 0, 0, 0], [4.7, LEAN, 0.14, 0, 0, 0], [5.4, LEAN, 0.14, 0, 0, 0],
+  [6.1, HALF, 0.95, 0, 0, 0], [6.5, HALF, 1.0, 0, 0, 0], [7.2, STAND, 1.75, 0, 0, 0], [7.7, STAND, 1.75, 0, 0, 0], [8.3, REACH, 1.78, 0, 0, 0], [8.9, STRETCH, 1.8, 0, 0, 0],
+  [9.3, STRETCH, 1.8, 0, 0, 0], [9.9, LUNGE, 1.68, -0.3, 0.7, 0], [10.6, FALL, 1.55, -0.75, 1.2, 0.15], [11.7, DRIFT, 1.5, -1.0, 1.3, 1.0], [DURATION, DRIFT, 1.5, -1.1, 1.5, 1.7]];
 const track = t => {                                                // the pose, hip height, tilt, step forward and lift at time t
   let i = 0; while (i < KEYS.length - 2 && t > KEYS[i + 1][0]) i++;
   const [t0, p0, h0, r0, f0, l0] = KEYS[i], [t1, p1, h1, r1, f1, l1] = KEYS[i + 1];
@@ -446,15 +444,18 @@ const track = t => {                                                // the pose,
 const hash = (a, b) => { const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return x - Math.floor(x); };
 
 // The sky: colours at times, and the moon's climb.
-const SKY = [[0, '#f0d9a0'], [5.5, '#e0b98e'], [9, '#b08e92'], [11.5, '#5b5a86'], [13, '#1d2750'], [14.4, '#070b1c'], [16, '#020309']].map(([t, c]) => [t, new THREE.Color(c)]);
-const sky = t => { let i = 0; while (i < SKY.length - 2 && t > SKY[i + 1][0]) i++; const [a, ca] = SKY[i], [b, cb] = SKY[i + 1]; return ca.clone().lerp(cb, ease(Math.min(1, Math.max(0, (t - a) / (b - a))))); };
-const dark = t => Math.min(1, Math.max(0, (t - 3) / 11));            // 0 at the start, 1 when the sky is night
+const KNOCK = 9.9;                                                   // when his hand meets the moon
+const SKY = [[0, '#f0d9a0'], [4.5, '#e6c394'], [KNOCK, '#b38f8e']].map(([t, c]) => [t, new THREE.Color(c)]);   // a slow dusk
+const NIGHT = new THREE.Color('#03050d');
+const gone = t => ease(Math.min(1, Math.max(0, (t - KNOCK) / 2.6)));                 // the moon leaves: the light goes with it
+const sky = t => { let i = 0; while (i < SKY.length - 2 && t > SKY[i + 1][0]) i++; const [a, ca] = SKY[i], [b, cb] = SKY[i + 1]; return ca.clone().lerp(cb, ease(Math.min(1, Math.max(0, (t - a) / (b - a))))).lerp(NIGHT, gone(t)); };
+const dark = t => 0.35 * ease(Math.min(1, t / KNOCK)) + 0.65 * gone(t);          // how dark it is: a little by dusk, all of it when the moon is gone
 
 home.set(-3.0, -2.35);
 const dune = new THREE.Shape(); dune.moveTo(-6, -3.6); dune.quadraticCurveTo(-4.4, -2.4, -3.0, -2.4); dune.quadraticCurveTo(-1.4, -2.4, -0.2, -3.6);
 scene.add(cut(dune, -0.2));
 const figure = new THREE.MeshBasicMaterial({ color: 0x0b0a0a, transparent: true, side: THREE.DoubleSide });
-for (const n of Object.values(node)) n.mesh.material = figure;     // the puppet's paper has a material of its own, so it can fade alone
+for (const n of Object.values(node)) n.mesh.material = figure;     // the puppet's paper has a material of its own, so it can be styled alone
 const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,255,255,0.7)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const starMat = () => new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending });
@@ -468,20 +469,20 @@ for (const n of Object.values(node)) {                              // each hing
 // Sky stars: each has a place and a time it appears. Shooting stars: a few, at random times, each a streak that fades.
 let rnd = 1;
 const rand = () => { rnd = (rnd * 16807) % 2147483647; return (rnd - 1) / 2147483646; };
-let skyStars = [], streaks = [], run = -1;
+let skyStars = [], streaks = [];
 const reseed = () => {
   rnd = 1 + Math.floor(Math.random() * 1e6);
   skyStars.forEach(m => { scene.remove(m); }); streaks.forEach(m => scene.remove(m.mesh));
   skyStars = Array.from({ length: 110 }, () => {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), starMat());
     m.position.set((rand() - 0.5) * FRAME * W / H * 1.1, -0.2 + rand() * (FRAME / 2 + 0.2), -4.8);
-    m.userData = { at: 2 + 10 * Math.pow(rand(), 1.4), size: 0.06 + 0.14 * rand() * rand(), twinkle: rand() * 6 };
+    m.userData = { at: 1 + 11 * Math.pow(rand(), 1.4), size: 0.06 + 0.14 * rand() * rand(), twinkle: rand() * 6 };
     scene.add(m); return m;
   });
   streaks = Array.from({ length: 6 }, () => {
     const mesh = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false }));
     mesh.position.z = -4.7; scene.add(mesh);
-    return { mesh, at: 4 + rand() * 16, x: (rand() - 0.2) * FRAME * W / H * 0.5, y: 0.8 + rand() * 2.4, a: -0.35 - rand() * 0.5 };
+    return { mesh, at: 2 + rand() * 14, x: (rand() - 0.2) * FRAME * W / H * 0.5, y: 0.8 + rand() * 2.4, a: -0.35 - rand() * 0.5 };
   });
 };
 const showSky = (t, night, live) => {
@@ -492,7 +493,7 @@ const showSky = (t, night, live) => {
   }
   for (const s of streaks) {
     const u = (t - s.at) / 0.8;
-    s.mesh.visible = u > 0 && u < 1 && night > 0.35;
+    s.mesh.visible = u > 0 && u < 1 && night > 0.3;
     if (!s.mesh.visible) continue;
     const dx = Math.cos(s.a), dy = Math.sin(s.a), head = u * 3.4, tail = Math.max(0, head - 1.1);
     s.mesh.geometry.setFromPoints([new THREE.Vector3(s.x + dx * tail, s.y + dy * tail, 0), new THREE.Vector3(s.x + dx * head, s.y + dy * head, 0)]);
@@ -500,43 +501,81 @@ const showSky = (t, night, live) => {
   }
 };
 
+// The transport: a play / pause button and a slider along the bottom (Space plays and pauses too). The slider is the film's clock.
+const LENGTH = DURATION + HOLD;
+let playing = true, pos = 0, last = performance.now(), dragging = false;
+const bar = document.createElement('div');
+bar.style.cssText = 'position:fixed;left:10px;right:10px;bottom:8px;display:flex;align-items:center;gap:10px;opacity:.35;transition:opacity .2s;z-index:5';
+bar.onmouseenter = () => { bar.style.opacity = 1; }; bar.onmouseleave = () => { bar.style.opacity = .35; };
+const button = document.createElement('button');
+button.style.cssText = 'width:26px;height:26px;border:0;border-radius:13px;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;display:grid;place-items:center;padding:0';
+const glyph = on => { button.innerHTML = on ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M7 4l13 8-13 8z" fill="currentColor"/></svg>'; button.title = on ? 'Pause (Space)' : 'Play (Space)'; };
+// The slider is made of plain elements and pointer events (the studio hands a board its pointer as events, which a native slider ignores).
+const scrubber = document.createElement('div');
+scrubber.style.cssText = 'flex:1;height:22px;display:flex;align-items:center;cursor:pointer;touch-action:none';
+scrubber.title = 'Scrub through the film';
+const rail = document.createElement('div'); rail.style.cssText = 'position:relative;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,.3)';
+const fill = document.createElement('div'); fill.style.cssText = 'position:absolute;left:0;top:0;height:100%;border-radius:2px;background:#e0a030';
+const knob = document.createElement('div'); knob.style.cssText = 'position:absolute;top:-4px;width:12px;height:12px;border-radius:6px;background:#e0a030;margin-left:-6px';
+rail.append(fill, knob); scrubber.append(rail);
+bar.append(button, scrubber); document.body.append(bar);
+const seek = e => { const r = rail.getBoundingClientRect(); pos = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * LENGTH; };
+const toggle = () => { if (!playing && pos >= LENGTH - 0.01) pos = 0; playing = !playing; last = performance.now(); glyph(playing); };
+button.onclick = toggle;
+scrubber.addEventListener('pointerdown', e => { dragging = true; playing = false; glyph(false); seek(e); });
+addEventListener('pointermove', e => { if (dragging) seek(e); });
+addEventListener('pointerup', () => { dragging = false; });
+addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } });
+glyph(true);
+
 const reel = renderer.render.bind(renderer);
-let startedAt = performance.now();
 renderer.render = (sc, cam) => {
-  const length = DURATION + HOLD;
-  let t = play ? ((performance.now() - startedAt) / 1000) : scrub * DURATION;
-  if (play && t > length) { if (loop) { startedAt = performance.now(); t = 0; } else t = DURATION; }
-  const clock = Math.min(t, DURATION), run2 = Math.floor((performance.now() - startedAt) / 1000 / length);
-  if (run !== (play ? startedAt : 0)) { run = play ? startedAt : 0; reseed(); }   // new random stars each time round
+  const now = performance.now(), dt = Math.min(0.25, (now - last) / 1000); last = now;
+  if (playing) {
+    pos += dt;
+    if (pos > LENGTH) { if (loop) { pos = 0; reseed(); } else { pos = LENGTH; playing = false; glyph(false); } }   // new random stars each time round
+  }
+  fill.style.width = knob.style.left = (100 * pos / LENGTH) + '%';
+  if (!skyStars.length) reseed();
+  const t = pos, clock = Math.min(t, DURATION);
   // the puppet is photographed a frame at a time: its pose changes only on an exposure, and each is a little imprecise
   const frameNo = Math.floor(clock * fps), still = frameNo / fps;
-  const k = track(still), night = dark(clock) * dark(clock) * (3 - 2 * dark(clock));
+  const k = track(still), night = dark(clock);
   Object.keys(k.pose).forEach((id, i) => { node[id].group.rotation.z = k.pose[id] + 0.025 * (hash(frameNo, i) - 0.5); });
-  if (still > 10.2 && still < 12) node.armA.group.rotation.z += 0.035 * Math.sin(frameNo * 2.3);   // reaching: a tremble
+  if (still > 8.3 && still < 9.6) node.armA.group.rotation.z += 0.035 * Math.sin(frameNo * 2.3);   // reaching: a tremble
   node.pelvis.group.position.y = k.hip;
   puppet.position.set(home.x + k.step, home.y + k.lift, 0);
   const after = Math.max(0, t - DURATION);                          // after the last key the film does not stop: he keeps drifting, slowly
   puppet.position.y += after * 0.08; puppet.position.x += after * 0.03;
   puppet.rotation.z = k.tilt - after * 0.015;
-  // the paper dissolves; the hinges become stars
-  const fade = ease(Math.min(1, Math.max(0, (clock - 12.6) / 1.5)));
-  figure.opacity = 1 - fade;
-  for (const n of Object.values(node)) {                              // the white hinge rings stay; they fill in and glow, and are the stars
-    n.pin.visible = true; n.dot.material.opacity = fade;
-    n.star.material.opacity = 0.45 * fade; n.star.scale.setScalar(0.35 + 0.6 * fade * (0.85 + 0.15 * Math.sin(t * 4 + n.depth * 2)));
-  }
-  // the sky, the moon, the hills' colour
-  lightbox.material.color.copy(sky(clock));
-  const rise = Math.min(1, Math.floor(clock * 12) / 12 / 11);        // the moon climbs on the diagonal, up and to the right (a frame at a time too)
+  // the moon first (it settles on his hand late in the film), then his gaze follows it: the neck and head turn to face it all the way up
+  puppet.updateMatrixWorld(true);
+  const rise = Math.min(1, Math.floor(clock * 12) / 12 / 9);        // the moon climbs on the diagonal, up and to the right (a frame at a time too)
   let mx = -0.4 + 3.6 * ease(rise), my = -1.5 + 4.7 * ease(rise);
-  if (clock > 12.3) {                                                // he reaches it: it settles on his hand, and he knocks it away, out of the frame
+  if (clock > KNOCK - 0.6) {                                                // he reaches it: it settles on his hand, and he knocks it away, out of the frame
     const hand = node.handA.group.getWorldPosition(new THREE.Vector3());
-    const hold = ease(Math.min(1, (clock - 12.3) / 0.7)) * (1 - ease(Math.min(1, Math.max(0, (clock - 13) / 0.5))));
+    const hold = ease(Math.min(1, (clock - KNOCK + 0.6) / 0.6)) * (1 - ease(Math.min(1, Math.max(0, (clock - KNOCK) / 0.4))));
     mx += (hand.x + 0.6 - mx) * hold; my += (hand.y + 0.6 - my) * hold;
-    const push = Math.pow(Math.max(0, (clock - 13) / 1.1), 2) * 10;
+    const push = Math.pow(Math.max(0, (clock - KNOCK) / 0.9), 2) * 10;
     mx += push * 0.8; my += push * 0.65;
   }
   moonDisc.visible = true; moonDisc.position.set(mx, my, -4.9);
+  const eyeAt = node.head.group.getWorldPosition(new THREE.Vector3());
+  const want = Math.min(1.25, Math.max(-0.1, Math.atan2(my - eyeAt.y, mx - eyeAt.x)));                    // the angle to the moon, from his head
+  const turn = Math.max(-0.5, Math.min(1.05, want - (puppet.rotation.z + node.pelvis.group.rotation.z + node.chest.group.rotation.z)));
+  node.neck.group.rotation.z = 0.35 * turn + 0.025 * (hash(frameNo, 20) - 0.5);
+  node.head.group.rotation.z = 0.65 * turn + 0.025 * (hash(frameNo, 21) - 0.5);
+  // the paper dissolves; the hinges become stars
+  // the paper goes a piece at a time, as if each were lifted off the table between exposures; the white hinge is left, a star
+  const ORDER = ['handA', 'handB', 'footA', 'footB', 'foreA', 'foreB', 'shinA', 'shinB', 'armA', 'armB', 'thighA', 'thighB', 'head', 'neck', 'chest', 'pelvis'];
+  for (const n of Object.values(node)) {
+    const out = KNOCK + 0.3 + ORDER.indexOf(n.id) * 0.13, gone1 = still >= out;
+    n.mesh.visible = !gone1;
+    n.pin.visible = true; n.dot.material.opacity = gone1 ? 1 : 0;
+    n.star.material.opacity = gone1 ? 0.4 : 0; n.star.scale.setScalar(0.35 + 0.6 * (0.85 + 0.15 * Math.sin(t * 4 + n.depth * 2)));
+  }
+  // the sky, the moon, the hills' colour
+  lightbox.material.color.copy(sky(clock));
   mid.material.color.setHex(0x1a1610).lerp(new THREE.Color(0x060810), night);
   showSky(clock, night, t);
   reel(sc, cam);
