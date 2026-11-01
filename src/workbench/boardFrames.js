@@ -30,11 +30,17 @@ import { icon } from './icons.js';
 const loadP5 = () => import('../../node_modules/p5/lib/p5.min.js?raw').then(m => m.default);
 // three.js and the addons a sketch may import, bundled with the studio as text and read when a sketch first needs them.
 const THREE_FILES = import.meta.glob([
+  '../../node_modules/three/package.json',
   '../../node_modules/three/build/three.{module,core}.js',
-  '../../node_modules/three/examples/jsm/{controls,postprocessing,shaders,math,geometries,lines,utils,curves,helpers,objects,lights}/*.js',
-  '../../node_modules/three/examples/jsm/loaders/{GLTFLoader,OBJLoader,MTLLoader,STLLoader,PLYLoader}.js',
-  '../../node_modules/three/examples/jsm/exporters/{OBJExporter,GLTFExporter,STLExporter}.js'
+  // every addon a demo is likely to import (a few MB of text, read only when a sketch imports one): controls, postprocessing, loaders and
+  // exporters, helpers, renderers (CSS2D, CSS3D), environments (RoomEnvironment), webxr (VRButton), and libs (lil-gui, stats, fflate…)
+  '../../node_modules/three/examples/jsm/{controls,postprocessing,shaders,math,geometries,lines,utils,curves,helpers,objects,lights,lighting,environments,renderers,interactive,misc,modifiers,effects,animation,csm,capabilities,textures,webxr,libs,exporters}/*.js',
+  '../../node_modules/three/examples/jsm/loaders/**/*.js'
 ], { query: '?raw', import: 'default' });
+// The versions of the libraries the studio runs (a page for another editor asks for the same ones).
+const P5_PACKAGE = import.meta.glob('../../node_modules/p5/package.json', { query: '?raw', import: 'default' });
+export const threeVersion = async () => JSON.parse(await THREE_FILES['../../node_modules/three/package.json']()).version;
+export const p5Version = async () => JSON.parse(await Object.values(P5_PACKAGE)[0]()).version;
 export const loadThreeFile = async id => {
   const f = THREE_FILES[`../../node_modules/three/${id}`];
   if (!f) throw new Error(`three.js file “${id}” is not bundled with the studio (import from 'three' or a common addon: controls, postprocessing, shaders, loaders…)`);
@@ -440,7 +446,7 @@ export class BoardFrames {
       f.el.append(head, host);
       f.editor = createCodeEditor(host, {
         value: code, language: lang,
-        onRun: () => this.restart(f.of),
+        onRun: () => this.restart(f.of), onNotice: note => this.app.log?.(note),
         onChange: () => {
           if (f.loading) return;
           f.dirty = true;

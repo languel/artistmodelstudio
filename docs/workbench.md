@@ -654,6 +654,7 @@ The same sketch can leave in several ways. What each one keeps:
 | Export → **Standalone page** | one HTML file, offline | inside the file | none: the sketch runs with the values as written |
 | Export → **Page with controls** | one HTML file, offline | inside the file | a panel (H, the gear, `</>` shows the code); `// @panel hidden` starts it closed, `off` leaves it out |
 | **Copy the code** into another editor | the sketch's text | the editor's | plain comments: it runs with the values as written, with no sliders |
+| Export → **Copy as a page for CodePen, Codevre…** (or **Page for other editors**, a file) | a small page: the code unchanged, three.js (or p5.js) from a CDN at the studio's version by an import map | CDN, the studio's version | plain comments, with a line at the top saying so |
 
 **Why the controls are not elsewhere.** The sliders are made by the studio from the comments next to the values. Another editor does not read them, so there they are only comments, and the sketch runs with the numbers, colours and choices written in the code. Nothing breaks: change a number in the code to change the sketch. To demonstrate with the controls, use the studio, Perform, or a page exported *with controls*.
 
@@ -671,7 +672,15 @@ The same sketch can leave in several ways. What each one keeps:
   Codevre's templates map `three` to `three@latest` on esm.sh and have no `three/addons/` line: for `OrbitControls` and the other addons add that line, and keep the version equal to the studio's (0.187.0) so the code means the same thing. A page that says `latest` changes when three.js does.
 - **An editor that takes one JS file and no import map:** the bare names cannot work; write the full URLs in the `import` lines.
 
-**Options for the export to come.** The exports above are the ones there are. The ones worth adding, as options of the export menu: a project folder for native ES modules with the import map and the version as a choice (pinned to the studio's, or `latest`), and one for Vite (`package.json`, `vite.config.js`); and, for either, whether the panel comes along as a small module that reads the same comments. The reason to choose is the audience: a student copying the code needs the plain code and a sentence about the comments; a demo needs the panel.
+**Pasting a sketch from somewhere else.** The aim is that a demo from the three.js site, Codevre or CodePen pastes in and runs, and the board's code pastes back out. Paste (Cmd+V on the canvas) makes a board of what it is:
+- **A page** (a three.js example, a CodePen or Codevre file): its module script becomes the sketch, and the import map is left out (the studio resolves `three` and `three/addons/` itself). The page's own styles and markup are left out too (a board has no page around the sketch), so a demo that looks for an element of its own, such as `document.getElementById('info')`, needs it made in the code.
+- **Three.js imported from a CDN** (`https://unpkg.com/three@…/build/three.module.js`, jsDelivr, esm.sh, Skypack; the addons by their URL): written as the bare names `'three'` and `'three/addons/…'`. Other libraries imported by URL (`https://esm.sh/gsap`) are left as they are and load from the network.
+- **An older page with a global `THREE`:** gets `import * as THREE from 'three'`.
+- **A p5.js page or sketch:** a p5.js board; **anything else:** as before (a note, or studio code).
+
+The same applies when you paste into a three.js or p5.js board's own editor: a page becomes its script, and CDN imports become the bare names. The studio bundles three.js r187 with its addons (controls, loaders, exporters, postprocessing, `lil-gui`, `Stats`, `RoomEnvironment`, the CSS2D and CSS3D renderers, `VRButton`…), so a demo that uses them runs offline. A demo that loads its own images or models by a relative path (`textures/…`, `models/…`) needs those files at a URL.
+
+**Still to come, as options of the export menu:** a project folder for native ES modules (an `index.html` with the import map and the version as a choice: the studio's, or `latest`, and the sketch as `src/main.js`), one for Vite (`package.json`, `vite.config.js`), and whether the panel comes along as a small module that reads the same comments. The reason to choose is the audience: a student copying the code needs the plain code and a sentence about the comments; a demo needs the panel.
 
 ### Converting, baking, copying, pasting
 

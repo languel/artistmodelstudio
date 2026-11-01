@@ -77,6 +77,7 @@ import { startDiagnostics } from './diagnostics.js';
 import { BoardFrames } from './boardFrames.js';
 import { boardPart, scenePart, selectionPart, importPart, isPart } from '../process/parts.js';
 import { p5ToStudio, isStudioSketch, textKind, p5Size } from '../process/convert.js';
+import { sketchFromPaste } from '../process/pasteSketch.js';
 import { toP5Code, p5SketchHtml, usesMl5 } from '../process/p5code.js';
 import { readRecently } from '../process/streams.js';
 import { mountSources } from './panels/sources.js';
@@ -2612,16 +2613,26 @@ export class Workbench {
     const lib = b.kind === 'three' ? 'three.js' : 'p5.js';
     return [
       { label: 'Standalone page', hint: `One HTML file with ${lib} inside: opens offline and fills the window (F: full screen)`, run: () => this.exportSketch(id, false) },
-      { label: 'Page with controls', hint: 'The same, with the sliders, toggles, selects, colours and palettes the code declares as a small panel (H shows or hides it, Shift+H hides the button too; ?ui=0 starts it hidden)', run: () => this.exportSketch(id, true) }
+      { label: 'Page with controls', hint: 'The same, with the sliders, toggles, selects, colours and palettes the code declares as a small panel (H shows or hides it, Shift+H hides the button too; ?ui=0 starts it hidden)', run: () => this.exportSketch(id, true) },
+      '-',
+      { label: 'Copy as a page for CodePen, Codevre…', hint: `The code as a page that loads ${lib} from a CDN at the studio's version (an import map): paste it into another editor's HTML. The control comments are only comments there`, run: () => this.exportSketch(id, false, 'copy') },
+      { label: 'Page for other editors (file)', hint: `The same as a file: ${lib} from a CDN, small and readable`, run: () => this.exportSketch(id, false, 'cdn') }
     ];
   }
 
-  async exportSketch(id, controls) {
+  async exportSketch(id, controls, how = 'file') {
     const b = boardById(this.store.doc, id);
     if (!b) return;
     const name = `${this.slug()}-${String(b.title).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.replace(/-+$/, '');
     try {
       if (b.kind === 'html') { download(/^\s*<!doctype/i.test(b.code || '') ? b.code : `<!doctype html>\n${b.code || ''}`, `${name}.html`, 'text/html'); return; }
+      if (how === 'copy' || how === 'cdn') {
+        const [{ modulePage }, bf] = await Promise.all([import('./exportPage.js'), import('./boardFrames.js')]);
+        const html = modulePage({ kind: b.kind, title: b.title, code: b.code || '', ground: b.ground, version: await bf.threeVersion(), p5Version: await bf.p5Version() });
+        if (how === 'copy') { await navigator.clipboard.writeText(html); this.log(`“${b.title}” copied as a page: paste it into CodePen, Codevre or any editor (the control comments are only comments there).`); }
+        else { download(html, `${name}.html`, 'text/html'); this.log(`“${b.title}” saved as ${name}.html: it loads the library from a CDN.`); }
+        return;
+      }
       const [{ sketchPage }, { loadThreeFile }] = await Promise.all([import('./exportPage.js'), import('./boardFrames.js')]);
       const html = await sketchPage({ kind: b.kind, title: b.title, code: b.code || '', ground: b.ground, controls, loadFile: loadThreeFile, p5Source: b.kind === 'p5' ? await this.frames.p5Text() : '' });
       download(html, `${name}.html`, 'text/html');
@@ -2697,6 +2708,16 @@ export class Workbench {
       // With the studio's record inside: the marks themselves. Otherwise a vector image.
       if (/data-ams/.test(t)) { try { const d = fromSVG(t); return this.importPartHere({ ...d, meta: { ...(d.meta || {}), part: 'selection' } }, [at[0] - d.artboard.width / 2, at[1] - d.artboard.height / 2], 'pasted SVG'); } catch { /* as an image */ } }
       return this.placeSvg(t, at);
+    }
+    // A sketch from another editor or a page (a three.js example, CodePen, Codevre): a board that runs it.
+    const from = sketchFromPaste(t);
+    if (from) {
+      const size = (from.kind === 'p5' && p5Size(from.code)) || { width: 800, height: 600 };
+      const b = this.store.addBoard({ title: { three: 'Pasted three.js sketch', p5: 'Pasted sketch', html: 'Pasted page' }[from.kind], ...size, ground: from.kind === 'html' ? undefined : '#141414' });
+      this.store.updateBoard(b.id, { kind: from.kind, code: from.code });
+      this.goToBoard(b.id, { animate: true });
+      this.log(from.note);
+      return;
     }
     if (kind === 'p5' || kind === 'studio') {
       const size = (kind === 'p5' && p5Size(t)) || { width: 800, height: 600 };

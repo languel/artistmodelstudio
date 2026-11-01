@@ -40,7 +40,7 @@ export function mountBoardCode(root, app) {
     out.classList.remove('error'); editor.markError(null);
     out.textContent = `${res.marks} mark${res.marks === 1 ? '' : 's'}${res.logs?.length ? ` · ${res.logs.join(' · ')}` : ''}`;
   };
-  const editor = createCodeEditor(host, { value: '', onRun: run, onChange: () => {
+  const editor = createCodeEditor(host, { value: '', onRun: run, onNotice: note => app.log?.(note), onChange: () => {
     if (loading) return;
     clearTimeout(timer);
     if (kindOf() !== 'drawing') { if (kindOf() === 'p5' || kindOf() === 'three') app.frames?.ctl?.(id, editor.value); timer = setTimeout(save, 400); return; }

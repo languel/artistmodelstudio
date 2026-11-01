@@ -46,3 +46,21 @@ export async function sketchPage({ kind, title, code, ground, controls = false, 
   parts.push('</body></html>\n');
   return parts.join('\n');
 }
+
+/**
+ * The sketch as a page for any other editor (CodePen, Codevre, a file on a server): the code unchanged, and the library from a CDN at the
+ * version the studio runs: three.js by an import map (three and three/addons/), p5.js by a script tag. Small, readable, and it opens.
+ * The control comments are only comments there; a line at the top says so.
+ */
+export function modulePage({ kind, title, code, ground, version, p5Version }) {
+  const inst = instrument(code);
+  const bg = /^#[0-9a-f]{3,8}$/i.test(ground || '') ? ground : '#141414';
+  const note = '<!-- Made in Artist Model Studio. A comment like /* 0..4 */ makes a slider in the studio; in another editor it is only a comment, and the sketch runs with the values as written. -->';
+  const shim = /\bams\./.test(code) ? `<script>window.ams = { width: innerWidth, height: innerHeight, board: ${json(title)}, params: ${json(inst.values)} };</script>\n` : '';
+  const head = `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escHtml(title)}</title>\n${note}\n<style>html,body{margin:0;overflow:hidden;background:${bg}}canvas{display:block}</style>`;
+  if (kind === 'three') {
+    const cdn = `https://cdn.jsdelivr.net/npm/three@${version}`;
+    return `${head}\n<script type="importmap">\n{ "imports": {\n  "three": "${cdn}/build/three.module.js",\n  "three/addons/": "${cdn}/examples/jsm/"\n} }\n</script>\n</head><body>\n${shim}<script type="module">\n${code.replace(/<\/script/gi, '<\\/script').trimEnd()}\n</script>\n</body></html>\n`;
+  }
+  return `${head}\n<script src="https://cdn.jsdelivr.net/npm/p5@${p5Version}/lib/p5.min.js"></script>\n</head><body>\n${shim}<script>\n${code.replace(/<\/script/gi, '<\\/script').trimEnd()}\n</script>\n</body></html>\n`;
+}

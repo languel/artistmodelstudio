@@ -113,3 +113,27 @@ describe('writing a panel value back to the code', () => {
     expect(rewriteControl(src, 'nothing', 1)).toBe(src);
   });
 });
+
+import { modulePage } from '../src/workbench/exportPage.js';
+describe('a page for other editors', () => {
+  const code = "import * as THREE from 'three';\nimport { OrbitControls } from 'three/addons/controls/OrbitControls.js';\nconst speed = 1 /* 0..4 */;\n";
+  it('three.js: the code as it is, the import map at the studio\'s version, and a line about the comments', () => {
+    const html = modulePage({ kind: 'three', title: 'A <b> sketch', code, ground: '#101010', version: '0.187.0' });
+    expect(html).toContain('"three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js"');
+    expect(html).toContain('"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"');
+    expect(html).toContain(code.trimEnd());
+    expect(html).toContain('<script type="module">');
+    expect(html).toContain('only a comment');
+    expect(html).toContain('<title>A &lt;b&gt; sketch</title>');
+    expect(html).not.toContain('window.ams');   // (the code does not use it)
+  });
+  it('p5.js: the library by a script tag; ams, when the code uses it, gets its values', () => {
+    const html = modulePage({ kind: 'p5', title: 'p', code: 'function setup() { createCanvas(ams.width, 300); }\n// @param size = 2 (0..5)\nconst k = ams.params.size;', p5Version: '2.3.3' });
+    expect(html).toContain('p5@2.3.3/lib/p5.min.js');
+    expect(html).toContain('window.ams = { width: innerWidth');
+    expect(html).toContain('"size":2');
+  });
+  it('a script tag in the code cannot end the page\'s script', () => {
+    expect(modulePage({ kind: 'three', title: 't', code: "const s = '</script><b>';", version: '0.187.0' })).not.toMatch(/'<\/script>/);
+  });
+});

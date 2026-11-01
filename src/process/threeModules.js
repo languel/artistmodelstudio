@@ -28,8 +28,24 @@ function normalise(path) {
   return out.join('/');
 }
 
+/**
+ * The bare name of a three.js file given by a CDN URL: 'three', or 'three/addons/controls/OrbitControls.js'; null for anything else.
+ * (unpkg.com/three@0.160.0/build/three.module.js, cdn.jsdelivr.net/npm/three@0.160/examples/jsm/…, esm.sh/three@0.160.0, cdn.skypack.dev/three…)
+ */
+export function cdnThree(spec) {
+  if (!/^https?:\/\//.test(spec)) return null;
+  const u = spec.replace(/[?#].*$/, '');
+  const addon = /\/three(?:@[^/]*)?\/(?:examples\/jsm|addons)\/(.+\.js)$/.exec(u);
+  if (addon) return `three/addons/${addon[1]}`;
+  if (/\/three(?:@[^/]*)?\/build\/three(?:\.module)?(?:\.min)?\.js$/.test(u) || /^https?:\/\/(?:esm\.sh|cdn\.skypack\.dev|cdn\.jsdelivr\.net\/npm|unpkg\.com|esm\.run)\/three(?:@[^/]*)?(?:\/\+esm|\/es2022\/three\.(?:m?js|mjs))?$/.test(u)) return 'three';
+  return null;
+}
+
 /** The module id a specifier names, from the module `from`: 'three', 'three/addons/…', or a relative path; anything else (a URL) is left for the browser. */
 export function resolveSpec(spec, from) {
+  // A demo written for a page imports three.js from a CDN by its URL (unpkg, jsDelivr, esm.sh, Skypack…): it is the same library here.
+  const cdn = cdnThree(spec);
+  if (cdn) spec = cdn;
   if (spec === 'three') return THREE_SHIM;
   if (spec.startsWith('three/addons/')) return `examples/jsm/${spec.slice('three/addons/'.length)}`;
   if (spec.startsWith('three/examples/jsm/')) return `examples/jsm/${spec.slice('three/examples/jsm/'.length)}`;

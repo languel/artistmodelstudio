@@ -21,6 +21,7 @@ import { codeView, setCodeView, onCodeView, bumpCodeFont } from './codeView.js';
 import { formatSource, minifySource } from './codeTools.js';
 import { semanticCompletion, semanticHover } from './languageService.js';
 import { colorDots } from './colorDots.js';
+import { sketchFromPaste } from '../process/pasteSketch.js';
 
 const VOCAB = new Map(SCRIPT_VOCAB.map(v => [v.name, v]));
 const KIT_DOCS = [
@@ -124,7 +125,7 @@ if (typeof window !== 'undefined') Object.defineProperty(window, '__codeEditor',
 /** The code editor last used (for the buttons that act on "the" editor). */
 export const activeCodeEditor = () => lastEditor;
 
-export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLines = () => [], placeholder = '', language = 'ams' } = {}) {
+export function createCodeEditor(parent, { value = '', onRun, onChange, onNotice, getDocLines = () => [], placeholder = '', language = 'ams' } = {}) {
   const wrap = new Compartment(), lang = new Compartment(), indent = new Compartment(), dots = new Compartment();
   let live = null;
   const nums = new Compartment(), params = new Compartment();
@@ -161,6 +162,20 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
           return true;
         }),
         // Keep workbench shortcuts (V, H, P…) from firing while typing.
+        // A page or a snippet from another editor, pasted into a three.js or p5.js sketch: its script, with the CDN imports as the bare names.
+        EditorView.domEventHandlers({
+          paste: (e, v) => {
+            if (language !== 'three' && language !== 'p5') return false;
+            const text = e.clipboardData?.getData('text/plain') || '';
+            const doc = v.state.doc.toString();
+            const from = sketchFromPaste(text, { addImport: !/\bTHREE\b/.test(doc.slice(0, 4000)) });
+            if (!from || from.kind !== language) return false;
+            e.preventDefault();
+            v.dispatch(v.state.replaceSelection(from.code));
+            onNotice?.(from.note);
+            return true;
+          }
+        }),
         EditorView.domEventHandlers({ keydown: e => {
           lastEditor = api;
           if (!(e.ctrlKey && e.altKey && e.code === 'KeyP')) e.stopPropagation();   // (Perform works from the editor too)
