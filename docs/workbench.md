@@ -153,6 +153,7 @@ It is kept minimal.
 A **project** holds **scenes**, and a scene holds **boards**. It is enough to write a lecture, a blog post or a report, or to prepare a performance.
 
 - **Scenes** (the Scenes panel) are separate drawings. Each has its own undo, History and Timeline; Assets, brushes and settings are shared by all. Opening a drawing from Assets, or a file, makes a new scene, so your drawing is never replaced. Alt+PageUp and Alt+PageDown step through scenes.
+- **Copy a scene** (the scene's menu → Copy as JSON): the scene as studio JSON on the clipboard; paste it (Cmd+V) in any browser or tab and it opens as a new scene.
 - **Boards** (;, or the Boards panel) are artboards in one drawing, in order, like slides.
   - **The main board** is the old artboard at the origin, so every older drawing, score and training record is unchanged.
   - **Editing boards:** drag out more with the Board tool. A board's title selects it, moves it (with its marks) and renames it; its right-click menu exports it, trains on it, reorders or duplicates it.
@@ -290,6 +291,7 @@ Parameters in code are controls:
   - Hovering a slider says what it acts on.
 - **Range comments:** any number followed by one, like `0.4 /* 0..1 */`, gets a slider that rewrites the number.
 - **Cmd-drag** any number in the code to scrub it (Shift for fine steps). Cmd-drag also works in every number box in the app.
+- **More than sliders:** toggles, selects (with pictures for shape names), colours, palettes and `// @param` lines, in p5.js and three.js boards, change the running sketch without restarting it: see *Controls in code* under Documents and programs on boards.
 
 Two glyph toggles at the right of the Code panel's tab bar set how the editors look: line numbers on or off, and where sliders go (on the code lines, beside the preview, or off). Sliders look the same everywhere: in the code, in the preview strip and in the Opt+right-click popover.
 
@@ -589,6 +591,7 @@ A board holds one kind of thing. Choose it in Code → Board, where its source i
 - **Markdown:** a document.
 - **HTML:** a page.
 - **p5.js:** a sketch.
+- **three.js:** a sketch, an ES module that imports `'three'` and its addons (controls, postprocessing, loaders…); the studio bundles them, so no network. A three.js board that asks for the elements a lesson page has (`document.getElementById('stage')`, `'tabs'`, `'panel'`, `'tree'`, `'hud'`, `'inset'`) gets them, so a lesson written for its own page runs in a board.
 
 Documents show as you type. Marks drawn on a document board stay on top of it, as annotations.
 
@@ -760,6 +763,7 @@ A board is a window into the canvas world, and it is a **layer**. Boards stack i
 **Outputs** send a board somewhere, live. A board is a stream (a drawing, a p5 or three.js sketch, a page), and an output is a place it goes:
 - **Pin on screen** (board menu → Output, the Outliner's ⋯, `/pin`): a window-like overlay that stays put while you navigate the rest of the canvas. Drag it by its bar, resize it from the corner, set its opacity, **◌** lets clicks through to what is under it, **⧉** also opens it in a window.
 - **Open in a window** (`/output`): a window of its own, for another display or a projector. The browser may ask once to see your displays; the window then opens on the other one. **Click it for full screen** (F toggles, Esc leaves): then nothing of the browser shows, no title bar and no address bar. A browser always draws a pop-up's title and address bar until then, and a page cannot hide them.
+- **A p5.js or three.js board in a window is a live twin of the sketch**, not a bitmap: the same code, started together with the same random numbers, paused and resumed together, and given the same pointer, wheel and keys (sent as fractions of the screen, so the window may be any size). Values of its controls change in both. It starts again when the sketch is rebuilt (new code, a new size). A board's menu → Output → *Show in the open window* points an open window at another board, keeping its place, display and full screen. For a performance, put the window on the second screen and play in the studio.
 - **Open borderless** (`/output board borderless`, Chrome 116+): a picture-in-picture window instead: no address bar, always on top, and you drag it to any size or display. It cannot go full screen.
 
 An output does not change what a board is doing. Sending a board that is not playing makes it play once, as its play button would (and closing the output leaves it playing); a board you paused stays paused. A playing board keeps running off screen while it is sent, because that is what a pinned board is for. Opening, full-screening and closing a window never touch play. One limit: a browser stops painting a window that is fully covered, and a sketch runs in the studio's window. A full-screen output on the *same* display as the studio covers it, so the sketch can stall. Put the output on another display (or use the borderless window) and the studio stays visible and keeps running. `ams_output` does the same for agents.
