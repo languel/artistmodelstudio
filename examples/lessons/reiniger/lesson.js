@@ -316,8 +316,8 @@ renderer.render = (s, c) => {
   frame(s, c);
 };`) }
       ,
-        { id: 'pond', title: '2.3 · A photograph, traversed', ...BOARD,
-          idea: 'An old photograph as the backdrop: *The Pond—Moonlight* (Edward Steichen, 1904), dark trunks around a pale gap of moonlight, a good partner for a black puppet. A **texture** is loaded by name, then only a **window** of it is shown: `zoom` makes the window smaller, `x` and `y` slide it. With `travel` on, the window drifts across the picture while the puppet walks in place: the walk cycle plus a moving backdrop is how a figure crosses a landscape without leaving the table. `gain` brightens the print so the silhouette reads against it.',
+        { id: 'pond', title: '2.3 · A second set, from a photograph', ...BOARD,
+          idea: 'A second set rather than a new sky for the first: an old photograph, *The Pond—Moonlight* (Edward Steichen, 1904), dark trunks around a pale gap of moonlight, with cut-paper trunks and a bank in front of it. A **texture** is loaded by name, then only a **window** of it is shown: `zoom` makes the window smaller, `x` and `y` slide it. With `travel` on, the window drifts across the picture while the puppet walks in place: the walk cycle plus a moving backdrop is how a figure crosses a landscape without leaving the table. `gain` brightens the print so the silhouette reads against it.',
           pseudo: `photo = a texture loaded from the picture's name
 window = the part of the photo that fills the frame: size 1 / zoom, centre (x, y)
 texture.repeat = window size, texture.offset = window corner
@@ -335,7 +335,16 @@ const ASPECT = 1400 / 1150, EDGE = { u0: 0.04, u1: 0.96, v0: 0.1, v1: 0.97 };   
 const back = new THREE.Mesh(new THREE.PlaneGeometry(FRAME * W / H, FRAME), new THREE.MeshBasicMaterial({ map: print, depthWrite: false }));
 back.position.z = -4.6;
 scene.add(back);
-far.visible = false;                                                // the photograph takes the place of the tissue hills
+// This is a second set, not the first one with a new sky: the hills, ground and reeds go, and the foreground is cut paper trunks and a bank.
+for (const piece of [far, mid, ground, reeds]) piece.visible = false;
+const bank = cut(ridge(-3.25, 0.12, 0.8, 1.3), -0.3);
+const trunks = new THREE.Group();
+for (let i = 0; i < 10; i++) {                                      // black trunks, thin and leaning a little, some near the camera and some farther
+  const px = -9 + i * 2 + 0.7 * Math.sin(i * 12.9), w = 0.1 + 0.12 * Math.abs(Math.sin(i * 4.1)), lean = 0.25 * Math.sin(i * 7.7);
+  const s = new THREE.Shape(); s.moveTo(px - w, -3.6); s.lineTo(px - w * 0.55 + lean, 4); s.lineTo(px + w * 0.55 + lean, 4); s.lineTo(px + w, -3.6);
+  trunks.add(cut(s, i % 3 === 0 ? 1.2 : i % 3 === 1 ? -1.4 : -2.4, paper(i % 3 === 2 ? 0x15171c : 0x0b0a0a, i % 3 === 2 ? 0.8 : 1)));
+}
+scene.add(bank, trunks);
 const lookAt = (t) => {
   const w = Math.min(EDGE.u1 - EDGE.u0, (1 / zoom) * (W / H) / ASPECT), h = Math.min(EDGE.v1 - EDGE.v0, 1 / zoom);
   const drift = travel ? 0.5 + 0.5 * Math.sin(t * 0.12) : x;       // 0..1 across the photograph
