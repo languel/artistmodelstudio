@@ -25,8 +25,20 @@ export async function formatSource(text, language, range = null, opts = {}) {
     const out = await format(text, { parser, plugins, semi, singleQuote: true, tabWidth: 2, printWidth: opts.width || 90, embeddedLanguageFormatting: 'off', ...(range ? { rangeStart: range.from, rangeEnd: range.to } : {}) });
     // Prettier puts a comment after the semicolon (1; /* 0..4 */): a control's comment belongs right after its value (1 /* 0..4 */;).
     const home = out.replace(/;([ \t]*)(\/\*([^*]*(?:\*(?!\/)[^*]*)*)\*\/)/g, (m, sp, c, body) => (isControlComment(body) ? ` ${c};` : m));
-    return { text: home };
+    return { text: opts.wrapComments ? wrapComments(home, opts.width || 90) : home };
   } catch (e) { return { error: errorOf(e) }; }
+}
+/** Whole-line // comments wrapped to a width (Prettier leaves comments as they are). */
+export function wrapComments(text, width) {
+  return text.split('\n').flatMap(line => {
+    const m = /^(\s*)\/\/ ?(.*)$/.exec(line);
+    if (!m || line.length <= width) return [line];
+    const [, pad, body] = m, room = Math.max(20, width - pad.length - 3), out = [];
+    let cur = '';
+    for (const w of body.split(/\s+/)) { if (cur && (cur + ' ' + w).length > room) { out.push(cur); cur = w; } else cur = cur ? `${cur} ${w}` : w; }
+    if (cur) out.push(cur);
+    return out.map(t => `${pad}// ${t}`);
+  }).join('\n');
 }
 async function loadPlugins(parser) {
   if (parser === 'markdown') return [await import('prettier/plugins/markdown')];

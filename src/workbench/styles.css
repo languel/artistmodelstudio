@@ -1012,3 +1012,4 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-cb-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wb-cb-host { flex: 1; min-height: 0; padding: 0 6px 6px; }
 .wb-cb-host .cm-editor { height: 100%; border-color: transparent; background: transparent; }
+.wb-cb-name.error { color: #e0866f; }

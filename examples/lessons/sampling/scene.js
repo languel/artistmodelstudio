@@ -28,20 +28,21 @@ function p5For(b, LESSON) {
   return toP5Code(b.code, { board: { title: b.title, width: b.w, height: b.h, ground: b.ground || '#f3efe6' }, sources, loop: Boolean(b.follow) });
 }
 
-function notesFor(b, sec, language, lesson, expl = false) {
+function notesFor(b, sec, language, lesson, expl = false, callout) {
   const ref = sec.boards.find(x => x.reference);
   // A board written as a p5 sketch has one language; a drawing's code has the other one as a callout.
   const native = Boolean(b.p5 || b.three);
   const useExpl = (expl || language === 'expl') && Boolean(b.p5expl);
   const p5Code = useExpl ? b.p5expl : (b.three ?? (native ? b.p5 : p5For(b, lesson)));
   const p5Label = useExpl ? 'p5.js (expl)' : (b.three ? 'three.js' : native ? 'p5.js' : language === 'p5' ? 'Studio code' : 'p5.js');
-  const other = language === 'p5' && !useExpl ? fence(b.code, 'js') : fence(p5Code, 'js');
+  const panel = Boolean(lesson.codePanel && (native || b.code));   // (its code is an editor beside the notes: no callout)
+  const other = fence(callout ?? (language === 'p5' && !useExpl ? b.code : p5Code), 'js');
   return [
     `## ${b.title}`,
     b.idea,
     b.pseudo ? quote(`[!abstract]- Pseudocode\n${fence(b.pseudo)}`) : '',
-    (b.code || native || b.p5expl) && !(lesson.codePanel && native) ? quote(`[!example]- ${p5Label}\n${other}`) : '',
-    lesson.codePanel && native
+    (b.code || native || b.p5expl) && !panel ? quote(`[!example]- ${p5Label}\n${other}`) : '',
+    panel
       ? `The code is the editor below: it is this board's own code, so what you write changes the sketch. Back to [[${intro(sec)}]].`
       : `${b.three ? 'Its three.js code' : native || language === 'p5' || language === 'expl' ? 'Its p5.js code' : 'Its studio code'}: Code → Board.${ref ? ` Source: [[${ref.title}]].` : ''} Back to [[${intro(sec)}]].`
   ].filter(Boolean).join('\n\n');
@@ -89,11 +90,20 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
   const bibTitle = t => `Bibliography: ${t.toLowerCase()}`, bib1 = bibTitle(bibs[0].title);
   const mainId = LESSON.main || 'seurat';
   await app.scenes.create({ title });
-  // A lesson with a code panel shows the sketches' code in an editor: formatted (Prettier, for a column of this width), once.
-  const formatted = new Map();
-  if (LESSON.codePanel) {
+  // Code is shown formatted (Prettier): in an editor beside the notes (a lesson with a code panel; the column is about 70 wide), or in a
+  // callout (about 64 wide), and its long comments wrapped. Once, here, before the boards are made.
+  const formatted = new Map(), callouts = new Map();
+  {
     const { formatSource } = await import('../../../src/workbench/codeTools.js');
-    for (const sec of LESSON.sections) for (const b of sec.boards) for (const key of ['three', 'p5']) if (b[key]) { const r = await formatSource(b[key], key, null, { width: 72 }); formatted.set(b, r.text || b[key]); }
+    const fmt = async (text, lang, width) => { if (!text) return text; const r = await formatSource(text, lang, null, { width, wrapComments: true }); return r.text || text; };
+    for (const sec of LESSON.sections) for (const b of sec.boards) {
+      const native = Boolean(b.p5 || b.three);
+      if (LESSON.codePanel && (native || b.code)) { formatted.set(b, await fmt(b.three || b.p5 || b.code, b.three ? 'three' : b.p5 ? 'p5' : 'ams', 72)); continue; }
+      if (!(b.code || native || b.p5expl)) continue;
+      const useExpl = (expl || language === 'expl') && Boolean(b.p5expl);
+      if (language === 'p5' && !useExpl && !native) callouts.set(b, await fmt(b.code, 'ams', 64));
+      else callouts.set(b, await fmt(useExpl ? b.p5expl : (b.three ?? (native ? b.p5 : p5For(b, LESSON))), b.three ? 'three' : 'p5', 64));
+    }
   }
   const st = app.store, run = app.runScript || runScript;
   for (const [name, def] of Object.entries(LESSON.sources || {})) {
@@ -122,7 +132,7 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
       } else if (language === 'p5') {
         st.updateBoard(id, { kind: 'p5', code: p5For(b, LESSON) });
       } else {
-        st.runBoardCode(id, b.code, run);
+        st.runBoardCode(id, formatted.get(b) || b.code, run);
       }
     }
     if (b.follow && language !== 'p5' && language !== 'expl') app.setBoardFollow(id, true);
@@ -155,9 +165,9 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
     for (const b of sec.boards.filter(x => !x.reference)) {
       frame(b.title, fx(k), y);
       const sketch = drawing(b, ...left(fx(k), y), sec);
-      const note = doc(`${b.title} · notes`, fx(k) + PAD + BW + PAD, y + PAD, notesFor(b, sec, language, LESSON, expl));
+      const note = doc(`${b.title} · notes`, fx(k) + PAD + BW + PAD, y + PAD, notesFor(b, sec, language, LESSON, expl, callouts.get(b)));
       // The right column fills the frame: the notes above, and below them an editor on the sketch's own code.
-      if (LESSON.codePanel && (b.three || b.p5)) {
+      if (LESSON.codePanel && (b.three || b.p5 || b.code)) {
         const NH = 300, GAP = 16;
         st.updateBoard(note.id, { height: NH });
         const cb = st.addBoard({ title: `${b.title} · code`, width: NW, height: FH - 2 * PAD - NH - GAP, x: fx(k) + PAD + BW + PAD, y: y + PAD + NH + GAP, ground: DARK });

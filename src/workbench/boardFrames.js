@@ -22,6 +22,7 @@ import { renderToCanvas } from '../process/render.js';
 import { collectThree, threeLoader } from '../process/threeModules.js';
 import { instrument, liveValues } from '../process/controls.js';
 import { createCodeEditor } from './codeEditor.js';
+import { runScript } from '../process/script.js';
 import { icon } from './icons.js';
 // p5.js for sketches, bundled with the studio as plain text (no network needed; the package does not
 // export the file by name), loaded when a sketch first runs.
@@ -420,7 +421,8 @@ export class BoardFrames {
       f.lang = lang; f.lastCode = code;
     }
     f.tk = tk;
-    if (f.name) f.name.textContent = target ? `${target.title} · ${lang === 'ams' ? 'studio code' : lang === 'three' ? 'three.js' : lang === 'p5' ? 'p5.js' : lang}` : 'No board to show';
+    f.title = target ? `${target.title} · ${lang === 'ams' ? 'studio code' : lang === 'three' ? 'three.js' : lang === 'p5' ? 'p5.js' : lang}` : 'No board to show';
+    if (f.name && !f.hasError) f.name.textContent = f.title;
     if (f.lang !== lang) { f.lang = lang; f.editor.setLanguage(lang); }
     // What the board's code is now, when it was changed somewhere else (not while this editor is being used).
     if (target && !f.dirty && f.editor.value !== code && !f.editor.view.hasFocus) { f.loading = true; f.editor.value = code; f.loading = false; f.lastCode = code; }
@@ -430,9 +432,18 @@ export class BoardFrames {
   pushCode(f) {
     const t = f.of ? boardById(this.app.store.doc, f.of) : null;
     f.dirty = false;
-    if (!t || (t.code || '') === f.editor.value) return;
+    if (!t || (t.code || '') === f.editor.value) {
+      // Back to the code that is stored (a mistake was undone): it ran, so the message goes.
+      if (f.hasError) { f.hasError = false; f.name?.classList.remove('error'); if (f.name) f.name.textContent = f.title; }
+      return;
+    }
     const code = f.editor.value;
-    if (boardKind(t) === 'drawing') { if (this.app.runScript) this.app.store.runBoardCode(t.id, code, this.app.runScript); return; }
+    if (boardKind(t) === 'drawing') {
+      // Studio code draws marks: run it (an error is said in the header until the code runs again).
+      const res = this.app.store.runBoardCode(t.id, code, this.app.runScript || runScript);
+      if (f.name) { f.hasError = Boolean(res?.error); f.name.classList.toggle('error', f.hasError); f.name.textContent = f.hasError ? (res.line ? `Line ${res.line}: ${res.error}` : res.error) : f.title; }
+      return;
+    }
     this.app.store.updateBoard(t.id, { code });
   }
 

@@ -34,6 +34,7 @@ export const LESSON = {
   subtitle: 'Add noise to a picture a little at a time; teach a network to take it out again; then start from noise.',
   idea: 'Destroying a picture is easy and needs no learning: add noise. Undoing one small step of it is a problem a network can learn. Do the small undoing many times, from pure noise, and a picture appears.',
   main: 'process',
+  codePanel: true,   // each slide's right column: the notes, and an editor on the board's code
   sources: {},
   sections: [
     {

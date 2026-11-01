@@ -209,7 +209,7 @@ export const WALKTHROUGHS = [
   },
   {
     id: 'lesson-threejs',
-    title: 'Lesson: three.js for body and sound',
+    title: 'Lesson: Three.js for body and sound',
     summary: 'Builds the lecture and walks through it: a spinning cube, the anatomy of a scene, controls in code, a body as joints, a pin screen, the body in metres, a laser harp, a body drum, costumes, one line, paint marks and an installation, each a live three.js board, with the editor, snippets, controls, Perform and export along the way.',
     steps: [
       { say: 'A three.js scene is a few objects and a loop. Give it a body (joints in metres) and instruments, costumes, drawings and paint are rules that read those joints. This builds the lecture as a scene; every example is a live three.js board.',

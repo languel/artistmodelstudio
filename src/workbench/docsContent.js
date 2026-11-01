@@ -270,7 +270,7 @@ A diffusion model is trained to undo a simple process: adding noise to a picture
 The networks are replaced by the ideal denoiser, a formula for these toy data. A trained network only approximates it, and the difference is where real models go wrong. The bibliography (two frames, ids checked) runs from Sohl-Dickstein 2015 and score matching through DDPM, DDIM, the SDE view, latent diffusion, guidance and transformers. **Flow matching is the next lecture.**`),
       lessonButtons(app, 'diffusion', { tour: 'lesson-diffusion' }))),
 
-    T('lesson-threejs', 'Lessons', 'Three.js: boards and the body-and-sound lessons', 'A board that runs a three.js sketch, and a ten-lesson course (its own repository) from a spinning cube to body tracking, a laser harp, costumes and paint marks.', () => h('div', {},
+    T('lesson-threejs', 'Lessons', 'Three.js for body and sound', 'A board that runs a three.js sketch, and a ten-lesson course (its own repository) from a spinning cube to body tracking, a laser harp, costumes and paint marks.', () => h('div', {},
       prose(`
 ## A three.js board
 
