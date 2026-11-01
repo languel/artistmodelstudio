@@ -4,10 +4,18 @@
  */
 const KEY = 'ams_code_view';
 const listeners = new Set();
-let view = { lineNumbers: true, sliders: 'code', fontSize: 12, wrap: true, help: true, colorDots: true, tabSize: 2 };
+let view = { lineNumbers: true, sliders: 'code', fontSize: 12, wrap: true, help: true, colorDots: true, ligatures: false, tabSize: 2 };
 try { view = { ...view, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { /* ignore */ }
 
-const apply = () => { try { document.documentElement.style.setProperty('--code-fs', `${view.fontSize}px`); } catch { /* no document */ } };
+const apply = () => {
+  try {
+    const st = document.documentElement.style;
+    st.setProperty('--code-fs', `${view.fontSize}px`);
+    // Ligatures draw runs like ... and -> as one shape, which hides how many characters there are: off unless asked for.
+    st.setProperty('--code-lig', view.ligatures ? 'normal' : 'none');
+    st.setProperty('--code-feat', view.ligatures ? 'normal' : '"liga" 0, "calt" 0, "clig" 0');
+  } catch { /* no document */ }
+};
 apply();
 
 export const codeView = () => view;

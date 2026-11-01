@@ -86,6 +86,7 @@ export function mountSettings(root, app) {
         row('Indent', selectField([['2', '2 spaces'], ['4', '4 spaces']], String(codeView().tabSize || 2), v => setCodeView({ tabSize: Number(v) }))),
         row('Line numbers', check(codeView().lineNumbers, v => setCodeView({ lineNumbers: v }))),
         row('Wrap lines', check(codeView().wrap !== false, v => setCodeView({ wrap: v })), 'Alt+Z toggles it in an editor'),
+        row('Ligatures', check(Boolean(codeView().ligatures), v => setCodeView({ ligatures: v })), 'Draw -> != ... and the like as one shape (off by default: a run of dots or dashes then shows as many characters as it has)'),
         row('Colour dots', check(codeView().colorDots !== false, v => setCodeView({ colorDots: v })), 'A dot before every colour written in the code (#hex, rgb(), hsl(), 0x…): click it for the picker'),
         row('Sliders', selectField([['code', 'On the lines'], ['preview', 'Beside the preview'], ['off', 'Off']], codeView().sliders, v => setCodeView({ sliders: v })), 'Where the controls a code declares (sliders, toggles, colours…) are shown'),
         row('Format', h('kbd', { class: 'wb-kbd' }, '⌥⇧F'), 'Format the selection, or all the code (Prettier)'),

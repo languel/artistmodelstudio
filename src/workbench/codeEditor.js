@@ -52,7 +52,7 @@ const highlight = HighlightStyle.define([
 const theme = EditorView.theme({
   '&': { height: '100%', fontSize: 'var(--code-fs, 12px)', background: 'var(--wb-panel-2)', color: 'var(--wb-text)', borderRadius: '6px', border: '1px solid var(--wb-line)' },
   '&.cm-focused': { outline: 'none', borderColor: 'var(--wb-muted)' },
-  '.cm-scroller': { fontFamily: 'var(--font-mono, ui-monospace, Menlo, monospace)', lineHeight: '1.5' },
+  '.cm-scroller': { fontFamily: 'var(--font-mono, ui-monospace, Menlo, monospace)', lineHeight: '1.5', fontVariantLigatures: 'var(--code-lig, none)', fontFeatureSettings: 'var(--code-feat, "liga" 0, "calt" 0)' },
   '.cm-content': { caretColor: 'var(--wb-text)', padding: '6px 0' },
   '.cm-gutters': { background: 'transparent', color: 'var(--wb-muted)', border: 'none' },
   '.cm-activeLine, .cm-activeLineGutter': { background: 'color-mix(in srgb, var(--wb-text) 5%, transparent)' },
