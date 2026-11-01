@@ -17,9 +17,10 @@ import { tags as t } from '@lezer/highlight';
 import { SCRIPT_VOCAB } from '../process/script.js';
 import { BRUSHES } from '../process/brushes.js';
 import { codeParams } from './codeParams.js';
-import { codeView, onCodeView, bumpCodeFont } from './codeView.js';
+import { codeView, setCodeView, onCodeView, bumpCodeFont } from './codeView.js';
 import { formatSource, minifySource } from './codeTools.js';
 import { semanticCompletion, semanticHover } from './languageService.js';
+import { colorDots } from './colorDots.js';
 
 const VOCAB = new Map(SCRIPT_VOCAB.map(v => [v.name, v]));
 const KIT_DOCS = [
@@ -124,7 +125,7 @@ if (typeof window !== 'undefined') Object.defineProperty(window, '__codeEditor',
 export const activeCodeEditor = () => lastEditor;
 
 export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLines = () => [], placeholder = '', language = 'ams' } = {}) {
-  const wrap = new Compartment(), lang = new Compartment(), indent = new Compartment();
+  const wrap = new Compartment(), lang = new Compartment(), indent = new Compartment(), dots = new Compartment();
   let live = null;
   const nums = new Compartment(), params = new Compartment();
   const docFns = [], liveFns = [];
@@ -134,6 +135,7 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
     state: EditorState.create({
       doc: value,
       extensions: [
+        dots.of(codeView().colorDots === false ? [] : colorDots()),
         nums.of(codeView().lineNumbers ? lineNumbers() : []), foldGutter(), params.of(paramsExt()), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(),
         indentOnInput(), bracketMatching(), closeBrackets(), highlightSelectionMatches(), lintGutter(), linter(() => [], { delay: 1e9 }),
         lang.of(languageFor(language, getDocLines, codeView().help)), syntaxHighlighting(highlight), theme,
@@ -154,15 +156,17 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
         EditorView.domEventHandlers({ keydown: e => {
           lastEditor = api; e.stopPropagation();
           // Option+Shift+letter types a character on a Mac (Ï, Ò…), which a keymap skips: go by the physical key.
+          if (e.altKey && !e.shiftKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyZ') { e.preventDefault(); setCodeView({ wrap: codeView().wrap === false }); return true; }   // (Option+Z types Ω on a Mac)
           if (e.altKey && e.shiftKey && !e.metaKey && !e.ctrlKey && (e.code === 'KeyF' || e.code === 'KeyM')) { e.preventDefault(); if (e.code === 'KeyF') api.format(); else api.minimize(); return true; }
           return false;
         }, mousedown: () => { lastEditor = api; return false; }, focus: () => { lastEditor = api; return false; } })
       ]
     })
   });
-  let wrapping = codeView().wrap !== false, helped = codeView().help;
+  let wrapping = codeView().wrap !== false, helped = codeView().help, dotted = codeView().colorDots !== false;
   onCodeView(v => {
     const effects = [nums.reconfigure(v.lineNumbers ? lineNumbers() : []), params.reconfigure(paramsExt()), indent.reconfigure([indentUnit.of(' '.repeat(v.tabSize || 2)), EditorState.tabSize.of(v.tabSize || 2)])];
+    if ((v.colorDots !== false) !== dotted) { dotted = v.colorDots !== false; effects.push(dots.reconfigure(dotted ? colorDots() : [])); }
     if (v.help !== helped) { helped = v.help; effects.push(lang.reconfigure(languageFor(language, getDocLines, helped))); }
     if ((v.wrap !== false) !== wrapping) { wrapping = v.wrap !== false; effects.push(wrap.reconfigure(wrapping ? EditorView.lineWrapping : [])); }
     view.dispatch({ effects });
@@ -183,6 +187,10 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
     /** Switch the language ('ams', 'p5', 'markdown', 'html'). */
     setLanguage(l) { if (l !== language) { language = l; view.dispatch({ effects: lang.reconfigure(languageFor(l, getDocLines)) }); } },
     get language() { return language; },
+    /** Insert text at the cursor (it replaces the selection). */
+    insert(text) { view.dispatch(view.state.replaceSelection(text)); },
+    /** What is selected ('' if nothing). */
+    selectionText() { const m = view.state.selection.main; return m.empty ? '' : view.state.sliceDoc(m.from, m.to); },
     /** Format the selection, or all the code (Alt+Shift+F). */
     async format() {
       const sel = view.state.selection.main, ranged = !sel.empty;

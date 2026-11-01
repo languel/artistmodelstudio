@@ -31,7 +31,7 @@ const THREE_FILES = import.meta.glob([
   '../../node_modules/three/examples/jsm/loaders/{GLTFLoader,OBJLoader,MTLLoader,STLLoader,PLYLoader}.js',
   '../../node_modules/three/examples/jsm/exporters/{OBJExporter,GLTFExporter,STLExporter}.js'
 ], { query: '?raw', import: 'default' });
-const loadThreeFile = async id => {
+export const loadThreeFile = async id => {
   const f = THREE_FILES[`../../node_modules/three/${id}`];
   if (!f) throw new Error(`three.js file “${id}” is not bundled with the studio (import from 'three' or a common addon: controls, postprocessing, shaders, loaders…)`);
   return f();
@@ -89,6 +89,8 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   // Controls the code declares (const n = 6 /* 1..40 */, // @param …): their values, live while the sketch runs.
   const ctlVals = ${JSON.stringify(ctl).replace(/</g, '\\u003c')}, ctlSet = {}, params = { ...ctlVals };
   window.__ctl = (k, f) => { ctlSet[k] = f; if (k in ctlVals) f(ctlVals[k]); };
+  // p5.js code reads windowWidth and windowHeight; so may any sketch here (the board's size), to be copied as it is.
+  ${kind === 'p5' ? '' : "Object.defineProperties(window, { windowWidth: { get: () => innerWidth, configurable: true }, windowHeight: { get: () => innerHeight, configurable: true } });"}
   let fwd = false;
   for (const t of ['pointermove', 'pointerdown', 'pointerup', 'mousemove', 'mousedown', 'mouseup', 'click', 'wheel', 'keydown', 'keyup']) {
     addEventListener(t, e => {
@@ -254,6 +256,8 @@ export class BoardFrames {
     return { kind, el, id: b.id, code: null, token, running: false };
   }
 
+  /** The p5.js library as text (loaded once). */
+  async p5Text() { return (this.p5Source ||= await (this.p5Loading ||= loadP5())); }
   /** Ask a board's frame to send its canvas as bitmaps (to an output); cb gets each one. */
   pipe(id, cb) { (this.pipes ||= new Map()).set(id, cb); const f = this.frames.get(id); if (f?.iframe) this.sendPipe(f); }
   unpipe(id) { const f = this.frames.get(id); this.pipes?.delete(id); if (f?.iframe) this.sendPipe(f); }

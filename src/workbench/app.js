@@ -926,7 +926,7 @@ export class Workbench {
         { label: 'To a PNG image', hint: 'Its marks become one picture (undo brings them back)', run: () => this.bakeBoard(id, 'png') },
         { label: 'To an SVG image', hint: 'Its marks become one vector image, crisp at any zoom (undo brings them back)', run: () => this.bakeBoard(id, 'svg') }
       ] },
-      { label: 'Export', items: [['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['json', 'JSON (to import again)'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)'], ...(b.code ? [['p5code', 'p5 (its code)']] : [])].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })) },
+      { label: 'Export', items: [...[['png', 'PNG'], ['svg', 'SVG'], ['sheet', 'Process sheet'], ['json', 'JSON (to import again)'], ['p5', 'p5.js sketch'], ['p5min', 'p5 (minimal code)'], ...(b.code ? [['p5code', 'p5 (its code)']] : [])].map(([k, l]) => ({ label: l, run: () => this.exportAs(k, id) })), ...(['p5', 'three', 'html'].includes(b.kind) ? ['-', ...this.sketchExportItems(id)] : [])] },
       this.embed ? null : { active: (doc.train || MAIN) === id, label: (doc.train || MAIN) === id ? 'Models learn from this board' : 'Train on this board', run: () => this.store.setTrainBoard(id) },
       b.main ? null : { label: 'Earlier', run: () => this.store.moveBoard(id, -1) },
       b.main ? null : { label: 'Later', run: () => this.store.moveBoard(id, 1) },
@@ -2482,6 +2482,31 @@ export class Workbench {
       codes[b.id] = { pseudo: b.pseudo || '', studio: studio || '', p5: p5 || '' };
     }
     return sceneHtml(doc, { ...opts, media, pictures, p5Source, codes });
+  }
+
+  /** Export items for a p5.js, three.js or HTML board: the sketch as a page that runs on its own. */
+  sketchExportItems(id) {
+    const b = boardById(this.store.doc, id);
+    if (!b) return [];
+    if (b.kind === 'html') return [{ label: 'HTML file', hint: 'The page as a file', run: () => this.exportSketch(id, false) }];
+    const lib = b.kind === 'three' ? 'three.js' : 'p5.js';
+    return [
+      { label: 'Standalone page', hint: `One HTML file with ${lib} inside: opens offline and fills the window (F: full screen)`, run: () => this.exportSketch(id, false) },
+      { label: 'Page with controls', hint: 'The same, with the sliders, toggles, selects, colours and palettes the code declares as a small panel (H shows or hides it; ?ui=0 starts it hidden)', run: () => this.exportSketch(id, true) }
+    ];
+  }
+
+  async exportSketch(id, controls) {
+    const b = boardById(this.store.doc, id);
+    if (!b) return;
+    const name = `${this.slug()}-${String(b.title).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.replace(/-+$/, '');
+    try {
+      if (b.kind === 'html') { download(/^\s*<!doctype/i.test(b.code || '') ? b.code : `<!doctype html>\n${b.code || ''}`, `${name}.html`, 'text/html'); return; }
+      const [{ sketchPage }, { loadThreeFile }] = await Promise.all([import('./exportPage.js'), import('./boardFrames.js')]);
+      const html = await sketchPage({ kind: b.kind, title: b.title, code: b.code || '', ground: b.ground, controls, loadFile: loadThreeFile, p5Source: b.kind === 'p5' ? await this.frames.p5Text() : '' });
+      download(html, `${name}.html`, 'text/html');
+      this.log(`“${b.title}” exported as ${name}.html${controls ? ' with its controls (H shows or hides them)' : ''}.`);
+    } catch (err) { this.log(`Export failed: ${err.message}`, 'error'); }
   }
 
   async exportAs(kind, board = this.activeBoard || MAIN) {

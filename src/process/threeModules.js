@@ -64,17 +64,17 @@ export async function collectThree(code, load) {
 /** The script a frame runs: make a blob URL for each module (dependencies first, specifiers swapped for blob URLs), then run the sketch. */
 export const threeLoader = (token) => `const M = JSON.parse(document.getElementById('three-modules').textContent), U = {};
 const make = id => U[id] ??= URL.createObjectURL(new Blob([M[id].replace(/@@dep:(.+?)@@/g, (_, d) => make(d))], { type: 'text/javascript' }));
-import(make(${JSON.stringify(THREE_ENTRY)})).catch(e => parent.postMessage({ amsFrame: ${JSON.stringify(token)}, type: 'error', message: String(e && e.message || e) }, '*'));`;
+import(make(${JSON.stringify(THREE_ENTRY)})).catch(e => ${token ? `parent.postMessage({ amsFrame: ${JSON.stringify(token)}, type: 'error', message: String(e && e.message || e) }, '*')` : 'console.error(e)'});`;
 
 /** A starter sketch: the lesson's spinning cube, filling the board. */
 export const THREE_STARTER = `import * as THREE from 'three';
 
 // A scene, a camera that looks at it, and a renderer that draws it onto the board.
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, ams.width / ams.height, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(50, windowWidth / windowHeight, 0.1, 100);
 camera.position.z = 3;
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setSize(ams.width, ams.height);
+renderer.setSize(windowWidth, windowHeight);
 document.body.append(renderer.domElement);
 
 // Something to look at, and a light to see it by.

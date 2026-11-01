@@ -76,3 +76,9 @@ it('a decimal number with a color comment is a colour too (what a minifier write
   const c = findControls('const c = 16746496 /* color */;')[0];
   expect(c).toMatchObject({ kind: 'color', css: '#ff8800', num: true, value: 16746496 });
 });
+
+import { findColors } from '../src/workbench/colorDots.js';
+it('finds colours written in code, and skips those that have a control', () => {
+  const t = "const a = '#fa0'; const b = rgb(10, 20, 30); const c = 0xe63946; // #123456\nconst d = '#ff0000' /* color */;\nconst p = ['#111111', '#222222'] /* palette */;\nconst h = hsl(200, 60%, 20%); background: #ffffffff;";
+  expect(findColors(t).map(c => c.text)).toEqual(['#fa0', 'rgb(10, 20, 30)', '0xe63946', '#123456', 'hsl(200, 60%, 20%)', '#ffffffff']);
+});

@@ -10,60 +10,13 @@
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
 import { createCodeEditor } from '../codeEditor.js';
-import { PLAYLIST_TEMPLATE } from '../../process/playlist.js';
 import { controlStrip } from '../codeParams.js';
 import { runScript } from '../../process/script.js';
 import { boardById, boardKind, boardsInFrame, MAIN } from '../../process/boards.js';
-import { THREE_STARTER } from '../../process/threeModules.js';
+import { showMenu } from '../menu.js';
+import { askText } from '../dialog.js';
+import { TEMPLATES, snippetsFor, saveSnippet, deleteSnippet, isBlank } from '../snippets.js';
 
-const TEMPLATE = `// This board's code: it redraws the board's marks each time it runs.
-// Coordinates are fractions of the board. Drag the slider, or Cmd-drag any number.
-const n = 9 /* 1..40 */
-for (const i of range(n)) {
-  const x = 0.1 + 0.8 * i / max(1, n - 1)
-  point(x, 0.5 + 0.25 * sin(i * 0.9), { size: 24, why: 'a point: a place, with tension' })
-}
-`;
-
-const TEMPLATES = {
-  three: THREE_STARTER,
-  drawing: TEMPLATE,
-  playlist: PLAYLIST_TEMPLATE,
-  markdown: `# A page on the canvas
-
-Write in **Markdown**: math like $E = mc^2$, tables, callouts, diagrams.
-
-> [!tip] Links
-> [[Main]] goes to a board; ![[Main]] shows its picture.
-
-| kind | where it runs |
-| --- | --- |
-| drawing | the studio |
-| p5 | a frame, while live |
-`,
-  html: `<style>
-  body { font: 16px/1.5 system-ui, sans-serif; color: #dadada; padding: 24px; }
-</style>
-<h1>A page</h1>
-<p>Plain HTML in a sandboxed frame. <code>window.ams</code> reaches the studio.</p>
-<button onclick="ams.call('ams_board', { action: 'list' }).then(r => out.textContent = r.boards.map(b => b.title).join(', '))">List the boards</button>
-<p id="out"></p>
-`,
-  p5: `// A p5.js sketch on the board. ams.width, ams.height: the board; ams.call(tool, args), ams.mark(role, points),
-// await ams.frame('source'): the bridge to the studio.
-function setup() {
-  createCanvas(ams.width, ams.height);
-}
-
-function draw() {
-  background(20);
-  noFill();
-  stroke(220);
-  const r = 0.35 * min(width, height) * (1 + 0.1 * sin(frameCount * 0.05));
-  circle(width / 2, height / 2, 2 * r);
-}
-`
-};
 const LANGUAGE = { drawing: 'ams', markdown: 'markdown', html: 'html', p5: 'p5', three: 'three', frame: 'markdown', playlist: 'p5' };
 const KIND_LABELS = [['drawing', 'Drawing (studio code)'], ['markdown', 'Markdown'], ['html', 'HTML'], ['p5', 'p5.js'], ['three', 'three.js'], ['playlist', 'Playlist'], ['frame', 'Frame (a slide)']];
 
@@ -96,6 +49,30 @@ export function mountBoardCode(root, app) {
   // Sliders beside the preview: here the board is the preview, so they sit above the code.
   strip.append(controlStrip(editor));
 
+  // Snippets: the catalog for this kind of board, and the user's own.
+  const insertSnippet = sn => {
+    const kind = kindOf();
+    if (isBlank(kind, editor.value)) editor.value = sn.code; else editor.insert(sn.code);
+    editor.focus();
+  };
+  const snippetMenu = e => {
+    const kind = kindOf(), { builtin, user } = snippetsFor(kind);
+    const picked = editor.selectionText();
+    const saveHere = async () => {
+      const text = picked || editor.value;
+      if (!text.trim()) return;
+      const title = await askText(picked ? 'Name this snippet (the selection)' : 'Name this snippet (all the code)', '');
+      if (title) { saveSnippet(kind, title, text); app.log?.(`Snippet “${title}” saved for ${kind} boards.`); }
+    };
+    showMenu([
+      ...builtin.map(s => ({ label: s.title, hint: s.note, run: () => insertSnippet(s) })),
+      ...(user.length ? ['-', { label: 'Yours' }, ...user.map(s => ({ label: s.title, run: () => insertSnippet(s) }))] : []),
+      '-',
+      { label: picked ? 'Save the selection as a snippet…' : 'Save the code as a snippet…', run: saveHere },
+      ...(user.length ? [{ label: 'Remove a snippet', items: user.map(s => ({ label: s.title, run: () => deleteSnippet(kind, s.id) })) }] : [])
+    ], e.clientX, e.clientY);
+  };
+
   const drawHead = () => {
     const b = id && boardById(app.store.doc, id);
     head.replaceChildren(
@@ -104,6 +81,8 @@ export function mountBoardCode(root, app) {
       h('button', { class: `wb-icon-btn${live ? ' on' : ''}`, title: live ? 'Live: runs as you edit (click for Cmd+Enter only)' : 'Runs with Cmd+Enter (click to run as you edit)', html: '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M13 3L5 14h6l-1 7 8-11h-6z" fill="currentColor"/></svg>', onclick: () => { live = !live; try { localStorage.setItem('ams_board_live', live ? '1' : '0'); } catch { /* ignore */ } drawHead(); } }),
       boardKind(b) !== 'drawing' ? null : h('button', { class: `wb-icon-btn${b?.follow ? ' on' : ''}`, title: b?.follow ? 'Following its sources: the code re-runs on each new frame (click to stop)' : 'Follow sources: re-run the code on each new frame of the sources it reads (source(\'…\'), fit(\'…\'))', html: icon('follow'), onclick: () => { if (b) app.setBoardFollow(b.id, !b.follow); } }),
       ['markdown', 'html', 'frame', 'playlist'].includes(boardKind(b)) ? null : h('button', { class: 'wb-icon-btn', title: boardKind(b) === 'p5' || boardKind(b) === 'three' ? 'Run (Cmd+Enter): restart the sketch' : 'Run (Cmd+Enter): the board is redrawn from its code', html: icon('play'), onclick: run }),
+      ['frame', 'player'].includes(boardKind(b)) ? null : h('button', { class: 'wb-icon-btn', title: 'Snippets: insert one, or save your own', html: icon('snippet'), onclick: e => snippetMenu(e) }),
+      ['p5', 'three', 'html'].includes(boardKind(b)) ? h('button', { class: 'wb-icon-btn', title: 'Export this sketch as a standalone page', html: icon('export'), onclick: e => showMenu(app.sketchExportItems(id), e.clientX, e.clientY) }) : null,
       boardKind(b) === 'frame' ? null : h('button', { class: 'wb-icon-btn', title: 'Clear: remove the marks the code made, and the code', html: icon('trash'), onclick: () => { if (!id) return; app.store.change('clear board code', d => { d.elements = d.elements.filter(e => !(e.by?.kind === 'code' && e.by?.name === id)); if (id === MAIN) delete d.artboard.code; else delete d.boards.find(x => x.id === id).code; }); load(id, true); } }));
   };
 

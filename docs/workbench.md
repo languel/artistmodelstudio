@@ -599,15 +599,20 @@ Documents show as you type. Marks drawn on a document board stay on top of it, a
 
 A document longer than its board scrolls inside it: the wheel over it scrolls it (and a wide code block sideways) until it ends, then pans the canvas. Opening a fold scrolls it into view.
 
+**Starting and snippets.** A new board starts blank: the setup a sketch needs and none of the content (a p5.js board has `setup` with `createCanvas(windowWidth, windowHeight)` and an empty `draw`; a three.js board has a renderer, a scene and a camera, draws once, and has no loop). The **{ }** button in the code panel inserts a snippet from the catalog for that kind of board (a spinning cube, orbit controls, particles, a sketch with every kind of control, a breathing circle, fading trails, a spiral…); on a blank board it fills it, otherwise it goes at the cursor. **Save the selection (or all the code) as a snippet…** adds your own, kept in this browser per kind of board; **Remove a snippet** takes one away.
+
+**Export a sketch** (the export button in the code panel, or the board's menu → Export): a p5.js or three.js board becomes **one HTML file that runs on its own**, offline, filling the window (F is full screen): *Standalone page* is the sketch and the library; *Page with controls* adds a small panel with the sliders, toggles, selects, colours and palettes the code declares, which the gear or H shows and hides (`?ui=0` opens it hidden). Build in the studio, export, open the file on the installation's machine. Controls that rewrite code (a number in an expression) are not in the panel; the live ones are. A p5.js sketch that loads files by name needs them beside the page. An HTML board exports as the file it is.
+
 ### The code editor
 
 All the code editors (board, brush, sculpt, selection, clip) share these, and **Settings → Code editor** sets them:
 - **Format** (Alt+Shift+F): the selection, or all the code, with Prettier (studio code keeps its no-semicolon style). **Minimize** (Alt+Shift+M): whitespace and comments go, the comments that make controls stay and each control keeps a line of its own, so a minimized sketch still has its sliders. Both are also buttons in the code panel's header. They load the first time they are used.
 - **Code help** (on by default; Settings → Code editor → Code help): in p5.js and three.js boards, completion and hover docs from the libraries' own types (TypeScript's language service in a worker; `ams` and `ams.params` are known too). The files are built into `public/lang/` by `npm run lang` (also run before `dev` and `build`; not committed) and fetched the first time a sketch is edited. Nothing is sent anywhere.
+- Alt+Z wraps or unwraps long lines. **Colour dots** (Settings → Code editor): a dot before every colour written in the code (`#hex`, `rgb()`, `hsl()`, `0x…`) opens the picker; a colour that has a control already (`/* color */`, `/* palette */`) keeps that one.
 - Cmd+Shift +/− changes the text size in code editors only; Cmd+Enter runs; Cmd+/ comments; Settings also has indent, line numbers, wrapping and where controls are shown.
 
 **HTML and p5.js** run in sandboxed frames over their boards, with a bridge to the studio, `window.ams`:
-- `ams.width`, `ams.height`, `ams.board`: the board;
+- `windowWidth`, `windowHeight` (as p5.js names them; three.js and HTML sketches get them too) and `innerWidth`: the board's size, so code from p5.js or three.js examples runs as it is. `ams.width`, `ams.height`, `ams.board` say the same;
 - `await ams.call(tool, args)`: any studio tool;
 - `await ams.mark(role, points, opts)`: add a mark to the board;
 - `await ams.frame('source')`: a source's picture.

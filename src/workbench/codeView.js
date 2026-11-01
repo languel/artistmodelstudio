@@ -4,7 +4,7 @@
  */
 const KEY = 'ams_code_view';
 const listeners = new Set();
-let view = { lineNumbers: true, sliders: 'code', fontSize: 12, wrap: true, help: true, tabSize: 2 };
+let view = { lineNumbers: true, sliders: 'code', fontSize: 12, wrap: true, help: true, colorDots: true, tabSize: 2 };
 try { view = { ...view, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { /* ignore */ }
 
 const apply = () => { try { document.documentElement.style.setProperty('--code-fs', `${view.fontSize}px`); } catch { /* no document */ } };

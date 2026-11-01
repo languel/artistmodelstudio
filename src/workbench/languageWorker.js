@@ -19,7 +19,7 @@ const init = (async () => {
   if (!response.ok) throw Error('Language definitions unavailable');
   files = await response.json();
   files['/p5-environment.d.ts'] = `/// <reference path="/node_modules/@types/p5/global.d.ts" />\n${AMS}`;
-  files['/three-environment.d.ts'] = AMS;
+  files['/three-environment.d.ts'] = `${AMS}\ndeclare const windowWidth: number;\ndeclare const windowHeight: number;`;
   const directories = new Set();
   for (const path of Object.keys(files)) { let at = path.lastIndexOf('/'); while (at > 0) { directories.add(path.slice(0, at)); at = path.lastIndexOf('/', at - 1); } }
   const host = {

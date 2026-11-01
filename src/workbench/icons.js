@@ -97,6 +97,7 @@ export const ICONS = {
   camera: svg('<path d="M3 8a2 2 0 012-2h2l1.5-2h7L17 6h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><circle cx="12" cy="13" r="3.5"/>'),
   follow: svg('<path d="M4 12a8 8 0 0113.7-5.7L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 01-13.7 5.7L4 15.5M4 20v-4.5h4.5"/>'),
   redraw: svg('<rect x="3" y="4" width="8" height="7" fill="currentColor" fill-opacity=".3"/><path d="M14 4l7 7h-7z" fill="currentColor" fill-opacity=".3"/><circle cx="8" cy="17" r="4" fill="currentColor" fill-opacity=".3"/><path d="M14 15h7M14 19h5"/>'),
+  snippet: svg('<path d="M9 4C6.500 4 7 7 7 9s-1.500 3-3 3c1.500 0 3 1 3 3s-.500 5 2 5M15 4c2.500 0 2 3 2 5s1.500 3 3 3c-1.500 0-3 1-3 3s.500 5-2 5"/>'),
   format: svg('<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>'),
   minimize: svg('<path d="M4 12h16M8 8l4 4-4 4M16 8l-4 4 4 4" transform="rotate(90 12 12)"/>'),
   save: svg('<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>'),
