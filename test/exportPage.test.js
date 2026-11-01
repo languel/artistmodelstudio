@@ -147,3 +147,21 @@ describe('app.js for a template that maps only three', () => {
     expect(out).toContain(`from 'https://esm.sh/lil-gui'`);
   });
 });
+
+describe('controls as lil-gui', () => {
+  it('adds a control per value through a getter/setter, and the import', async () => {
+    const { guiCode } = await import('../src/workbench/exportGui.js');
+    const { projectFiles } = await import('../src/workbench/exportProject.js');
+    const src = `import * as THREE from 'three';\nlet speed = 1 /* 0..3 */;\nlet wire = false /* toggle */;\nlet shape = 'box' /* box | sphere */;\nlet tint = '#ff8844' /* color */;\n`;
+    const out = guiCode(src);
+    expect(out.startsWith(`import { GUI } from 'three/addons/libs/lil-gui.module.min.js';`)).toBe(true);
+    expect(out).toContain(`gui.add(live(() => speed, v => { speed = v; }), 'v', 0, 3`);
+    expect(out).toContain(`gui.add(live(() => wire`);
+    expect(out).toContain(`["box","sphere"]`);
+    expect(out).toContain(`gui.addColor(live(() => tint`);
+    expect(out.indexOf('const gui')).toBeLessThan(out.indexOf('let speed'));
+    expect(guiCode(`const a = 1;`)).toBe(`const a = 1;`);
+    const files = projectFiles({ kind: 'three', title: 'T', code: src, versions: { three: '0.187.0', p5: '1.9.0' }, gui: true });
+    expect(files.find(f => f.name.endsWith('src/main.js')).data).toContain('lil-gui.module.min.js');
+  });
+});

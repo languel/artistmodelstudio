@@ -2615,32 +2615,38 @@ export class Workbench {
       { label: 'Standalone page', hint: `One HTML file with ${lib} inside: opens offline and fills the window (F: full screen)`, run: () => this.exportSketch(id, false) },
       { label: 'Page with controls', hint: 'The same, with the sliders, toggles, selects, colours and palettes the code declares as a small panel (H shows or hides it, Shift+H hides the button too; ?ui=0 starts it hidden)', run: () => this.exportSketch(id, true) },
       '-',
-      { label: 'Copy as a page for CodePen, Codevre…', hint: `The code as a page that loads ${lib} from a CDN at the studio's version (an import map): paste it into another editor's HTML. The control comments are only comments there`, run: () => this.exportSketch(id, false, 'copy') },
-      { label: 'Page for other editors (file)', hint: `The same as a file: ${lib} from a CDN, small and readable`, run: () => this.exportSketch(id, false, 'cdn') },
-      ...(b.kind === 'three' ? [
-        { label: 'app.js for Codevre\'s Three.js template (copy)', hint: 'The code as the app.js of Codevre\'s Three.js template (an import map for three only): three/addons imports point at esm.sh, with three shared. Paste it over app.js', run: () => this.exportSketch(id, false, 'appjs-copy') },
-        { label: 'app.js (file)', hint: 'The same as a file', run: () => this.exportSketch(id, false, 'appjs') }
-      ] : []),
-      '-',
-      ...(b.kind === 'three' ? [
-        { label: 'Project: ES modules (zip)', hint: 'A folder with an index.html (an import map for three and three/addons, no build step) and src/main.js: opens in Codevre or on any static server', run: () => this.exportProject(id, 'modules') },
-        { label: 'Project: Vite (zip)', hint: 'A Vite project with three installed: npm install, npm run dev', run: () => this.exportProject(id, 'vite') }
+      { label: 'For other editors', items: [
+        { label: 'Copy as a page', hint: `The code as a page that loads ${lib} from a CDN at the studio's version (an import map): paste it into CodePen, Codevre or any editor's HTML. The control comments are only comments there`, run: () => this.exportSketch(id, false, 'copy') },
+        { label: 'Page (file)', hint: `The same as a file: ${lib} from a CDN, small and readable`, run: () => this.exportSketch(id, false, 'cdn') },
+        ...(b.kind === 'three' ? [
+          { label: 'app.js (copy)', hint: 'The code as the app.js of Codevre\'s Three.js template (an import map for three only): three/addons imports point at esm.sh, with three shared. Paste it over app.js', run: () => this.exportSketch(id, false, 'appjs-copy') },
+          { label: 'app.js (file)', hint: 'The same as a file', run: () => this.exportSketch(id, false, 'appjs') }
+        ] : [])
+      ] },
+      { label: 'Project (zip)', items: b.kind === 'three' ? [
+        { label: 'ES modules', hint: 'A folder with an index.html (an import map for three and three/addons, no build step) and src/main.js: opens in Codevre or on any static server', run: () => this.exportProject(id, 'modules') },
+        { label: 'Vite', hint: 'A Vite project with three installed: npm install, npm run dev', run: () => this.exportProject(id, 'vite') }
       ] : [
-        { label: 'Project: page and sketch.js (zip)', hint: 'A folder with an index.html (p5.js from a CDN) and src/sketch.js', run: () => this.exportProject(id, 'modules') }
-      ]),
-      { label: 'Project options' },
-      { label: `Library: the studio's version`, hint: 'The project uses the version the studio runs, so the sketch means the same thing there', active: !this.projectPrefs().latest, run: () => this.setProjectPref('latest', false) },
-      { label: 'Library: latest', hint: 'The project asks for the latest version of the library (it may change when the library does)', active: this.projectPrefs().latest, run: () => this.setProjectPref('latest', true) },
-      { label: 'With the controls panel', hint: 'src/controls.js makes a panel of the sketch\'s controls; the sketch gets the lines that let it change the values (without it: plain code, the comments are only comments)', active: this.projectPrefs().panel, run: () => this.setProjectPref('panel', !this.projectPrefs().panel) }
+        { label: 'Page and sketch.js', hint: 'A folder with an index.html (p5.js from a CDN) and src/sketch.js', run: () => this.exportProject(id, 'modules') }
+      ] },
+      { label: 'Options', items: [
+        { label: `Library: studio's version`, hint: 'The export uses the version the studio runs, so the sketch means the same thing there', active: !this.projectPrefs().latest, run: () => this.setProjectPref('latest', false) },
+        { label: 'Library: latest', hint: 'The export asks for the latest version of the library (it may change when the library does)', active: this.projectPrefs().latest, run: () => this.setProjectPref('latest', true) },
+        '-',
+        { label: 'Controls: comments', hint: 'The comments stay plain comments: the sketch runs with the values as written', active: this.controlsPref() === 'none', run: () => this.setProjectPref('controls', 'none') },
+        { label: 'Controls: panel', hint: 'Projects get src/controls.js, the studio\'s own small panel, and the lines that let it change the values', active: this.controlsPref() === 'panel', run: () => this.setProjectPref('controls', 'panel') },
+        ...(b.kind === 'three' ? [{ label: 'Controls: lil-gui', hint: 'three.js boards: the controls become a lil-gui panel (a line after each value; lil-gui comes from three/addons). Applies to projects, app.js and pages for other editors', active: this.controlsPref() === 'gui', run: () => this.setProjectPref('controls', 'gui') }] : [])
+      ] }
     ];
   }
 
   /** What the project exports take: the library version (the studio's or the latest) and the controls panel. */
-  projectPrefs() { try { return { latest: false, panel: false, ...JSON.parse(localStorage.getItem('ams_export_project') || '{}') }; } catch { return { latest: false, panel: false }; } }
+  projectPrefs() { try { return { latest: false, controls: 'none', ...JSON.parse(localStorage.getItem('ams_export_project') || '{}') }; } catch { return { latest: false, controls: 'none' }; } }
+  controlsPref() { const p = this.projectPrefs(); return p.panel && p.controls === 'none' ? 'panel' : p.controls; }
   setProjectPref(key, value) {
     const prefs = { ...this.projectPrefs(), [key]: value };
     try { localStorage.setItem('ams_export_project', JSON.stringify(prefs)); } catch { /* ignore */ }
-    this.log(`Project exports: ${prefs.latest ? 'the latest library' : 'the library at the studio\'s version'}, ${prefs.panel ? 'with' : 'without'} the controls panel.`);
+    this.log(`Project exports: ${prefs.latest ? 'the latest library' : 'the library at the studio\'s version'}, controls as ${{ none: 'comments', panel: 'the studio\'s panel', gui: 'lil-gui' }[prefs.controls === 'none' && prefs.panel ? 'panel' : prefs.controls]}.`);
   }
 
   /** A sketch as a project folder in a zip (see exportProject.js). */
@@ -2650,7 +2656,7 @@ export class Workbench {
     try {
       const [{ projectFiles, slugOf }, bf] = await Promise.all([import('./exportProject.js'), import('./boardFrames.js')]);
       const prefs = this.projectPrefs();
-      const files = projectFiles({ kind: b.kind, flavor, title: b.title, code: b.code || '', ground: b.ground, versions: { three: await bf.threeVersion(), p5: await bf.p5Version() }, latest: prefs.latest, panel: prefs.panel });
+      const files = projectFiles({ kind: b.kind, flavor, title: b.title, code: b.code || '', ground: b.ground, versions: { three: await bf.threeVersion(), p5: await bf.p5Version() }, latest: prefs.latest, panel: this.controlsPref() === 'panel', gui: this.controlsPref() === 'gui' });
       download(new Blob([createZip(files)], { type: 'application/zip' }), `${slugOf(b.title)}.zip`, 'application/zip');
       this.log(`“${b.title}” saved as ${slugOf(b.title)}.zip: ${files.map(f => f.name.split('/').slice(1).join('/')).join(', ')}.`);
     } catch (err) { this.log(`Export failed: ${err.message}`, 'error'); }
@@ -2664,14 +2670,16 @@ export class Workbench {
       if (b.kind === 'html') { download(/^\s*<!doctype/i.test(b.code || '') ? b.code : `<!doctype html>\n${b.code || ''}`, `${name}.html`, 'text/html'); return; }
       if (how === 'appjs' || how === 'appjs-copy') {
         const { appJsFor } = await import('./exportPage.js');
-        const js = appJsFor(b.code || '');
+        const { guiCode } = await import('./exportGui.js');
+        const js = appJsFor(this.controlsPref() === 'gui' ? guiCode(b.code || '') : b.code || '');
         if (how === 'appjs-copy') { await navigator.clipboard.writeText(js); this.log(`“${b.title}” copied as an app.js for Codevre's Three.js template: paste it over app.js (the control comments are only comments there).`); }
         else { download(js, 'app.js', 'text/javascript'); this.log(`“${b.title}” saved as app.js for Codevre's Three.js template.`); }
         return;
       }
       if (how === 'copy' || how === 'cdn') {
         const [{ modulePage }, bf] = await Promise.all([import('./exportPage.js'), import('./boardFrames.js')]);
-        const html = modulePage({ kind: b.kind, title: b.title, code: b.code || '', ground: b.ground, version: await bf.threeVersion(), p5Version: await bf.p5Version() });
+        const gc = b.kind === 'three' && this.controlsPref() === 'gui' ? (await import('./exportGui.js')).guiCode(b.code || '') : b.code || '';
+        const html = modulePage({ kind: b.kind, title: b.title, code: gc, ground: b.ground, version: await bf.threeVersion(), p5Version: await bf.p5Version() });
         if (how === 'copy') { await navigator.clipboard.writeText(html); this.log(`“${b.title}” copied as a page: paste it into CodePen, Codevre or any editor (the control comments are only comments there).`); }
         else { download(html, `${name}.html`, 'text/html'); this.log(`“${b.title}” saved as ${name}.html: it loads the library from a CDN.`); }
         return;

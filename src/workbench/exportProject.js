@@ -8,11 +8,12 @@
 import { instrument } from '../process/controls.js';
 import { controlSpecs, panelScript } from './controlsPanel.js';
 import { shim } from './exportPage.js';
+import { guiCode } from './exportGui.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 export const slugOf = t => String(t || 'sketch').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'sketch';
 
-const README = ({ title, kind, flavor, panel, latest, versions }) => `# ${title}
+const README = ({ title, kind, flavor, panel, gui, latest, versions }) => `# ${title}
 
 Made in Artist Model Studio. ${kind === 'three' ? (flavor === 'vite'
   ? `A Vite project with three.js installed (${latest ? 'the latest' : `r${versions.three.split('.')[1]}, ${versions.three}`}): \`npm install\`, then \`npm run dev\`.`
@@ -26,13 +27,15 @@ The size of the window is \`innerWidth\` and \`innerHeight\`, as in any page.
 
 ## The comments
 
-A comment next to a value, like \`/* 0..4 */\`, \`/* toggle */\`, \`/* a|b */\` or \`/* color */\`, is a **control** in the studio: a slider, a checkbox, a menu, a colour. ${panel
+A comment next to a value, like \`/* 0..4 */\`, \`/* toggle */\`, \`/* a|b */\` or \`/* color */\`, is a **control** in the studio: a slider, a checkbox, a menu, a colour. ${gui
+  ? 'Here they are a lil-gui panel (the GUI three.js\'s own examples use): a line after each value adds its control, and `import { GUI }` at the top brings it in. Delete those lines to have plain code.'
+  : panel
   ? 'Here they are a small panel (H shows or hides it; the gear comes up near the top right corner; Shift+H hides it all): `src/controls.js` makes it, and the lines `__ctl(...)` after the values let it change them. Delete `import \'./controls.js\'` and those lines to have plain code.'
   : 'In this project they are only comments: the sketch runs with the values as written, and you change a number in the code to change the sketch. (Export with the controls panel option to have the panel.)'}
 `;
 
 /** Files of the project: [{ name, data }] under a folder named for the sketch. */
-export function projectFiles({ kind, flavor = 'modules', title, code, ground, versions, latest = false, panel = false }) {
+export function projectFiles({ kind, flavor = 'modules', title, code, ground, versions, latest = false, panel = false, gui = false }) {
   const slug = slugOf(title), root = `${slug}/`;
   if (kind === 'p5') flavor = 'modules';
   const bg = /^#[0-9a-f]{3,8}$/i.test(ground || '') ? ground : '#141414';
@@ -42,7 +45,8 @@ export function projectFiles({ kind, flavor = 'modules', title, code, ground, ve
   const specs = panel ? controlSpecs(code) : [];
   const withPanel = panel && specs.length > 0;
   // the sketch: as written, or (with the panel) with the lines that let it change the values
-  const body = withPanel ? inst.code : code;
+  const withGui = gui && kind === 'three' && !withPanel && guiCode(code) !== code;
+  const body = withPanel ? inst.code : withGui ? guiCode(code) : code;
   const main = kind === 'three' && withPanel ? `import './controls.js';\n\n${body.trimEnd()}\n` : `${body.trimEnd()}\n`;
   files.push({ name: `${root}src/${entry}.js`, data: main });
   if (withPanel) files.push({ name: `${root}src/controls.js`, data: `// The controls panel, made by Artist Model Studio from the comments in ${entry}.js.\n${shim(inst.values, title, kind === 'p5')}\n${panelScript(specs, code)}\n` });
@@ -61,6 +65,6 @@ export function projectFiles({ kind, flavor = 'modules', title, code, ground, ve
     files.push({ name: `${root}index.html`, data: `${head}\n  <script src="https://cdn.jsdelivr.net/npm/p5${latest ? '' : `@${versions.p5}`}/lib/p5.min.js"></script>\n</head>\n<body>\n${withPanel ? '  <script src="./src/controls.js"></script>\n' : ''}  <script src="./src/sketch.js"></script>\n</body>\n</html>\n` });
     files.push({ name: `${root}package.json`, data: JSON.stringify({ name: slug, version: '1.0.0', private: true, scripts: { start: 'npx --yes serve .' } }, null, 2) + '\n' });
   }
-  files.push({ name: `${root}README.md`, data: README({ title, kind, flavor, panel: withPanel, latest, versions }) });
+  files.push({ name: `${root}README.md`, data: README({ title, kind, flavor, panel: withPanel, gui: withGui, latest, versions }) });
   return files;
 }
