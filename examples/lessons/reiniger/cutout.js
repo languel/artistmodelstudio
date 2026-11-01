@@ -47,11 +47,11 @@ function head() {                                                   // a profile
   s.bezierCurveTo(0.2, 0.55, 0.1, 0.7, -0.08, 0.72); s.bezierCurveTo(-0.26, 0.7, -0.3, 0.45, -0.22, 0.25); s.lineTo(-0.1, 0.1);
   return s;
 }
-function hand() {                                                   // a mitten: a palm that widens a little, a thumb, fingers together
+function hand() {                                                   // a mitten: a palm that widens a little, a thumb tucked against it
   const s = new THREE.Shape();
   s.moveTo(-0.05, 0); s.lineTo(0.05, 0);
-  s.lineTo(0.12, -0.07); s.lineTo(0.2, -0.11);                         // the thumb
-  s.lineTo(0.12, -0.13); s.lineTo(0.09, -0.2);
+  s.bezierCurveTo(0.09, -0.05, 0.11, -0.09, 0.115, -0.13);            // the thumb: a soft bump on the front edge
+  s.bezierCurveTo(0.12, -0.17, 0.1, -0.2, 0.085, -0.22);
   s.bezierCurveTo(0.06, -0.31, -0.06, -0.31, -0.07, -0.2); s.lineTo(-0.06, -0.08);
   return s;
 }
