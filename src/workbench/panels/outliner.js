@@ -6,6 +6,7 @@
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
 import { showMenu } from '../menu.js';
+import { rangeInput } from '../rangeInput.js';
 import { boardsOf, MAIN, BLACKBOARD, opacityOf, blendOf, isLayered, BOARD_BLENDS } from '../../process/boards.js';
 
 const BY_KEY = 'ams_outliner_by';
@@ -181,26 +182,34 @@ export function mountOutliner(root, app) {
     const marks = doc.elements.filter(e => (e.board || MAIN) === b.id);
     const key = `board:${b.id}`, open = !collapsed.has(key), layered = isLayered(b);
     const name = h('span', { class: 'wb-outliner-label wb-outliner-stage-name', title: `${isBoard ? 'Click to go to it; ' : ''}${isBoard ? 'drag to restack (later boards are above)' : 'marks outside every board'}` }, isBoard ? `${i + 1}. ${b.title}${b.kind && b.kind !== 'drawing' ? ` · ${b.kind}` : ''}` : 'Blackboard');
-    const ops = h('input', { type: 'range', class: 'wb-outliner-opacity', min: 0, max: 100, step: 1, value: Math.round(opacityOf(b) * 100), title: `Opacity ${Math.round(opacityOf(b) * 100)}%`, onclick: ev => ev.stopPropagation(), oninput: ev => { ev.stopPropagation(); ops.title = `Opacity ${ops.value}%`; }, onchange: ev => app.store.updateBoard(b.id, { opacity: Number(ops.value) / 100 }) });
-    const more = h('button', { class: `wb-icon-btn wb-outliner-toggle${layered ? ' on' : ''}`, title: `Blend: ${BOARD_BLENDS.find(x => x[0] === blendOf(b))?.[1]}. Output, and more`, html: '⋯', onclick: ev => {
+    // Opacity: the shared slider, thin; its value shows while it is dragged. (The row is draggable, so a press on the slider
+    // must not start a row drag: see the pointerdown on the row below.)
+    const ops = rangeInput({ min: 0, max: 100, step: 1, value: Math.round(opacityOf(b) * 100), title: `Opacity ${Math.round(opacityOf(b) * 100)}%` });
+    ops.classList.add('wb-outliner-opacity', 'live');
+    const oval = h('span', { class: 'wb-outliner-oval' }, `${ops.value}`);
+    ops.addEventListener('input', ev => { ev.stopPropagation(); oval.textContent = ops.value; ops.title = `Opacity ${ops.value}%`; });
+    ops.addEventListener('click', ev => ev.stopPropagation());
+    ops.addEventListener('change', () => app.store.updateBoard(b.id, { opacity: Number(ops.value) / 100 }));
+    // Blend: its own dropdown, showing only the glyph of the one chosen.
+    const blendBtn = h('button', { class: `wb-icon-btn wb-outliner-toggle${blendOf(b) !== 'normal' ? ' on' : ''}`, title: `Blend: ${BOARD_BLENDS.find(x => x[0] === blendOf(b))?.[1]}`, html: icon(`blend_${blendOf(b)}`), onclick: ev => {
       ev.stopPropagation(); const r = ev.currentTarget.getBoundingClientRect();
-      showMenu([
-        { label: 'Blend' }, ...BOARD_BLENDS.map(([id, label]) => ({ label, active: id === blendOf(b), run: () => app.store.updateBoard(b.id, { blend: id }) })), '-',
-        app.outputs ? { label: 'Pin on screen', hint: 'A window-like overlay that stays put while you move around the canvas', run: () => app.outputs.pin(b.id) } : null,
-        app.outputs ? { label: 'Open in a window', hint: 'A window for another display or a projector (click it for full screen)', run: () => app.outputs.openWindow(b.id) } : null,
-        app.outputs && window.documentPictureInPicture ? { label: 'Open borderless', hint: 'A picture-in-picture window (Chrome): no address bar, always on top', run: () => app.outputs.openWindow(b.id, { borderless: true }) } : null
-      ].filter(Boolean), r.left, r.bottom + 4);
+      showMenu(BOARD_BLENDS.map(([id, label]) => ({ icon: icon(`blend_${id}`), label, active: id === blendOf(b), run: () => app.store.updateBoard(b.id, { blend: id }) })), r.left, r.bottom + 4);
     } });
+    // The board's own menu, the same as on the canvas and in the Boards panel (Go to, Rename, Board, Code, Output…).
+    const more = h('button', { class: 'wb-icon-btn wb-outliner-toggle', title: 'The board\'s menu', html: '⋯', onclick: ev => { ev.stopPropagation(); const r = ev.currentTarget.getBoundingClientRect(); app.boardMenu(b.id, r.left, r.bottom + 4); } });
     const row = h('div', { class: `wb-outliner-row wb-outliner-stage wb-outliner-board${b.hidden ? ' hidden' : ''}${isBoard && app.activeBoard === b.id ? ' active' : ''}`, onclick: () => isBoard && app.goToBoard(b.id) },
       h('button', { class: 'wb-outliner-caret', title: open ? 'Collapse' : 'Expand', onclick: ev => { ev.stopPropagation(); open ? collapsed.add(key) : collapsed.delete(key); render(); } }, marks.length ? (open ? '▾' : '▸') : ''),
       name,
       h('span', { class: 'wb-muted wb-outliner-count' }, String(marks.length)),
-      isBoard && b.kind !== 'frame' ? ops : null,
+      isBoard && b.kind !== 'frame' ? h('span', { class: 'wb-outliner-op' }, ops, oval) : null,
+      isBoard && b.kind !== 'frame' ? blendBtn : null,
       isBoard ? toggleBtn(!b.hidden, 'eye', 'eyeOff', b.hidden ? 'Show board' : 'Hide board', () => app.setBoardFlag(b.id, 'hidden', !b.hidden)) : null,
       isBoard ? toggleBtn(!b.locked, 'unlock', 'lock', b.locked ? 'Unlock board' : 'Lock board', () => app.setBoardFlag(b.id, 'locked', !b.locked), b.locked ? 'on' : '') : null,
       isBoard ? more : null);
     if (isBoard && !b.main) {
       row.draggable = true;
+      row.addEventListener('pointerdown', e => { row.draggable = !e.target.closest('input, button'); });   // (a press on the slider or a button is not a row drag)
+      row.addEventListener('pointerup', () => { row.draggable = true; });
       row.addEventListener('dragstart', e => { boardDrag = b.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', b.id); row.classList.add('dragging'); });
       row.addEventListener('dragend', () => { boardDrag = null; row.classList.remove('dragging'); });
     }

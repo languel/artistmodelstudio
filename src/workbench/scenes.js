@@ -83,6 +83,12 @@ export class Scenes {
     return false;
   }
 
+  /** A scene's document: the open one live, the others from their stored copy. */
+  async docOf(id) {
+    if (id === this.list.active) return structuredClone(this.app.store.doc);
+    return (await get(id).catch(() => null))?.doc || null;
+  }
+
   async saveCurrent() {
     const app = this.app, h = app.history;
     this.memory.set(this.list.active, {

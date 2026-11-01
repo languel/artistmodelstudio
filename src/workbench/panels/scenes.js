@@ -12,6 +12,7 @@ export function mountScenes(el, app) {
     { label: s.title || 'Untitled' },
     { label: 'Open', run: () => S.switchTo(s.id) },
     { label: 'Duplicate', run: async () => { await S.switchTo(s.id); await S.duplicate(); } },
+    { label: 'Copy as JSON', hint: 'Paste (Cmd+V) in another browser or tab to open it as a new scene', run: () => app.copyScene(s.id) },
     S.all.length > 1 ? '-' : null,
     S.all.length > 1 ? { label: 'Delete…', items: [
       { label: 'Save it to Assets first', run: async () => { await S.switchTo(s.id); await app.saveToAssets(); await S.remove(s.id); } },

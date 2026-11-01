@@ -65,7 +65,7 @@ const fileLoader = files => `(() => {
 })();`;
 
 /** The page a frame runs: the bridge, then (for p5) p5.js and its files, then the board's code. */
-function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false, threeMods = null) {
+function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false, threeMods = null, seed = null) {
   const bridge = `(() => {
   // A sandboxed frame has no storage: reading it throws. Libraries that touch it (ml5, tfjs) get a
   // stand-in that forgets on reload.
@@ -79,6 +79,30 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   const ask = (type, data, transfer) => new Promise((ok, fail) => { const id = ++seq; pending.set(id, { ok, fail }); parent.postMessage({ amsFrame: token, type, id, ...data }, '*'); });
   let perfOn = ${perf ? 'true' : 'false'};   // timed only while the studio shows it
   let piping = false, pumping = false;
+  // An output window runs a twin of this sketch. They match when they start together with the same random numbers,
+  // are paused together, and get the same input (the studio's copy sends its pointer and keys over, see outputs.js).
+  const seed = ${seed == null ? 'null' : Number(seed) >>> 0};
+  if (seed !== null) { let s = seed; Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  let held = null; const raf0 = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = cb => raf0(t => { if (held) held.push(cb); else cb(t); });
+  let fwd = false;
+  for (const t of ['pointermove', 'pointerdown', 'pointerup', 'mousemove', 'mousedown', 'mouseup', 'click', 'wheel', 'keydown', 'keyup']) {
+    addEventListener(t, e => {
+      if (!fwd) return;
+      const k = t.startsWith('key');
+      parent.postMessage({ amsFrame: token, type: 'input', ev: { t, x: k ? 0 : e.clientX / innerWidth, y: k ? 0 : e.clientY / innerHeight, button: e.button, buttons: e.buttons, dx: e.deltaX, dy: e.deltaY, key: e.key, code: e.code, keyCode: e.keyCode, shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey } }, '*');
+    }, true);
+  }
+  const replay = v => {
+    const target = document.elementFromPoint(Math.min(innerWidth - 1, Math.max(0, v.x * innerWidth)), Math.min(innerHeight - 1, Math.max(0, v.y * innerHeight))) || document.querySelector('canvas') || document.body;
+    const base = { bubbles: true, cancelable: true, view: window, shiftKey: v.shift, ctrlKey: v.ctrl, altKey: v.alt, metaKey: v.meta };
+    let ev;
+    if (v.t.startsWith('key')) ev = new KeyboardEvent(v.t, { ...base, key: v.key, code: v.code, keyCode: v.keyCode, which: v.keyCode });
+    else if (v.t === 'wheel') ev = new WheelEvent('wheel', { ...base, clientX: v.x * innerWidth, clientY: v.y * innerHeight, deltaX: v.dx, deltaY: v.dy });
+    else if (v.t.startsWith('pointer')) ev = new PointerEvent(v.t, { ...base, clientX: v.x * innerWidth, clientY: v.y * innerHeight, button: v.button, buttons: v.buttons, pointerId: 1, pointerType: 'mouse', isPrimary: true });
+    else ev = new MouseEvent(v.t, { ...base, clientX: v.x * innerWidth, clientY: v.y * innerHeight, button: v.button, buttons: v.buttons });
+    (v.t.startsWith('key') ? document : target).dispatchEvent(ev);
+  };
   const pump = async () => {
     if (!piping) { pumping = false; return; }
     pumping = true;
@@ -89,6 +113,9 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   addEventListener('message', e => {
     const d = e.data; if (!d || d.amsFrame !== token) return;
     if (d.type === 'perf') perfOn = Boolean(d.on);
+    if (d.type === 'fwd') fwd = Boolean(d.on);
+    if (d.type === 'input' && d.ev) { try { replay(d.ev); } catch { /* an event the sketch cannot take */ } }
+    if (d.type === 'run') { if (d.on && held) { const q = held; held = null; q.forEach(cb => raf0(cb)); } else if (!d.on && !held) held = []; }
     if (d.type === 'reply') { const p = pending.get(d.id); if (p) { pending.delete(d.id); d.error ? p.fail(new Error(d.error)) : p.ok(d.result); } }
     if (d.type === 'snapshot') { const c = document.querySelector('canvas'); parent.postMessage({ amsFrame: token, type: 'snapshot', url: c ? c.toDataURL('image/png') : null }, '*'); }
     // The board is sent to an output: a bitmap of its canvas goes to the studio each frame, for as long as it is asked.
@@ -138,6 +165,7 @@ export class BoardFrames {
     this.snapshots = new Map();   // p5 board id → last picture (data URL)
     this.files = {};             // file name a sketch loads → data URL (from a source), or null
     this.perf = new Map();        // p5 board id → { fps, ms, at }: the sketch's own pace
+    this.seeds = new Map();       // board id → the random seed its sketch runs with (set when a window shows a twin of it)
     this.tokens = new Map();      // a frame's token → its board id (kept a moment after it goes, for its last picture)
     window.addEventListener('message', e => this.onMessage(e));
     // A document longer than its board scrolls: the wheel over it scrolls it (its code blocks sideways)
@@ -219,6 +247,14 @@ export class BoardFrames {
   /** Ask a board's frame to send its canvas as bitmaps (to an output); cb gets each one. */
   pipe(id, cb) { (this.pipes ||= new Map()).set(id, cb); const f = this.frames.get(id); if (f?.iframe) this.sendPipe(f); }
   unpipe(id) { const f = this.frames.get(id); this.pipes?.delete(id); if (f?.iframe) this.sendPipe(f); }
+  /** Start a board's sketch again with a fresh seed, so a window's twin and this one begin together and stay alike. */
+  reseed(id) {
+    this.seeds.set(id, Math.floor(Math.random() * 2 ** 32));
+    const f = this.frames.get(id), b = boardsOf(this.app.store.doc).find(x => x.id === id);
+    if (f?.iframe && b) { f.code = null; this.refresh(f, b); } else this.canvas.invalidate();
+  }
+  /** Tell a sketch whether to send its pointer and keys on (to the twin in an output window). */
+  sendForward(f) { try { f.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'fwd', on: Boolean(this.app.outputs?.live(f.id)) }, '*'); } catch { /* gone */ } }
   sendPipe(f) { try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'pipe', on: Boolean(this.pipes?.has(f.id)) }, '*'); } catch { /* gone */ } }
 
   release(id, f) {
@@ -248,6 +284,7 @@ export class BoardFrames {
     const interactive = (this.app.activeBoard || MAIN) === b.id;
     f.el.classList.toggle('interactive', interactive);
     if (!run) {
+      this.app.outputs?.run(b.id, false, f.token);
       if (f.running) { this.snap(f); const old = f.iframe; setTimeout(() => old?.remove(), 400); f.iframe = null; f.running = false; }
       if (!f.still) {
         f.still = document.createElement('div');
@@ -259,6 +296,7 @@ export class BoardFrames {
       return;
     }
     f.still?.remove(); f.still = null;
+    this.app.outputs?.run(b.id, true, f.token);
     // p5.js goes into the frame itself: a sandboxed frame has no origin to fetch it from.
     if (f.kind === 'p5' && !this.p5Source) {
       if (!this.p5Loading) this.p5Loading = loadP5().then(t => { this.p5Source = t; this.canvas.invalidate(); return t; }).catch(err => this.app.log(`p5.js did not load: ${err.message}`, 'error'));
@@ -286,10 +324,11 @@ export class BoardFrames {
       iframe.setAttribute('credentialless', '');
       iframe.title = b.title;
       f.perf = Boolean(this.app.perfWanted?.(b));
-      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods);
+      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods, this.seeds.get(b.id) ?? null);
       f.iframe = iframe;
-      iframe.addEventListener('load', () => this.sendPipe(f));   // (an output may be waiting for it)
+      iframe.addEventListener('load', () => { this.sendPipe(f); this.sendForward(f); });   // (an output may be waiting for it)
       f.el.append(iframe);
+      this.app.outputs?.reload(b.id, iframe.srcdoc);   // (a window showing it starts again with it)
     }
     // Its performance shown or not: the sketch times its draw() only while it is.
     const perf = Boolean(this.app.perfWanted?.(b));
@@ -433,6 +472,7 @@ export class BoardFrames {
     const f = this.frames.get(id);
     const reply = (msg, transfer) => e.source?.postMessage({ amsFrame: d.amsFrame, type: 'reply', id: d.id, ...msg }, '*', transfer);
     if (d.type === 'perf') { this.perf.set(id, { fps: d.fps, calls: d.calls, ms: d.ms, at: performance.now() }); return; }
+    if (d.type === 'input') { this.app.outputs?.forward(id, d.ev, d.amsFrame); return; }
     if (d.type === 'pipe') { const cb = this.pipes?.get(id); if (cb && d.bitmap) cb(d.bitmap); else d.bitmap?.close?.(); return; }
     if (d.type === 'snapshot') { if (d.url) { this.snapshots.set(id, d.url); if (f?.still) f.still.innerHTML = `<img src="${d.url}" alt="">`; } return; }
     if (d.type === 'error') { this.app.log(`Board “${boardsOf(this.app.store.doc).find(b => b.id === id)?.title || '?'}”: ${d.message}${d.line ? ` (line ${d.line})` : ''}`, 'error'); if (f) (f.errors ||= []).push(d); this.app.emit('frame-error', id, d); return; }

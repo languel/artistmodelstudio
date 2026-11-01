@@ -780,6 +780,13 @@ export class Workbench {
     return [...boardsOf(this.store.doc)].reverse().find(b => !b.hidden && wx >= b.x && wx <= b.x + b.width && wy >= b.y && wy <= b.y + b.height) || null;
   }
 
+  /** A scene as studio JSON on the clipboard: paste it (Cmd+V) in any browser or tab and it opens as a new scene. */
+  async copyScene(id = this.scenes.list.active) {
+    const doc = await this.scenes.docOf(id);
+    if (!doc) { this.log('That scene has nothing stored yet.', 'error'); return; }
+    try { await navigator.clipboard.writeText(JSON.stringify(scenePart(doc))); this.log('Copied the scene as JSON: paste it (Cmd+V) in any browser or tab to open it as a new scene.'); } catch (err) { this.log(`Copy scene: ${err.message}`, 'error'); }
+  }
+
   sceneMenu(x, y) {
     const S = this.scenes, cur = S.list.active;
     showMenu([
@@ -788,6 +795,7 @@ export class Workbench {
       '-',
       { label: 'New scene', hint: 'An empty drawing; this one stays as it is', run: () => S.create() },
       { label: 'Duplicate this scene', run: () => S.duplicate() },
+      { label: 'Copy as JSON', hint: 'On the clipboard: paste (Cmd+V) in another browser or tab to open it as a new scene', run: () => this.copyScene() },
       { label: 'Move earlier', disabled: S.all[0]?.id === cur, run: () => S.move(cur, -1) },
       { label: 'Move later', disabled: S.all.at(-1)?.id === cur, run: () => S.move(cur, 1) },
       S.all.length > 1 ? '-' : null,
@@ -911,6 +919,7 @@ export class Workbench {
         { label: this.outputs?.items.has(`pin:${id}`) ? 'Unpin from the screen' : 'Pin on screen', hint: 'A window-like overlay that stays put while you move around the canvas', run: () => this.outputs.pin(id) },
         { label: 'Open in a window', hint: 'A window of its own: for another display or a projector (click it for full screen, which hides the title and address bars)', run: () => this.outputs.openWindow(id) },
         ...(window.documentPictureInPicture ? [{ label: 'Open borderless', hint: 'A picture-in-picture window (Chrome): no address bar, always on top, drag it to any size or display', run: () => this.outputs.openWindow(id, { borderless: true }) }] : []),
+        ...(this.outputs?.list().filter(o => o.kind === 'window' && this.outputs.items.get(o.key)?.live && o.board !== id).map(o => ({ label: `Show in the open window (${boardById(this.store.doc, o.board)?.title || 'board'})`, hint: 'The window changes to this board; it keeps its place, display and full screen', run: () => this.outputs.retarget(o.key, id) })) || []),
         ...(this.outputs?.list().some(o => o.board === id) ? [{ label: 'Stop its outputs', run: () => this.outputs.list().filter(o => o.board === id).forEach(o => this.outputs.close(o.key)) }] : [])
       ] },
       { label: 'Bake', items: [
@@ -1623,7 +1632,7 @@ export class Workbench {
     const doc = this.store.doc, b = boardById(doc, id);
     if (!b || b.paused || b.hidden) return false;   // paused by hand (or hidden): stays paused, even while you are on it
     if (this.scoreBoards().has(b.id)) return true;   // a board with a score runs (and sounds) unless paused: the play button is its mute, Opt+click its solo
-    if (b.id === (this.activeBoard || MAIN) || b.live || this.outputs?.wants(b.id)) return true;   // (a board sent to an output keeps running)
+    if (b.id === (this.activeBoard || MAIN) || b.live) return true;
     // On a frame (a slide): the boards it holds are live together.
     const active = boardById(doc, this.activeBoard || MAIN);
     return isFrame(active) && boardsInFrame(doc, active).some(x => x.id === b.id);
@@ -2519,6 +2528,8 @@ export class Workbench {
     try { j = JSON.parse(text); } catch { this.log(`${name}: not JSON.`, 'error'); return null; }
     if (!isPart(j)) { this.log(`${name}: not a studio drawing (open other files with Open file).`, 'error'); return null; }
     if (!at && j.meta?.part === 'selection') at = this.canvas.toWorld(this.canvas.w / 2 - (j.artboard?.width || 0) * this.canvas.cam.z / 2, this.canvas.h / 2 - (j.artboard?.height || 0) * this.canvas.cam.z / 2);
+    // A whole scene from the clipboard or a file opens as a scene of its own (exact: stages, boards, code).
+    if (j.meta?.part === 'scene' && !at) { const { part, ...meta } = j.meta; const s = await this.scenes.create({ doc: { ...j, meta } }); this.log(`Opened “${j.title || 'Untitled'}” as a new scene.`); return s; }
     return this.importPartHere(j, at, name);
   }
 

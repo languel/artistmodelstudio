@@ -7,8 +7,10 @@
  *   window  a window of its own that can go on another display or a projector (double-click it for full screen)
  *
  * Both are fed by one loop. A drawing board's picture is composed here (paper, source, marks, effects, mask); a sketch's
- * is piped out of its frame (the frame sends a bitmap of its canvas each frame, see boardFrames.js). A board that has an
- * output keeps running when it is off screen or paused, because the output is what it is for.
+ * is piped out of its frame (the frame sends a bitmap of its canvas each frame, see boardFrames.js). An output does not
+ * change what a board is doing: if it was playing it still plays, off screen too (that is what a pinned board is for), and
+ * if it is paused it stays paused. Sending a board that is not playing makes it play once, as you would with its play
+ * button (and closing the output leaves it so). Opening, fullscreening and closing windows never touch play.
  */
 import { h } from './ui.js';
 import { boardById, MAIN } from '../process/boards.js';
@@ -25,9 +27,39 @@ export class Outputs {
     app.on?.('scene', () => this.closeAll());
   }
 
+  /** A board sent to an output plays, if it is not playing and was not paused on purpose (the same as its play button). */
+  play(id) { const b = boardById(this.app.store.doc, id); if (b && !b.paused && !this.app.isBoardLive?.(id)) this.app.setBoardLive?.(id, true); }
+
   /** Is a board being sent somewhere (so it keeps running)? */
   wants(id) { for (const o of this.items.values()) if (o.board === id) return true; return false; }
   list() { return [...this.items.values()].map(({ key, board, kind }) => ({ key, board, kind })); }
+
+  // ---- a window's twin of a sketch -------------------------------------------------------------------------------
+  /** Does a board have a window running a twin of its sketch? */
+  live(id) { for (const o of this.items.values()) if (o.live && o.board === id && o.win && !o.win.closed) return true; return false; }
+  twins(id) { return [...this.items.values()].filter(o => o.live && o.board === id && o.win && !o.win.closed && o.frame); }
+  forwardState(id) { const f = this.app.frames?.frames.get(id); if (f) this.app.frames.sendForward(f); }
+  /** The studio's copy was built again (new code, a new size, play after pause): the window's copy starts again with it. */
+  reload(id, srcdoc) { for (const o of this.twins(id)) o.frame.srcdoc = srcdoc; }
+  /** The studio's copy runs or is paused: so does the window's. */
+  run(id, on, token) { for (const o of this.twins(id)) { try { o.frame.contentWindow?.postMessage({ amsFrame: token, type: 'run', on }, '*'); } catch { /* reloading */ } } }
+  /** What is done in the studio's copy (pointer, keys, wheel) is done in the window's. */
+  forward(id, ev, token) { for (const o of this.twins(id)) { try { o.frame.contentWindow?.postMessage({ amsFrame: token, type: 'input', ev }, '*'); } catch { /* reloading */ } } }
+  /** Show another board in an open window. */
+  retarget(key, id) {
+    const o = this.items.get(key), b = boardById(this.app.store.doc, id);
+    if (!o?.live || !b || (b.kind !== 'p5' && b.kind !== 'three')) return false;
+    const was = o.board;
+    o.board = id;
+    o.win.document.title = `${b.title || 'Board'} · output`;
+    this.play(id);
+    this.app.frames?.reseed(id);
+    const src = this.app.frames?.frames.get(id)?.iframe?.srcdoc;
+    if (src) o.frame.srcdoc = src; else o.frame.removeAttribute('srcdoc');   // (it follows when the board's copy is built)
+    this.forwardState(was); this.forwardState(id);
+    this.app.canvas?.invalidate?.();
+    return true;
+  }
 
   // ---- the picture of a board -------------------------------------------------------------------------------------
   /** The board's picture now, as something drawImage takes, or null (a page of text has none). */
@@ -49,7 +81,8 @@ export class Outputs {
     const b = boardById(this.app.store.doc, id);
     if (!b) return null;
     const key = `pin:${id}`;
-    if (this.items.has(key)) { this.close(key); return null; }   // (pinning a pinned board unpins it)
+    if (this.items.has(key)) { this.close(key); return null; }
+    this.play(id);   // (pinning a pinned board unpins it)
     const canvas = h('canvas', { class: 'wb-pin-canvas' });
     const opacity = h('input', { type: 'range', class: 'wb-pin-opacity', min: 20, max: 100, step: 1, value: 100, title: 'Opacity' });
     const ghost = h('button', { class: 'wb-pin-btn', title: 'Let clicks through to the canvas under it', html: '◌' });
@@ -82,6 +115,7 @@ export class Outputs {
     const key = `window:${id}`;
     const have = this.items.get(key);
     if (have?.win && !have.win.closed) { have.win.focus?.(); return have; }
+    this.play(id);
     let win = null;
     if (borderless && window.documentPictureInPicture) {
       try { const w = 640; win = await window.documentPictureInPicture.requestWindow({ width: w, height: Math.round(w * b.height / b.width) }); } catch { win = null; }
@@ -100,18 +134,51 @@ export class Outputs {
     }
     win.document.title = `${b.title || 'Board'} · output`;
     win.document.body.style.cssText = 'margin:0;height:100vh;background:#000;overflow:hidden;cursor:default';
-    const canvas = win.document.createElement('canvas');
-    canvas.style.cssText = 'width:100%;height:100%;display:block';
-    win.document.body.append(canvas);
-    const full = () => { if (win.document.fullscreenElement) win.document.exitFullscreen?.(); else canvas.requestFullscreen?.().catch(() => {}); };
-    canvas.addEventListener('click', () => { if (!win.document.fullscreenElement) full(); });
+    const doc = win.document;
+    // A p5 or three.js board runs its own copy of the sketch inside the window: it keeps animating when this window is covered
+    // (a full-screen output on the same display hides the studio, and a hidden window stops painting). Other boards are sent as pictures.
+    const twin = b.kind === 'p5' || b.kind === 'three';
+    if (twin) this.app.frames?.reseed(id);   // (a fresh seed, so the window's copy and the studio's begin together)
+    const src = twin ? this.app.frames?.frames.get(id)?.iframe?.srcdoc || '' : '';
+    const stage = doc.createElement('div');
+    stage.style.cssText = 'position:fixed;inset:0;background:#000';
+    doc.body.append(stage);
+    let canvas = null;
+    if (twin) {
+      const fr = doc.createElement('iframe');
+      fr.setAttribute('sandbox', 'allow-scripts');
+      fr.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent';
+      if (src) fr.srcdoc = src;   // (else it follows when the studio's copy is built, see reload)
+      const cover = doc.createElement('div');   // (the clicks and keys of the window itself, not the sketch's)
+      cover.style.cssText = 'position:absolute;inset:0';
+      stage.append(fr, cover);
+      stage.__cover = cover;
+      stage.__frame = fr;
+    } else {
+      canvas = doc.createElement('canvas');
+      canvas.style.cssText = 'width:100%;height:100%;display:block';
+      stage.append(canvas);
+    }
+    const hit = stage.__cover || canvas;
+    const pip = Boolean(window.documentPictureInPicture && win === window.documentPictureInPicture.window);   // (a picture-in-picture window cannot go full screen)
+    const full = () => { if (pip) return; if (doc.fullscreenElement) doc.exitFullscreen?.(); else stage.requestFullscreen?.().catch(() => {}); };
+    hit.addEventListener('click', () => { if (!doc.fullscreenElement) full(); });
     win.addEventListener('keydown', e => { if (e.key === 'f' || e.key === 'F') full(); });
-    win.addEventListener('mousemove', () => { win.document.body.style.cursor = 'default'; clearTimeout(win.__hide); win.__hide = setTimeout(() => { win.document.body.style.cursor = 'none'; }, 1500); });
+    win.addEventListener('mousemove', () => { doc.body.style.cursor = 'default'; if (stage.__cover) stage.__cover.style.cursor = 'default'; clearTimeout(win.__hide); win.__hide = setTimeout(() => { doc.body.style.cursor = 'none'; if (stage.__cover) stage.__cover.style.cursor = 'none'; }, 1500); });
     win.addEventListener('pagehide', () => this.close(key));
-    const o = { key, board: id, kind: 'window', canvas, win };
+    const o = { key, board: id, kind: 'window', canvas, win, pip, live: twin, frame: stage.__frame, stage };
     this.items.set(key, o);
+    if (twin) {
+      this.app.canvas?.invalidate?.();
+      this.forwardState(id);
+      const hint = doc.createElement('div');
+      hint.textContent = 'click for full screen · F toggles';
+      hint.style.cssText = 'position:absolute;left:0;right:0;bottom:18px;text-align:center;font:13px system-ui;color:rgba(255,255,255,.55);pointer-events:none;transition:opacity .6s';
+      if (!pip) { stage.append(hint); setTimeout(() => { hint.style.opacity = '0'; }, 8000); }
+      return o;
+    }
     this.startPipe(id);
-    this.loop();
+    this.windowLoop(o);
     return o;
   }
 
@@ -121,7 +188,8 @@ export class Outputs {
     o.el?.remove();
     if (o.win && !o.win.closed) o.win.close();
     this.items.delete(key);
-    if (!this.wants(o.board)) { this.app.frames?.unpipe(o.board); this.latest.get(o.board)?.close?.(); this.latest.delete(o.board); }
+    if (o.live) this.forwardState(o.board);
+    if (!o.live && !this.wants(o.board)) { this.app.frames?.unpipe(o.board); this.latest.get(o.board)?.close?.(); this.latest.delete(o.board); }
     this.app.canvas?.invalidate?.();
   }
   closeAll() { for (const key of [...this.items.keys()]) this.close(key); }
@@ -131,6 +199,20 @@ export class Outputs {
     if (!b || !PIPED.has(b.kind)) return;
     this.app.frames?.pipe(id, bitmap => { const old = this.latest.get(id); this.latest.set(id, bitmap); old?.close?.(); });
     this.app.canvas?.invalidate?.();
+  }
+
+  /** A window paints on its own window's frames, so it keeps up when the studio's window is covered by it (full screen) or hidden. */
+  windowLoop(o) {
+    const win = o.win, raf = cb => (win.requestAnimationFrame ? win.requestAnimationFrame(cb) : setTimeout(() => cb(performance.now()), 33));
+    const tick = t => {
+      if (this.items.get(o.key) !== o || win.closed) return;
+      raf(tick);
+      if (t - (o.last || 0) < 1000 / 60 - 2) return;
+      o.last = t;
+      if (!boardById(this.app.store.doc, o.board)) { this.close(o.key); return; }
+      this.paint(o);
+    };
+    raf(tick);
   }
 
   // ---- the loop ----------------------------------------------------------------------------------------------------
@@ -143,6 +225,7 @@ export class Outputs {
       if (t - this.last < 1000 / FPS) return;
       this.last = t;
       for (const o of [...this.items.values()]) {
+        if (o.kind === 'window') continue;   // (windows paint on their own frames: windowLoop)
         if (o.win?.closed || (o.el && !o.el.isConnected)) { this.close(o.key); continue; }
         if (!boardById(this.app.store.doc, o.board)) { this.close(o.key); continue; }
         this.paint(o);
@@ -166,7 +249,7 @@ export class Outputs {
     const pw = pic.width, ph = pic.height, k = Math.min(W / pw, H / ph), dw = pw * k, dh = ph * k;
     g.drawImage(pic, (W - dw) / 2, (H - dh) / 2, dw, dh);
     // A window not yet full screen says how (a hint that is gone once it is).
-    if (o.kind === 'window' && !o.win.document.fullscreenElement && performance.now() - (o.t0 ||= performance.now()) < 8000) { g.fillStyle = 'rgba(255,255,255,.55)'; g.font = `${13 * dpr}px system-ui`; g.textAlign = 'center'; g.fillText('click for full screen · F toggles', W / 2, H - 18 * dpr); }
+    if (o.kind === 'window' && !o.pip && !o.win.document.fullscreenElement && performance.now() - (o.t0 ||= performance.now()) < 8000) { g.fillStyle = 'rgba(255,255,255,.55)'; g.font = `${13 * dpr}px system-ui`; g.textAlign = 'center'; g.fillText('click for full screen · F toggles', W / 2, H - 18 * dpr); }
   }
 
   /** Drag an element by a handle (kept inside the screen). */

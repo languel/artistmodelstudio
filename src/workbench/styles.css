@@ -177,6 +177,7 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-stage-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 4px; }
 .wb-stage .wb-select { width: 96px; height: 22px; font-size: var(--ui-small); }
 .wb-kind { color: var(--wb-muted); font-size: var(--ui-small); padding: 0 4px; }
+.wb-kind-col { width: 34px; box-sizing: content-box; text-align: right; }
 .wb-stage .wb-icon-btn { width: 20px; }
 .wb-stage:not(:hover):not(.active) .wb-icon-btn[title="Earlier"], .wb-stage:not(:hover):not(.active) .wb-icon-btn[title="Later"], .wb-stage:not(:hover):not(.active) .wb-icon-btn[title^="Delete"] { visibility: hidden; }
 .wb-stage .wb-muted { width: 22px; text-align: right; font: var(--ui-small) var(--font-mono); }
@@ -362,8 +363,10 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-outliner-glyph { width: 14px; text-align: center; color: var(--wb-muted); flex: none; }
 .wb-outliner-caret { width: 14px; border: 0; background: none; color: var(--wb-muted); padding: 0; cursor: pointer; flex: none; font-size: 10px; }
 .wb-outliner-count { font-size: 11px; min-width: 16px; text-align: right; }
-.wb-outliner-toggle { opacity: 0; width: 20px; height: 20px; }
-.wb-outliner-row:hover .wb-outliner-toggle, .wb-outliner-toggle.off, .wb-outliner-toggle.on { opacity: 0.85; }
+.wb-outliner-toggle { opacity: .5; width: 20px; height: 20px; }   /* always there, dimmed; brighter on the row you point at; delete only when pointed at */
+.wb-outliner-row:hover .wb-outliner-toggle, .wb-outliner-toggle:hover, .wb-outliner-toggle.off, .wb-outliner-toggle.on { opacity: 0.9; }
+.wb-outliner-toggle.danger { opacity: 0; }
+.wb-outliner-row:hover .wb-outliner-toggle.danger { opacity: .8; }
 .wb-outliner-toggle.danger:hover { color: #c0563f; }
 .wb-outliner-input { flex: 1; height: 20px; min-width: 0; }
 .wb-outliner-bar { margin-bottom: 4px; }
@@ -936,8 +939,14 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-assistant .wb-script-out { margin: 0; }
 
 /* Outliner: boards as layers */
-.wb-outliner-board .wb-outliner-opacity { width: 44px; flex: none; accent-color: var(--wb-muted); opacity: .6; height: 12px; }
-.wb-outliner-board:hover .wb-outliner-opacity { opacity: 1; }
+/* the opacity slider: the shared look, thinner and longer, its value shown while it moves */
+.wb-outliner-op { position: relative; display: inline-flex; align-items: center; flex: 0 1 84px; min-width: 34px; }
+.wb-outliner-board .wb-outliner-opacity.wb-range { width: 100%; min-width: 0; height: 14px; opacity: .7; }
+.wb-outliner-board .wb-outliner-opacity.wb-range::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; }
+.wb-outliner-board .wb-outliner-opacity.wb-range::-webkit-slider-thumb { width: 7px; height: 7px; margin-top: -2px; }
+.wb-outliner-board:hover .wb-outliner-opacity.wb-range, .wb-outliner-op:active .wb-outliner-opacity.wb-range { opacity: 1; }
+.wb-outliner-oval { position: absolute; right: 0; bottom: 100%; margin-bottom: 1px; padding: 0 5px; border-radius: 4px; background: var(--wb-panel); border: 1px solid var(--wb-line); font: var(--ui-small) var(--font-mono); color: var(--wb-text); pointer-events: none; visibility: hidden; }
+.wb-outliner-op:active .wb-outliner-oval { visibility: visible; }
 .wb-outliner-toggle.on { color: var(--wb-accent); }
 
 /* Outputs: a board pinned on screen, a window-like overlay that stays while the canvas moves */
@@ -951,3 +960,6 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-pin-canvas { flex: 1; min-height: 0; width: 100%; display: block; }
 .wb-pin.through { pointer-events: none; }
 .wb-pin.through .wb-pin-bar { pointer-events: auto; }
+/* A board is a layer: its controls (blend, show, lock, menu) are always there, like its opacity, not only on hover */
+.wb-outliner-board .wb-outliner-toggle { opacity: .55; }
+.wb-outliner-board:hover .wb-outliner-toggle, .wb-outliner-board .wb-outliner-toggle:hover, .wb-outliner-board .wb-outliner-toggle.on { opacity: .95; }

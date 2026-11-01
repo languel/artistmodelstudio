@@ -82,4 +82,18 @@ describe('outputs', () => {
     expect(closed).toBe(true);
     expect(out.wants(id)).toBe(false);
   });
+  it('sending a board to an output plays it once, as its play button would; a board paused on purpose stays paused; closing changes nothing', () => {
+    const live = new Set();
+    const mk = () => { const app = fakeApp(); app.isBoardLive = id => live.has(id); app.setBoardLive = (id, on) => { on ? live.add(id) : live.delete(id); }; return app; };
+    let app = mk(), id = app.store.doc.boards[0].id, out = new Outputs(app);
+    out.pin(id);
+    expect(live.has(id)).toBe(true);
+    out.close(`pin:${id}`);
+    expect(live.has(id)).toBe(true);            // (closing the output does not pause it again)
+    live.clear();
+    app = mk(); id = app.store.doc.boards[0].id; out = new Outputs(app);
+    app.store.change('pause', d => { d.boards.find(x => x.id === id).paused = true; });
+    out.pin(id);
+    expect(live.has(id)).toBe(false);           // (paused by hand: left alone)
+  });
 });

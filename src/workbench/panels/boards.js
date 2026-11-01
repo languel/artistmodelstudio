@@ -32,13 +32,13 @@ export function mountBoards(el, app) {
       const name = h('span', { class: 'wb-stage-name', title: 'Click to go · Shift+double-click to rename' }, nested ? '' : `${++slide}. `, title);
       name.addEventListener('dblclick', e => { if (!e.shiftKey) app.goToBoard(b.id); });
       const row = h('div', { class: `wb-stage${active ? ' active' : ''}${nested ? ' nested' : ''}${isFrame(b) ? ' frame' : ''}`, 'data-guide': `board:${b.title}`, draggable: b.main || nested ? 'false' : 'true', onclick: e => { if (e.target.closest('button')) return; if (e.shiftKey || e.metaKey || e.ctrlKey) { app.canvas.selectBoard(b.id, true); return; } app.goToBoard(b.id); }, oncontextmenu: e => { e.preventDefault(); app.boardMenu(b.id, e.clientX, e.clientY); } },
+        h('button', { class: `wb-icon-btn${app.isBoardLive(b.id) ? ' on' : ' wb-dim'}`, title: app.isBoardLive(b.id) ? `Running${b.live && !active ? ' (even when you are elsewhere)' : ''}: click to pause (a paused board is baked into a picture) · Opt+click: solo` : 'Paused: click to play · Opt+click: play only this one', html: icon(app.isBoardLive(b.id) ? 'pause' : 'play'), onclick: e => (e.altKey ? app.soloBoard(b.id) : app.toggleBoardRun(b.id)) }),
         ...(app.embed ? [] : [h('button', { class: `wb-icon-btn wb-train${train === b.id ? ' on' : ''}`, title: train === b.id ? 'Models learn from this board' : 'Train on this board', html: '<svg viewBox="0 0 24 24" width="12" height="12"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>', onclick: () => app.store.setTrainBoard(b.id) })]),
         name,
-        h('button', { class: `wb-icon-btn${app.isBoardLive(b.id) ? ' on' : ' wb-dim'}`, title: app.isBoardLive(b.id) ? `Running${b.live && !active ? ' (even when you are elsewhere)' : ''}: click to pause (a paused board is baked into a picture) · Opt+click: solo` : 'Paused: click to play · Opt+click: play only this one', html: icon(app.isBoardLive(b.id) ? 'pause' : 'play'), onclick: e => (e.altKey ? app.soloBoard(b.id) : app.toggleBoardRun(b.id)) }),
         h('span', { class: 'wb-muted', title: `${b.width}×${b.height}` }, String(marksOf(doc, b.id).length)),
-        b.main ? h('span', { class: 'wb-kind' }, 'main') : h('span', {}),
-        !b.main ? h('button', { class: 'wb-icon-btn', title: 'Earlier', html: icon('up'), onclick: () => app.store.moveBoard(b.id, -1) }) : null,
-        !b.main ? h('button', { class: 'wb-icon-btn', title: 'Later', html: icon('down'), onclick: () => app.store.moveBoard(b.id, 1) }) : null,
+        h('span', { class: 'wb-kind wb-kind-col' }, b.main ? 'main' : ''),
+        b.main ? h('span', { class: 'wb-icon-btn', style: 'visibility:hidden' }) : h('button', { class: 'wb-icon-btn', title: 'Earlier', html: icon('up'), onclick: () => app.store.moveBoard(b.id, -1) }),
+        b.main ? h('span', { class: 'wb-icon-btn', style: 'visibility:hidden' }) : h('button', { class: 'wb-icon-btn', title: 'Later', html: icon('down'), onclick: () => app.store.moveBoard(b.id, 1) }),
         h('button', { class: 'wb-icon-btn', title: 'More', html: icon('menu'), onclick: e => app.boardMenu(b.id, e.clientX, e.clientY) }));
       // Drag a board to reorder (the main board stays first); drop above or below a row.
       row.addEventListener('dragstart', e => { e.dataTransfer.setData('text/ams-board', b.id); e.dataTransfer.effectAllowed = 'move'; });
