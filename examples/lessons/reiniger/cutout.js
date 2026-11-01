@@ -56,10 +56,16 @@ function stick(len, w0, w1) {
 }
 const pelvis = () => stick(0.4, 0.26, 0.2);                           // the hips: the legs hang from here
 const chest = () => stick(0.74, 0.2, 0.17);                           // up to the shoulders: the arms and the neck
-function head() {                                                   // a profile: forehead, nose, chin, a turban
+function head() {                                                   // a profile, facing right: chin, lips, a small pointed nose, a soft brow, a rounded skull
   const s = new THREE.Shape();
-  s.moveTo(-0.05, 0); s.lineTo(0.14, 0.02); s.lineTo(0.17, 0.12); s.lineTo(0.3, 0.2); s.lineTo(0.17, 0.26); s.lineTo(0.2, 0.36);
-  s.bezierCurveTo(0.2, 0.55, 0.1, 0.7, -0.08, 0.72); s.bezierCurveTo(-0.26, 0.7, -0.3, 0.45, -0.22, 0.25); s.lineTo(-0.1, 0.1);
+  s.moveTo(0.05, 0);
+  s.lineTo(0.12, 0.04); s.lineTo(0.15, 0.1);                           // the chin
+  s.lineTo(0.125, 0.145); s.lineTo(0.14, 0.185);                       // under the lip, the lips
+  s.lineTo(0.125, 0.23); s.lineTo(0.285, 0.305);                        // under the nose, and its point
+  s.bezierCurveTo(0.2, 0.33, 0.16, 0.36, 0.15, 0.4);                   // the bridge eases into the brow
+  s.bezierCurveTo(0.15, 0.5, 0.12, 0.66, 0.0, 0.72);                   // a sloping forehead and the top of the head
+  s.bezierCurveTo(-0.16, 0.76, -0.3, 0.6, -0.25, 0.4);                 // the back of the skull
+  s.bezierCurveTo(-0.22, 0.25, -0.17, 0.12, -0.08, 0.0);              // down to the neck
   return s;
 }
 function hand() {                                                   // a mitten: a palm that widens a little, a thumb tucked against it
@@ -91,11 +97,11 @@ const PARTS = [
   { id: 'foreB', parent: 'armB', at: [0, -0.62], shape: limb(0.58, 0.12, 0.09), tip: [0, -0.58], limit: [-0.1, 2.7], z: -0.05 },
   { id: 'handB', parent: 'foreB', at: [0, -0.58], shape: hand(), tip: [0, -0.26], limit: [-1.0, 1.0], z: -0.06 },
   { id: 'thighA', parent: 'pelvis', at: [0, 0], shape: limb(0.85, 0.26, 0.16), tip: [0, -0.85], limit: [-1.5, 1.5], z: 0.01 },
-  { id: 'shinA', parent: 'thighA', at: [0, -0.85], shape: limb(0.85, 0.16, 0.08), tip: [0, -0.85], limit: [-2.5, 0.1], z: 0.015 },
-  { id: 'footA', parent: 'shinA', at: [0, -0.85], shape: foot(), tip: [0.5, 0.02], limit: [-0.9, 0.9], z: 0.02 },
+  { id: 'shinA', parent: 'thighA', at: [0, -0.85], shape: limb(0.85, 0.16, 0.08), tip: [0, -0.85], limit: [-3.05, 0.1], z: 0.015 },
+  { id: 'footA', parent: 'shinA', at: [0, -0.85], shape: foot(), tip: [0.5, 0.02], limit: [-1.3, 1.3], z: 0.02 },
   { id: 'thighB', parent: 'pelvis', at: [0, 0], shape: limb(0.85, 0.26, 0.16), tip: [0, -0.85], limit: [-1.5, 1.5], z: -0.01 },
-  { id: 'shinB', parent: 'thighB', at: [0, -0.85], shape: limb(0.85, 0.16, 0.08), tip: [0, -0.85], limit: [-2.5, 0.1], z: -0.015 },
-  { id: 'footB', parent: 'shinB', at: [0, -0.85], shape: foot(), tip: [0.5, 0.02], limit: [-0.9, 0.9], z: -0.02 },
+  { id: 'shinB', parent: 'thighB', at: [0, -0.85], shape: limb(0.85, 0.16, 0.08), tip: [0, -0.85], limit: [-3.05, 0.1], z: -0.015 },
+  { id: 'footB', parent: 'shinB', at: [0, -0.85], shape: foot(), tip: [0.5, 0.02], limit: [-1.3, 1.3], z: -0.02 },
 ];
 const puppet = new THREE.Group();
 const home = new THREE.Vector2(-1.2, -3.0);                          // where the puppet stands: drag the body to move it

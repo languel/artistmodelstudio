@@ -75,15 +75,6 @@ export const LESSON = {
   main: 'route',
   codePanel: true,
   folder: 'Lessons/Silhouette film',
-  // A photograph for the backdrop: the one outside picture in the lesson (see RIGHTS.md for what is and is not clear about it).
-  sources: {
-    'pond-moonlight': {
-      url: new URL('./media/pond-moonlight.jpg', import.meta.url),
-      title: 'The Pond—Moonlight (Edward Steichen, 1904)',
-      commons: 'https://commons.wikimedia.org/wiki/File:ThePondMoonlight.jpg',
-      license: 'Public domain in the United States (photographed 1904; Steichen died 1973, so it is protected in the EU until 2043). Wikimedia Commons.'
-    }
-  },
   sections: [
     {
       id: 'build', title: 'Build the scene', label: 'Examples',
@@ -315,50 +306,6 @@ renderer.render = (s, c) => {
   night.position.set(pool.x, pool.y, 5);
   frame(s, c);
 };`) }
-      ,
-        { id: 'pond', title: '2.3 · A second set, from a photograph', ...BOARD,
-          idea: 'A second set rather than a new sky for the first: an old photograph, *The Pond—Moonlight* (Edward Steichen, 1904), dark trunks around a pale gap of moonlight, with cut-paper trunks and a bank in front of it. A **texture** is loaded by name, then only a **window** of it is shown: `zoom` makes the window smaller, `x` and `y` slide it. With `travel` on, the window drifts across the picture while the puppet walks in place: the walk cycle plus a moving backdrop is how a figure crosses a landscape without leaving the table. `gain` brightens the print so the silhouette reads against it.',
-          pseudo: `photo = a texture loaded from the picture's name
-window = the part of the photo that fills the frame: size 1 / zoom, centre (x, y)
-texture.repeat = window size, texture.offset = window corner
-travel: slide the window across the photo over time; the puppet walks in place`,
-          three: WHOLE(`
-// --- a photograph as the backdrop: a window onto it that zooms and travels ---------------------------------------------
-let zoom = 1.6 /* 1.1..5 */;
-let x = 0.5 /* 0..1 */;
-let y = 0.5 /* 0..1 */;
-let gain = 2.4 /* 0.5..4 */;
-let travel = true /* toggle */;
-const print = new THREE.TextureLoader().load('pond-moonlight.jpg');   // a picture of that name, from the studio's sources
-print.colorSpace = THREE.SRGBColorSpace;
-const ASPECT = 1400 / 1150, EDGE = { u0: 0.04, u1: 0.96, v0: 0.1, v1: 0.97 };   // the usable part of the print: inside its mount and above the signature
-const back = new THREE.Mesh(new THREE.PlaneGeometry(FRAME * W / H, FRAME), new THREE.MeshBasicMaterial({ map: print, depthWrite: false }));
-back.position.z = -4.6;
-scene.add(back);
-// This is a second set, not the first one with a new sky: the hills, ground and reeds go, and the foreground is cut paper trunks and a bank.
-for (const piece of [far, mid, ground, reeds]) piece.visible = false;
-const bank = cut(ridge(-3.25, 0.12, 0.8, 1.3), -0.3);
-const trunks = new THREE.Group();
-for (let i = 0; i < 10; i++) {                                      // black trunks, thin and leaning a little, some near the camera and some farther
-  const px = -9 + i * 2 + 0.7 * Math.sin(i * 12.9), w = 0.1 + 0.12 * Math.abs(Math.sin(i * 4.1)), lean = 0.25 * Math.sin(i * 7.7);
-  const s = new THREE.Shape(); s.moveTo(px - w, -3.6); s.lineTo(px - w * 0.55 + lean, 4); s.lineTo(px + w * 0.55 + lean, 4); s.lineTo(px + w, -3.6);
-  trunks.add(cut(s, i % 3 === 0 ? 1.2 : i % 3 === 1 ? -1.4 : -2.4, paper(i % 3 === 2 ? 0x15171c : 0x0b0a0a, i % 3 === 2 ? 0.8 : 1)));
-}
-scene.add(bank, trunks);
-const lookAt = (t) => {
-  const w = Math.min(EDGE.u1 - EDGE.u0, (1 / zoom) * (W / H) / ASPECT), h = Math.min(EDGE.v1 - EDGE.v0, 1 / zoom);
-  const drift = travel ? 0.5 + 0.5 * Math.sin(t * 0.12) : x;       // 0..1 across the photograph
-  print.repeat.set(w, h);
-  print.offset.set(EDGE.u0 + (EDGE.u1 - EDGE.u0 - w) * drift, EDGE.v0 + (EDGE.v1 - EDGE.v0 - h) * y);
-  back.material.color.setScalar(gain);
-};
-const shot = renderer.render.bind(renderer);
-renderer.render = (s, c) => {
-  const t = performance.now() / 1000;
-  lookAt(t);
-  if (travel) puppet.position.x = home.x;                           // the puppet walks in place; the backdrop does the travelling
-  shot(s, c);
-};`, { patch: c => c.replace("let walk = 0 /*", "let walk = 0.7 /*").replace("let moon = true", "let moon = false") }) }
       ]
     },
     {
@@ -450,6 +397,126 @@ renderer.render = (s, c) => {
   renderer.setRenderTarget(null); draw(post, postCam);               // the picture, through the shader, to the screen
 };`) }
       ]
+    },
+    {
+      id: 'short', title: 'A short film', label: 'Examples',
+      text: 'Everything so far, in fourteen seconds: the same set, the same puppet, and a story told by **keyframes**. A keyframe is a pose at a time; the frames between are made by easing from one pose to the next. A sitting figure, a rising moon, a stand, a reach, a fall.',
+      boards: [
+        { id: 'moon', title: '4.1 · The moon', ...BOARD,
+          idea: 'A figure sits on a dune and watches the moon rise. When it nears the edge of the sky he stands, reaches for it, and cannot. He loses his balance. As the sky goes dark the paper dissolves and only his hinges are left, a constellation. Stars appear as the light fades; now and then one falls. The film is a table of **keyframes**, each a pose and a time, and a function that eases between them. `play` runs it (and repeats it with `loop`); turn it off and `scrub` moves through the film by hand. `view` set to inspect lets you orbit the set.',
+          pseudo: `keys = [ (time, pose, hip height, tilt, lift), … ]       # sit, sit, stand, reach, fall, drift
+every frame: t = the film's clock
+  pose = ease between the two keys around t
+  moon = rises with t; sky colour = from the key colours at t
+  paper opacity falls to 0 near the end; the hinges glow as stars; lines join them
+  stars appear by their own times; a few shooting stars cross at random times`,
+          three: WHOLE(`
+// --- the film: a table of keyframes and a function that eases between them ---------------------------------------------
+let play = true /* toggle */;
+let loop = true /* toggle */;
+let scrub = 0 /* 0..1 */;
+const DURATION = 14, HOLD = 2;                                      // seconds of film, and a rest before it starts again
+const ease = u => u * u * (3 - 2 * u);
+const BASE = { pelvis: 0, chest: 0, neck: 0, head: 0, armA: 0, foreA: 0, handA: 0, armB: 0, foreB: 0, handB: 0, thighA: 0, shinA: 0, footA: 0, thighB: 0, shinB: 0, footB: 0 };
+// Poses: an angle for every hinge (0 is the rest pose; a positive angle turns a piece counter-clockwise, away from the way he faces).
+const SIT = { ...BASE, neck: -0.15, head: -0.35, armA: 0.35, foreA: 2.1, handA: 0.2, armB: 0.9, foreB: 0.8, thighA: 1.75, shinA: -2.95, footA: 1.2, thighB: 1.55, shinB: -2.8, footB: 1.25 };
+const STAND = { ...BASE, chest: 0.03, neck: -0.1, head: -0.35, armA: 0.15, foreA: 0.25, armB: -0.15, foreB: 0.2, thighA: 0.1, shinA: -0.05, footA: -0.05, thighB: -0.1, shinB: -0.05 };
+const REACH = { ...BASE, chest: -0.14, neck: -0.12, head: -0.5, armA: 2.75, foreA: 0.1, handA: 0.1, armB: -0.85, foreB: 0.3, thighA: 0.2, shinA: -0.25, footA: 0.3, thighB: -0.15, shinB: -0.05 };
+const FALL = { ...BASE, chest: 0.5, neck: 0.1, head: 0.25, armA: 2.3, foreA: 0.5, armB: 2.7, foreB: 0.3, handB: 0.3, thighA: 0.95, shinA: -0.7, footA: 0.2, thighB: 0.35, shinB: -1.0 };
+const DRIFT = { ...FALL, chest: 0.2, head: 0.1, armA: 1.7, armB: 2.2, thighA: 0.5, thighB: 0.2 };
+//            time  pose   hip height  tilt  lift
+const KEYS = [[0, SIT, 0.14, 0, 0], [7.2, SIT, 0.14, 0, 0], [8.3, STAND, 1.75, 0, 0], [9.1, REACH, 1.78, 0, 0], [9.9, REACH, 1.78, -0.02, 0],
+  [10.8, FALL, 1.6, 0.7, 0], [12, DRIFT, 1.5, 0.95, 0.5], [DURATION, DRIFT, 1.5, 1.1, 1.0]];
+const track = t => {                                                // the pose, hip height, tilt and lift at time t
+  let i = 0; while (i < KEYS.length - 2 && t > KEYS[i + 1][0]) i++;
+  const [t0, p0, h0, r0, l0] = KEYS[i], [t1, p1, h1, r1, l1] = KEYS[i + 1];
+  const u = ease(Math.min(1, Math.max(0, (t - t0) / (t1 - t0)))), mix = (a, b) => a + (b - a) * u;
+  return { pose: Object.fromEntries(Object.keys(BASE).map(k => [k, mix(p0[k], p1[k])])), hip: mix(h0, h1), tilt: mix(r0, r1), lift: mix(l0, l1) };
+};
+// The sky: colours at times, and the moon's climb.
+const SKY = [[0, '#f0d9a0'], [5, '#e0b98e'], [8, '#b08e92'], [10, '#5b5a86'], [11.4, '#1d2750'], [13, '#0a1130']].map(([t, c]) => [t, new THREE.Color(c)]);
+const sky = t => { let i = 0; while (i < SKY.length - 2 && t > SKY[i + 1][0]) i++; const [a, ca] = SKY[i], [b, cb] = SKY[i + 1]; return ca.clone().lerp(cb, ease(Math.min(1, Math.max(0, (t - a) / (b - a))))); };
+const dark = t => Math.min(1, Math.max(0, (t - 3) / 9));            // 0 at the start, 1 when the sky is night
+
+home.set(-1.2, -2.35);
+const dune = new THREE.Shape(); dune.moveTo(-4.2, -3.6); dune.quadraticCurveTo(-2.6, -2.4, -1.2, -2.4); dune.quadraticCurveTo(0.4, -2.4, 1.6, -3.6);
+scene.add(cut(dune, -0.2));
+const figure = new THREE.MeshBasicMaterial({ color: 0x0b0a0a, transparent: true, side: THREE.DoubleSide });
+for (const n of Object.values(node)) n.mesh.material = figure;     // the puppet's paper has a material of its own, so it can fade alone
+const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,244,200,0.8)'); r.addColorStop(1, 'rgba(255,230,160,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const starMat = () => new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending });
+for (const n of Object.values(node)) {                              // each hinge can glow: a star in the paper's own place
+  n.star = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.22), starMat());
+  n.star.position.z = 0.4; n.group.add(n.star); n.pin.visible = false;
+}
+const lines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xfff1c8, transparent: true, depthTest: false }));
+scene.add(lines);
+
+// Sky stars: each has a place and a time it appears. Shooting stars: a few, at random times, each a streak that fades.
+let rnd = 1;
+const rand = () => { rnd = (rnd * 16807) % 2147483647; return (rnd - 1) / 2147483646; };
+let skyStars = [], streaks = [], run = -1;
+const reseed = () => {
+  rnd = 1 + Math.floor(Math.random() * 1e6);
+  skyStars.forEach(m => { scene.remove(m); }); streaks.forEach(m => scene.remove(m.mesh));
+  skyStars = Array.from({ length: 110 }, () => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), starMat());
+    m.position.set((rand() - 0.5) * FRAME * W / H * 1.1, -0.2 + rand() * (FRAME / 2 + 0.2), -4.8);
+    m.userData = { at: 2 + 10 * Math.pow(rand(), 1.4), size: 0.06 + 0.14 * rand() * rand(), twinkle: rand() * 6 };
+    scene.add(m); return m;
+  });
+  streaks = Array.from({ length: 6 }, () => {
+    const mesh = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false }));
+    mesh.position.z = -4.7; scene.add(mesh);
+    return { mesh, at: 4 + rand() * 9.5, x: (rand() - 0.2) * FRAME * W / H * 0.5, y: 0.8 + rand() * 2.4, a: -0.35 - rand() * 0.5 };
+  });
+};
+const showSky = (t, night) => {
+  for (const m of skyStars) {
+    const d = m.userData, on = ease(Math.min(1, Math.max(0, (t - d.at) / 1.5))) * night;
+    m.material.opacity = on * (0.65 + 0.35 * Math.sin(t * 3 + d.twinkle));
+    m.scale.setScalar(d.size * (0.8 + 0.4 * Math.sin(t * 2 + d.twinkle)));
+  }
+  for (const s of streaks) {
+    const u = (t - s.at) / 0.8;
+    s.mesh.visible = u > 0 && u < 1 && night > 0.35;
+    if (!s.mesh.visible) continue;
+    const dx = Math.cos(s.a), dy = Math.sin(s.a), head = u * 3.4, tail = Math.max(0, head - 1.1);
+    s.mesh.geometry.setFromPoints([new THREE.Vector3(s.x + dx * tail, s.y + dy * tail, 0), new THREE.Vector3(s.x + dx * head, s.y + dy * head, 0)]);
+    s.mesh.material.opacity = (1 - u) * night;
+  }
+};
+
+const reel = renderer.render.bind(renderer);
+let startedAt = performance.now();
+renderer.render = (sc, cam) => {
+  const length = DURATION + HOLD;
+  let t = play ? ((performance.now() - startedAt) / 1000) : scrub * DURATION;
+  if (play && t > length) { if (loop) { startedAt = performance.now(); t = 0; } else t = DURATION; }
+  const clock = Math.min(t, DURATION), run2 = Math.floor((performance.now() - startedAt) / 1000 / length);
+  if (run !== (play ? startedAt : 0)) { run = play ? startedAt : 0; reseed(); }   // new random stars each time round
+  const k = track(clock), night = dark(clock) * dark(clock) * (3 - 2 * dark(clock));
+  for (const [id, a] of Object.entries(k.pose)) node[id].group.rotation.z = a;
+  node.pelvis.group.position.y = k.hip;
+  puppet.position.set(home.x, home.y + k.lift, 0);
+  puppet.rotation.z = k.tilt;
+  puppet.position.x = home.x + Math.sin(k.tilt) * 1.7;           // (he tips back about his feet and drifts into the sky: keep him in the frame)
+  // the paper dissolves; the hinges become stars; lines join them
+  const fade = ease(Math.min(1, Math.max(0, (clock - 10.5) / 1.3)));
+  figure.opacity = 1 - fade;
+  for (const n of Object.values(node)) { n.pin.visible = false; n.star.material.opacity = fade; n.star.scale.setScalar(0.4 + 1.1 * fade * (0.85 + 0.15 * Math.sin(clock * 5 + n.depth * 2))); }
+  const pts = [];
+  for (const n of Object.values(node)) if (n.parent) { pts.push(node[n.parent].group.getWorldPosition(new THREE.Vector3()), n.group.getWorldPosition(new THREE.Vector3())); }
+  lines.geometry.setFromPoints(pts); lines.material.opacity = 0.5 * fade;
+  // the sky, the moon, the hills' colour
+  lightbox.material.color.copy(sky(clock));
+  moonDisc.visible = true; moonDisc.position.set(0.9, -1.5 + 4.6 * ease(Math.min(1, clock / 10.3)), -4.9);
+  mid.material.color.setHex(0x1a1610).lerp(new THREE.Color(0x060810), night);
+  showSky(clock, night);
+  reel(sc, cam);
+};`, { patch: c => c.replace(/^let joints = .*\n/m, 'const joints = false;\n').replace(/^let walk = .*\n/m, 'const walk = 0;\n').replace(/^let tint = .*\n/m, "const tint = '#f0d9a0';\n").replace(/^let moon = .*\n/m, 'const moon = true;\n') }) }
+      ]
     }
   ],
   bibliography: [
@@ -458,11 +525,6 @@ renderer.render = (s, c) => {
       ['Lotte Reiniger, on Wikipedia', 'https://en.wikipedia.org/wiki/Lotte_Reiniger'],
       ['Animation Resources: Reiniger\'s Prince Achmed (portfolio of prints, Berlin 1926)', 'https://animationresources.org/category/silhouette/'],
       ['Silhouette animation, on Wikipedia', 'https://en.wikipedia.org/wiki/Silhouette_animation']
-    ] },
-    { title: 'The photograph', items: [
-      ['The Pond—Moonlight (Edward Steichen, 1904), on Wikipedia', 'https://en.wikipedia.org/wiki/The_Pond%E2%80%94Moonlight'],
-      ['The picture used, on Wikimedia Commons', 'https://commons.wikimedia.org/wiki/File:ThePondMoonlight.jpg'],
-      ['Edward Steichen, on Wikipedia', 'https://en.wikipedia.org/wiki/Edward_Steichen']
     ] },
     { title: 'Tools', items: [
       ['three.js: ShapeGeometry', 'https://threejs.org/docs/#api/en/geometries/ShapeGeometry'],
