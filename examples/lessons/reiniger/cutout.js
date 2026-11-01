@@ -43,27 +43,35 @@ function head() {                                                   // a profile
   s.bezierCurveTo(0.2, 0.55, 0.1, 0.7, -0.08, 0.72); s.bezierCurveTo(-0.26, 0.7, -0.3, 0.45, -0.22, 0.25); s.lineTo(-0.1, 0.1);
   return s;
 }
-function foot() { const s = new THREE.Shape(); s.moveTo(-0.1, 0.08); s.lineTo(0.5, 0.0); s.lineTo(0.5, -0.1); s.lineTo(-0.1, -0.12); return s; }
+function foot() {                                                   // a slipper: a heel, a sole, and a toe that curls up
+  const s = new THREE.Shape(); s.moveTo(-0.1, 0.1); s.lineTo(0.22, 0.04); s.bezierCurveTo(0.4, 0.02, 0.5, 0.05, 0.56, 0.2);
+  s.bezierCurveTo(0.5, 0.0, 0.42, -0.1, 0.3, -0.11); s.lineTo(-0.1, -0.12); s.lineTo(-0.1, 0.1);
+  return s;
+}
+function neck() { const s = new THREE.Shape(); s.moveTo(-0.07, -0.02); s.lineTo(0.08, -0.02); s.lineTo(0.06, 0.24); s.lineTo(-0.07, 0.24); return s; }
 
-// Each part: where its hinge is (in its parent), the shape, which way it hangs, and how far it may turn.
+// Each part: where its hinge is (in its parent), its shape, its tip (where you grab it: the far end), how far it may turn.
+// A hinge turns its part to point at the pointer, so any part, whatever its shape, is moved the same way.
 const PARTS = [
-  { id: 'torso', at: [0, 0], shape: torso(), up: true, limit: [-0.7, 0.7], z: 0.02 },
-  { id: 'head', parent: 'torso', at: [0.02, 1.0], shape: head(), up: true, limit: [-0.6, 0.6], z: 0.03 },
-  { id: 'armA', parent: 'torso', at: [0, 0.95], shape: limb(0.62, 0.17, 0.12), limit: [-3.1, 3.1], z: 0.04 },
-  { id: 'foreA', parent: 'armA', at: [0, -0.62], shape: limb(0.58, 0.12, 0.09), limit: [-0.1, 2.5], z: 0.05 },
-  { id: 'handA', parent: 'foreA', at: [0, -0.58], shape: limb(0.18, 0.09, 0.06), limit: [-0.8, 0.8], z: 0.06 },
-  { id: 'armB', parent: 'torso', at: [0, 0.95], shape: limb(0.62, 0.17, 0.12), limit: [-3.1, 3.1], z: -0.04 },
-  { id: 'foreB', parent: 'armB', at: [0, -0.62], shape: limb(0.58, 0.12, 0.09), limit: [-0.1, 2.5], z: -0.05 },
-  { id: 'handB', parent: 'foreB', at: [0, -0.58], shape: limb(0.18, 0.09, 0.06), limit: [-0.8, 0.8], z: -0.06 },
-  { id: 'thighA', parent: 'torso', at: [0, 0], shape: limb(0.85, 0.24, 0.16), limit: [-1.3, 1.3], z: 0.01 },
-  { id: 'shinA', parent: 'thighA', at: [0, -0.85], shape: limb(0.85, 0.16, 0.1), limit: [-2.4, 0.1], z: 0.015 },
-  { id: 'footA', parent: 'shinA', at: [0, -0.85], shape: foot(), limit: [-0.6, 0.6], z: 0.02, foot: true },
-  { id: 'thighB', parent: 'torso', at: [0, 0], shape: limb(0.85, 0.24, 0.16), limit: [-1.3, 1.3], z: -0.01 },
-  { id: 'shinB', parent: 'thighB', at: [0, -0.85], shape: limb(0.85, 0.16, 0.1), limit: [-2.4, 0.1], z: -0.015 },
-  { id: 'footB', parent: 'shinB', at: [0, -0.85], shape: foot(), limit: [-0.6, 0.6], z: -0.02, foot: true },
+  { id: 'torso', at: [0, 0], shape: torso(), tip: [0, 1.0], limit: [-0.6, 0.6], z: 0.02 },
+  { id: 'neck', parent: 'torso', at: [0.02, 1.05], shape: neck(), tip: [0, 0.22], limit: [-0.5, 0.5], z: 0.025 },
+  { id: 'head', parent: 'neck', at: [0, 0.2], shape: head(), tip: [0.03, 0.5], limit: [-0.7, 0.7], z: 0.03 },
+  { id: 'armA', parent: 'torso', at: [0, 0.95], shape: limb(0.62, 0.17, 0.12), tip: [0, -0.62], limit: [-3.1, 3.1], z: 0.04 },
+  { id: 'foreA', parent: 'armA', at: [0, -0.62], shape: limb(0.58, 0.12, 0.09), tip: [0, -0.58], limit: [-0.1, 2.7], z: 0.05 },
+  { id: 'handA', parent: 'foreA', at: [0, -0.58], shape: limb(0.2, 0.09, 0.06), tip: [0, -0.2], limit: [-1.0, 1.0], z: 0.06 },
+  { id: 'armB', parent: 'torso', at: [0, 0.95], shape: limb(0.62, 0.17, 0.12), tip: [0, -0.62], limit: [-3.1, 3.1], z: -0.04 },
+  { id: 'foreB', parent: 'armB', at: [0, -0.62], shape: limb(0.58, 0.12, 0.09), tip: [0, -0.58], limit: [-0.1, 2.7], z: -0.05 },
+  { id: 'handB', parent: 'foreB', at: [0, -0.58], shape: limb(0.2, 0.09, 0.06), tip: [0, -0.2], limit: [-1.0, 1.0], z: -0.06 },
+  { id: 'thighA', parent: 'torso', at: [0, 0], shape: limb(0.85, 0.26, 0.16), tip: [0, -0.85], limit: [-1.5, 1.5], z: 0.01 },
+  { id: 'shinA', parent: 'thighA', at: [0, -0.85], shape: limb(0.85, 0.16, 0.08), tip: [0, -0.85], limit: [-2.5, 0.1], z: 0.015 },
+  { id: 'footA', parent: 'shinA', at: [0, -0.85], shape: foot(), tip: [0.5, 0.02], limit: [-0.9, 0.9], z: 0.02 },
+  { id: 'thighB', parent: 'torso', at: [0, 0], shape: limb(0.85, 0.26, 0.16), tip: [0, -0.85], limit: [-1.5, 1.5], z: -0.01 },
+  { id: 'shinB', parent: 'thighB', at: [0, -0.85], shape: limb(0.85, 0.16, 0.08), tip: [0, -0.85], limit: [-2.5, 0.1], z: -0.015 },
+  { id: 'footB', parent: 'shinB', at: [0, -0.85], shape: foot(), tip: [0.5, 0.02], limit: [-0.9, 0.9], z: -0.02 },
 ];
 const puppet = new THREE.Group();
-puppet.position.set(-1.2, -3.0, 0);
+const home = new THREE.Vector2(-1.2, -3.0);                          // where the puppet stands: drag the body to move it
+puppet.position.set(home.x, home.y, 0);
 puppet.scale.setScalar(1.35);
 scene.add(puppet);
 const node = {};
@@ -71,18 +79,16 @@ for (const p of PARTS) {
   const g = new THREE.Group();
   g.position.set(p.at[0], p.at[1], 0);
   const m = cut(p.shape, p.z);
-  m.userData.part = p.id;
   g.add(m);
   const pin = new THREE.Mesh(new THREE.RingGeometry(0.035, 0.06, 20), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-  pin.position.z = p.z + 0.2; pin.userData.pin = true;
+  pin.position.z = p.z + 0.2;
   g.add(pin);
   (p.parent ? node[p.parent].group : puppet).add(g);
-  node[p.id] = { ...p, group: g, mesh: m, pin, pose: 0 };
+  node[p.id] = { ...p, group: g, mesh: m, pin, pose: 0, depth: p.parent ? node[p.parent].depth + 1 : 0 };
 }
-node.torso.group.position.y = 1.75;
-Object.assign(node.armA, { pose: 0.7 }); Object.assign(node.foreA, { pose: 0.9 }); Object.assign(node.armB, { pose: -0.35 }); Object.assign(node.foreB, { pose: 0.3 });
-Object.assign(node.thighA, { pose: 0.15 }); Object.assign(node.thighB, { pose: -0.15 }); node.head.pose = 0.08;                                  // the hip: the legs hang from it, the body rises from it
-for (const id of ['thighA', 'thighB']) node[id].group.position.y = 0;
+node.torso.group.position.y = 1.75;                                  // the hip: the legs hang from it, the body rises from it
+const REST = { armA: 0.5, foreA: 0.7, armB: -0.4, foreB: 0.4, thighA: 0.2, thighB: -0.15, shinA: -0.1, shinB: -0.1, head: 0.05 };
+for (const [id, a] of Object.entries(REST)) node[id].pose = a;
 
 // --- the set: layers of cut paper at different depths, a lightbox behind ---------------------------------------
 const ridge = (y, amp, freq, phase, depth) => {
@@ -117,35 +123,55 @@ function glow() {                                                               
 }
 
 // --- hold a piece and turn it about its hinge ------------------------------------------------------------------
+// The piece you grab is the one whose bone (hinge to tip) is nearest the pointer, so a thin hand or a hidden arm is as easy
+// to catch as the body. Nothing near a bone: the body itself, which moves the whole puppet (Shift: leans it).
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-let held = null;
+let held = null, over = null, grab = null;
 const camera = () => (view === 'film' ? film : eye);
-const pointer = e => { const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera()); };
+const world = e => {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera());
+  return ray.ray.intersectPlane(plane, new THREE.Vector3());
+};
+function reach(at) {                                                   // the part whose bone passes nearest `at`
+  let best = null, bd = 0.3;
+  for (const n of Object.values(node)) {
+    if (n.id === 'torso') continue;
+    const a = n.group.getWorldPosition(new THREE.Vector3()), b = n.group.localToWorld(new THREE.Vector3(n.tip[0], n.tip[1], 0));
+    const ab = b.clone().sub(a), t = Math.min(1, Math.max(0, at.clone().sub(a).dot(ab) / ab.lengthSq()));
+    const d = at.distanceTo(a.add(ab.multiplyScalar(t))) - 0.01 * n.depth;       // (the far end wins a tie)
+    if (d < bd) { bd = d; best = n; }
+  }
+  return best;
+}
+const inBody = at => ray.intersectObject(node.torso.mesh, false).length > 0;
 renderer.domElement.addEventListener('pointerdown', e => {
   if (view !== 'film') return;
-  pointer(e);
-  const hit = ray.intersectObjects(Object.values(node).map(n => n.mesh), false)[0];
-  if (hit) { held = node[hit.object.userData.part]; renderer.domElement.setPointerCapture(e.pointerId); }
+  const at = world(e); if (!at) return;
+  const part = reach(at);
+  if (part) held = part;
+  else if (inBody(at)) { held = node.torso; grab = { at: at.clone(), home: home.clone(), lean: e.shiftKey }; }
+  if (held) renderer.domElement.setPointerCapture(e.pointerId);
 });
 renderer.domElement.addEventListener('pointermove', e => {
-  if (!held) return;
-  pointer(e);
-  const at = new THREE.Vector3(); ray.ray.intersectPlane(plane, at);
+  const at = world(e); if (!at) return;
+  if (!held) { over = view === 'film' ? reach(at) : null; renderer.domElement.style.cursor = over ? 'grab' : ''; return; }
+  if (grab && !grab.lean) { home.set(grab.home.x + at.x - grab.at.x, grab.home.y + at.y - grab.at.y); return; }
   const pivot = held.group.getWorldPosition(new THREE.Vector3());
-  const dx = at.x - pivot.x, dy = at.y - pivot.y;
-  const total = held.up ? Math.atan2(-dx, dy) : Math.atan2(dx, -dy);              // the angle that points the piece at the pointer
+  const total = Math.atan2(at.y - pivot.y, at.x - pivot.x) - Math.atan2(held.tip[1], held.tip[0]);   // the angle that points the piece at the pointer
   const parent = held.parent ? worldAngle(node[held.parent].group) : 0;
   let a = total - parent; a = Math.atan2(Math.sin(a), Math.cos(a));
   held.pose = Math.min(held.limit[1], Math.max(held.limit[0], a));
 });
-renderer.domElement.addEventListener('pointerup', () => { held = null; });
+renderer.domElement.addEventListener('pointerup', () => { held = null; grab = null; });
 function worldAngle(g) { const q = g.getWorldQuaternion(new THREE.Quaternion()); return new THREE.Euler().setFromQuaternion(q).z; }
 
 // --- a walk, to show the rig moves --------------------------------------------------------------------------------
 function stride(t) {
   const k = walk * Math.sin(t * 4);
   return { thighA: 0.55 * k, shinA: -0.5 * Math.max(0, -k) - 0.1 * walk, thighB: -0.55 * k, shinB: -0.5 * Math.max(0, k) - 0.1 * walk,
-    armA: -0.5 * k, foreA: 0.4 * walk, armB: 0.5 * k, foreB: 0.4 * walk, torso: 0.04 * walk, head: 0 };
+    armA: -0.5 * k, foreA: 0.4 * walk, armB: 0.5 * k, foreB: 0.4 * walk, torso: 0.04 * walk, head: 0, neck: 0 };
 }
 
 renderer.setAnimationLoop(now => {
@@ -153,8 +179,9 @@ renderer.setAnimationLoop(now => {
   for (const n of Object.values(node)) {
     n.group.rotation.z = (held === n ? n.pose : n.pose + (st[n.id] || 0));
     n.pin.visible = joints;
+    n.pin.material.color.set(n === (held || over) ? 0xe0a030 : 0xffffff);
   }
-  puppet.position.x = -1.2 + walk * 1.2 * Math.sin(t * 0.5);
+  puppet.position.set(home.x + walk * 1.2 * Math.sin(t * 0.5), home.y, 0);
   lightbox.material.color.set(tint);
   moonDisc.visible = moon;
   reeds.children.forEach((r, i) => { r.rotation.z = 0.02 * Math.sin(t * 1.3 + i); });
