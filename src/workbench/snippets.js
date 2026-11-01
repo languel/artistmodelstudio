@@ -125,6 +125,7 @@ renderer.setAnimationLoop(() => {
 
 const THREE_PARTICLES = `import * as THREE from 'three';
 
+// A control changes the variable while the sketch runs: what is built once from it has to be built again when it changes.
 const count = 2000 /* 100..10000 step:100 */;
 const size = 0.03 /* 0.005..0.1 step:0.005 */;
 const tint = '#ffd27a' /* color */;
@@ -137,15 +138,22 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, windowWidth / windowHeight, 0.1, 100);
 camera.position.z = 4;
 
-const positions = new Float32Array(count * 3).map(() => (Math.random() - 0.5) * 6);
-const geometry = new THREE.BufferGeometry();
-geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-const points = new THREE.Points(geometry, new THREE.PointsMaterial({ size, color: tint }));
-scene.add(points);
+const material = new THREE.PointsMaterial({ size, color: tint });
+let points, built = 0;
+function build() {
+  if (points) { scene.remove(points); points.geometry.dispose(); }
+  const positions = new Float32Array(count * 3).map(() => (Math.random() - 0.5) * 6);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  points = new THREE.Points(geometry, material);
+  scene.add(points);
+  built = count;
+}
 
 renderer.setAnimationLoop(t => {
-  points.material.size = size;
-  points.material.color.set(tint);
+  if (count !== built) build();   // the count changed: new points
+  material.size = size;
+  material.color.set(tint);
   points.rotation.y = t / 8000;
   renderer.render(scene, camera);
 });

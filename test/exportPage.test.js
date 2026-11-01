@@ -79,6 +79,10 @@ describe('templates and snippets', () => {
       expect(findControls(s.code).filter(c => c.kind !== 'param').length, `${kind}: ${s.title}`).toBe(written);
     }
   });
+  it('the particles rebuild when their count changes (a control only changes the variable)', () => {
+    const code = SNIPPETS.three.find(x => x.id === 'particles').code;
+    expect(code).toContain('if (count !== built) build();');
+  });
   it('the user keeps their own', () => {
     saveSnippet('p5', 'My start', 'function setup() {}');
     saveSnippet('p5', 'My start', 'function setup() { /* v2 */ }');
