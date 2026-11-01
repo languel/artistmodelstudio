@@ -874,14 +874,20 @@ export class Workbench {
         else if (e.key === 'Home') go(0);
         else if (e.key === 'End') go(bs.length - 1);
         else if (e.altKey && !e.metaKey && /^Digit[1-9]$/.test(e.code || '')) go(Number(e.code.slice(-1)) - 1);
+        else if (e.altKey && !e.metaKey && e.code === 'KeyK') { e.preventDefault(); e.stopPropagation(); this.togglePresentRun(); }
         else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.present(false); }
       };
       window.addEventListener('keydown', this.presentKeys, true);
+      this.presentPaused = false;
+      this.presentBtn ||= h('button', { class: 'wb-present-play', type: 'button', onclick: () => this.togglePresentRun() });
+      this.paintPresentBtn();
+      this.stageArea.append(this.presentBtn);
       this.canvas.selectBoard(null);
       requestAnimationFrame(() => this.goToBoard(this.activeBoard || MAIN));
     } else {
       window.removeEventListener('keydown', this.presentKeys, true);
       this.hud?.remove(); this.hud = null;
+      this.presentBtn?.remove(); this.presentPaused = false;
       requestAnimationFrame(() => this.canvas.fit(60, this.activeBoard || MAIN));
     }
     this.emit('present', on);
@@ -985,6 +991,14 @@ export class Workbench {
     this.performUI = mountPanel(controlSpecs(b.code || ''), b.code || '', set, { start: mode === 'open' ? undefined : 'hidden', keys: false, zone: true });
     this.frames?.holdKeys(id, true);
     setTimeout(() => this.frames?.holdKeys(id, true), 600);   // (once the sketch has started)
+  }
+
+  /** Pause or play every board while presenting (Alt+K, or the button at the corner). */
+  togglePresentRun() { this.presentPaused = !this.presentPaused; this.paintPresentBtn(); this.canvas.invalidate(); }
+  paintPresentBtn() {
+    if (!this.presentBtn) return;
+    this.presentBtn.innerHTML = icon(this.presentPaused ? 'play' : 'pause');
+    this.presentBtn.title = this.presentPaused ? 'Play the boards (Alt+K)' : 'Pause the boards (Alt+K)';
   }
 
   presentHud() {
@@ -1805,12 +1819,15 @@ export class Workbench {
 
   isBoardLive(id) {
     const doc = this.store.doc, b = boardById(doc, id);
+    if (this.presenting && this.presentPaused) return false;   // the presentation's pause: every board holds
     if (!b || b.paused || b.hidden) return false;   // paused by hand (or hidden): stays paused, even while you are on it
     if (this.scoreBoards().has(b.id)) return true;   // a board with a score runs (and sounds) unless paused: the play button is its mute, Opt+click its solo
     if (b.id === (this.activeBoard || MAIN) || b.live) return true;
-    // On a frame (a slide): the boards it holds are live together.
+    // On a frame (a slide), or on a board inside one (its notes, its code): the boards the frame holds are live together.
     const active = boardById(doc, this.activeBoard || MAIN);
-    return isFrame(active) && boardsInFrame(doc, active).some(x => x.id === b.id);
+    if (isFrame(active)) return boardsInFrame(doc, active).some(x => x.id === b.id);
+    const frame = active && boardsOf(doc).find(x => isFrame(x) && boardsInFrame(doc, x).some(y => y.id === active.id));
+    return Boolean(frame && boardsInFrame(doc, frame).some(x => x.id === b.id));
   }
 
   /**
