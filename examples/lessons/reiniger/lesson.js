@@ -63,6 +63,9 @@ const box = (x, y, w, h, c = INK) => line(rect(x, y, w, h), { brush: 'pen', widt
 const arrow = (a, b, c = MUTED) => { line([a, b], { brush: 'pen', width: 2, color: c, path: 'straight' }); line([[b[0] - 0.012, b[1] - 0.016], b, [b[0] - 0.012, b[1] + 0.016]], { brush: 'pen', width: 2, color: c, path: 'straight' }) }
 `;
 
+// The whole program plus a few lines: the later sections add one idea each to the finished scene.
+const WHOLE = (add, { controls = '', patch = c => c } = {}) => patch(SRC.replace(/^let tint = .*\n/m, m => m + controls)) + '\n' + add;
+
 const BOARD = { w: 800, h: 600, ground: '#141414' };
 
 export const LESSON = {
@@ -228,6 +231,171 @@ thigh A swings +k, thigh B −k      (the legs are in opposite phase)
 shins bend while the leg lifts; arms swing against the legs
 every frame: hinge angle = the pose you set + the walk's angle`,
           three: SRC }
+      ]
+    },
+    {
+      id: 'texture', title: 'Light, paper and texture', label: 'Examples',
+      text: 'Until now every surface was a flat colour. A **texture** is a picture laid on a surface, and in a silhouette film it is how paper, light and the camera show themselves: the fibre of tissue paper, the grain of the film, the pool of a lamp. A texture is also a **mask**: a picture that says where something shows and where it does not.',
+      boards: [
+        { id: 'grain', title: '2.1 · Paper fibre and film grain', ...BOARD,
+          idea: 'Two textures made of noise. **Fibre** is laid on the tissue hills far back, so the light comes through them unevenly like paper held up to a window. **Grain** is a sheet of black specks in front of the camera, shifted a little every frame so it boils like film. A texture made from a number is made again when the number changes. Move `fibre` and `grain`.',
+          pseudo: `noise(strength) = a square picture of random greys
+fibre = noise, repeated over the far hills as their texture
+grain = noise as the alpha of a black sheet in front of the camera
+every frame: slide the grain texture by a random amount`,
+          three: WHOLE(`
+// --- texture: paper fibre and film grain ---------------------------------------------------------------------------
+let fibre = 0.5 /* 0..1 */;
+let grain = 0.35 /* 0..1 */;
+const speckle = (n, make) => {                                    // a square canvas, one random value per pixel
+  const c = document.createElement('canvas'); c.width = c.height = n;
+  const g = c.getContext('2d'), d = g.createImageData(n, n);
+  for (let i = 0; i < d.data.length; i += 4) make(d.data, i, Math.random());
+  g.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+};
+let fibreBuilt = -1;
+const grainTex = speckle(256, (px, i, r) => { px[i] = px[i + 1] = px[i + 2] = 0; px[i + 3] = 255 * r * r; });
+const grainSheet = new THREE.Mesh(new THREE.PlaneGeometry(FRAME * W / H, FRAME), new THREE.MeshBasicMaterial({ map: grainTex, transparent: true, depthTest: false }));
+grainSheet.position.z = 5;
+grainTex.repeat.set(4, 3);
+scene.add(grainSheet);
+const grainTick = () => {
+  if (fibre !== fibreBuilt) {                                     // made again only when fibre changes
+    fibreBuilt = fibre;
+    far.material.map = speckle(128, (px, i, r) => { const v = 255 * (1 - fibre * 0.7 * r); px[i] = px[i + 1] = px[i + 2] = v; px[i + 3] = 255; });
+    far.material.map.repeat.set(8, 4); far.material.needsUpdate = true;
+  }
+  grainSheet.material.opacity = grain;
+  grainTex.offset.set(Math.random(), Math.random());              // the grain boils: a new patch of noise each frame
+};
+const frame = renderer.render.bind(renderer);
+renderer.render = (s, c) => { grainTick(); frame(s, c); };`) },
+        { id: 'lamp', title: '2.2 · A lamp, a mask', ...BOARD,
+          idea: 'A **mask** is a texture used as transparency. A black sheet in front of the camera, with a soft hole in its middle, is a pool of lamplight: the hole is the mask. The hole follows the pointer, so the same scene lit from one side, then another, is a different picture. Everything outside the hole is darkened by `dark`; `size` is how wide the pool is.',
+          pseudo: `mask = a picture: black in the middle (let through), white at the edges (hide), soft between
+sheet = a black plane in front of the camera, using the mask as its alpha
+every frame: put the sheet's hole under the pointer`,
+          three: WHOLE(`
+// --- a mask: a pool of lamplight ----------------------------------------------------------------------------------
+let lamp = true /* toggle */;
+let size = 0.8 /* 0.3..1.6 */;
+let dark = 0.85 /* 0..1 */;
+const maskTex = (() => {                                          // the hole is dark, the rest bright (the alpha map reads the green channel)
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'), r = g.createRadialGradient(128, 128, 20, 128, 128, 128);
+  r.addColorStop(0, '#000'); r.addColorStop(1, '#fff');
+  g.fillStyle = r; g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+})();
+const night = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshBasicMaterial({ color: 0x050403, alphaMap: maskTex, transparent: true, depthTest: false }));
+night.position.z = 5;
+scene.add(night);
+const pool = new THREE.Vector2();                                  // where the lamp is, in the film's units
+renderer.domElement.addEventListener('pointermove', e => {
+  const r = renderer.domElement.getBoundingClientRect();
+  pool.set(((e.clientX - r.left) / r.width - 0.5) * FRAME * W / H, (0.5 - (e.clientY - r.top) / r.height) * FRAME);
+});
+const frame = renderer.render.bind(renderer);
+renderer.render = (s, c) => {
+  night.visible = lamp;
+  night.material.opacity = dark;
+  maskTex.center.set(0.5, 0.5);
+  maskTex.repeat.setScalar(60 / (size * FRAME * 1.2));            // the sheet is huge: zoom the mask so its soft hole is size wide
+  night.position.set(pool.x, pool.y, 5);
+  frame(s, c);
+};`) }
+      ]
+    },
+    {
+      id: 'film', title: 'Filming it', label: 'Examples',
+      text: 'A silhouette film is not made by moving a puppet. It is made by **photographing** it, a frame at a time: pose, expose, pose a little differently, expose again. Played back at a dozen or two frames a second the poses become movement. Then the film itself adds its own look: tint, grain, flicker, the wobble of the gate.',
+      boards: [
+        { id: 'stop', title: '3.1 · Stop motion', ...BOARD,
+          idea: 'Pose the puppet, press **Space**: the frame is photographed and joins the strip below. The previous frame stays faintly on top (an **onion skin**) so you see how far you moved. **P** plays the strip back at `fps`, **Backspace** drops the last frame, **O** toggles the onion skin. Reiniger worked on twos at about twelve exposures a second: a walk of a few poses is already a film.',
+          pseudo: `frames = []
+on Space: render the scene once, copy the picture, add it to frames
+onion skin = the last frame, drawn faintly over the live view
+on P: show frames[0], frames[1], … at fps, then the live view again`,
+          three: WHOLE(`
+// --- stop motion: photograph a pose, move, photograph again -----------------------------------------------------------
+let fps = 12 /* 4..24 */;
+let onion = true /* toggle */;
+const frames = [];                                                  // each is a picture (a data URL)
+const photo = document.createElement('img');                       // the playback screen, over the live view
+const ghost = document.createElement('img');                       // the onion skin
+const strip = document.createElement('div');                       // the exposure sheet: a thumbnail per frame
+const layer = (el, css) => { Object.assign(el.style, { position: 'fixed', pointerEvents: 'none', ...css }); document.body.append(el); };
+layer(photo, { inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'none', background: '#111' });
+layer(ghost, { inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: 0.3, mixBlendMode: 'multiply', display: 'none' });
+layer(strip, { left: '8px', right: '8px', bottom: '8px', height: '46px', display: 'flex', gap: '3px', overflow: 'hidden' });
+let playing = false, playAt = 0;
+const shoot = () => {                                               // render once with the hinge pins hidden, and keep the picture
+  const was = joints; joints = false;
+  for (const n of Object.values(node)) n.pin.visible = false;
+  renderer.render(scene, camera());
+  joints = was;
+  const url = renderer.domElement.toDataURL('image/jpeg', 0.85);
+  frames.push(url);
+  const th = new Image(); th.src = url; th.style.cssText = 'height:100%;border:1px solid #555';
+  strip.append(th); strip.scrollLeft = 1e6;
+};
+addEventListener('keydown', e => {
+  if (e.target.closest?.('input, textarea')) return;
+  if (e.code === 'Space') { e.preventDefault(); shoot(); }
+  else if (e.code === 'Backspace' && frames.length) { frames.pop(); strip.lastChild?.remove(); }
+  else if (e.code === 'KeyP') { playing = !playing; playAt = performance.now(); }
+});
+const live = renderer.render.bind(renderer);
+renderer.render = (s, c) => {
+  live(s, c);
+  const last = frames[frames.length - 1];
+  ghost.style.display = onion && last && !playing ? '' : 'none';
+  if (ghost.src !== last && last) ghost.src = last;
+  photo.style.display = playing && frames.length ? '' : 'none';
+  if (playing && frames.length) photo.src = frames[Math.floor((performance.now() - playAt) / 1000 * fps) % frames.length];
+};`, { patch: c => c.replace('{ antialias: true }', '{ antialias: true, preserveDrawingBuffer: true }') }) },
+        { id: 'look', title: '3.2 · The look of film', ...BOARD,
+          idea: 'The last step is the film itself. The scene is drawn to a **render target** (a picture in memory), and that picture goes through a **shader**: a few lines that run for every pixel. It adds **grain** (noise that changes each frame), **flicker** (the whole picture a little brighter or darker), a **weave** (the film wobbling in the gate), a **vignette** (dark corners) and **dust**. Every setting is a number; zero is a clean picture.',
+          pseudo: `target = a picture the scene is drawn into
+shader, for each pixel: shift by the weave, read the picture, add grain,
+  multiply by the flicker and the vignette, add a speck of dust now and then
+draw the result to the screen`,
+          three: WHOLE(`
+// --- the look of film: render to a picture, then a shader over it -----------------------------------------------------
+let grain = 0.25 /* 0..1 */;
+let flicker = 0.08 /* 0..0.3 */;
+let weave = 0.004 /* 0..0.02 */;
+let vignette = 0.6 /* 0..1 */;
+let dust = 0.4 /* 0..1 */;
+const target = new THREE.WebGLRenderTarget(W * 2, H * 2);
+const post = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const filmMat = new THREE.ShaderMaterial({
+  uniforms: { tex: { value: target.texture }, time: { value: 0 }, grain: { value: 0 }, flicker: { value: 0 }, weave: { value: 0 }, vignette: { value: 0 }, dust: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: \`
+    varying vec2 vUv; uniform sampler2D tex; uniform float time, grain, flicker, weave, vignette, dust;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main() {
+      float frame = floor(time * 12.0);                                         // the film runs at 12 frames a second
+      vec2 shift = weave * vec2(hash(vec2(frame, 1.0)) - 0.5, hash(vec2(frame, 2.0)) - 0.5);
+      vec3 c = texture2D(tex, vUv + shift).rgb;
+      c += grain * (hash(vUv * 900.0 + frame) - 0.5);                           // grain: new noise every frame
+      c *= 1.0 + flicker * (hash(vec2(frame, 3.0)) - 0.5) * 2.0;                // flicker
+      c *= 1.0 - vignette * smoothstep(0.35, 0.95, length(vUv - 0.5) * 1.4);    // dark corners
+      float speck = step(0.9993, hash(floor(vUv * 220.0) + frame));             // dust: a few pale specks
+      c = mix(c, vec3(0.92), speck * dust);
+      gl_FragColor = vec4(c, 1.0);
+    }\`
+});
+post.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), filmMat));
+const draw = renderer.render.bind(renderer);
+renderer.render = (s, c) => {
+  Object.assign(filmMat.uniforms, { time: { value: performance.now() / 1000 }, grain: { value: grain }, flicker: { value: flicker }, weave: { value: weave }, vignette: { value: vignette }, dust: { value: dust } });
+  renderer.setRenderTarget(target); draw(s, c);                     // the scene, into the picture
+  renderer.setRenderTarget(null); draw(post, postCam);               // the picture, through the shader, to the screen
+};`) }
       ]
     }
   ],
