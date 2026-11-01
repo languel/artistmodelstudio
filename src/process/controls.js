@@ -137,3 +137,18 @@ export function instrument(text) {
   }
   return { code, sig, values: Object.fromEntries(cs.map(c => [c.name, c.value])) };
 }
+
+/**
+ * The text with the control `name` set to `value`: what a sketch's panel sends (a number, a boolean, a string, an array of colours;
+ * a colour written as a number comes as a number) written back as the literal in the code.
+ */
+export function rewriteControl(text, name, value) {
+  const c = findControls(text).find(x => x.live && x.name === name);
+  if (!c) return text;
+  const hex = n => (typeof n === 'number' ? `#${n.toString(16).padStart(6, '0').slice(-6)}` : n);
+  let v = value;
+  if (c.kind === 'range') v = fmt(Number(value), c.step || stepFor(c.min, c.max));
+  else if (c.kind === 'palette') v = (Array.isArray(value) ? value : []).map(hex);
+  else if (c.kind === 'color') v = hex(value);
+  return text.slice(0, c.from) + literalOf(c, v) + text.slice(c.to);
+}

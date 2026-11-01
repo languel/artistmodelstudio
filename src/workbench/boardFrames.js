@@ -92,8 +92,9 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   // p5.js code reads windowWidth and windowHeight; so may any sketch here (the board's size), to be copied as it is.
   ${kind === 'p5' ? '' : "Object.defineProperties(window, { windowWidth: { get: () => innerWidth, configurable: true }, windowHeight: { get: () => innerHeight, configurable: true } });"}
   // The studio's own keys keep working while a sketch has the focus: Esc, and chords with Ctrl or Cmd and Option (Perform, Present…).
+  let holdKeys = false;   // (Perform asks for H and Shift+H too, for its controls)
   addEventListener('keydown', e => {
-    if (!((e.altKey && (e.ctrlKey || e.metaKey)) || e.key === 'Escape')) return;
+    if (!((e.altKey && (e.ctrlKey || e.metaKey)) || e.key === 'Escape' || (holdKeys && (e.key === 'h' || e.key === 'H') && !e.altKey && !e.ctrlKey && !e.metaKey))) return;
     parent.postMessage({ amsFrame: token, type: 'hotkey', ev: { key: e.key, code: e.code, keyCode: e.keyCode, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey } }, '*');
   }, true);
   let fwd = false;
@@ -125,6 +126,7 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
     const d = e.data; if (!d || d.amsFrame !== token) return;
     if (d.type === 'perf') perfOn = Boolean(d.on);
     if (d.type === 'fwd') fwd = Boolean(d.on);
+    if (d.type === 'holdkeys') holdKeys = Boolean(d.on);
     if (d.type === 'ctl') { ctlVals[d.key] = params[d.key] = d.value; try { ctlSet[d.key]?.(d.value); } catch { /* the sketch's own error */ } }
     if (d.type === 'input' && d.ev) { try { replay(d.ev); } catch { /* an event the sketch cannot take */ } }
     if (d.type === 'run') { if (d.on && held) { const q = held; held = null; q.forEach(cb => raf0(cb)); } else if (!d.on && !held) held = []; }
@@ -284,6 +286,8 @@ export class BoardFrames {
       this.app.outputs?.ctl(id, key, value, f.token);
     }
   }
+  /** Ask a board's sketch to pass H and Shift+H to the studio (Perform's controls), or not. */
+  holdKeys(id, on) { const f = this.frames.get(id); try { f?.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'holdkeys', on: Boolean(on) }, '*'); } catch { /* gone */ } }
   /** Tell a sketch whether to send its pointer and keys on (to the twin in an output window). */
   sendForward(f) { try { f.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'fwd', on: Boolean(this.app.outputs?.live(f.id)) }, '*'); } catch { /* gone */ } }
   sendPipe(f) { try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'pipe', on: Boolean(this.pipes?.has(f.id)) }, '*'); } catch { /* gone */ } }

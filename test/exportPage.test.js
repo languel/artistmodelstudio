@@ -89,3 +89,13 @@ describe('templates and snippets', () => {
     expect(snippetsFor('p5').user).toHaveLength(0);
   });
 });
+
+import { rewriteControl } from '../src/process/controls.js';
+describe('writing a panel value back to the code', () => {
+  const src = "const speed = 1 /* 0..5 step:0.5 */;\nconst spin = true /* toggle */\nconst shape = 'box' /* box|sphere */\nconst glow = 0x44aaff /* color */;\nconst colors = ['#e63946', 0xf1faee] /* palette */;\n";
+  it('each kind of control', () => {
+    let t = rewriteControl(src, 'speed', 2.5); t = rewriteControl(t, 'spin', false); t = rewriteControl(t, 'shape', 'sphere'); t = rewriteControl(t, 'glow', 0xff0000); t = rewriteControl(t, 'colors', ['#111111', 0x222222]);
+    expect(t).toBe("const speed = 2.5 /* 0..5 step:0.5 */;\nconst spin = false /* toggle */\nconst shape = 'sphere' /* box|sphere */\nconst glow = 0xff0000 /* color */;\nconst colors = ['#111111', 0x222222] /* palette */;\n");
+    expect(rewriteControl(src, 'nothing', 1)).toBe(src);
+  });
+});

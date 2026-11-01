@@ -867,6 +867,7 @@ export class Workbench {
       this.performPlace = place;
       this.performKeys = e => {
         if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+        if (this.performUI?.onKey(e)) { e.preventDefault(); e.stopPropagation(); return; }   // (H, Shift+H, and Esc closing the code)
         if (e.key === 'Escape' && !e.metaKey) { e.preventDefault(); e.stopPropagation(); this.perform(false); }
         else if (e.code === 'KeyF' && e.ctrlKey && e.altKey && !e.metaKey) {
           e.preventDefault(); e.stopPropagation();
@@ -885,11 +886,13 @@ export class Workbench {
       window.addEventListener('pointermove', this.performMove);
       document.addEventListener('fullscreenchange', this.performFs);
       cv.selectBoard(null);
+      this.performControls(id);
       place(); requestAnimationFrame(place); setTimeout(place, 300);
       this.performMove();
       this.log('Perform: Esc leaves; Ctrl+Opt+F switches between the whole board and filling the screen.');
     } else {
       const was = this.performWas || {};
+      this.performUI?.destroy(); this.performUI = null; if (this.performing) this.frames?.holdKeys(this.performing, false);
       window.removeEventListener('keydown', this.performKeys, true);
       window.removeEventListener('resize', this.performResize);
       window.removeEventListener('pointermove', this.performMove);
@@ -904,6 +907,32 @@ export class Workbench {
       requestAnimationFrame(() => { if (was.cam) cv.cam = was.cam; cv.invalidate(); });
     }
     this.emit('perform', on);
+  }
+
+  /**
+   * Perform's controls: the panel of a p5.js or three.js board's controls (and its code), over the screen, starting hidden as if
+   * Shift+H had been pressed: the gear shows when the pointer comes to the top right corner, H shows and hides the panel. A change is
+   * written into the board's code, like the sliders of the code panel, and reaches the running sketch (and its window) at once.
+   */
+  async performControls(id) {
+    const b = boardById(this.store.doc, id);
+    if (!b || !['p5', 'three'].includes(b.kind)) return;
+    const { mountPanel, controlSpecs } = await import('./controlsPanel.js');
+    const { rewriteControl } = await import('../process/controls.js');
+    if (this.performing !== id) return;   // (left again while this loaded)
+    const set = (name, value) => {
+      const cur = boardById(this.store.doc, id);
+      if (!cur) return;
+      const code = rewriteControl(cur.code || '', name, value);
+      if (code === cur.code) return;
+      this.store.updateBoard(id, { code });
+      // The canvas shows a copy of the document made when Perform began: it has the new code too, or it would send the old values back.
+      if (this.canvas.previewDoc && this.performing === id) this.canvas.previewDoc = { ...this.canvas.previewDoc, artboard: id === MAIN ? this.store.doc.artboard : this.canvas.previewDoc.artboard, boards: (this.store.doc.boards || []).filter(x => x.id === id) };
+      this.frames?.ctl(id, code);
+    };
+    this.performUI = mountPanel(controlSpecs(b.code || ''), b.code || '', set, { start: 'hidden', keys: false, zone: true });
+    this.frames?.holdKeys(id, true);
+    setTimeout(() => this.frames?.holdKeys(id, true), 600);   // (once the sketch has started)
   }
 
   presentHud() {
