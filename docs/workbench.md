@@ -606,10 +606,10 @@ A document longer than its board scrolls inside it: the wheel over it scrolls it
 - `await ams.frame('source')`: a source's picture.
 
 **Controls in code** (p5.js and three.js boards): a value with a comment beside it becomes a control in the board's code panel, and changing it changes the running sketch without starting it again.
-- `const speed = 1 /* 0..5 */` a slider (a step too: `/* 0..5 step:0.5 */`);
+- `const speed = 1 /* 0..5 */` a slider (a step too: `/* 0..5 step:0.5 */`; `0...5` and `0…5` read the same, as editors change `..`);
 - `let spin = true /* toggle */` a checkbox;
 - `const shape = 'box' /* box|sphere */` a select;
-- `const tint = '#4488ff' /* color */` a colour;
+- `const tint = '#4488ff' /* color */` a colour: any CSS colour in quotes (`'red'`, `'rgb(10,20,30)'`, `'hsl(200,60%,20%)'`) or a number like `0x4488ff`; a round swatch opens the studio's picker, and the colour stays as written until you change it;
 - `// @param size = 1 (0.2..3 step:0.1)` as in Underscores (also `(color)`, `(boolean)`, `(a|b|c)`): read as `ams.params.size`, live.
 
 A declaration at the start of a line (`const`, `let` or `var`, with nothing after the comment) is live: the studio makes it a `let` and sets it as you drag. A number elsewhere in the code still gets its slider, but it rewrites the code and the sketch starts again. The sketch also starts again when anything else in the code changes. An output window's copy gets the same values.

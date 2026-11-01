@@ -6,7 +6,8 @@
  */
 export const NUM = '-?(?:\\d+\\.?\\d*|\\.\\d+)';
 const PARAM_RE = new RegExp(`(^|[\\s{,])([A-Za-z_$][\\w$]*)\\s*:\\s*\\[\\s*(${NUM})\\s*,\\s*(${NUM})\\s*,\\s*(${NUM})`, 'g');
-const RANGE_RE = new RegExp(`(${NUM})(\\s*/\\*\\s*(${NUM})\\s*\\.\\.\\s*(${NUM})(?:\\s*(?:step|:)\\s*(${NUM}))?\\s*\\*/)`, 'g');
+const DOTS = '(?:\\.{2,3}|…)';   // 0..5, 0...5 or 0…5 (an editor turns .. and ... into other marks)
+const RANGE_RE = new RegExp(`(${NUM})(\\s*/\\*\\s*(${NUM})\\s*${DOTS}\\s*(${NUM})(?:\\s*(?:step|:)\\s*(${NUM}))?\\s*\\*/)`, 'g');
 
 export const decimalsOf = s => (String(s).split('.')[1] || '').length;
 export const fmt = (v, step) => { const d = Math.min(6, Math.max(decimalsOf(step), 0)); return String(+v.toFixed(d)); };
@@ -27,7 +28,7 @@ function paramBlocks(text) {
 
 const IDENT = '[A-Za-z_$][\\w$]*';
 const TOGGLE_RE = /\b(true|false)(\s*\/\*\s*(?:toggle|on\/off|bool(?:ean)?)\s*\*\/)/g;
-const COLOR_RE = /(['"])(#[0-9a-fA-F]{3,8})\1(\s*\/\*\s*colou?r\s*\*\/)/g;
+const COLOR_RE = /(['"])([^'"\n]+)\1(\s*\/\*\s*colou?r\s*\*\/)|\b(0x[0-9a-fA-F]{3,8})\b(\s*\/\*\s*colou?r\s*\*\/)/g;   // any CSS colour in quotes (#fa0, red, rgb(…), hsl(…)), or a 0xrrggbb number
 const SELECT_RE = /(['"])([^'"\n]*)\1(\s*\/\*\s*([^*\n|]+(?:\|[^*\n|]+)+?)\s*\*\/)/g;
 // underscores' form: // @param name = value (min..max step:s) | (color) | (boolean) | (a|b|c)
 const PARAM_LINE_RE = new RegExp(`^([ \\t]*//[ \\t]*@param[ \\t]+)(${IDENT})([ \\t]*=[ \\t]*)(.*?)[ \\t]*\\(([^)\\n]*)\\)[ \\t]*$`, 'gm');
@@ -77,17 +78,20 @@ export function findControls(text) {
   n = 0;
   for (const t of text.matchAll(TOGGLE_RE)) named(`t:${n++}`, 'toggle', t.index, t.index + t[1].length, t.index + t[0].length, { value: t[1] === 'true' });
   n = 0;
-  for (const t of text.matchAll(COLOR_RE)) named(`c:${n++}`, 'color', t.index, t.index + t[2].length + 2, t.index + t[0].length, { value: t[2], q: t[1] });
+  for (const t of text.matchAll(COLOR_RE)) {
+    if (t[4]) named(`c:${n++}`, 'color', t.index, t.index + t[4].length, t.index + t[0].length, { value: parseInt(t[4], 16), css: `#${t[4].slice(2).padStart(6, '0').slice(0, 6)}`, num: true });
+    else named(`c:${n++}`, 'color', t.index, t.index + t[2].length + 2, t.index + t[0].length, { value: t[2], css: t[2], q: t[1] });
+  }
   n = 0;
   for (const t of text.matchAll(SELECT_RE)) {
     const options = t[4].split('|').map(x => x.trim()).filter(Boolean);
-    if (options.length < 2 || /\.\.\s*-?\d/.test(t[4])) continue;
+    if (options.length < 2 || /(?:\.{2,3}|…)\s*-?\d/.test(t[4])) continue;
     named(`s:${n++}`, 'select', t.index, t.index + t[2].length + 2, t.index + t[0].length, { value: t[2], q: t[1], options });
   }
   for (const t of text.matchAll(PARAM_LINE_RE)) {
     const [, head, name, eq, raw, spec] = t;
     const from = t.index + head.length + name.length + eq.length, to = from + raw.length, base = { id: `a:${name}`, name, from, to, at: from, live: true, line: true };
-    const sp = spec.trim(), r = new RegExp(`^(${NUM})\\s*\\.\\.\\s*(${NUM})(?:\\s+step\\s*:\\s*(${NUM}))?$`).exec(sp), q = /^['"]/.test(raw) ? raw[0] : '';
+    const sp = spec.trim(), r = new RegExp(`^(${NUM})\\s*${DOTS}\\s*(${NUM})(?:\\s+step\\s*:\\s*(${NUM}))?$`).exec(sp), q = /^['"]/.test(raw) ? raw[0] : '';
     const bare = q ? raw.slice(1, -1) : raw;
     if (r && Number.isFinite(Number(raw))) out.push({ ...base, kind: 'range', min: Number(r[1]), max: Number(r[2]), step: r[3] ? Number(r[3]) : null, value: Number(raw) });
     else if (/^colou?r$/i.test(sp)) out.push({ ...base, kind: 'color', value: bare, q });
@@ -98,7 +102,7 @@ export function findControls(text) {
 }
 
 /** The text a control's value is written as. */
-export const literalOf = (c, v) => (c.kind === 'toggle' ? String(Boolean(v)) : c.kind === 'range' ? String(v) : `${c.q || ''}${v}${c.q || ''}`);
+export const literalOf = (c, v) => (c.kind === 'toggle' ? String(Boolean(v)) : c.kind === 'range' ? String(v) : c.num ? `0x${String(v).replace('#', '')}` : `${c.q || ''}${v}${c.q || ''}`);
 
 /** The values of the controls that can change without starting the sketch again: { name: value }. */
 export function liveValues(text) {

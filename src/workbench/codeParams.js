@@ -19,6 +19,16 @@ export { findControls };
 import { rangeInput, paintRange } from './rangeInput.js';
 import { showMenu } from './menu.js';
 import { openPicker, parseColor } from './colorPicker.js';
+
+/** Any CSS colour (a name, #fa0, rgb(…), hsl(…)) as '#rrggbb'. */
+function cssToHex(css) {
+  try {
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.fillStyle = '#000'; ctx.fillStyle = css;
+    const v = ctx.fillStyle;
+    return v[0] === '#' ? v : parseColor(v).hex;
+  } catch { return parseColor(css).hex; }
+}
 export { rangeInput, paintRange };
 
 /**
@@ -34,8 +44,8 @@ function makeChoice(c, view) {
   let input;
   if (c.kind === 'toggle') { input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(c.value); }
   else if (c.kind === 'color') { // A round swatch that opens the studio's own picker.
-    input = document.createElement('button'); input.type = 'button'; input.className = 'wb-color-input'; input.value = c.value; input.style.background = c.value;
-    input.addEventListener('click', () => openPicker(input, { hex: parseColor(input.value).hex, alpha: 1 }, col => { set(col.hex); fire(); }, null));
+    input = document.createElement('button'); input.type = 'button'; input.className = 'wb-color-input'; input.value = c.css || c.value; input.style.background = input.value;
+    input.addEventListener('click', () => { const start = cssToHex(input.value).toLowerCase(); openPicker(input, { hex: start, alpha: 1 }, col => { if (col.hex.toLowerCase() === start) return; set(col.hex); fire(); }, null); });   // (a colour in another form, 'red', stays as it is until it is changed)
   }
   else {
     // A chip that opens the studio's menu (a native dropdown does not hold up inside the editor).
@@ -100,7 +110,7 @@ class LineControls extends WidgetType {
   // The same controls with another value (an edit, an undo, a drag): keep the elements, show the value.
   updateDOM(dom) {
     if (dom._sig !== this.sig()) return false;
-    this.cs.forEach((c, i) => { const ctl = dom._ctls[i]; if (document.activeElement !== ctl.input && String(ctl.value()) !== String(c.value)) ctl.set(c.value); });
+    this.cs.forEach((c, i) => { const ctl = dom._ctls[i]; const v = c.css ?? c.value; if (document.activeElement !== ctl.input && String(ctl.value()) !== String(v)) ctl.set(v); });
     return true;
   }
   ignoreEvent() { return true; }
@@ -133,7 +143,7 @@ export function controlStrip(editor) {
     const next = cs.map(c => `${c.id}:${c.min}:${c.max}:${c.options || ''}`).join('|') + (live ? `#${live.target?.() || 'live'}` : '');
     if (next === sig) {
       // Same controls: only follow values changed in the code (not the one being dragged).
-      rows.forEach((r, i) => { if (document.activeElement !== r.ctl.input && !r.live) { r.ctl.set(cs[i].value); r.out.textContent = r.show(cs[i].value); } });
+      rows.forEach((r, i) => { if (document.activeElement !== r.ctl.input && !r.live) { r.ctl.set(cs[i].css ?? cs[i].value); r.out.textContent = r.show(cs[i].value); } });
       return;
     }
     sig = next;

@@ -45,3 +45,18 @@ describe('decorated controls', () => {
     expect(instrument(src.replace("'perspective'", "'orthographic'")).sig).toBe(instrument(src).sig);
   });
 });
+
+describe('colours and dots', () => {
+  it('any css colour, or a 0x number, with a color comment', () => {
+    const c = findControls("const a = 'red' /* color */\nconst b = 'rgb(10, 20, 30)' /* colour */\nconst d = 0xff8800 /* color */;\nconst e = 'hello'");
+    expect(c.filter(x => x.kind === 'color').map(x => x.css)).toEqual(['red', 'rgb(10, 20, 30)', '#ff8800']);
+    const num = c.find(x => x.num);
+    expect(num.value).toBe(0xff8800);
+    expect(literalOf(num, '#112233')).toBe('0x112233');
+    expect(literalOf(c[0], '#112233')).toBe("'#112233'");
+  });
+  it('a range may be written with two dots, three, or an ellipsis', () => {
+    for (const d of ['..', '...', '…']) expect(findControls(`const n = 3 /* 0${d}5 */`)[0]).toMatchObject({ kind: 'range', min: 0, max: 5, value: 3 });
+    expect(findControls('// @param s = 1 (0.2...3 step:0.1)')[0]).toMatchObject({ min: 0.2, max: 3, step: 0.1 });
+  });
+});
