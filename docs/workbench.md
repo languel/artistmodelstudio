@@ -155,6 +155,7 @@ A **project** holds **scenes**, and a scene holds **boards**. It is enough to wr
 - **Scenes** (the Scenes panel) are separate drawings. Each has its own undo, History and Timeline; Assets, brushes and settings are shared by all. Opening a drawing from Assets, or a file, makes a new scene, so your drawing is never replaced. Alt+PageUp and Alt+PageDown step through scenes.
 - **Copy a scene** (the scene's menu → Copy as JSON): the scene as studio JSON on the clipboard; paste it (Cmd+V) in any browser or tab and it opens as a new scene.
 - **Boards** (;, or the Boards panel) are artboards in one drawing, in order, like slides.
+  - **Numbers:** a board's number, in the Boards panel and above the board, is its place in the presentation (what Present and Alt+1–9 step through): the frames in reading order (rows top to bottom, left to right), or, in a scene without frames, the boards in their sequence. A board inside a frame, or beside frames, is not a slide and has no number.
   - **The main board** is the old artboard at the origin, so every older drawing, score and training record is unchanged.
   - **Editing boards:** drag out more with the Board tool. A board's title selects it, moves it (with its marks) and renames it; its right-click menu exports it, trains on it, reorders or duplicates it.
   - **Which board a mark is on:** marks belong to the board they are drawn on. Outside the boards is the **blackboard**: kept, but in no board's picture.

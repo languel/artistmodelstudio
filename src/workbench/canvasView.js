@@ -9,7 +9,7 @@
  * (mouse pressure is estimated from speed). Wheel pans; Ctrl/Cmd+wheel or pinch zooms.
  */
 import { sculptMark, SCULPTABLE, nearMark, falloff, effectiveSculpt } from '../process/sculpt.js';
-import { boardsOf, boardDoc, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD, opacityOf, blendOf, canvasBlend } from '../process/boards.js';
+import { boardsOf, boardDoc, boardNumbers, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD, opacityOf, blendOf, canvasBlend } from '../process/boards.js';
 import { closeLasso, lazyFollow, lazyCatchUp, straightEnd, effectiveLazy } from '../process/strokes.js';
 import { rdp } from '../process/sculpt.js';
 import { renderDocument, nextTimed, drawOutlines } from '../process/render.js';
@@ -1003,6 +1003,7 @@ export class CanvasView {
     ctx.save();
     ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
     ctx.textBaseline = 'bottom';
+    if (this.numbersDoc !== doc) { this.numbersDoc = doc; this.numbers = boardNumbers(doc); }   // (the Boards panel's numbers)
     boards.forEach((b, i) => {
       const [bx, by] = this.toScreen(b.x, b.y), w = b.width * this.cam.z, h = b.height * this.cam.z;
       const on = this.selectedBoard === b.id || this.boardSet.has(b.id);
@@ -1011,7 +1012,7 @@ export class CanvasView {
       if (perf) { ctx.save(); ctx.fillStyle = muted; ctx.font = '11px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'top'; ctx.fillText(perf, bx, by + h + 6, Math.max(120, w * 1.6)); ctx.restore(); }
       const noTitle = b.hideLabel && !on;   // no title (selected, it shows, so it can be moved); a board that runs keeps its play button
       if (b.kind === 'player' && b.hidden) return;
-      const label = `${i + 1}  ${b.title}${this.showTrain !== false && (doc.train === b.id || (!doc.train && b.main && boards.length > 1)) ? '  ·  trains' : ''}`;   // (an embedded editor has no model to train: the host sets showTrain false)
+      const label = `${this.numbers.has(b.id) ? `${this.numbers.get(b.id)}  ` : ''}${b.title}${this.showTrain !== false && (doc.train === b.id || (!doc.train && b.main && boards.length > 1)) ? '  ·  trains' : ''}`;   // (an embedded editor has no model to train: the host sets showTrain false)
       // Boards with processes (code, following sources, a source under them) get a play / pause button
       // after the title. Like a player's, it shows what a click does: pause while running, play when paused.
       const runs = b.kind === 'p5' || b.kind === 'three' || (!b.kind && Boolean(b.follow || b.source || b.code));   // documents (markdown, html) and frames have nothing to play

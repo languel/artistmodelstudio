@@ -5,7 +5,7 @@
  */
 import { h, editInPlace, editable } from '../ui.js';
 import { icon } from '../icons.js';
-import { boardsOf, marksOf, isFrame, boardsInFrame, BLACKBOARD, MAIN } from '../../process/boards.js';
+import { boardsOf, marksOf, isFrame, boardsInFrame, boardNumbers, BLACKBOARD, MAIN } from '../../process/boards.js';
 
 export function mountBoards(el, app) {
   const render = () => {
@@ -23,13 +23,13 @@ export function mountBoards(el, app) {
       ordered.push(b);
       if (isFrame(b)) for (const x of boardsInFrame(doc, b)) ordered.push(x);
     }
-    let slide = 0;
+    const numbers = boardNumbers(doc);   // (the same numbers as above the boards on the canvas)
     ordered.forEach((b, i) => {
       const active = app.activeBoard === b.id;
       const nested = parent.has(b.id);
       const title = editable(h('span', { 'data-board-title': b.id }, b.title), `board:${b.id}`, () => boardsOf(app.store.doc).find(x => x.id === b.id)?.title || '', v => app.store.updateBoard(b.id, { title: v }));
-      // Numbers are the slides (frames, or boards outside frames): what presenting steps through.
-      const name = h('span', { class: 'wb-stage-name', title: 'Click to go · Shift+double-click to rename' }, nested ? '' : `${++slide}. `, title);
+      // Numbers are the slides, in the order presenting steps through them (reading order for frames).
+      const name = h('span', { class: 'wb-stage-name', title: 'Click to go · Shift+double-click to rename' }, numbers.has(b.id) ? `${numbers.get(b.id)}. ` : '', title);
       name.addEventListener('dblclick', e => { if (!e.shiftKey) app.goToBoard(b.id); });
       const row = h('div', { class: `wb-stage${active ? ' active' : ''}${nested ? ' nested' : ''}${isFrame(b) ? ' frame' : ''}`, 'data-guide': `board:${b.title}`, draggable: b.main || nested ? 'false' : 'true', onclick: e => { if (e.target.closest('button')) return; if (e.shiftKey || e.metaKey || e.ctrlKey) { app.canvas.selectBoard(b.id, true); return; } app.goToBoard(b.id); }, oncontextmenu: e => { e.preventDefault(); app.boardMenu(b.id, e.clientX, e.clientY); } },
         h('button', { class: `wb-icon-btn${app.isBoardLive(b.id) ? ' on' : ' wb-dim'}`, title: app.isBoardLive(b.id) ? `Running${b.live && !active ? ' (even when you are elsewhere)' : ''}: click to pause (a paused board is baked into a picture) · Opt+click: solo` : 'Paused: click to play · Opt+click: play only this one', html: icon(app.isBoardLive(b.id) ? 'pause' : 'play'), onclick: e => (e.altKey ? app.soloBoard(b.id) : app.toggleBoardRun(b.id)) }),

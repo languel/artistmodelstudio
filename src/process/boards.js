@@ -42,6 +42,15 @@ export function slidesOf(doc) {
 }
 
 /**
+ * The number of each slide: its place in the presentation (what Present and Alt+1–9 step through). With frames, the frames in reading
+ * order (rows top to bottom, left to right); with none, the boards in their sequence. A board a frame holds, or one loose beside
+ * frames, is not a slide and has no number. One numbering for the Boards panel and the title above each board.
+ */
+export function boardNumbers(doc) {
+  return new Map(slidesOf(doc).map((b, i) => [b.id, i + 1]));
+}
+
+/**
  * A board's switches: locked (its marks and the board itself stay as they are), hidden (not drawn,
  * not run), hideLabel (no title above it), hideBorder (no shadow or frame line: the board is only structure), perf (a performance line under it), mask (its marks are cropped to
  * the board: the default mask is the board's own rectangle), codeMin (on an exported page its code opens as a bar of
