@@ -28,7 +28,7 @@ function paramBlocks(text) {
 
 const IDENT = '[A-Za-z_$][\\w$]*';
 const TOGGLE_RE = /\b(true|false)(\s*\/\*\s*(?:toggle|on\/off|bool(?:ean)?)\s*\*\/)/g;
-const COLOR_RE = /(['"])([^'"\n]+)\1(\s*\/\*\s*colou?r\s*\*\/)|\b(0x[0-9a-fA-F]{3,8})\b(\s*\/\*\s*colou?r\s*\*\/)/g;   // any CSS colour in quotes (#fa0, red, rgb(…), hsl(…)), or a 0xrrggbb number
+const COLOR_RE = /(['"])([^'"\n]+)\1(\s*\/\*\s*colou?r\s*\*\/)|\b(0x[0-9a-fA-F]{3,8})\b(\s*\/\*\s*colou?r\s*\*\/)|(?<![\w.])(\d{1,9})(\s*\/\*\s*colou?r\s*\*\/)/g;   // any CSS colour in quotes (#fa0, red, rgb(…), hsl(…)), or a number: 0xrrggbb (or the same in decimal, as a minifier writes it)
 const PALETTE_RE = /\[([^\[\]\n]*)\](\s*\/\*\s*palette\s*\*\/)/g;   // ['#e63946', 'steelblue', 0xf1faee] /* palette */
 const PALETTE_ITEM_RE = /(['"])([^'"\n]+)\1|\b0x[0-9a-fA-F]{3,8}\b/g;
 const SELECT_RE = /(['"])([^'"\n]*)\1(\s*\/\*\s*([^*\n|]+(?:\|[^*\n|]+)+?)\s*\*\/)/g;
@@ -81,7 +81,7 @@ export function findControls(text) {
   for (const t of text.matchAll(TOGGLE_RE)) named(`t:${n++}`, 'toggle', t.index, t.index + t[1].length, t.index + t[0].length, { value: t[1] === 'true' });
   n = 0;
   for (const t of text.matchAll(COLOR_RE)) {
-    if (t[4]) named(`c:${n++}`, 'color', t.index, t.index + t[4].length, t.index + t[0].length, { value: parseInt(t[4], 16), css: `#${t[4].slice(2).padStart(6, '0').slice(0, 6)}`, num: true });
+    if (t[4] || t[6]) { const v = t[4] ? parseInt(t[4], 16) : Number(t[6]), w = t[4] || t[6]; named(`c:${n++}`, 'color', t.index, t.index + w.length, t.index + t[0].length, { value: v, css: `#${(t[4] ? t[4].slice(2).padStart(6, '0').slice(0, 6) : v.toString(16).padStart(6, '0').slice(-6))}`, num: true }); }
     else named(`c:${n++}`, 'color', t.index, t.index + t[2].length + 2, t.index + t[0].length, { value: t[2], css: t[2], q: t[1] });
   }
   n = 0;

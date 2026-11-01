@@ -9,7 +9,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { javascript } from '@codemirror/lang-javascript';
 import { markdown } from '@codemirror/lang-markdown';
 import { html } from '@codemirror/lang-html';
-import { bracketMatching, foldGutter, foldKeymap, indentOnInput, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
+import { indentUnit, bracketMatching, foldGutter, foldKeymap, indentOnInput, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { linter, lintGutter, setDiagnostics } from '@codemirror/lint';
@@ -18,6 +18,8 @@ import { SCRIPT_VOCAB } from '../process/script.js';
 import { BRUSHES } from '../process/brushes.js';
 import { codeParams } from './codeParams.js';
 import { codeView, onCodeView, bumpCodeFont } from './codeView.js';
+import { formatSource, minifySource } from './codeTools.js';
+import { semanticCompletion, semanticHover } from './languageService.js';
 
 const VOCAB = new Map(SCRIPT_VOCAB.map(v => [v.name, v]));
 const KIT_DOCS = [
@@ -110,13 +112,19 @@ const hoverDocs = hoverTooltip((view, pos) => {
  * Languages the editor speaks: the studio's score ('ams', with its completions and docs), p5.js,
  * Markdown and HTML.
  */
-const languageFor = (lang, getDocLines) => (lang === 'markdown' ? [markdown()]
+const languageFor = (lang, getDocLines, help = true) => (lang === 'markdown' ? [markdown()]
   : lang === 'html' ? [html()]
-  : lang === 'p5' ? [javascript()]
+  // p5.js and three.js sketches: completion and hover docs from the libraries' own types (when code help is on)
+  : lang === 'p5' || lang === 'three' ? [javascript(), ...(help ? [autocompletion({ override: [semanticCompletion(lang)], icons: false }), semanticHover(lang)] : [])]
   : [javascript(), hoverDocs, autocompletion({ override: [scoreCompletions(getDocLines)], icons: false })]);
 
+let lastEditor = null;
+if (typeof window !== 'undefined') Object.defineProperty(window, '__codeEditor', { configurable: true, get: () => lastEditor });   // (for the console and tests)
+/** The code editor last used (for the buttons that act on "the" editor). */
+export const activeCodeEditor = () => lastEditor;
+
 export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLines = () => [], placeholder = '', language = 'ams' } = {}) {
-  const wrap = new Compartment(), lang = new Compartment();
+  const wrap = new Compartment(), lang = new Compartment(), indent = new Compartment();
   let live = null;
   const nums = new Compartment(), params = new Compartment();
   const docFns = [], liveFns = [];
@@ -128,11 +136,13 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
       extensions: [
         nums.of(codeView().lineNumbers ? lineNumbers() : []), foldGutter(), params.of(paramsExt()), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(),
         indentOnInput(), bracketMatching(), closeBrackets(), highlightSelectionMatches(), lintGutter(), linter(() => [], { delay: 1e9 }),
-        lang.of(languageFor(language, getDocLines)), syntaxHighlighting(highlight), theme,
-        wrap.of(EditorView.lineWrapping),
+        lang.of(languageFor(language, getDocLines, codeView().help)), syntaxHighlighting(highlight), theme,
+        wrap.of(codeView().wrap === false ? [] : EditorView.lineWrapping), indent.of([indentUnit.of(' '.repeat(codeView().tabSize || 2)), EditorState.tabSize.of(codeView().tabSize || 2)]),
         placeholder ? placeholderExt(placeholder) : [],
         keymap.of([
           { key: 'Mod-Enter', run: () => { onRun?.(); return true; } },
+          { key: 'Alt-Shift-f', run: () => { api.format(); return true; } },
+          { key: 'Alt-Shift-m', run: () => { api.minimize(); return true; } },
           { key: 'Mod-Shift-=', run: () => { bumpCodeFont(1); return true; } },
           { key: 'Mod-Shift-+', run: () => { bumpCodeFont(1); return true; } },
           { key: 'Mod-Shift--', run: () => { bumpCodeFont(-1); return true; } },
@@ -141,13 +151,26 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
         ]),
         EditorView.updateListener.of(u => { if (u.docChanged) { onChange?.(u.state.doc.toString()); for (const f of docFns) f(); view.dispatch(setDiagnostics(u.state, [])); } }),
         // Keep workbench shortcuts (V, H, P…) from firing while typing.
-        EditorView.domEventHandlers({ keydown: e => { e.stopPropagation(); return false; } })
+        EditorView.domEventHandlers({ keydown: e => { lastEditor = api; e.stopPropagation(); return false; }, mousedown: () => { lastEditor = api; return false; }, focus: () => { lastEditor = api; return false; } })
       ]
     })
   });
-  let wrapping = true;
-  onCodeView(v => view.dispatch({ effects: [nums.reconfigure(v.lineNumbers ? lineNumbers() : []), params.reconfigure(paramsExt())] }));
-  return {
+  let wrapping = codeView().wrap !== false, helped = codeView().help;
+  onCodeView(v => {
+    const effects = [nums.reconfigure(v.lineNumbers ? lineNumbers() : []), params.reconfigure(paramsExt()), indent.reconfigure([indentUnit.of(' '.repeat(v.tabSize || 2)), EditorState.tabSize.of(v.tabSize || 2)])];
+    if (v.help !== helped) { helped = v.help; effects.push(lang.reconfigure(languageFor(language, getDocLines, helped))); }
+    if ((v.wrap !== false) !== wrapping) { wrapping = v.wrap !== false; effects.push(wrap.reconfigure(wrapping ? EditorView.lineWrapping : [])); }
+    view.dispatch({ effects });
+  });
+  // Replace the text by changing only what differs (the cursor, scroll and undo stay sensible).
+  const replace = (from, to, text) => {
+    const old = view.state.sliceDoc(from, to);
+    let a = 0; while (a < old.length && a < text.length && old[a] === text[a]) a++;
+    let b = 0; while (b < old.length - a && b < text.length - a && old[old.length - 1 - b] === text[text.length - 1 - b]) b++;
+    if (a === old.length && a === text.length) return;
+    view.dispatch({ changes: { from: from + a, to: from + old.length - b, insert: text.slice(a, text.length - b) } });
+  };
+  const api = {
     view,
     get value() { return view.state.doc.toString(); },
     set value(v) { if (v !== view.state.doc.toString()) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v } }); },
@@ -155,6 +178,23 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
     /** Switch the language ('ams', 'p5', 'markdown', 'html'). */
     setLanguage(l) { if (l !== language) { language = l; view.dispatch({ effects: lang.reconfigure(languageFor(l, getDocLines)) }); } },
     get language() { return language; },
+    /** Format the selection, or all the code (Alt+Shift+F). */
+    async format() {
+      const sel = view.state.selection.main, ranged = !sel.empty;
+      const r = await formatSource(view.state.doc.toString(), language, ranged ? { from: sel.from, to: sel.to } : null);
+      if (r.error) { api.markError(r.error.line || 1, r.error.message); return r; }
+      api.markError(null); replace(0, view.state.doc.length, r.text.replace(/\n$/, view.state.doc.toString().endsWith('\n') ? '\n' : ''));
+      return r;
+    },
+    /** Minimize the selection, or all the code (Alt+Shift+M): whitespace and comments go; control comments stay. */
+    async minimize() {
+      const sel = view.state.selection.main, ranged = !sel.empty;
+      const from = ranged ? sel.from : 0, to = ranged ? sel.to : view.state.doc.length;
+      const r = await minifySource(view.state.sliceDoc(from, to), language);
+      if (r.error) { api.markError(r.error.line || 1, r.error.message); return r; }
+      api.markError(null); replace(from, to, ranged ? r.text.trimEnd() : r.text);
+      return r;
+    },
     /** Param sliders drive live values ({ get(key), set(key, v) }) instead of rewriting defaults; null: rewrite. */
     setLive(l) { live = l; view.dispatch({}); for (const f of liveFns) f(); },
     getLive: () => live,
@@ -169,4 +209,5 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, getDocLi
       view.dispatch({ effects: EditorView.scrollIntoView(l.from, { y: 'center' }) });
     }
   };
+  return api;
 }

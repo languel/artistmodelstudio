@@ -64,7 +64,7 @@ function draw() {
 }
 `
 };
-const LANGUAGE = { drawing: 'ams', markdown: 'markdown', html: 'html', p5: 'p5', three: 'p5', frame: 'markdown', playlist: 'p5' };
+const LANGUAGE = { drawing: 'ams', markdown: 'markdown', html: 'html', p5: 'p5', three: 'three', frame: 'markdown', playlist: 'p5' };
 const KIND_LABELS = [['drawing', 'Drawing (studio code)'], ['markdown', 'Markdown'], ['html', 'HTML'], ['p5', 'p5.js'], ['three', 'three.js'], ['playlist', 'Playlist'], ['frame', 'Frame (a slide)']];
 
 export function mountBoardCode(root, app) {

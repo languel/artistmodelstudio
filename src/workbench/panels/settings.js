@@ -3,6 +3,7 @@ import { icon } from '../icons.js';
 import { h, row, numberField, selectField, section } from '../ui.js';
 import { colorField } from '../colorPicker.js';
 import { modelSection } from './modelSettings.js';
+import { codeView, setCodeView } from '../codeView.js';
 
 const PRESETS = [
   ['square', 'Square', 1000, 1000], ['a4', 'A4', 794, 1123], ['letter', 'Letter', 816, 1056], ['4:3', '4 : 3', 1200, 900],
@@ -79,6 +80,18 @@ export function mountSettings(root, app) {
         row('Lazy', numberField({ value: app.lazy.radius, min: 0, max: 200, step: 1, def: 0, title: 'The pen trails the cursor on a string this long (screen px): wobbles smaller than the string never reach the line, corners get rounded. 0 = off. Also on right-click of the grid button', onChange: v => app.setLazy({ radius: v }) }), 'Lazy drawing: steadier lines'),
         row('Simplify', numberField({ value: app.lazy.simplify || 0, min: 0, max: 40, step: 0.5, def: 0, title: 'On release, points the line does not need are dropped: how far (screen px) the shape may move. 0 = off', onChange: v => app.setLazy({ simplify: v }) })),
         row('Smoothing', numberField({ value: app.lazy.smoothing, min: 0, max: 0.95, step: 0.01, def: 0, title: 'Each step the pen covers only part of the way (0.5 = half): higher is smoother and lags more. 0 = off', onChange: v => app.setLazy({ smoothing: v }) }))),
+      section('Code editor', true,
+        row('Code help', check(codeView().help, v => setCodeView({ help: v }), 'Completion and hover docs for p5.js and three.js sketches, from the libraries’ own types (TypeScript’s language service, loaded the first time a sketch is edited)')),
+        row('Text size', numberField({ value: codeView().fontSize, min: 8, max: 28, step: 1, def: 12, title: 'The text size in code editors (Cmd+Shift +/−)', onChange: v => setCodeView({ fontSize: v }) })),
+        row('Indent', selectField([['2', '2 spaces'], ['4', '4 spaces']], String(codeView().tabSize || 2), v => setCodeView({ tabSize: Number(v) }))),
+        row('Line numbers', check(codeView().lineNumbers, v => setCodeView({ lineNumbers: v }))),
+        row('Wrap lines', check(codeView().wrap !== false, v => setCodeView({ wrap: v }))),
+        row('Sliders', selectField([['code', 'On the lines'], ['preview', 'Beside the preview'], ['off', 'Off']], codeView().sliders, v => setCodeView({ sliders: v })), 'Where the controls a code declares (sliders, toggles, colours…) are shown'),
+        row('Format', h('kbd', { class: 'wb-kbd' }, '⌥⇧F'), 'Format the selection, or all the code (Prettier)'),
+        row('Minimize', h('kbd', { class: 'wb-kbd' }, '⌥⇧M'), 'Minimize the selection, or all the code: whitespace and comments go; the comments that make controls stay (Terser)'),
+        row('Run', h('kbd', { class: 'wb-kbd' }, '⌘↵'), 'Run the code'),
+        row('Comment', h('kbd', { class: 'wb-kbd' }, '⌘/'), 'Comment or uncomment the lines'),
+        row('Text size', h('kbd', { class: 'wb-kbd' }, '⌘⇧ + / −'), 'Bigger or smaller text, in code editors only')),
       section('Export', true,
         row('p5.js', selectField([['2', '2.x (latest)'], ['1', '1.x']], app.p5Version(), v => { try { localStorage.setItem('ams_p5_version', v); } catch { /* ignore */ } }), 'The p5.js version p5 exports target: 2.x uses splineVertex, 1.x curveVertex')),
       app.modelSection ||= modelSection(app),

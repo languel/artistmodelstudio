@@ -71,3 +71,8 @@ describe('palette', () => {
     expect(instrument(src).code).toContain('colors.splice(0, colors.length, ...v)');
   });
 });
+
+it('a decimal number with a color comment is a colour too (what a minifier writes for 0xff8800)', () => {
+  const c = findControls('const c = 16746496 /* color */;')[0];
+  expect(c).toMatchObject({ kind: 'color', css: '#ff8800', num: true, value: 16746496 });
+});

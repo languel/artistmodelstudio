@@ -14,7 +14,7 @@ import { mountSculpts } from './sculpts.js';
 import { mountBoardCode } from './boardCode.js';
 import { codeView, setCodeView, onCodeView } from '../codeView.js';
 import { icon } from '../icons.js';
-import { createCodeEditor } from '../codeEditor.js';
+import { createCodeEditor, activeCodeEditor } from '../codeEditor.js';
 import { selectionCode, applySelectionCode, replaceElements, clipCode, applyClipCode } from '../../process/codegen.js';
 
 const MODES = [['score', 'Score', 'The drawing as a score'], ['brush', 'Brush', 'Brushes are code'], ['sculpt', 'Sculpt', 'Sculpt tools are code'], ['board', 'Board', 'The active board’s own code: it redraws the board, live'], ['selection', 'Selection', 'The selected marks as code'], ['clip', 'Clip', 'The selected timeline clip as code']];
@@ -32,7 +32,9 @@ export function mountCode(root, app) {
     const [, ic, tip] = SLIDERS[Math.max(0, i)];
     toggles.replaceChildren(
       h('button', { class: `wb-icon-btn${v.lineNumbers ? ' on' : ''}`, title: v.lineNumbers ? 'Hide line numbers' : 'Show line numbers', html: icon('lineNumbers'), onclick: () => setCodeView({ lineNumbers: !v.lineNumbers }) }),
-      h('button', { class: 'wb-icon-btn', title: `${tip} (click for the next)`, html: icon(ic), onclick: () => setCodeView({ sliders: SLIDERS[(i + 1) % SLIDERS.length][0] }) }));
+      h('button', { class: 'wb-icon-btn', title: `${tip} (click for the next)`, html: icon(ic), onclick: () => setCodeView({ sliders: SLIDERS[(i + 1) % SLIDERS.length][0] }) }),
+      h('button', { class: 'wb-icon-btn', title: 'Format the selection, or all the code (Alt+Shift+F)', html: icon('format'), onclick: () => activeCodeEditor()?.format() }),
+      h('button', { class: 'wb-icon-btn', title: 'Minimize the selection, or all the code (Alt+Shift+M)', html: icon('minimize'), onclick: () => activeCodeEditor()?.minimize() }));
     for (const el of Object.values(views)) el.classList.toggle('sliders-preview', v.sliders === 'preview');
   };
   onCodeView(drawToggles);

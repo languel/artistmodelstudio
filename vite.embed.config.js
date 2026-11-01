@@ -18,6 +18,7 @@ const LEAN_STUBS = new Set([
 const OUT = process.env.AMS_EMBED_OUT || (FULL ? 'dist-embed-full' : 'dist-embed');
 
 export default defineConfig({
+  publicDir: false,   // (public/lang, the editor's language service, is for the full app only)
   base: './',
   define: { __AMS_EMBED_FULL__: JSON.stringify(FULL) },
   resolve: { alias: { '@huggingface/transformers': path.resolve('src/single/noTransformers.js') } },

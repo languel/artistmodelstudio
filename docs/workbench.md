@@ -599,6 +599,13 @@ Documents show as you type. Marks drawn on a document board stay on top of it, a
 
 A document longer than its board scrolls inside it: the wheel over it scrolls it (and a wide code block sideways) until it ends, then pans the canvas. Opening a fold scrolls it into view.
 
+### The code editor
+
+All the code editors (board, brush, sculpt, selection, clip) share these, and **Settings → Code editor** sets them:
+- **Format** (Alt+Shift+F): the selection, or all the code, with Prettier (studio code keeps its no-semicolon style). **Minimize** (Alt+Shift+M): whitespace and comments go, the comments that make controls stay and each control keeps a line of its own, so a minimized sketch still has its sliders. Both are also buttons in the code panel's header. They load the first time they are used.
+- **Code help** (on by default; Settings → Code editor → Code help): in p5.js and three.js boards, completion and hover docs from the libraries' own types (TypeScript's language service in a worker; `ams` and `ams.params` are known too). The files are built into `public/lang/` by `npm run lang` (also run before `dev` and `build`; not committed) and fetched the first time a sketch is edited. Nothing is sent anywhere.
+- Cmd+Shift +/− changes the text size in code editors only; Cmd+Enter runs; Cmd+/ comments; Settings also has indent, line numbers, wrapping and where controls are shown.
+
 **HTML and p5.js** run in sandboxed frames over their boards, with a bridge to the studio, `window.ams`:
 - `ams.width`, `ams.height`, `ams.board`: the board;
 - `await ams.call(tool, args)`: any studio tool;

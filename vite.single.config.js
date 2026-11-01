@@ -12,6 +12,7 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 import path from 'node:path';
 
 export default defineConfig({
+  publicDir: false,   // (public/lang, the editor's language service, is for the full app only)
   plugins: [viteSingleFile({ removeViteModuleLoader: true })],
   resolve: { alias: { '@huggingface/transformers': path.resolve('src/single/noTransformers.js') } },
   build: {
