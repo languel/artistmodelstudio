@@ -35,6 +35,16 @@ export class StopMotion {
     return s;
   }
 
+  /** Is a board's sketch being recorded, or watched by a stop-motion board that is on screen? Then it keeps running off screen (see Outputs.wants). */
+  pinned(id) {
+    const now = performance.now();
+    for (const s of this.st.values()) {
+      if (s.rec?.srcId === id) return true;
+      if (s.watch?.src === id && now - s.watch.at < 1500) return true;
+    }
+    return false;
+  }
+
   spec(b) { try { return { sm: readStopmotion(b.code || ''), error: '' }; } catch (err) { return { sm: null, error: err.message }; } }
 
   /** The board a stop-motion board photographs (by title or id). */
@@ -234,15 +244,22 @@ export class StopMotion {
       rec.pending.push(new Promise(ok => c.toBlob(ok, 'image/webp', 0.9)));   // (the canvas is copied at this call, so it can be drawn on again at once)
       rec.last = sig; rec.lastKeep = now; rec.count++;
       rec.due = sm.record === 'change' ? now + gap : (now - rec.due > gap ? now + gap : rec.due + gap);
-      s.live = c;
+      if (!s.tapView) s.live = c;                        // (a board showing the source live keeps that, not the last kept frame)
       this.app.canvas.invalidate();
       if (rec.count >= MAX_FRAMES) this.endRecording(id, `${MAX_FRAMES} frames is the most in one recording`);
     };
     // (on change, a source that is paused sends no pictures at all, so the quiet is timed apart from them)
     rec.idle = setInterval(() => { if (sm.record === 'change' && rec.count && performance.now() - rec.lastKeep > IDLE_MS) this.endRecording(id, 'nothing moved'); }, 400);
     const kind = boardKind(src);
-    rec.off = (kind === 'p5' || kind === 'three') ? this.app.frames?.tap(src.id, sample) : null;
-    if (!rec.off) {                                   // a drawing, a page, a sketch not running: its picture, asked for twice a frame
+    if (kind === 'p5' || kind === 'three') {
+      // A sketch is read where it runs. Armed, it is pinned (it runs off screen too, see pinned()), and is picked up as soon as it is there.
+      const attach = () => {
+        if (rec.ended) return;
+        rec.off = this.app.frames?.tap(src.id, sample);
+        if (!rec.off) { this.app.canvas.invalidate(); rec.timer = setTimeout(attach, 200); }
+      };
+      attach();
+    } else {                                          // a drawing, a page: its picture, asked for twice a frame
       const every = Math.max(16, 500 / sm.fps);
       const loop = async () => {
         if (rec.ended) return;

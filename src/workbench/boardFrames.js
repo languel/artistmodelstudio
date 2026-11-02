@@ -259,7 +259,7 @@ export class BoardFrames {
       if (!this.canvas.boardOnScreen(b, 0.05)) {
         // Sent to an output but off screen: a browser stops painting a frame that is out of view, so it is kept in view
         // (tiny, in a corner, invisible and untouchable) and keeps running.
-        f.el.style.transform = 'translate(0px, 0px) scale(0.02)'; f.el.style.opacity = '0'; f.el.style.pointerEvents = 'none';
+        f.el.style.transform = 'translate(0px, 0px) scale(0.02)'; f.el.style.opacity = '0.01'; f.el.style.pointerEvents = 'none';   // (not 0: a browser throttles a frame that is fully transparent to a couple of frames a second)
       } else {
         f.el.style.transform = `translate(${sx}px, ${sy}px) scale(${z})`; f.el.style.pointerEvents = '';
         f.el.style.opacity = String(opacityOf(b)); f.el.style.mixBlendMode = cssBlend(blendOf(b));   // (a board as a layer)
@@ -333,7 +333,7 @@ export class BoardFrames {
 
   release(id, f) {
     this.frames.delete(id);
-    clearTimeout(f.timer); clearInterval(f.liveTimer); f.editor?.destroy(); f.panel?.destroy();
+    clearTimeout(f.timer); clearInterval(f.liveTimer); f.smTap?.(); f.editor?.destroy(); f.panel?.destroy();
     if ((f.kind === 'p5' || f.kind === 'three') && f.running) { this.snap(f); setTimeout(() => f.el.remove(), 400); }   // its last picture first
     else f.el.remove();
   }
@@ -564,6 +564,7 @@ export class BoardFrames {
         play: g('<path d="M8 5l11 7-11 7z"/>'), stop: g('<path d="M7 6h10v12H7z"/>'), del: g('<path d="M6 7h12M9 7V5h6v2M8 7l1 12h6l1-12"/>').replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"'),
         onion: g('<circle cx="9.5" cy="12" r="5.5" fill-opacity=".9"/><circle cx="14.5" cy="12" r="5.5" fill-opacity=".45"/>'), loop: g('<path d="M17 3l3 3-3 3M4 11V9a3 3 0 013-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 01-3 3H4"/>').replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.8"'),
         save: g('<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>').replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.8"'),
+        srcplay: g('<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 8.5l6 3.5-6 3.5z"/>'),
         rec: g('<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4.2"/>'), stopRec: g('<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 9h6v6H9z"/>'),
         mIn: g('<path d="M15 5H9v14h6M9 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'), mOut: g('<path d="M9 5h6v14H9M15 12H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'),
         trim: g('<path d="M6 4v16M18 4v16M6 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 9l-3 3 3 3M15 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'), clear: g('<path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>') };
@@ -584,6 +585,7 @@ export class BoardFrames {
           <label title="Frames a second, in playback and in the film">fps <input data-a="fps" type="number" min="1" max="60"></label>
           <label title="Exposures for each shot: 2 is on twos">hold <input data-a="hold" type="number" min="1" max="12"></label>
           <select data-a="source" title="The board it photographs"></select>
+          <button data-a="srcplay" title="Play or pause the source board (a sketch keeps running while this board shows it, wherever it is on the canvas)">${ic.srcplay}</button>
           <button data-a="save" title="Keep the film: in Assets or as a file, as WebM, MP4 or GIF">${ic.save}</button>
         </div>
         <div class="sm-tl">
@@ -621,6 +623,7 @@ export class BoardFrames {
         else if (a === 'loop') SM.edit(b.id, m => { m.loop = !m.loop; });
         else if (a === 'save') { const r = t.getBoundingClientRect(); this.app.stopmotionSaveMenu(b.id, r.left, r.bottom); }
         else if (a === 'rec') SM.record(b.id);
+        else if (a === 'srcplay') { const src = now && SM.sourceOf(now); if (src) this.app.toggleBoardRun(src.id); }
         else if (a === 'in' || a === 'out') SM.mark(b.id, a);
         else if (a === 'trim') SM.trim(b.id);
         else if (a === 'range') SM.clearRange(b.id);
@@ -638,7 +641,26 @@ export class BoardFrames {
       // the live view: the source's picture a few times a second while this board is shown and not playing
       f.liveTimer = setInterval(async () => {
         const st = SM.state(b.id);
-        if (st.playing || st.busy || st.rec || st.saving || st.at != null || !f.el.isConnected || f.el.style.opacity === '0') return;
+        if (!f.el.isConnected || Number(f.el.style.opacity) < 0.05) return;
+        const cur = boardById(this.app.store.doc, b.id), spec = cur && SM.spec(cur).sm, src = spec && SM.sourceOf(spec);
+        const sketch = src && (src.kind === 'p5' || src.kind === 'three');
+        // A sketch is watched where it runs, frame by frame, and kept running off screen while this board shows it (Outputs.wants).
+        if (sketch) {
+          st.watch = { src: src.id, at: performance.now() };
+          if (f.smTapSrc !== src.id || !f.smTap || !this.frames.get(src.id)?.iframe) {
+            f.smTap?.(); f.smTap = null; f.smTapSrc = src.id; st.tapView = false;
+            if (!this.frames.get(src.id)?.iframe && this.app.isBoardLive(src.id)) this.canvas.invalidate();     // (it is mounted off screen once it is wanted)
+            else f.smTap = this.tap(src.id, bmp => {
+              const c = (st.tapCanvas ||= document.createElement('canvas'));
+              if (c.width !== bmp.width || c.height !== bmp.height) { c.width = bmp.width; c.height = bmp.height; }
+              c.getContext('2d').drawImage(bmp, 0, 0);
+              st.live = c; st.tapView = true;
+              if (st.at == null && !st.playing && !f.smDraw) f.smDraw = requestAnimationFrame(() => { f.smDraw = 0; this.drawStopmotion(f, b.id); });
+            });
+          }
+          if (f.smTap) return;
+        } else if (f.smTap) { f.smTap(); f.smTap = null; f.smTapSrc = null; st.tapView = false; st.watch = null; }
+        if (st.playing || st.busy || st.rec || st.saving || st.at != null) return;
         await SM.look(b.id).catch(() => null);
         this.drawStopmotion(f, b.id);
       }, 300);

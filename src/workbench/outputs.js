@@ -30,8 +30,8 @@ export class Outputs {
   /** A board sent to an output plays, if it is not playing and was not paused on purpose (the same as its play button). */
   play(id) { const b = boardById(this.app.store.doc, id); if (b && !b.paused && !this.app.isBoardLive?.(id)) this.app.setBoardLive?.(id, true); }
 
-  /** Is a board being sent somewhere (so it keeps running)? */
-  wants(id) { for (const o of this.items.values()) if (o.board === id) return true; return false; }
+  /** Is a board being sent somewhere, or watched by a stop-motion board (so it keeps running, off screen too)? */
+  wants(id) { for (const o of this.items.values()) if (o.board === id) return true; return Boolean(this.app.stopmotion?.pinned(id)); }   // (a stop-motion board watching or recording it keeps it running too)
   list() { return [...this.items.values()].map(({ key, board, kind }) => ({ key, board, kind })); }
 
   // ---- a window's twin of a sketch -------------------------------------------------------------------------------
