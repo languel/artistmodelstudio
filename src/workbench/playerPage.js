@@ -5,10 +5,11 @@
  * yours to use: drag the sketch, open the pseudocode, read the code.
  */
 import { boardsOf, boardKind, boardsInFrame, isFrame } from '../process/boards.js';
-import { renderMarkdown, esc } from '../process/markdown.js';
+import { renderMarkdown, esc, mathHtml } from '../process/markdown.js';
 import { pseudoCss } from '../process/pseudo.js';
 import { sketchPage } from './exportPage.js';
 import RUNTIME from './playerRuntime.js?raw';
+import DRAW from './scriptDraw.js?raw';
 
 const json = v => JSON.stringify(v).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, c => `\\u${c.charCodeAt(0).toString(16)}`);
 
@@ -17,7 +18,7 @@ const toDataUri = blob => new Promise((ok, no) => { const r = new FileReader(); 
 /** The titles a script's cues name. */
 export function titlesOf(script) {
   const t = new Set();
-  for (const c of script.cues) for (const x of [c.goto, c.restart, c.drag?.on, c.click?.summary, c.select?.pseudo, c.select?.code]) if (x) t.add(x);
+  for (const c of script.cues) for (const x of [c.goto, c.restart, c.drag?.on, c.click?.summary, c.select?.pseudo, c.select?.code, c.draw?.on, c.formula?.on, c.clear?.on]) if (x) t.add(x);
   return [...t];
 }
 
@@ -50,8 +51,12 @@ export async function playerPageHtml(app, script, clips = [], { loadThreeFile, p
     }
   }
   const clipUris = await Promise.all(script.cues.map(async (c, i) => (clips[i]?.blob ? toDataUri(clips[i].blob) : null)));
-  const data = { title: script.title, id: script.id, W: Math.round(frame.width), H: Math.round(frame.height), cues: script.cues, clips: clipUris };
-  const usesMath = panes.join('').includes('katex');
+  // the TeX in the cues, made into HTML here (the page has no KaTeX)
+  const math = {};
+  const texes = script.cues.flatMap(c => [c.formula?.tex, ...(c.draw?.shapes || []).map(x => x.tex)]).filter(Boolean);
+  for (const t of texes) math[t] = mathHtml(t, false);
+  const data = { math, title: script.title, id: script.id, W: Math.round(frame.width), H: Math.round(frame.height), cues: script.cues, clips: clipUris };
+  const usesMath = panes.join('').includes('katex') || texes.length > 0;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(script.title)}</title>
 ${usesMath ? '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.9/dist/katex.min.css">' : ''}
@@ -65,7 +70,7 @@ ${usesMath ? '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.
 <div class="ui"><div class="title">${esc(script.title)}</div><button class="play" title="Play with sound (Space)">▶ Play</button>
 <span class="ctl" hidden><button class="pause" title="Pause between steps (Space)">Pause</button><button class="stop" title="Stop (Esc)">Stop</button></span>
 <button class="cc on" title="Subtitles (C)">CC</button></div>
-<script>(${RUNTIME.slice(RUNTIME.indexOf('function playerRuntime'))})(${json(data)});</script>
+<script>${DRAW.slice(DRAW.indexOf('function scriptDraw')).replace(/^export .*$/m, '')}\n(${RUNTIME.slice(RUNTIME.indexOf('function playerRuntime'))})(${json(data)});</script>
 </body></html>
 `;
 }
@@ -93,6 +98,7 @@ const CSS = `
 .sub{position:fixed;left:50%;bottom:5%;transform:translateX(-50%);z-index:31;max-width:min(900px,86vw);padding:10px 20px;border-radius:10px;background:rgba(12,12,12,.8);color:#fff;font:600 clamp(15px,1.8vw,24px)/1.35 system-ui,sans-serif;text-align:center;opacity:0;pointer-events:none;transition:opacity .25s;text-wrap:balance}.sub.on{opacity:1}body.nocc .sub{display:none}
 .keys{position:fixed;left:22px;bottom:5%;z-index:31;display:flex;flex-direction:column;gap:6px;pointer-events:none}.key{display:flex;gap:4px;opacity:0;transition:opacity .2s}.key.on{opacity:1}
 .key kbd{min-width:30px;padding:5px 9px;border-radius:7px;background:#f5f3ee;color:#1c1c1c;border:1px solid #b9b5ab;border-bottom-width:3px;font:600 15px/1 system-ui;text-align:center}
+.sc-over{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:visible}.sc-label{position:absolute;white-space:nowrap;transform:translate(-50%,-50%);font:600 22px/1 'Latin Modern Roman','Times New Roman',Georgia,serif;text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 2px #fff}.sc-label.sc-formula{color:#fff;background:rgba(18,18,22,.9);padding:8px 14px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.35);text-shadow:none}
 .ui{position:fixed;top:10px;left:14px;right:14px;z-index:32;display:flex;align-items:center;gap:8px;pointer-events:none}.ui>*{pointer-events:auto}.title{flex:1;color:#8d8b85;font-size:13px;pointer-events:none}
 .ui button{font:inherit;color:#e6e4de;background:#262626;border:1px solid #444;border-radius:6px;padding:5px 12px;cursor:pointer}.ui button:hover{border-color:#999}.ui .play{background:#e0a030;color:#1a1a1a;border-color:#e0a030;font-weight:600}.ui .cc.on{border-color:#e0a030;color:#e0a030}
 `;

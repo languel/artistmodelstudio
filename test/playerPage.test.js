@@ -36,10 +36,10 @@ it('makes a page with the slide, the script and a runtime that parses', async ()
   expect(html).toContain('data-board="Slide · code"');
   expect(html).toContain('<span class="t">const a = 1;</span>');
   expect(html).toContain('class="play"');
-  const script = /<script>\((.*)\)\((\{.*\})\);<\/script>\s*<\/body>/s.exec(html);
+  const script = /<script>(function scriptDraw[\s\S]*?)\n\((function playerRuntime[\s\S]*)\)\((\{.*\})\);<\/script>\s*<\/body>/.exec(html);
   expect(script).toBeTruthy();
-  expect(() => new Function(`return (${script[1]})`)).not.toThrow();
-  const data = JSON.parse(script[2].replace(/\\u003c/g, '<'));
+  expect(() => new Function(`${script[1]}\nreturn (${script[2]})`)).not.toThrow();
+  const data = JSON.parse(script[3].replace(/\\u003c/g, '<'));
   expect(data).toMatchObject({ id: 't', W: 1000, H: 600 });
   expect(data.cues).toHaveLength(4);
 });

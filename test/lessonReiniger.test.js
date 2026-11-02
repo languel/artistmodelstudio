@@ -44,7 +44,7 @@ it('has a performed script whose cues name boards the lesson builds, and whose c
   const ACTIONS = ['goto', 'restart', 'drag', 'click', 'select', 'key', 'wait'];
   for (const c of HINGE.cues) {
     expect(Object.keys(c).filter(k => ACTIONS.includes(k)).length, c.say).toBeLessThanOrEqual(4);
-    for (const t of [c.goto, c.restart, c.drag?.on, c.click?.summary, c.select?.pseudo, c.select?.code]) if (t) expect(has(t), t).toBe(true);
+    for (const t of [c.goto, c.restart, c.drag?.on, c.click?.summary, c.select?.pseudo, c.select?.code, c.draw?.on, c.formula?.on, c.clear?.on]) if (t) expect(has(t), t).toBe(true);
     if (c.select?.code) {
       const code = boards.find(b => b.title === c.select.code.replace(/ · code$/, '') && b.kind === 'three').code;
       expect(code).toContain(c.select.from); expect(code).toContain(c.select.to);

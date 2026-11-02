@@ -99,6 +99,9 @@ function playerRuntime(DATA) {
         await pause(300);
       }
     },
+    async clear(c) { const b = board(c.on); if (b) await scriptDraw(b, { clear: c.layer || true }); },
+    async draw(d, layer) { const b = board(d.on); if (!b) return; await scriptDraw(b, { ...d, layer: d.layer || layer || 'draw' }, { html: t => DATA.math[t] || '', pace: 1 }); check(); },
+    async formula(c) { await cues.draw({ on: c.on, layer: c.layer || 'formula', shapes: [{ t: 'formula', at: c.at, align: c.align, tex: c.tex, size: c.size }] }, 'formula'); },
     async key(k) { showKeys(k); await pause(500); },
     async wait(ms) { await pause(ms); }
   };
@@ -128,6 +131,9 @@ function playerRuntime(DATA) {
         if (c.restart) await cues.restart(c.restart);
         if (c.drag) await cues.drag(c.drag);
         if (c.click) await cues.click(c.click);
+        if (c.clear) await cues.clear(c.clear);
+        if (c.draw) await cues.draw(c.draw);
+        if (c.formula) await cues.formula(c.formula);
         if (c.select) await cues.select(c.select);
         if (c.key) await cues.key(c.key);
         if (c.wait) await cues.wait(c.wait);

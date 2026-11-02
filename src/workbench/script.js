@@ -13,6 +13,9 @@
  *     click: { summary: title }         press the folded callout (a pseudocode, an example) of a document board
  *     select: { pseudo: title, line }   drag across a line of a pseudocode; { code: title, from, to } across the lines of a code
  *                                       board from the first line that has `from` to the next line that has `to`
+ *     draw: { on, space?, shapes }      draw over a board, shape by shape (lines and arcs draw themselves on; see scriptDraw.js)
+ *     formula: { on, tex, at, align? }  a formula (TeX) on a board, at a place given as fractions of it
+ *     clear: { on, layer? }             take the drawing (or one layer: 'draw', 'formula') off a board; it comes before draw in a cue
  *     key: 'Alt+K'  (run: true)         show the keys, and press them
  *     wait: ms
  *   `say` is the subtitle while the cue lasts and, when narration is on, the words the voice speaks (`speak` says other words: a
@@ -24,6 +27,8 @@ import { h } from './ui.js';
 import { askConfirm } from './dialog.js';
 import { Capture, toVtt } from './scriptRecorder.js';
 import { playerPageHtml } from './playerPage.js';
+import { scriptDraw } from './scriptDraw.js';
+import { mathHtml } from '../process/markdown.js';
 import { download } from './ui.js';
 
 const ABORT = Symbol('stop');
@@ -184,6 +189,7 @@ export class ScriptPlayer {
     if (this.run !== run) return;
     this.run = null;
     this.clearHighlights(run);
+    for (const el of run.hosts || []) el.querySelector(':scope > .sc-over')?.remove();
     this.overlay.clear();
     this.bar.hidden = true; this.bar.classList.remove('rec');
     this.overlay.bounds(null);
@@ -204,6 +210,9 @@ export class ScriptPlayer {
     if (c.restart) await this.restart(c.restart);
     if (c.drag) await this.drag(c.drag);
     if (c.click) await this.click(c.click);
+    if (c.clear) await this.clearDraw(c.clear);
+    if (c.draw) await this.draw(c.draw);
+    if (c.formula) await this.formula(c.formula);
     if (c.select) await this.select(c.select);
     if (c.key) await this.key(c.key, c.run);
     if (c.wait) await this.pause(c.wait);
@@ -304,6 +313,19 @@ export class ScriptPlayer {
       await this.down('left'); el.click(); this.up();
       await this.pause(350);
     }
+  }
+
+  /** Draw over a board: the strokes draw themselves on, one after another (scriptDraw.js). */
+  async draw(d, layer = 'draw') {
+    const f = this.frameEl(d.on); if (!f) throw new Error(`No board “${d.on}”`);
+    (this.run.hosts ||= new Set()).add(f.el);
+    await scriptDraw(f.el, { ...d, layer: d.layer || layer }, { html: t => mathHtml(t, false), pace: this.pace, fast: this.fast });
+    this.check();
+  }
+  formula(c) { return this.draw({ on: c.on, layer: c.layer || 'formula', shapes: [{ t: 'formula', at: c.at, align: c.align, tex: c.tex, size: c.size }] }, 'formula'); }
+  async clearDraw(c) {
+    const f = this.frameEl(c.on); if (!f) return;
+    await scriptDraw(f.el, { clear: c.layer || true });
   }
 
   async select(s) {
