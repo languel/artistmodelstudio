@@ -34,7 +34,7 @@ describe('the three.js lesson', () => {
       expect(() => new Function(code.replace(/^import .*$/gm, '')), b.title).not.toThrow();
       total += written;
     }
-    expect(total).toBe(14);   // the controls board (5), the installation (3), the pinboard (2), the harp (3) and the fox's clip (1)
+    expect(total).toBe(16);   // the controls board (5), the installation (3), the pinboard (2), the harp (3) and the fox's three clip weights (3)
   });
 
   it('the tour goes only to boards the lecture has', () => {

@@ -117,7 +117,7 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
   const have = new Set(models.length ? (await app.assetStore.all()).map(a => a.title) : []);
   for (const m of models) {
     if (have.has(m.title)) continue;
-    const blob = await (await fetch(m.url)).blob();
+    const blob = await (await fetch(new URL(String(m.url).replace(/^\//, ''), document.baseURI))).blob();   // (under the page's own base: a site on GitHub Pages is not at the root)
     blob.kindHint = 'model';   // (a card, not a picture: the file is not an image)
     await app.assetStore.add(blob, { title: m.title, kind: 'import', folder: LESSON.folder || 'Lessons', tags: ['model', 'public-domain'], meta: { source: m.source, license: m.license } });
   }
@@ -163,6 +163,7 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
   const cy = rowY(-1);
   frame(LESSON.title, fx(0), cy);
   doc(LESSON.title, fx(0) + PAD, cy + PAD, cover(LESSON, bib1));
+  if (LESSON.cover) drawing(LESSON.cover, ...right(fx(0), cy));   // (a lesson may put a picture of its own on the cover)
 
   for (const [r, sec] of LESSON.sections.entries()) {
     const y = rowY(r);

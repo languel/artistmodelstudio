@@ -13,6 +13,7 @@ import RUNTIME from './playerRuntime.js?raw';
 import DRAW from './scriptDraw.js?raw';
 import TL from './scriptTimeline.js?raw';
 import { estimateSpans, TIMELINE_CSS } from './scriptTimeline.js';
+import { highlightCode, CODE_CSS } from './codeHighlight.js';
 
 const json = v => JSON.stringify(v).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, c => `\\u${c.charCodeAt(0).toString(16)}`);
 
@@ -21,7 +22,7 @@ const toDataUri = blob => new Promise((ok, no) => { const r = new FileReader(); 
 /** The titles a script's cues name. */
 export function titlesOf(script) {
   const t = new Set();
-  for (const c of script.cues) for (const x of [c.goto, c.restart, c.drag?.on, c.click?.summary, c.select?.pseudo, c.select?.code, c.draw?.on, c.formula?.on, c.clear?.on]) if (x) t.add(x);
+  for (const c of script.cues) for (const x of [c.goto, c.restart, c.drag?.on, c.click?.summary, c.select?.pseudo, c.select?.code, c.draw?.on, c.formula?.on, c.clear?.on, c.point?.on]) if (x) t.add(x);
   return [...t];
 }
 
@@ -35,7 +36,7 @@ export async function playerPageHtml(app, script, clips = [], { loadThreeFile, p
   const frameOf = title => all.find(b => isFrame(b) && b.title === title);
   // the slides in the order the script first shows them
   const order = [];
-  for (const c of script.cues) for (const t of [c.goto, c.restart, c.drag?.on, c.draw?.on, c.formula?.on, c.clear?.on, c.click?.summary, c.select?.pseudo, c.select?.code]) if (t && !order.includes(t)) order.push(t);
+  for (const c of script.cues) for (const t of [c.goto, c.restart, c.drag?.on, c.draw?.on, c.formula?.on, c.clear?.on, c.click?.summary, c.select?.pseudo, c.select?.code, c.point?.on]) if (t && !order.includes(t)) order.push(t);
   const slides = [], where = {};
   const firstGoto = script.cues.find(c => c.goto)?.goto;
   if (!firstGoto || !frameOf(firstGoto)) throw new Error(`The script starts on “${firstGoto}”, which is not a slide (a frame) in this scene.`);
@@ -68,8 +69,13 @@ export async function playerPageHtml(app, script, clips = [], { loadThreeFile, p
       } else if (kind === 'markdown') {
         parts.push(`<div ${attrs}><div class="md">${renderMarkdown(b.code || '', { resolve: () => ({ missing: true }) })}</div></div>`);
       } else if (kind === 'code') {
-        const of = all.find(x => x.id === b.of), lines = String(of?.code || '').replace(/\n$/, '').split('\n');
-        parts.push(`<div ${attrs}><div class="head">${esc(b.title)}</div><div class="lines">${lines.map((l, i) => `<div class="ln"><i>${i + 1}</i><span class="t">${esc(l) || ' '}</span></div>`).join('')}</div></div>`);
+        // the sketch's code as the studio shows it: coloured, with a slider, toggle, colour or menu before each value that is a control
+        const of = all.find(x => x.id === b.of), shown = highlightCode(String(of?.code || '').replace(/\n$/, ''));
+        parts.push(`<div ${attrs} data-sketch="${esc(of?.title || '')}" data-controls="${esc(JSON.stringify(shown.controls))}"><div class="head">${esc(b.title)}</div><div class="lines">${shown.lines.map((l, i) => `<div class="ln"><i>${i + 1}</i><span class="t">${l}</span></div>`).join('')}</div></div>`);
+      } else if (kind === 'drawing' && app.boardPicture) {
+        // a board drawn by studio code has no sketch to run: it goes in as a picture
+        let url = ''; try { url = app.boardPicture(b, 1, 'picture').toDataURL('image/png'); } catch { /* left out */ }
+        if (url) parts.push(`<div ${attrs}><img alt="${esc(b.title)}" src="${url}" style="width:100%;height:100%;object-fit:contain;display:block"></div>`);
       } else if (kind === 'html') {
         parts.push(`<div ${attrs}><iframe sandbox="allow-scripts" srcdoc="${esc(b.code || '')}" title="${esc(b.title)}"></iframe></div>`);
       }
@@ -83,22 +89,23 @@ export async function playerPageHtml(app, script, clips = [], { loadThreeFile, p
   for (const t of texes) math[t] = mathHtml(t, false);
   // the length of each cue, for the timeline: the narration is known, the actions are guessed (and the bar follows the real playing)
   const { spans, total } = estimateSpans(script.cues, script.cues.map((c, i) => clips[i]?.duration || 0));
-  const data = { math, title: script.title, id: script.id, where, slides: panes.map(p => ({ w: p.w, h: p.h })), cues: script.cues, clips: clipData, spans, total };
+  const data = { math, title: script.title, id: script.id, where, slides: panes.map(p => ({ w: p.w, h: p.h })), cues: script.cues, clips: clipData, spans, total, fade: script.fade ?? 1500 };
   const usesMath = panes.some(p => p.html.includes('katex')) || texes.length > 0;
   const body = panes.map((p, i) => `<section class="slide" data-slide="${i}" style="--W:${p.w}px;--H:${p.h}px">${p.html}</section>`).join('\n');
   const models = Object.entries(modelFiles).map(([n, u]) => `<script>window.__amsFiles = window.__amsFiles || {}; window.__amsFiles[${json(n)}] = ${json(u)};</script>`).join('');
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(script.title)}</title>
 ${usesMath ? '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.9/dist/katex.min.css">' : ''}
-<style>${CSS}\n${TIMELINE_CSS}\n${pseudoCss('.md', { fg: '#e6e4de', muted: '#8d8b85', line: '#5b5a56' })}</style></head>
+<style>${CSS}\n${CODE_CSS}\n${TIMELINE_CSS}\n${pseudoCss('.md', { fg: '#e6e4de', muted: '#8d8b85', line: '#5b5a56' })}</style></head>
 <body>
 <main class="stage" style="--W:${panes[0]?.w || 800}px;--H:${panes[0]?.h || 600}px">${body}</main>
-<div class="cur" hidden><svg viewBox="0 0 28 34" width="22" height="27"><path d="M2 2v25l7-7 5 12 5-2-5-12h10L2 2z" fill="#f4f4f2" stroke="#1c1c1c" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+<div class="cur" hidden><svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 3l14 8-6 1.5L10 19z" fill="rgba(20,20,20,.5)" stroke="#f4f4f2" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
 <div class="halo"></div>
 <div class="mouse"><svg viewBox="0 0 24 32" width="22" height="30"><rect class="body" x="3" y="2" width="18" height="28" rx="9"/><path class="l" d="M3 12V11a9 9 0 019-9v10z"/><path class="r" d="M12 2a9 9 0 019 9v1h-9z"/><path d="M3 12h18M12 2v10" fill="none"/></svg></div>
 <div class="sub"></div><div class="keys"></div>
 <div class="ui"><div class="title">${esc(script.title)}</div><button class="play" title="Play with sound (Space)">▶ Play</button>
-<button class="cc on" title="Subtitles (C)">CC</button></div>
+<a class="mp4" hidden title="Render this page as an MP4 video (needs the studio's dev server)" role="button">⤓ MP4</a><button class="cc on" title="Subtitles (C)">CC</button></div>
+<div class="fade"></div>
 <div class="tlhost"></div>
 ${models}
 <script>${DRAW.slice(DRAW.indexOf('function scriptDraw')).replace(/^export .*$/m, '')}\n${TL.slice(TL.indexOf('function fmtTime')).replace(/^export /gm, '')}\n(${RUNTIME.slice(RUNTIME.indexOf('function playerRuntime'))})(${json(data)});</script>
@@ -123,15 +130,18 @@ const CSS = `
 .pane.code .head{padding:4px 10px;font:11px system-ui;color:#8d8b85;border-bottom:1px solid #2a2a2a}
 .pane.code .lines{overflow:auto;padding:6px 0;flex:1}.ln{display:flex;white-space:pre;padding-right:10px}.ln i{flex:none;width:3.2em;padding-right:1em;text-align:right;color:#666;font-style:normal;user-select:none}
 .ln.sel{background:rgba(120,140,200,.28)}::selection{background:rgba(120,140,200,.45)}
-.cur{position:fixed;left:0;top:0;z-index:30;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))}
+.cur{position:fixed;left:0;top:0;z-index:30;pointer-events:none;filter:drop-shadow(0 0 5px rgba(224,160,48,.8)) drop-shadow(0 1px 1.5px rgba(0,0,0,.55))}
 .halo{position:fixed;left:0;top:0;width:28px;height:28px;border-radius:50%;border:2px solid #fff;opacity:0;z-index:29;pointer-events:none}.halo.on{animation:halo .5s ease-out}
 @keyframes halo{from{opacity:.9;transform:var(--t) scale(.4)}to{opacity:0;transform:var(--t) scale(1.4)}}
-.mouse{position:fixed;left:0;top:0;z-index:28;pointer-events:none;opacity:0;transition:opacity .15s;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))}.mouse.on{opacity:1}.mouse .body{fill:#f5f3ee;stroke:#1c1c1c;stroke-width:1.4}.mouse path{stroke:#1c1c1c;stroke-width:1.2;fill:transparent}.mouse.left .l,.mouse.right .r{fill:#e0a030}
+.mouse{position:fixed;left:0;top:0;z-index:28;pointer-events:none;opacity:0;transition:opacity .15s;filter:drop-shadow(0 0 1.5px rgba(0,0,0,.9)) drop-shadow(0 0 4px rgba(224,160,48,.35))}.mouse.on{opacity:1}.mouse .body{fill:none;stroke:#f4f4f2;stroke-width:1.6}.mouse path{stroke:#f4f4f2;stroke-width:1.5;fill:transparent;stroke-linejoin:round}.mouse.left .l,.mouse.right .r{fill:#e0a030}
 .sub{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:31;max-width:min(900px,86vw);padding:10px 20px;border-radius:10px;background:rgba(12,12,12,.8);color:#fff;font:600 clamp(15px,1.8vw,24px)/1.35 system-ui,sans-serif;text-align:center;opacity:0;pointer-events:none;transition:opacity .25s;text-wrap:balance}.sub.on{opacity:1}body.nocc .sub{display:none}
 .keys{position:fixed;left:22px;bottom:76px;z-index:31;display:flex;flex-direction:column;gap:6px;pointer-events:none}.key{display:flex;gap:4px;opacity:0;transition:opacity .2s}.key.on{opacity:1}
 .key kbd{min-width:30px;padding:5px 9px;border-radius:7px;background:#f5f3ee;color:#1c1c1c;border:1px solid #b9b5ab;border-bottom-width:3px;font:600 15px/1 system-ui;text-align:center}
 .sc-over{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:visible}.sc-label{position:absolute;white-space:nowrap;transform:translate(-50%,-50%);font:600 22px/1 'Latin Modern Roman','Times New Roman',Georgia,serif;text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 2px #fff}.sc-label.sc-formula{color:#fff;background:rgba(18,18,22,.9);padding:8px 14px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.35);text-shadow:none}
 .ui{position:fixed;top:10px;left:14px;right:14px;z-index:32;display:flex;align-items:center;gap:8px;pointer-events:none}.ui>*{pointer-events:auto}.title{flex:1;color:#8d8b85;font-size:13px;pointer-events:none}
 .ui button{font:inherit;color:#e6e4de;background:#262626;border:1px solid #444;border-radius:6px;padding:5px 12px;cursor:pointer}.ui button:hover{border-color:#999}.ui .play{background:#e0a030;color:#1a1a1a;border-color:#e0a030;font-weight:600}.ui .cc.on{border-color:#e0a030;color:#e0a030}
+.ui .mp4{font:inherit;color:#e6e4de;background:#262626;border:1px solid #444;border-radius:6px;padding:5px 12px;cursor:pointer;text-decoration:none;white-space:nowrap}.ui .mp4:hover{border-color:#999}.ui .mp4.busy{border-color:#e0a030;color:#e0a030;cursor:progress}.ui .mp4.done{background:#e0a030;color:#1a1a1a;border-color:#e0a030;font-weight:600}
+.fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:35;transition:opacity 1.5s linear}.fade.on{opacity:1}
+.render .ui,.render .tlhost{display:none!important}.render .stage{top:50%}.render .sub{bottom:5%}
 .tlhost{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);width:min(1040px,96vw);z-index:33;opacity:.6;transition:opacity .2s}.tlhost:hover,.tlhost:focus-within{opacity:1}
 `;

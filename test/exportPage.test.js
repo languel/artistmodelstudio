@@ -165,3 +165,14 @@ describe('controls as lil-gui', () => {
     expect(files.find(f => f.name.endsWith('src/main.js')).data).toContain('lil-gui.module.min.js');
   });
 });
+
+import { relativeFiles, appJsFor } from '../src/workbench/exportPage.js';
+it('turns the files a sketch reads by name into paths next to the file, for another editor', () => {
+  const code = "new GLTFLoader().load(window.__amsFiles?.['Fox.glb'], g => {});\nconst t = window.__amsFiles['tex.png'] ?? 'tex.png';";
+  const out = relativeFiles(code);
+  expect(out).toContain("load('./Fox.glb'");
+  expect(out).toContain("const t = './tex.png';");
+  expect(out.split('\n')[0]).toBe('// Files this sketch loads: put Fox.glb, tex.png next to this file.');
+  expect(relativeFiles('const a = 1;')).toBe('const a = 1;');
+  expect(appJsFor(code)).toContain("'./Fox.glb'");
+});

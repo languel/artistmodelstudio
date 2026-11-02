@@ -16,9 +16,12 @@
  *     draw: { on, space?, shapes }      draw over a board, shape by shape (lines and arcs draw themselves on; see scriptDraw.js)
  *     formula: { on, tex, at, align? }  a formula (TeX) on a board, at a place given as fractions of it
  *     clear: { on, layer? }             take the drawing (or one layer: 'draw', 'formula') off a board; it comes before draw in a cue
+ *     point: { on, at, space?, dwell? } the cursor glides to a place on a sketch and rings it (`at` is [x, y] as for a drag, or a list of
+ *                                       places to visit in turn, `dwell` ms at each): to show where to look while it is told
  *     set: { on, name, value }          change a control of a sketch (its menu or slider), as a person would
  *     key: 'Alt+K'  (run: true)         show the keys, and press them
  *     wait: ms
+ *   The script's `fade` (ms, 1500 unless 0) is how long the picture takes to go to black at the end.
  *   `say` is the subtitle while the cue lasts and, when narration is on, the words the voice speaks (`speak` says other words: a
  *   pronunciation, a pause); the cue lasts until the voice has finished. `hold` is the least time it lasts, in ms.
  */
@@ -134,6 +137,7 @@ export class ScriptPlayer {
       if (from > 0) await this.catchUp(script, from);
       for (let i = from; i < script.cues.length; i++) { await this.gate(); await this.cue(script.cues[i], i); }
       this.overlay.subtitle('');
+      await this.fadeOut(script.fade ?? 1500);
       if (cap) await this.pause(700);
     } catch (err) {
       if (err !== ABORT) { this.app.log(`Script “${script.title}”: ${err.message}`, 'error'); console.error(err); }
@@ -177,6 +181,37 @@ export class ScriptPlayer {
     if (!html) return null;
     if (save) { download(html, `${script.id}.html`, 'text/html'); this.app.log(`“${script.title}” saved as ${script.id}.html (${(html.length / 1e6).toFixed(1)} MB): open it in any browser and press Play.`); }
     return html;
+  }
+
+  /**
+   * The script as an MP4 made by the dev server (scripts/render-video.mjs): the page is exported to exports/player, rendered in headless
+   * Chrome with its narration mixed in, and the movie comes back to exports/video. No tab to share, and nothing to click.
+   */
+  async exportVideo(which, { width = 1920, height = 1080 } = {}) {
+    const script = typeof which === 'string' ? this.scripts.get(which) : which;
+    if (!script) throw new Error(`No script “${which}”`);
+    const post = async (url, body) => (await fetch(url, { method: 'POST', body: JSON.stringify(body) })).json();
+    try { if (!(await (await fetch('/__render/ping')).json()).ok) throw new Error('no'); } catch { this.app.log('MP4 export needs the studio running from its dev server (npm run dev) with ffmpeg and Chrome installed.', 'error'); return null; }
+    const html = await this.exportPage(script, { download: false });
+    if (!html) return null;
+    const name = script.id.toLowerCase().replace(/[^a-z0-9.-]+/g, '-');
+    const saved = await post('/__probe/save', { set: 'player', root: 'exports', files: { [`${name}.html`]: html } });
+    if (!saved.ok) { this.app.log(`MP4: ${saved.error}`, 'error'); return null; }
+    const start = await post('/__render/start', { page: `/exports/player/${name}.html`, width, height });
+    if (!start.id) { this.app.log(`MP4: ${start.error}`, 'error'); return null; }
+    this.app.log(`Rendering “${script.title}” as an MP4: it plays through in a browser of its own, as long as the script, and is then encoded.`);
+    for (let last = ''; ;) {
+      await new Promise(r => setTimeout(r, 2000));
+      const st = await (await fetch(`/__render/status?id=${start.id}`)).json();
+      if (st.stage === 'error') { this.app.log(`MP4: ${st.error}`, 'error'); return null; }
+      const line = st.stage === 'record' ? `Rendering: cue ${st.cue} of ${st.of}` : st.stage === 'encode' ? `Encoding the ${st.what || 'movie'}…` : '';
+      if (line && line !== last) { this.app.log(line); last = line; }
+      if (st.stage === 'done') {
+        this.app.log(`“${script.title}” is rendered: ${st.url} (${(st.bytes / 1e6).toFixed(1)} MB, ${st.seconds} s), with its .vtt beside it.`);
+        const a = h('a', { href: st.url, download: `${name}.mp4` }); document.body.append(a); a.click(); a.remove();
+        return st;
+      }
+    }
   }
 
   /** The movie and its subtitles: kept in Assets, and downloaded. */
@@ -228,6 +263,7 @@ export class ScriptPlayer {
     this.overlay.bounds(null);
     run.cap?.close();
     clearInterval(this.tick); this.tl?.destroy(); this.tl = null;
+    if (this.fadeEl) { this.fadeEl.classList.remove('on'); this.fadeEl.style.transitionDuration = '0ms'; const el = this.fadeEl; setTimeout(() => el.remove(), 50); }
     const g = this.app.guide; g.cursor.style.opacity = '0';
     this.app.emit('script', 'end', run.script.id);
   }
@@ -251,6 +287,7 @@ export class ScriptPlayer {
     if (c.formula) await this.formula(c.formula);
     if (c.select) await this.select(c.select);
     if (c.set) this.setControl(c.set);
+    if (c.point) await this.point(c.point);
     if (c.key) await this.key(c.key, c.run);
     if (c.wait) await this.pause(c.wait);
     // the cue lasts until the voice has finished (or, without one, long enough to read the subtitle) and for its hold
@@ -407,6 +444,31 @@ export class ScriptPlayer {
       await this.down('left'); el.click(); this.up();
       await this.pause(350);
     }
+  }
+
+  /** Show where to look: the cursor goes to a place on a sketch (or to each of several, in turn) and rings it. */
+  async point(p) {
+    const f = this.frameEl(p.on), b = this.board(p.on), el = f?.iframe || f?.el;
+    if (!el || !b) throw new Error(`No board “${p.on}” to point at`);
+    const frac = ([x, y]) => (p.space?.frame ? [0.5 + x / (p.space.frame * (b.width / b.height)), 0.5 - y / p.space.frame] : [x, y]);
+    const spots = Array.isArray(p.at[0]) ? p.at : [p.at];
+    for (const spot of spots) {
+      const r = el.getBoundingClientRect(), [fx, fy] = frac(spot);
+      await this.glide(r.left + fx * r.width, r.top + fy * r.height);
+      if (!this.fast) await this.app.guide.click();
+      await this.pause(p.dwell ?? 700);
+    }
+  }
+
+  /** The picture goes to black (the stage only, as a recording crops it). */
+  async fadeOut(ms) {
+    if (!ms || this.fast) return;
+    const r = (this.app.stageArea || document.body).getBoundingClientRect();
+    const el = this.fadeEl ||= h('div', { class: 'wb-sc-fade' });
+    document.body.append(el);
+    Object.assign(el.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, transitionDuration: `${ms}ms` });
+    void el.offsetWidth; el.classList.add('on');
+    await this.pause(ms + 500);
   }
 
   /** Change a control of a running sketch, as its slider or menu would (the sketch follows at once). */

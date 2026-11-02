@@ -1,9 +1,11 @@
 // The player inside an exported page (see playerPage.js). This file is embedded as text (`?raw`), not run by the studio: it is one function,
 // it uses nothing outside itself, and nothing here is changed by the build.
 function playerRuntime(DATA) {
+  const RENDER = /[?&]render\b/.test(location.search);   // a page being turned into a video (scripts/render-video.mjs): no controls, the picture fills the window
+  if (RENDER) document.body.classList.add('render');
   const $ = (s, r = document) => r.querySelector(s);
   const stage = $('.stage'), cur = $('.cur'), halo = $('.halo'), mouse = $('.mouse'), sub = $('.sub'), keys = $('.keys');
-  const playBtn = $('.play'), ccBtn = $('.cc');
+  const playBtn = $('.play'), ccBtn = $('.cc'), fadeEl = $('.fade');
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const ease = t => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
   const frame = () => new Promise(r => requestAnimationFrame(r));
@@ -13,7 +15,7 @@ function playerRuntime(DATA) {
 
   // Slides: one section per frame of the script. A slide's sketches run only while it shows; the others are unloaded.
   let slide = -1;
-  const fit = () => { const cur = DATA.slides[Math.max(0, slide)] || { w: 800, h: 600 }; const k = Math.min(innerWidth / cur.w, (innerHeight - 64) / cur.h) * 0.97; stage.style.setProperty('--k', k); stage.style.setProperty('--W', cur.w + 'px'); stage.style.setProperty('--H', cur.h + 'px'); };
+  const fit = () => { const cur = DATA.slides[Math.max(0, slide)] || { w: 800, h: 600 }; const k = Math.min(innerWidth / cur.w, (innerHeight - (RENDER ? 0 : 64)) / cur.h) * 0.97; stage.style.setProperty('--k', k); stage.style.setProperty('--W', cur.w + 'px'); stage.style.setProperty('--H', cur.h + 'px'); };
   const showSlide = i => {
     if (i === slide || i < 0) return;
     slide = i;
@@ -29,7 +31,7 @@ function playerRuntime(DATA) {
   addEventListener('resize', fit);
   showSlide(0);
 
-  const place = (x, y) => { pos = { x, y }; cur.style.transform = `translate(${x - 3}px,${y - 2}px)`; mouse.style.transform = `translate(${x + 18}px,${y + 12}px)`; };
+  const place = (x, y) => { pos = { x, y }; cur.style.transform = `translate(${x - 5}px,${y - 3}px)`; mouse.style.transform = `translate(${x + 18}px,${y + 12}px)`; };
   const press = (btn, on) => { mouse.classList.toggle('on', on); mouse.classList.toggle('left', on && btn === 'left'); };
   const click = async () => { if (fast()) return; halo.style.setProperty('--t', `translate(${pos.x - 14}px,${pos.y - 14}px)`); halo.style.transform = `translate(${pos.x - 14}px,${pos.y - 14}px)`; halo.classList.remove('on'); void halo.offsetWidth; halo.classList.add('on'); await sleep(260); };
   const check = () => { if (!run || run.aborted) throw ABORT; };
@@ -64,7 +66,7 @@ function playerRuntime(DATA) {
   };
 
   // text of an element, selected progressively as the cursor passes
-  const textNodes = el => { const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), out = []; for (let n; (n = w.nextNode());) if (n.nodeValue.length && !(n.parentElement && n.parentElement.tagName === 'I')) out.push(n); return out; };
+  const textNodes = el => { const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), out = []; for (let n; (n = w.nextNode());) if (n.nodeValue.length && !(n.parentElement && (n.parentElement.tagName === 'I' || n.parentElement.closest('.w')))) out.push(n); return out; };
   const selectNodes = async (nodes, onLine) => {
     const total = nodes.reduce((a, n) => a + n.nodeValue.length, 0), sel = getSelection();
     const caret = k => { let left = Math.round(k * total); for (const n of nodes) { if (left <= n.nodeValue.length) return [n, left]; left -= n.nodeValue.length; } const l = nodes[nodes.length - 1]; return [l, l.nodeValue.length]; };
@@ -139,19 +141,85 @@ function playerRuntime(DATA) {
     async clear(c) { const b = board(c.on); if (b) await scriptDraw(b, { clear: c.layer || true }); },
     async draw(d, layer) { const b = board(d.on); if (!b) return; await scriptDraw(b, { ...d, layer: d.layer || layer || 'draw' }, { html: t => DATA.math[t] || '', pace: 1, fast: fast() }); check(); },
     async formula(c) { await cues.draw({ on: c.on, layer: c.layer || 'formula', shapes: [{ t: 'formula', at: c.at, align: c.align, tex: c.tex, size: c.size }] }, 'formula'); },
-    async set(c) { const f = $('iframe', board(c.on)); if (f && fast()) await ready(f); try { if (f && f.contentWindow && f.contentWindow.__set) f.contentWindow.__set(c.name, c.value); } catch { /* the sketch's own error */ } await pause(300); },
+    async set(c) {
+      // as a person would: find the control in the code, go to it, then change it: a slider is pressed and dragged to its new place
+      const f = $('iframe', board(c.on)), w = widgets.find(x => x.sketch === c.on && x.spec.name === c.name);
+      if (f && fast()) await ready(f);
+      if (!w) { try { if (f && f.contentWindow && f.contentWindow.__set) f.contentWindow.__set(c.name, c.value); } catch { /* the sketch's own error */ } await pause(300); return; }
+      if (fast()) { drive(w, c.value); return; }
+      if (w.input.scrollIntoView) w.input.scrollIntoView({ block: 'center' });
+      await frame();
+      w.box.classList.add('live');
+      const r = w.input.getBoundingClientRect(), mid = r.top + r.height / 2;
+      if (w.spec.kind === 'range') {
+        const min = Number(w.input.min), max = Number(w.input.max), from = Number(w.input.value), to = Number(c.value);
+        const xOf = v => r.left + 7 + (r.width - 14) * ((v - min) / ((max - min) || 1));
+        await glide(xOf(from), mid); press('left', true); await click(); await pause(150);
+        const ms = Math.max(700, Math.min(1800, 500 + Math.abs(to - from) / ((max - min) || 1) * 1500)), t0 = performance.now();
+        await new Promise(res => { const step = now => { if (!run || run.aborted) return res(); const t = Math.min(1, (now - t0) / ms), v = from + (to - from) * ease(t); drive(w, v); place(xOf(v), mid); t < 1 ? requestAnimationFrame(step) : res(); }; requestAnimationFrame(step); });
+        drive(w, to); press('left', false);
+      } else {
+        await glide(r.left + r.width / 2, mid); press('left', true); await click(); drive(w, c.value); press('left', false);
+      }
+      w.box.classList.remove('live');
+      check();
+      await pause(300);
+    },
+    async point(p) {
+      const f = $('iframe', board(p.on)), el = f || board(p.on); if (!el) return;
+      const w = f && f.contentWindow, aspect = w ? w.innerWidth / w.innerHeight : 1;
+      const frac = ([x, y]) => (p.space && p.space.frame ? [0.5 + x / (p.space.frame * aspect), 0.5 - y / p.space.frame] : [x, y]);
+      if (fast()) return;
+      for (const spot of Array.isArray(p.at[0]) ? p.at : [p.at]) {
+        const r = el.getBoundingClientRect(), [fx, fy] = frac(spot);
+        await glide(r.left + fx * r.width, r.top + fy * r.height); await click(); await pause(p.dwell == null ? 700 : p.dwell);
+      }
+    },
     async key(k) { if (fast()) return; showKeys(k); await pause(500); },
     async wait(ms) { await pause(ms); }
   };
 
-  const speak = (uri) => new Promise(res => {
+  const speak = (uri, i) => new Promise(res => {
     if (!uri) return res(0);
     const a = new Audio(uri); run.audio = a;
+    a.onplaying = () => { const c = window.__ams.cues[i]; if (c && !c.audio) c.audio = Date.now(); };
     a.onended = () => res(1); a.onerror = () => res(0);
     a.play().catch(() => res(0));
   });
 
   const setSub = t => { sub.textContent = t || ''; sub.classList.toggle('on', Boolean(t)); };
+
+  // ---- the controls in the code: a widget before each value, as in the studio. It drives the sketch, and the script's `set` moves it too.
+  const widgets = [];
+  const decimals = st => (String(st).split('.')[1] || '').length;
+  const textOf = (spec, v) => (spec.kind === 'range' ? String(+(+v).toFixed(Math.min(6, decimals(spec.step)))) : spec.kind === 'toggle' ? String(Boolean(v)) : spec.q + v + spec.q);
+  const reflect = (w, v) => {
+    if (w.spec.kind === 'toggle') w.input.checked = Boolean(v); else w.input.value = v;
+    w.cv.textContent = textOf(w.spec, v);
+  };
+  /** Change a control: the widget, its value in the code, and the sketch. */
+  function drive(w, v) {
+    reflect(w, v);
+    const f = $('iframe', board(w.sketch)); try { f && f.contentWindow.__set(w.spec.name, v); } catch { /* the sketch's own error */ }
+  }
+  function showControl(sketch, name, value) { for (const w of widgets) if (w.sketch === sketch && w.spec.name === name) reflect(w, value); }
+  function decorateCode() {
+    for (const pane of document.querySelectorAll('.pane.code[data-controls]')) {
+      const specs = JSON.parse(pane.dataset.controls || '[]'), sketch = pane.dataset.sketch;
+      for (const el of pane.querySelectorAll('i.w')) {
+        const spec = specs.find(x => x.name === el.dataset.name), cv = el.nextElementSibling;
+        if (!spec || !cv || (spec.kind === 'color' && !/^#[0-9a-f]{6}$/i.test(spec.value))) continue;
+        let input;
+        if (spec.kind === 'select') { input = document.createElement('select'); for (const o of spec.options || []) { const op = document.createElement('option'); op.value = op.textContent = o; input.append(op); } }
+        else { input = document.createElement('input'); input.type = spec.kind === 'range' ? 'range' : spec.kind === 'toggle' ? 'checkbox' : 'color'; if (spec.kind === 'range') { input.min = spec.min; input.max = spec.max; input.step = spec.step || 'any'; } }
+        const w = { sketch, spec, input, cv, box: el }; widgets.push(w); el.append(input); reflect(w, spec.value);
+        input.addEventListener(spec.kind === 'select' || spec.kind === 'toggle' ? 'change' : 'input', () => {
+          drive(w, spec.kind === 'range' ? Number(input.value) : spec.kind === 'toggle' ? input.checked : input.value);
+        });
+      }
+    }
+  }
+  decorateCode();
 
   // ---- the timeline: where the script is, seeking, and notes ---------------------------------------------------------
   const KEY = 'ams-notes:' + DATA.id;
@@ -168,6 +236,7 @@ function playerRuntime(DATA) {
 
   // A fresh page for a run: nothing drawn, nothing selected, every sketch loaded again, so a run from any cue starts from the start.
   const reset = () => {
+    fadeEl.style.transitionDuration = '0ms'; fadeEl.classList.remove('on');
     document.querySelectorAll('.sc-over').forEach(o => o.remove());
     document.querySelectorAll('.ln.sel').forEach(l => l.classList.remove('sel'));
     document.querySelectorAll('li.sc-hl').forEach(l => l.classList.remove('sc-hl'));
@@ -175,6 +244,7 @@ function playerRuntime(DATA) {
     document.querySelectorAll('.pane .lines, .pane.markdown').forEach(e => { e.scrollTop = 0; });
     getSelection().removeAllRanges();
     for (const f of document.querySelectorAll('iframe[data-srcdoc]')) if (f.getAttribute('srcdoc') != null) { f.removeAttribute('srcdoc'); f.src = 'about:blank'; }
+    for (const w of widgets) reflect(w, w.spec.value);
     slide = -1;
   };
 
@@ -230,7 +300,8 @@ function playerRuntime(DATA) {
         const c = DATA.cues[i], t0 = performance.now();
         r.cue = i; r.cueStart = t0; r.pausedMs = 0; if (!r.aborted) want = i;
         setSub(c.say);
-        const spoken = speak(DATA.clips[i]); let done = false; spoken.then(() => { done = true; });
+        window.__ams.cues[i] = { start: Date.now(), audio: 0 };
+        const spoken = speak(DATA.clips[i], i); let done = false; spoken.then(() => { done = true; });
         if (c.goto) await cues.goto(c.goto);
         if (c.restart) await cues.restart(c.restart);
         if (c.drag) await cues.drag(c.drag);
@@ -240,12 +311,15 @@ function playerRuntime(DATA) {
         if (c.formula) await cues.formula(c.formula);
         if (c.select) await cues.select(c.select);
         if (c.set) await cues.set(c.set);
+        if (c.point) await cues.point(c.point);
         if (c.key) await cues.key(c.key);
         if (c.wait) await cues.wait(c.wait);
         if (DATA.clips[i]) { while (!done) { await sleep(40); await gate(); } await pause(250); }
         else { const least = Math.max(c.hold || 0, c.say ? 700 + c.say.length * 45 : 0) - (performance.now() - t0); if (least > 0) await pause(least); }
         if (DATA.clips[i] && c.hold) { const left = c.hold - (performance.now() - t0); if (left > 0) await pause(left); }
       }
+      if (DATA.fade) { window.__ams.fadeAt = Date.now(); setSub(''); fadeEl.style.transitionDuration = DATA.fade + 'ms'; fadeEl.classList.add('on'); await pause(DATA.fade + 500); }
+      window.__ams.endedAt = Date.now();
       completed = true;
     } catch (e) { if (e !== ABORT) console.error(e); }
     finish(r, completed);
@@ -254,6 +328,7 @@ function playerRuntime(DATA) {
   function finish(r, completed) {
     if (run !== r) return;
     if (r.audio) r.audio.pause();
+    fadeEl.style.transitionDuration = '0ms'; fadeEl.classList.remove('on');
     run = null; at = want = completed ? 0 : r.cue; setSub(''); press('left', false); cur.hidden = true; playBtn.hidden = false; playBtn.textContent = completed ? '↻ Play again' : '▶ Play';
     tl.setState('stopped'); tl.setPos(completed ? DATA.cues.length : r.cue, 0);
     for (const x of document.querySelectorAll('.pane.flash')) x.classList.remove('flash');
@@ -266,6 +341,27 @@ function playerRuntime(DATA) {
     tl.setState(run.paused ? 'paused' : 'playing');
   };
 
+  // MP4: when the page is served by the studio's dev server, it can be rendered there (scripts/render-video.mjs); the button follows the job.
+  const mp4 = $('.mp4');
+  if (mp4 && /^https?:/.test(location.protocol) && location.pathname.startsWith('/exports/')) {
+    fetch('/__render/ping').then(r => r.ok && r.json()).then(j => { if (j && j.ok) mp4.hidden = false; }).catch(() => {});
+    mp4.addEventListener('click', async () => {
+      if (mp4.classList.contains('busy') || mp4.classList.contains('done')) return;
+      mp4.classList.add('busy'); mp4.textContent = 'Rendering…';
+      try {
+        const start = await (await fetch('/__render/start', { method: 'POST', body: JSON.stringify({ page: location.pathname }) })).json();
+        if (!start.id) throw new Error(start.error || 'Could not start.');
+        for (;;) {
+          await sleep(1500);
+          const st = await (await fetch('/__render/status?id=' + start.id)).json();
+          if (st.stage === 'error') throw new Error(st.error);
+          if (st.stage === 'done') { mp4.classList.remove('busy'); mp4.classList.add('done'); mp4.textContent = '⤓ Save MP4 (' + Math.round(st.bytes / 1e6) + ' MB)'; mp4.href = st.url; mp4.setAttribute('download', st.url.split('/').pop()); return; }
+          mp4.textContent = st.stage === 'encode' ? 'Encoding…' : 'Rendering ' + (st.cue || 0) + ' / ' + (st.of || DATA.cues.length);
+        }
+      } catch (e) { mp4.classList.remove('busy'); mp4.textContent = 'MP4 failed: ' + e.message; setTimeout(() => { mp4.textContent = '⤓ MP4'; }, 6000); }
+    });
+  }
+
   playBtn.addEventListener('click', play);
   ccBtn.addEventListener('click', () => { document.body.classList.toggle('nocc'); ccBtn.classList.toggle('on'); });
   addEventListener('keydown', e => {
@@ -277,5 +373,7 @@ function playerRuntime(DATA) {
     else if (e.key === 'ArrowLeft') { e.preventDefault(); startAt(Math.max(0, want - 1)); }
     else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); if (run && !run.paused) togglePause(); tl.setPos(want, run && run.cue === want ? seconds(run) : 0); tl.addNote(); }
   });
+  // for the renderer: where each cue began, and its sound, on the clock the screen is captured on
+  window.__ams = { data: DATA, cues: [], fadeAt: 0, endedAt: 0, play: async () => { await startAt(0); await lastLoop; } };
   if (/[?&]autoplay\b/.test(location.search)) play();
 }

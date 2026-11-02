@@ -63,7 +63,7 @@ export async function openLesson(app, id, language = 'studio') {
     await app.scenes.switchTo(have.id);
     // Built by an earlier version of the lesson (without its newest board): keep it under another name and build the lesson as it is now.
     const { LESSON_NEWEST } = await import('./lessons.js');
-    if (LESSON_NEWEST[id] && !app.store.doc.boards.some(b => b.title === LESSON_NEWEST[id])) {
+    if (LESSON_NEWEST[id] && !app.store.doc.boards.some(b => { const [title, mark] = [].concat(LESSON_NEWEST[id]); return b.title === title && (!mark || String(b.code || '').includes(mark)); })) {
       app.scenes.rename(have.id, `${title} (older)`);
       await buildLesson(app, id, { language, expl: isExpl });
     }

@@ -17,3 +17,11 @@ it('writes 16-bit mono WAV of the right length and rate', () => {
   expect(wav.getUint32(40, true)).toBe(rate);           // half a second of 2-byte samples
   expect(wav.getInt16(44, true)).toBe(Math.floor(0.5 * 0x7fff));
 });
+
+import { pronounce, PRONUNCIATIONS } from '../src/workbench/narration.js';
+it('marks the words the voice would get wrong with their sounds, once', () => {
+  const said = pronounce('Reiniger cut it out of paper.');
+  expect(said).toBe(`[Reiniger](/${PRONUNCIATIONS.Reiniger}/) cut it out of paper.`);
+  expect(pronounce(said)).toBe(said);
+  expect(pronounce('Nothing special here.')).toBe('Nothing special here.');
+});

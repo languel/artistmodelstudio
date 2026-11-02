@@ -21,6 +21,15 @@ A script is data: `{ id, title, summary, lesson, cues: [...] }`. Cues run in ord
 Check the script before running it: every target must be a board the lesson builds. `test/explainer.test.js` does this for
 the threejs explainer; copy it for the next one.
 
+### The pacing of a step (lesson 1.3 is the pattern)
+
+Cause, then effect, then a pause: for each idea,
+1. open the notes (`click: { summary }`) and select the pseudocode line that says it (`select: { pseudo, line }`);
+2. select the code that does it (`select: { code, from, to }`);
+3. show what it does to the picture: change a control (`set`), move a hinge (`drag`), or ring the place that changes (`point`);
+4. stay on it (`wait`, `hold`: two seconds or more, for a human to see it) before the cut.
+Pointing only at the code is not enough: the picture has to move. `test/reinigerExplainer.test.js` checks that a cue that changes a control or drags is held long enough.
+
 ## 2. Prepare the lesson
 
 - Lessons that need a file (a model, a picture) list it in `LESSON.models` (fetched once into Assets, kind `model`, shown as a
@@ -34,6 +43,7 @@ the threejs explainer; copy it for the next one.
 - Recording: `app.script.play(id, { record: {} })` records this tab. The browser asks for the tab, so a person must click.
   This is the one step a local model cannot do unattended.
 - Export: `app.script.exportPage(id)` writes one HTML file that plays on its own, with narration as audio.
+- Video: `app.script.exportVideo(id)` (palette: “export as an MP4 video”) or the page's ⤓ MP4 button renders it with `scripts/render-video.mjs`: no tab to share, no click.
 
 ## 4. Check
 

@@ -98,11 +98,17 @@ const WHOLE = (add, { controls = '', patch = c => c } = {}) => patch(SRC.replace
 
 const BOARD = { w: 800, h: 600, ground: '#141414' };
 
+// The cover picture: the puppet of 1.4 walking through the set of 1.5, all of it drawn by this lesson's code (the whole program, with the walk on
+// and the hinge pins off). Nothing here is Reiniger's: a poster or a still of her film is not used (see RIGHTS.md).
+const COVER = SRC.replace(/^let joints = true/m, 'let joints = false').replace(/^let walk = 0 /m, 'let walk = 0.7 ');
+
 export const LESSON = {
   title: 'The silhouette film',
   subtitle: 'Paper, hinges, a lightbox and a camera: rebuild the method behind The Adventures of Prince Achmed.',
   idea: 'In 1926 Lotte Reiniger cut a feature film out of black paper: every figure a set of pieces joined at hinges, laid on a glass table lit from below, moved a little, photographed, moved again. Here the paper is a three.js shape, the hinge is a group, the lightbox is a glowing plane and the camera is a camera: the method, in a few hundred lines you can read.',
   main: 'route',
+  cover: { id: 'cover', title: 'The silhouette film · cover', ground: '#141414', three: COVER,
+    idea: 'The puppet of 1.4 walking through the set of 1.5: drawn by this lesson\'s code, from the first board to the last. Nothing of Reiniger\'s is copied.' },
   codePanel: true,
   folder: 'Lessons/Silhouette film',
   sections: [

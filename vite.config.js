@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 
 // Dev-only endpoint so probe/distill pages can write results to disk:
 // root "seeds" -> fixtures/seeds/<set>/, "distill" -> training/<set>/data/, "report" -> training/<set>/reports/.
@@ -40,6 +41,57 @@ function probeSavePlugin() {
             res.end(JSON.stringify({ ok: false, error: err.message }));
           }
         });
+      });
+    }
+  };
+}
+
+/**
+ * Dev-only: render an exported script page (exports/…/x.html) to an MP4 (exports/video/x.mp4) with scripts/render-video.mjs.
+ *   GET  /__render/ping               → { ok: true }
+ *   POST /__render/start { page }     → { id }        page: the page's path as the dev server serves it (/exports/player/x.html)
+ *   GET  /__render/status?id          → { stage: 'ready' | 'record' | 'encode' | 'done' | 'error', cue, of, url, bytes, error }
+ */
+function renderVideoPlugin() {
+  const jobs = new Map();
+  let seq = 0;
+  return {
+    name: 'ams-render-video',
+    apply: 'serve',
+    configureServer(server) {
+      const json = (res, code, body) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(body)); };
+      server.middlewares.use('/__render', (req, res) => {
+        const url = new URL(req.url, 'http://x');
+        if (url.pathname === '/ping') return json(res, 200, { ok: true });
+        if (url.pathname === '/status') { const j = jobs.get(url.searchParams.get('id')); return j ? json(res, 200, j) : json(res, 404, { stage: 'error', error: 'No such job.' }); }
+        if (url.pathname === '/start' && req.method === 'POST') {
+          let body = '';
+          req.on('data', c => { body += c; });
+          req.on('end', () => {
+            try {
+              const { page, width = 1920, height = 1080, fps = 30 } = JSON.parse(body || '{}');
+              const exportsDir = path.resolve('exports'), file = path.resolve(String(page || '').replace(/^\//, ''));
+              if (!file.startsWith(exportsDir + path.sep) || !file.endsWith('.html') || !fs.existsSync(file)) throw new Error('The page must be an exported .html under exports/.');
+              const name = path.basename(file, '.html'), out = path.join(exportsDir, 'video', `${name}.mp4`);
+              const id = String(++seq), job = { stage: 'starting' };
+              jobs.set(id, job);
+              const child = spawn(process.execPath, ['scripts/render-video.mjs', file, out, '--width', String(Number(width) || 1920), '--height', String(Number(height) || 1080), '--fps', String(Number(fps) || 30)], { cwd: process.cwd() });
+              let buf = '';
+              child.stdout.on('data', d => {
+                buf += d;
+                for (let i; (i = buf.indexOf('\n')) >= 0;) {
+                  const line = buf.slice(0, i); buf = buf.slice(i + 1);
+                  try { const m = JSON.parse(line); if (m.stage === 'warning') continue; Object.assign(job, m); if (m.stage === 'done') job.url = `/exports/video/${name}.mp4`; } catch { /* not a status line */ }
+                }
+              });
+              child.stderr.on('data', () => {});
+              child.on('close', code => { if (code && job.stage !== 'error') Object.assign(job, { stage: 'error', error: `The renderer stopped (${code}).` }); });
+              json(res, 200, { id });
+            } catch (err) { json(res, 400, { error: err.message }); }
+          });
+          return;
+        }
+        json(res, 404, { error: 'Unknown route.' });
       });
     }
   };
@@ -116,7 +168,7 @@ function amsRelayPlugin() {
 export default defineConfig({
   // GitHub Pages serves the site under /<repo>/ (the deploy workflow sets BASE_PATH); locally it is /.
   base: process.env.BASE_PATH || '/',
-  plugins: [probeSavePlugin(), amsRelayPlugin()],
+  plugins: [probeSavePlugin(), amsRelayPlugin(), renderVideoPlugin()],
   server: {
     port: 3000,
     // Files written to exports/ (pages, reports, sketches) are outputs: writing them must not reload the studio.

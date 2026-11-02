@@ -10,6 +10,19 @@ const get = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { ret
 const set = (k, v) => { try { localStorage.setItem(k, String(v)); } catch { /* ignore */ } };
 
 /** A short stable hash of the voice and the words (the clip's name in Assets). */
+/**
+ * How the voice says a word it would get wrong: its sounds, in the voice's own alphabet (IPA, with a ˈ before the stressed vowel).
+ * Reiniger is said RYE-nih-ger, with a hard g. In a line it is written `[Reiniger](/ɹˈaɪnɪɡɚ/)`; a word in this list is written so for you.
+ */
+export const PRONUNCIATIONS = { Reiniger: 'ɹˈaɪnɪɡɚ', Achmed: 'ˈɑːkmɛd' };
+const MARKED = /\[[^\]]+\]\(\/[^/]+\/\)/g;
+/** The line as the voice will read it: the words in PRONUNCIATIONS marked with their sounds (a word already marked is left as it is). */
+export function pronounce(text) {
+  const keep = []; const hidden = String(text).replace(MARKED, m => { keep.push(m); return `\u0000${keep.length - 1}\u0000`; });
+  const out = hidden.replace(new RegExp(`\\b(${Object.keys(PRONUNCIATIONS).join('|')})\\b`, 'g'), (w) => `[${w}](/${PRONUNCIATIONS[w]}/)`);
+  return out.replace(/\u0000(\d+)\u0000/g, (_, i) => keep[Number(i)]);
+}
+
 export function clipHash(model, voice, speed, text) {
   let h1 = 0x811c9dc5, h2 = 0x9747b28c;
   const s = `${model}|${voice}|${speed}|${text}`;
@@ -90,8 +103,8 @@ export class Narrator {
   }
 
   /** The clip for a line: from memory, from Assets, or made now. → { buffer, duration, hash } */
-  async clip(text, { voice = this.voice, speed = this.speed, folder = 'Narration', onProgress } = {}) {
-    const hash = clipHash(KOKORO, voice, speed, text), ctx = this.audio();
+  async clip(shown, { voice = this.voice, speed = this.speed, folder = 'Narration', onProgress } = {}) {
+    const text = pronounce(shown), hash = clipHash(KOKORO, voice, speed, text), ctx = this.audio();
     const mem = this.buffers.get(hash);
     if (mem && this.blobs.has(hash)) return { buffer: mem, duration: mem.duration, hash, blob: this.blobs.get(hash) };
     const known = await this.known(), id = known.get(hash);
@@ -109,7 +122,7 @@ export class Narrator {
     this.buffers.set(hash, buffer); this.blobs.set(hash, wav);
     wav.kindHint = 'audio'; wav.durationMs = Math.round(buffer.duration * 1000);   // (how the Assets list knows to draw an audio card)
     try {
-      const a = await this.app.assetStore.add(wav, { title: `Narration · ${text.slice(0, 48)}`, kind: 'audio', folder, tags: ['narration', 'kokoro', voice], meta: { narration: true, hash, text, voice, speed, model: KOKORO, duration: buffer.duration } });
+      const a = await this.app.assetStore.add(wav, { title: `Narration · ${shown.slice(0, 48)}`, kind: 'audio', folder, tags: ['narration', 'kokoro', voice], meta: { narration: true, hash, text, voice, speed, model: KOKORO, duration: buffer.duration } });
       known.set(hash, a.id);
     } catch { /* kept in memory only */ }
     return { buffer, duration: buffer.duration, hash, blob: wav };

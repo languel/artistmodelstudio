@@ -46,6 +46,7 @@
     "@types/p5": "^1.7.7",
     "@types/three": "^0.187.0",
     "happy-dom": "^21.0.4",
+    "puppeteer-core": "^25.16.0",
     "typescript": "^6.0.3",
     "vite": "^6.2.0",
     "vite-plugin-singlefile": "^2.3.3",

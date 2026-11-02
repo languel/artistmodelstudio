@@ -18,7 +18,7 @@ it('asks for a code panel in each slide: the notes above an editor, filling the 
   await buildLessonScene(app, { lesson: LESSON });
   const all = boardsOf(app.store.doc), codes = all.filter(b => b.kind === 'code');
   // every sketch, and the route diagram (studio code), has its code view
-  expect(codes.length).toBe(all.filter(b => b.kind === 'three').length + 1);
+  expect(codes.length).toBe(all.filter(b => b.kind === 'three').length + 1 - 1);   // (the cover's picture has no code panel: it is the fox of 1.4)
   for (const c of codes) {
     const target = all.find(b => b.id === c.of), notes = all.find(b => b.title === `${target.title} · notes`);
     expect(['three', undefined], c.title).toContain(target.kind);

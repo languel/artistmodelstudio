@@ -54,7 +54,8 @@ export async function sketchPage({ kind, title, code, ground, controls = false, 
  * version the studio runs: three.js by an import map (three and three/addons/), p5.js by a script tag. Small, readable, and it opens.
  * The control comments are only comments there; a line at the top says so.
  */
-export function modulePage({ kind, title, code, ground, version, p5Version }) {
+export function modulePage({ kind, title, code: source, ground, version, p5Version }) {
+  const code = relativeFiles(source);
   const inst = instrument(code);
   const bg = /^#[0-9a-f]{3,8}$/i.test(ground || '') ? ground : '#141414';
   const note = '<!-- Made in Artist Model Studio. A comment like /* 0..4 */ makes a slider in the studio; in another editor it is only a comment, and the sketch runs with the values as written. -->';
@@ -68,11 +69,22 @@ export function modulePage({ kind, title, code, ground, version, p5Version }) {
 }
 
 /**
+ * A sketch that reads a file by name (`window.__amsFiles?.['Fox.glb']`, which only the studio and its own pages define) for a page of
+ * another editor: the name becomes a path next to the file ('./Fox.glb'), and a comment at the top lists the files to put there.
+ */
+export function relativeFiles(code) {
+  const names = new Set();
+  const out = code.replace(/window\.__amsFiles\s*(?:\?\.)?\s*\[\s*(['"])([^'"\n]+)\1\s*\](?:\s*\?\?\s*(['"])[^'"\n]*\3)?/g, (_, q, name) => { names.add(name); return `'./${name}'`; });
+  return names.size ? `// Files this sketch loads: put ${[...names].join(', ')} next to this file.\n${out}` : code;
+}
+
+/**
  * A three.js sketch as an app.js for a page whose import map only names `three` (Codevre's "Three.js" template:
  * <script type="importmap">{"imports":{"three":"https://esm.sh/three@latest"}}</script> and <script type="module" src="./app.js">).
  * The addons are imported from esm.sh with `three` left bare (?external=three), so they share the page's one three.js.
  */
-export function appJsFor(code) {
+export function appJsFor(source) {
+  const code = relativeFiles(source);
   const swap = spec => {
     const addon = /^three\/(?:addons|examples\/jsm)\/(.+)$/.exec(spec);
     if (addon) return `https://esm.sh/three@latest/addons/${addon[1]}?external=three`;

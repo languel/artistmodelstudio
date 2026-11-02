@@ -192,26 +192,29 @@ tick = t => {
   pts.geometry.attributes.position.needsUpdate = pts.geometry.attributes.color.needsUpdate = true;
 };`) },
         { id: 'fox', title: '1.4 · A model that moves', w: 800, h: 600, ground: '#141414',
-          idea: 'A model is a file: the mesh, the skeleton and the clips that move its joints, in one **.glb**. The loader gives them back, and a mixer plays a clip by its name; switching clips cross-fades. This is the Fox from the glTF sample models: its model is CC0, its rig and clips are CC-BY (credits in the bibliography). A walk stands in for the dance until there is a dancer to load.',
+          idea: 'A model is a file: the mesh, the skeleton and the clips that move its joints, in one **.glb**. The loader gives them back, and a mixer plays the clips. Each clip has a **weight**, and the picture is their mix: `walk` at 1 is a walk, `run` at 1 is a run, and both on is something between. Move `survey`, `walk` and `run`. This is the Fox from the glTF sample models: its model is CC0, its rig and clips are CC-BY (credits in the bibliography). A walk stands in for the dance until there is a dancer to load.',
           pseudo: `load the file: mesh, skeleton, clips
 scale it to 1.2 m tall and stand it on the floor
-the mixer plays one clip; when the choice changes, cross-fade to it
-every frame: the mixer advances by the time that passed`,
+the mixer plays all the clips at once, each with a weight; the picture is their mix
+every frame: set the weights from the sliders, and the mixer advances by the time that passed`,
           three: sketch([BASE], `import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-let clip = 'Walk' /* Survey|Walk|Run */;
-let mixer = null, actions = {}, current = null, shown = clip, last = null;
+let survey = 0 /* 0..1 */;
+let walk = 1 /* 0..1 */;
+let run = 0 /* 0..1 */;
+let mixer = null, actions = {}, last = null;
 new GLTFLoader().load(window.__amsFiles?.['Fox.glb'], gltf => {
   const fox = gltf.scene; scene.add(fox);
   const box = new THREE.Box3().setFromObject(fox), k = 1.2 / (box.max.y - box.min.y);
   fox.scale.setScalar(k); fox.position.y = -new THREE.Box3().setFromObject(fox).min.y;
   mixer = new THREE.AnimationMixer(fox);
-  for (const a of gltf.animations) actions[a.name] = mixer.clipAction(a);
-  current = actions[clip] || Object.values(actions)[0]; current?.play();
+  for (const a of gltf.animations) actions[a.name] = mixer.clipAction(a).play();   // all of them play, together
 });
 tick = now => {
   if (!mixer) return;
   const dt = last === null ? 0 : now - last; last = now;
-  if (clip !== shown && actions[clip]) { const next = actions[clip]; next.reset().play(); current?.crossFadeTo(next, 0.4, false); current = next; shown = clip; }
+  actions.Survey?.setEffectiveWeight(survey);   // how much of each clip is in the picture
+  actions.Walk?.setEffectiveWeight(walk);
+  actions.Run?.setEffectiveWeight(run);
   mixer.update(dt);
 };`) },
       ]
@@ -360,3 +363,8 @@ tick = t => {
     ] }
   ]
 };
+
+// The cover's picture: the Fox of 1.4 as it is, walking (the lesson's own board, with the model it loads from Assets).
+const foxBoard = LESSON.sections.flatMap(s => s.boards).find(b => b.id === 'fox');
+LESSON.cover = { id: 'cover', title: 'Three.js for body and sound · cover', ground: '#141414', three: foxBoard.three,
+  idea: 'The Fox of 1.4, walking: a model loaded from a file, with its skeleton and its clips of movement. Credits in the bibliography.' };

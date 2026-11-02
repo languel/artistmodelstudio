@@ -5,6 +5,8 @@ import { SCRIPTS } from '../src/workbench/scripts.js';
 
 const boards = new Map();
 for (const s of LESSON.sections) for (const b of s.boards) boards.set(b.title, b);
+boards.set(LESSON.title, { title: LESSON.title });   // (the cover frame)
+boards.set(LESSON.cover.title, LESSON.cover);
 // What a board's code panel shows: a sketch's three, or the code of a document board.
 const codeOf = title => { const b = boards.get(title); return b ? (b.three ?? b.code ?? '') : null; };
 const plain = t => t.replace(/ · (code|notes)$/, '');
@@ -15,7 +17,7 @@ it('the film explainer is one of the scripts the studio offers', () => {
 
 it('every cue goes to a board the lesson builds', () => {
   for (const c of FILM_EXPLAINER.cues) {
-    for (const t of [c.goto, c.restart, c.select?.code && plain(c.select.code), c.select?.pseudo && plain(c.select.pseudo), c.formula?.on, c.set?.on].filter(Boolean)) {
+    for (const t of [c.goto, c.restart, c.select?.code && plain(c.select.code), c.select?.pseudo && plain(c.select.pseudo), c.formula?.on, c.set?.on, c.point?.on, c.drag?.on, c.click?.summary && plain(c.click.summary), c.draw?.on, c.clear?.on, c.restart].filter(Boolean)) {
       expect(boards.has(t), t).toBe(true);
     }
   }
@@ -34,6 +36,10 @@ it('every code selection has its anchors in that board\'s code, in order', () =>
 
 it('anchors avoid arrow functions, which the editor reformats (u => shows as (u) =>)', () => {
   for (const c of FILM_EXPLAINER.cues) for (const a of [c.select?.from, c.select?.to].filter(Boolean)) expect(a, a).not.toContain('=>');
+});
+
+it('the cues that show an effect do not run too fast: a control change, a drag or a point is held a while', () => {
+  for (const c of FILM_EXPLAINER.cues) if (c.set || c.drag) expect((c.wait || 0) + (c.hold || 0) + (c.drag?.ms || 0), c.say).toBeGreaterThanOrEqual(1500);
 });
 
 it('every pseudocode line selected exists in the board\'s notes', () => {

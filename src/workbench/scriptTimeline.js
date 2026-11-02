@@ -27,6 +27,7 @@ export function cueSeconds(c, clipSeconds = 0) {
   if (c.draw) acts += ((c.draw.shapes || []).length * (c.draw.step ?? 500)) / 1000 + 0.7;
   if (c.formula) acts += 0.9;
   if (c.set) acts += 0.3;
+  if (c.point) acts += (Array.isArray(c.point.at[0]) ? c.point.at.length : 1) * (1.0 + (c.point.dwell ?? 700) / 1000);
   if (c.key) acts += 0.5;
   if (c.wait) acts += c.wait / 1000;
   const voice = clipSeconds > 0 ? clipSeconds + 0.25 : c.say ? (700 + String(c.say).length * 45) / 1000 : 0;

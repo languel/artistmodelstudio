@@ -14,7 +14,8 @@
 import { h } from './ui.js';
 
 const PACE_KEY = 'ams_guide_pace';
-const ARROW = '<svg viewBox="0 0 28 34" width="22" height="27"><path d="M2 2v25l7-7 5 12 5-2-5-12h10L2 2z" fill="var(--wb-guide-fill)" stroke="var(--wb-guide-stroke)" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+// The pointer is the arrowhead of the direct-select tool (icons.js), as an outline, with a soft glow (the CSS).
+const ARROW = '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 3l14 8-6 1.5L10 19z" fill="var(--wb-guide-body)" stroke="var(--wb-guide-fill)" stroke-width="1.7" stroke-linejoin="round"/></svg>';
 
 export class Guide {
   constructor(app) {
@@ -45,7 +46,7 @@ export class Guide {
   get active() { return this.enabled && this.pace > 0; }
   wait(ms) { return new Promise(r => setTimeout(r, ms * this.pace)); }
 
-  place(x, y) { this.pos = { x, y }; this.cursor.style.transform = `translate(${x - 3}px, ${y - 2}px)`; }
+  place(x, y) { this.pos = { x, y }; this.cursor.style.transform = `translate(${x - 5}px, ${y - 3}px)`; }
 
   /** Resolve a semantic target to a screen rect. */
   rect(target) {

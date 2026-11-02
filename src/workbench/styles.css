@@ -259,10 +259,10 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-picker-status.warn::before { content: '● '; color: #b58d5a; }
 
 /* ---- guide (visible automation) ---- */
-:root { --wb-guide-fill: #f4f4f2; --wb-guide-stroke: #1c1c1c; }
-:root[data-theme="light"] { --wb-guide-fill: #1f1f1f; --wb-guide-stroke: #fafafa; }
+:root { --wb-guide-fill: #f4f4f2; --wb-guide-stroke: #1c1c1c; --wb-guide-body: rgba(20, 20, 20, 0.5); --wb-guide-glow: rgba(224, 160, 48, 0.8); }
+:root[data-theme="light"] { --wb-guide-fill: #1f1f1f; --wb-guide-stroke: #fafafa; --wb-guide-body: rgba(250, 250, 250, 0.6); }
 .wb-guide-layer { position: fixed; inset: 0; pointer-events: none; z-index: 90; }
-.wb-guide-cursor { position: absolute; left: 0; top: 0; transition: opacity .3s; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+.wb-guide-cursor { position: absolute; left: 0; top: 0; transition: opacity .3s; filter: drop-shadow(0 0 5px var(--wb-guide-glow)) drop-shadow(0 1px 1.5px rgba(0,0,0,.55)); }
 .wb-guide-halo { position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--wb-text); opacity: 0; }
 .wb-guide-halo.on { animation: wb-halo .5s ease-out; }
 @keyframes wb-halo { from { opacity: .8; transform-origin: center; scale: .4; } to { opacity: 0; scale: 1.5; } }
@@ -1068,11 +1068,11 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-sc-key { display: flex; gap: 4px; opacity: 0; transform: translateY(6px); transition: opacity 0.2s, transform 0.2s; }
 .wb-sc-key.on { opacity: 1; transform: none; }
 .wb-sc-key kbd { min-width: 30px; padding: 5px 9px; border-radius: 7px; background: rgba(245, 243, 238, 0.96); color: #1c1c1c; border: 1px solid #b9b5ab; border-bottom-width: 3px; font: 600 15px/1 system-ui, sans-serif; text-align: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
-.wb-sc-mouse { position: fixed; left: 0; top: 0; z-index: 92; pointer-events: none; opacity: 0; transition: opacity 0.15s; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)); }
+.wb-sc-mouse { position: fixed; left: 0; top: 0; z-index: 92; pointer-events: none; opacity: 0; transition: opacity 0.15s; filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 4px rgba(224, 160, 48, 0.35)); }
 .wb-sc-mouse.on { opacity: 1; }
 .wb-sc-mouse svg { display: block; }
-.wb-sc-mouse .sc-body { fill: rgba(245, 243, 238, 0.95); stroke: #1c1c1c; stroke-width: 1.4; }
-.wb-sc-mouse path { stroke: #1c1c1c; stroke-width: 1.2; fill: transparent; }
+.wb-sc-mouse .sc-body { fill: none; stroke: #f4f4f2; stroke-width: 1.6; }
+.wb-sc-mouse path { stroke: #f4f4f2; stroke-width: 1.5; fill: transparent; stroke-linejoin: round; }
 .wb-sc-mouse.left .sc-l { fill: #e0a030; }
 .wb-sc-mouse.right .sc-r { fill: #e0a030; }
 .wb-sc-bar { position: fixed; top: 48px; right: 14px; width: min(660px, 46vw); z-index: 96; opacity: 0.5; transition: opacity 0.2s; }
@@ -1081,6 +1081,8 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-sc-bar:hover { opacity: 1; }
 .wb-md .pseudo li.sc-hl { background: color-mix(in srgb, #e0a030 22%, transparent); border-radius: 3px; }
 .wb-sc-bar.rec { visibility: hidden; }
+.wb-sc-fade { position: fixed; z-index: 95; background: #000; opacity: 0; pointer-events: none; transition: opacity linear; }
+.wb-sc-fade.on { opacity: 1; }
 
 /* The blackboard of a script: diagrams and formulas drawn over a board (scriptDraw.js) */
 .sc-over { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: visible; }
