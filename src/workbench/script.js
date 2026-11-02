@@ -27,7 +27,8 @@ import { ScriptOverlay } from './scriptOverlay.js';
 import { h } from './ui.js';
 import { askConfirm } from './dialog.js';
 import { Capture, toVtt } from './scriptRecorder.js';
-import { playerPageHtml } from './playerPage.js';
+import { playerPageHtml, titlesOf } from './playerPage.js';
+import { timelineBar, estimateSpans, TIMELINE_CSS } from './scriptTimeline.js';
 import { scriptDraw } from './scriptDraw.js';
 import { mathHtml } from '../process/markdown.js';
 import { download } from './ui.js';
@@ -46,14 +47,18 @@ export class ScriptPlayer {
     // the overlay's mouse follows the guide's cursor
     const g = app.guide, place = g.place.bind(g);
     g.place = (x, y) => { place(x, y); this.overlay.follow(x, y); };
-    this.bar = h('div', { class: 'wb-sc-bar', hidden: true },
-      this.pauseBtn = h('button', { class: 'wb-icon-btn', title: 'Pause between cues (Space)', onclick: () => this.togglePause() }, '❚❚'),
-      h('button', { class: 'wb-icon-btn', title: 'Stop (Esc)', onclick: () => this.stop() }, '■'));
+    document.head.append(h('style', {}, TIMELINE_CSS));
+    this.bar = h('div', { class: 'wb-sc-bar', hidden: true });   // (the timeline goes in it while a script runs)
+    this.tl = null; this.chain = Promise.resolve();
     document.body.append(this.bar);
     addEventListener('keydown', e => {
-      if (!this.run) return;
+      if (!this.run || e.target.closest?.('.tl-add')) return;   // (a note being typed is the note's)
+      const typing = e.target.closest?.('input, textarea, select, .cm-editor, [contenteditable]');
       if (e.key === 'Escape') { e.preventDefault(); this.stop(); }
-      else if (e.key === ' ' && !e.target.closest?.('input, textarea, select, .cm-editor, [contenteditable]')) { e.preventDefault(); this.togglePause(); }
+      else if (typing) return;
+      else if (e.key === ' ') { e.preventDefault(); this.togglePause(); }
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); this.seek(Math.max(0, Math.min(this.run.script.cues.length - 1, this.run.cue + (e.key === 'ArrowRight' ? 1 : -1)))); }
+      else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); if (!this.run.paused) this.togglePause(); this.tl?.setPos(this.run.cue, this.elapsed()); this.tl?.addNote(); }
     }, true);
   }
 
@@ -69,30 +74,55 @@ export class ScriptPlayer {
 
   // ---- running -----------------------------------------------------------------------------------------------------------
   get pace() { return this.app.guide.pace; }
-  get fast() { return !this.app.guide.active || document.hidden; }
+  get fast() { return Boolean(this.run?.catchup) || !this.app.guide.active || document.hidden; }
   async pause(ms) { await this.gate(); if (this.fast) return; await new Promise(r => setTimeout(r, ms * this.pace)); this.check(); }
   check() { if (!this.run || this.run.aborted) throw ABORT; }
   async gate() { while (this.run?.paused && !this.run.aborted) await new Promise(r => setTimeout(r, 80)); this.check(); }
-  togglePause() { if (!this.run) return; this.run.paused = !this.run.paused; this.pauseBtn.textContent = this.run.paused ? '▶' : '❚❚'; this.pauseBtn.title = this.run.paused ? 'Go on (Space)' : 'Pause between cues (Space)'; }
+  togglePause() {
+    const r = this.run; if (!r) return;
+    if (r.paused) { r.pausedMs += performance.now() - r.pausedAt; r.paused = false; } else { r.paused = true; r.pausedAt = performance.now(); }
+    this.tl?.setState(r.paused ? 'paused' : 'playing');
+  }
+  /** Seconds into the cue that is playing (the time it was paused does not count). */
+  elapsed(r = this.run) { return r ? (performance.now() - r.cueStart - r.pausedMs - (r.paused ? performance.now() - r.pausedAt : 0)) / 1000 : 0; }
+  /** Wait for something that is not instant even when the script is: a board that is mounting, a sketch that is starting. */
+  async until(cond, ms = 3000) { const t0 = performance.now(); while (!cond() && performance.now() - t0 < ms) { await new Promise(r => setTimeout(r, 60)); this.check(); } }
 
   /** Play a script (by id or the object). Resolves when it ends or is stopped. */
-  async play(which, { narrate, record = null } = {}) {
+  async play(which, opts = {}) {
+    const prev = this.chain;
+    this.stop();
+    await prev;   // (the run before has let go of the page: nothing of it is left to see this run as its own)
+    const p = this.runScript(which, opts);
+    this.chain = p.catch(() => {});
+    return p;
+  }
+
+  /** Play from a cue: the cues before it are done at once, the narration already made is kept. */
+  seek(i) {
+    const m = this.memo; if (!m || !this.run || this.run.cap) return null;
+    return this.play(m.script, { clips: m.clips, from: i });
+  }
+
+  async runScript(which, { narrate, record = null, from = 0, clips = null } = {}) {
     const script = typeof which === 'string' ? this.scripts.get(which) : which;
     if (!script) throw new Error(`No script “${which}”`);
-    this.stop();
     // Recording: the browser asks for the tab first (it needs the click that started this), then the voice is prepared, then it records.
     let cap = null;
     if (record) {
       try { cap = await Capture.open({ stage: record.crop === false ? null : this.app.stageArea }); }
       catch (err) { this.app.log(`Recording: ${err.name === 'NotAllowedError' ? 'the tab was not shared' : err.message}`, 'error'); return null; }
     }
-    const g = this.app.guide, run = this.run = { script, aborted: false, paused: false, hl: [], clips: [], player: null, cap, timeline: [] };
-    this.bar.hidden = false; this.pauseBtn.textContent = '❚❚';
+    const g = this.app.guide, run = this.run = { script, aborted: false, paused: false, hl: [], clips: [], player: null, cap, timeline: [], cue: from, cueStart: performance.now(), pausedMs: 0, pausedAt: 0, catchup: false };
+    this.bar.hidden = false;
     g.card.hidden = true; g.cursor.style.opacity = '1';
     this.app.emit('script', 'start', script.id);
     try {
-      if (script.lesson) { const { openLesson } = await import('./walkthroughs.js'); await openLesson(this.app, script.lesson); await frameNext(); }
-      if (narrate ?? this.app.narrator?.on) await this.prepare(script, run);
+      if (script.lesson && !clips) { const { openLesson } = await import('./walkthroughs.js'); await openLesson(this.app, script.lesson); await frameNext(); }
+      if (clips) run.clips = clips;
+      else if (narrate ?? this.app.narrator?.on) await this.prepare(script, run);
+      this.memo = { script, clips: run.clips };
+      this.showTimeline(run);
       if (cap) {
         this.bar.classList.add('rec');
         this.overlay.bounds(cap.region);
@@ -100,7 +130,9 @@ export class ScriptPlayer {
         cap.start(run.clips.some(Boolean) ? this.app.narrator.stream.stream : null, record.format);
         await this.pause(500);
       }
-      for (let i = 0; i < script.cues.length; i++) { await this.gate(); await this.cue(script.cues[i], i); }
+      if (clips) await this.resetBoards(script);
+      if (from > 0) await this.catchUp(script, from);
+      for (let i = from; i < script.cues.length; i++) { await this.gate(); await this.cue(script.cues[i], i); }
       this.overlay.subtitle('');
       if (cap) await this.pause(700);
     } catch (err) {
@@ -195,12 +227,15 @@ export class ScriptPlayer {
     this.bar.hidden = true; this.bar.classList.remove('rec');
     this.overlay.bounds(null);
     run.cap?.close();
+    clearInterval(this.tick); this.tl?.destroy(); this.tl = null;
     const g = this.app.guide; g.cursor.style.opacity = '0';
     this.app.emit('script', 'end', run.script.id);
   }
 
   async cue(c, index) {
     const t0 = performance.now(), clip = this.run.clips[index];
+    Object.assign(this.run, { cue: index, cueStart: t0, pausedMs: 0 });
+    this.tl?.setPos(index, 0);
     this.app.emit('say', c.say || '', 'Script');
     this.overlay.subtitle(c.say || '');
     const start = this.run.cap ? this.run.cap.seconds() : 0;
@@ -229,21 +264,77 @@ export class ScriptPlayer {
     if (this.run.cap && c.say) this.run.timeline.push({ start, end: this.run.cap.seconds(), text: c.say });
   }
 
+
+  // ---- the timeline: where the script is, and getting to a cue ------------------------------------------------------------
+  notesKey(script) { return `ams-notes:${script.id}`; }
+  showTimeline(run) {
+    const { script } = run, { spans, total } = estimateSpans(script.cues, script.cues.map((c, i) => run.clips[i]?.duration || 0));
+    let notes = []; try { notes = JSON.parse(localStorage.getItem(this.notesKey(script)) || '[]'); } catch { /* none kept */ }
+    this.bar.replaceChildren();
+    this.tl = timelineBar(this.bar, {
+      title: script.title, cues: script.cues, spans, total, notes,
+      onSeek: i => this.seek(i), onToggle: () => this.togglePause(), onStop: () => this.stop(),
+      onNotes: n => { try { localStorage.setItem(this.notesKey(script), JSON.stringify(n)); } catch { /* the notes can still be copied out */ } }
+    });
+    this.tl.setState('playing'); this.tl.setPos(run.cue, 0);
+    this.tl.seekable(!run.cap);
+    this.bar.addEventListener('focusin', e => { if (e.target.tagName === 'INPUT' && this.run && !this.run.paused) this.togglePause(); });
+    clearInterval(this.tick);
+    this.tick = setInterval(() => { if (this.run === run && !run.catchup && this.tl && document.activeElement?.tagName !== 'INPUT') this.tl.setPos(run.cue, this.elapsed(run)); }, 100);   // (while a note is typed it keeps the moment it was started at)
+  }
+
+  /** The state the cues before `from` leave behind, made at once: the board it is on, the sketches set, what is drawn and selected. */
+  async catchUp(script, from) {
+    const run = this.run; run.catchup = true;
+    this.overlay.subtitle('');
+    try {
+      for (let j = 0; j < from; j++) {
+        await this.gate();
+        const c = script.cues[j];
+        if (c.goto) await this.goto(c.goto);
+        if (c.restart) await this.restart(c.restart);
+        if (c.drag) await this.drag(c.drag);
+        if (c.click) await this.click(c.click);
+        if (c.clear) await this.clearDraw(c.clear);
+        if (c.draw) await this.draw(c.draw);
+        if (c.formula) await this.formula(c.formula);
+        if (c.select) await this.select(c.select);
+        if (c.set) this.setControl(c.set);
+      }
+    } finally { run.catchup = false; }
+  }
+
+  /** Back to how the script found the boards it works on: sketches started again, nothing drawn or selected, folded notes folded. */
+  async resetBoards(script) {
+    this.clearHighlights();
+    const boards = titlesOf(script).map(t => this.board(t)).filter(Boolean);
+    document.querySelectorAll('.sc-over').forEach(o => o.remove());
+    for (const b of boards) {
+      const f = this.app.frames?.frames.get(b.id); if (!f) continue;
+      f.el?.querySelectorAll('details.md-callout[open]').forEach(d => d.removeAttribute('open'));
+      if (f.editor) f.editor.view.dispatch({ selection: { anchor: 0 } });
+      if (b.kind === 'three' || b.kind === 'p5') this.app.frames.restart(b.id);
+    }
+    getSelection()?.removeAllRanges();
+    this.app.canvas.invalidate();
+    await this.until(() => boards.every(b => { const f = this.app.frames?.frames.get(b.id); return !f || !(b.kind === 'three' || b.kind === 'p5') || (f.iframe?.contentWindow && f.running); }), 3000);
+  }
+
   // ---- cues --------------------------------------------------------------------------------------------------------------
   async goto(title) {
     const all = [{ ...this.app.store.doc.artboard, id: 'main', kind: undefined }, ...this.app.store.doc.boards];
     const b = all.find(x => x.title === title && x.kind === 'frame') || all.find(x => x.title === title);
     if (!b) throw new Error(`No board “${title}”`);
-    this.app.goToBoard(b.id, { animate: true });
+    this.app.goToBoard(b.id, { animate: !this.fast });
     await this.pause(1100);
-    for (let i = 0; i < 20 && !(this.frameEl(title)?.el?.isConnected); i++) await this.pause(100);   // (a board mounts as it comes into view)
+    await this.until(() => this.frameEl(title)?.el?.isConnected, 2000);   // (a board mounts as it comes into view)
   }
 
   async restart(title) {
     const b = this.board(title); if (!b) throw new Error(`No board “${title}”`);
     this.app.frames?.restart(b.id);
     this.app.canvas.invalidate();
-    for (let i = 0; i < 30; i++) { await this.pause(100); const f = this.app.frames?.frames.get(b.id); if (f?.iframe?.contentWindow && f.running) break; }
+    await this.until(() => { const f = this.app.frames?.frames.get(b.id); return f?.iframe?.contentWindow && f.running; }, 3000);
     await this.pause(700);
   }
 
@@ -271,6 +362,7 @@ export class ScriptPlayer {
   /** Drag on a sketch: the pointer reaches it as events, so it does what it does for a hand. */
   async drag(d) {
     const b = this.board(d.on); if (!b) throw new Error(`No board “${d.on}”`);
+    await this.until(() => this.app.frames?.frames.get(b.id)?.iframe?.contentWindow, 2000);
     const f = this.app.frames?.frames.get(b.id);
     if (!f?.iframe?.contentWindow) throw new Error(`“${d.on}” is not running`);
     const aspect = b.width / b.height;
@@ -419,6 +511,7 @@ export class ScriptPlayer {
 
   /** Show keys, and press them (the studio takes them as it takes a real key). */
   async key(chord, run = false) {
+    if (this.run?.catchup) return;
     this.overlay.key(chord);
     if (run) {
       const parts = String(chord).split('+').map(s => s.trim()), key = parts[parts.length - 1], mods = parts.slice(0, -1).map(s => s.toLowerCase());

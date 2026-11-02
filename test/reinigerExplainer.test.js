@@ -32,6 +32,10 @@ it('every code selection has its anchors in that board\'s code, in order', () =>
   }
 });
 
+it('anchors avoid arrow functions, which the editor reformats (u => shows as (u) =>)', () => {
+  for (const c of FILM_EXPLAINER.cues) for (const a of [c.select?.from, c.select?.to].filter(Boolean)) expect(a, a).not.toContain('=>');
+});
+
 it('every pseudocode line selected exists in the board\'s notes', () => {
   for (const c of FILM_EXPLAINER.cues) {
     if (!c.select?.pseudo) continue;

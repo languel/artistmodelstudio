@@ -1075,7 +1075,9 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-sc-mouse path { stroke: #1c1c1c; stroke-width: 1.2; fill: transparent; }
 .wb-sc-mouse.left .sc-l { fill: #e0a030; }
 .wb-sc-mouse.right .sc-r { fill: #e0a030; }
-.wb-sc-bar { position: fixed; top: 10px; right: 14px; z-index: 96; display: flex; gap: 4px; opacity: 0.35; transition: opacity 0.2s; }
+.wb-sc-bar { position: fixed; top: 48px; right: 14px; width: min(660px, 46vw); z-index: 96; opacity: 0.5; transition: opacity 0.2s; }
+.wb-sc-bar:focus-within { opacity: 1; }
+.wb-sc-bar .tl-panel { top: 44px; bottom: auto; }
 .wb-sc-bar:hover { opacity: 1; }
 .wb-md .pseudo li.sc-hl { background: color-mix(in srgb, #e0a030 22%, transparent); border-radius: 3px; }
 .wb-sc-bar.rec { visibility: hidden; }

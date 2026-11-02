@@ -42,6 +42,16 @@ the threejs explainer; copy it for the next one.
   `filesOf`, a glb that the thumbnailer tried to decode as an image, and a code anchor that did not match the sketch's text.
 - Play it to the end once with narration on, so the length of each cue is known.
 
+## 5. Review (the timeline)
+
+- Play the export (or the script in the studio) and use the bar at the bottom: a segment per cue, ← → to step, a click to play from a cue.
+- Press **N** where something should change and type it. The notes are pinned to a cue and a moment; the list's ⧉ copies them as Markdown
+  (`- 1:23 · cue 12 (“…”): note`), which is what to paste to the author of the next version.
+- Anchors in `select` must survive the studio's code formatting: `const ease =` and not `const ease = u =>` (the editor shows `(u) =>`).
+  `test/reinigerExplainer.test.js` rejects `=>` in an anchor.
+- A script that fails in the studio ends early and the recording stops where it failed (the `.vtt` ends at the last cue that finished);
+  compare its last time with the video's length.
+
 ## Known limits (first run)
 
 - **Size:** every three.js sketch in a page carries its own copy of the library (about 2.3 MB). The threejs explainer is

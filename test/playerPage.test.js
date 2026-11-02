@@ -43,6 +43,12 @@ it('makes a page with the slide, the script and a runtime that parses', async ()
   expect(data).toMatchObject({ id: 't', slides: [{ w: 1000, h: 600 }] });
   expect(data.where).toEqual({ 'Slide': 0, 'Slide · notes': 0, 'Slide · code': 0 });
   expect(data.cues).toHaveLength(4);
+  // the timeline: a segment's worth of length for each cue, running one after another
+  expect(data.spans).toHaveLength(4);
+  expect(data.spans[1].start).toBeCloseTo(data.spans[0].dur);
+  expect(data.total).toBeCloseTo(data.spans.reduce((a, x) => a + x.dur, 0));
+  expect(html).toContain('class="tlhost"');
+  expect(html).toContain('function timelineBar');
 });
 
 it('refuses a script whose slide is not in the scene, or that names boards outside it', async () => {
