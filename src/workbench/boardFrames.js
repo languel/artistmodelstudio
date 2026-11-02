@@ -25,6 +25,7 @@ import { mountPanel, controlSpecs } from './controlsPanel.js';
 import { createCodeEditor } from './codeEditor.js';
 import { runScript } from '../process/script.js';
 import { icon } from './icons.js';
+import { rangeOf } from '../process/stopmotion.js';
 // p5.js for sketches, bundled with the studio as plain text (no network needed; the package does not
 // export the file by name), loaded when a sketch first runs.
 const loadP5 = () => import('../../node_modules/p5/lib/p5.min.js?raw').then(m => m.default);
@@ -294,6 +295,13 @@ export class BoardFrames {
   /** Ask a board's frame to send its canvas as bitmaps (to an output); cb gets each one. */
   pipe(id, cb) { (this.pipes ||= new Map()).set(id, cb); const f = this.frames.get(id); if (f?.iframe) this.sendPipe(f); }
   unpipe(id) { const f = this.frames.get(id); this.pipes?.delete(id); if (f?.iframe) this.sendPipe(f); }
+  /** Watch a running sketch's canvas: a bitmap each frame, handed to `cb` (valid only during the call). Returns a function that stops. */
+  tap(id, cb) {
+    const f = this.frames.get(id); if (!f?.iframe) return null;
+    const set = ((this.taps ||= new Map()).get(id) || (this.taps.set(id, new Set()), this.taps.get(id)));
+    set.add(cb); this.sendPipe(f);
+    return () => { set.delete(cb); const g = this.frames.get(id); if (g?.iframe) this.sendPipe(g); };
+  }
   /** Start a board's sketch again with a fresh seed, so a window's twin and this one begin together and stay alike. */
   reseed(id) {
     this.seeds.set(id, Math.floor(Math.random() * 2 ** 32));
@@ -321,7 +329,7 @@ export class BoardFrames {
   holdKeys(id, on) { const f = this.frames.get(id); try { f?.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'holdkeys', on: Boolean(on) }, '*'); } catch { /* gone */ } }
   /** Tell a sketch whether to send its pointer and keys on (to the twin in an output window). */
   sendForward(f) { try { f.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'fwd', on: Boolean(this.app.outputs?.live(f.id)) }, '*'); } catch { /* gone */ } }
-  sendPipe(f) { try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'pipe', on: Boolean(this.pipes?.has(f.id)) }, '*'); } catch { /* gone */ } }
+  sendPipe(f) { try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'pipe', on: Boolean(this.pipes?.has(f.id) || this.taps?.get(f.id)?.size) }, '*'); } catch { /* gone */ } }
 
   release(id, f) {
     this.frames.delete(id);
@@ -555,12 +563,18 @@ export class BoardFrames {
       const ic = { shoot: g('<circle cx="12" cy="12" r="6.5"/>'), first: g('<path d="M6 5h2v14H6zM18 5v14l-9-7z"/>'), prev: g('<path d="M17 5v14l-9-7z"/>'), next: g('<path d="M7 5v14l9-7z"/>'), live: g('<path d="M7 5v14l9-7zM17 5h2v14h-2z"/>'),
         play: g('<path d="M8 5l11 7-11 7z"/>'), stop: g('<path d="M7 6h10v12H7z"/>'), del: g('<path d="M6 7h12M9 7V5h6v2M8 7l1 12h6l1-12"/>').replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"'),
         onion: g('<circle cx="9.5" cy="12" r="5.5" fill-opacity=".9"/><circle cx="14.5" cy="12" r="5.5" fill-opacity=".45"/>'), loop: g('<path d="M17 3l3 3-3 3M4 11V9a3 3 0 013-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 01-3 3H4"/>').replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.8"'),
-        save: g('<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>').replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.8"') };
+        save: g('<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>').replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.8"'),
+        rec: g('<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4.2"/>'), stopRec: g('<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 9h6v6H9z"/>'),
+        mIn: g('<path d="M15 5H9v14h6M9 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'), mOut: g('<path d="M9 5h6v14H9M15 12H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'),
+        trim: g('<path d="M6 4v16M18 4v16M6 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 9l-3 3 3 3M15 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'), clear: g('<path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>') };
       f.icons = ic;
       f.el.innerHTML = `<div class="wb-sm">
         <div class="sm-view"><canvas></canvas><span class="sm-badge"></span><span class="sm-err"></span></div>
         <div class="sm-bar">
           <button data-a="shoot" class="shoot" title="Take a frame (Alt+Enter, from any board it photographs)">${ic.shoot}</button>
+          <button data-a="rec" class="rec" title="Record: arm it, then press play on the source; it starts when the source moves and stops when you press this again (Alt+R)">${ic.rec}</button>
+          <select data-a="recmode" title="What recording keeps: a frame every 1/fps, or only the frames where the source changed (at most fps a second; it ends when nothing moves for two seconds)"><option value="rate">at fps</option><option value="change">on change</option></select>
+          <label title="How much of the picture has to change (percent) for a recording to start, and for a frame to count as new in “on change”">Δ <input data-a="change" type="number" min="0.1" max="100" step="0.1"></label>
           <button data-a="first" title="First frame">${ic.first}</button><button data-a="prev" title="Back a frame (Alt+Shift+←)">${ic.prev}</button>
           <button data-a="next" title="Forward a frame (Alt+Shift+→)">${ic.next}</button><button data-a="live" title="Back to the live view">${ic.live}</button>
           <button data-a="play" title="Play the frames at the fps (and stop)">${ic.play}</button>
@@ -572,9 +586,25 @@ export class BoardFrames {
           <select data-a="source" title="The board it photographs"></select>
           <button data-a="save" title="Keep the film: in Assets or as a file, as WebM, MP4 or GIF">${ic.save}</button>
         </div>
+        <div class="sm-tl">
+          <button data-a="in" title="Start the film here: the frame shown (Alt+I)">${ic.mIn}</button><button data-a="out" title="End the film here: the frame shown (Alt+O)">${ic.mOut}</button>
+          <div class="sm-rail" title="Scrub the frames; drag the ends of the range to set where the film starts and ends"><div class="sm-span"></div><div class="sm-knob"></div><div class="sm-h sm-hin" data-h="in"></div><div class="sm-h sm-hout" data-h="out"></div></div>
+          <button data-a="trim" title="Trim: keep only the frames in the range (the pictures stay in Assets; Cmd+Z brings the list back)">${ic.trim}</button><button data-a="range" title="Use all the frames again (clear the range)">${ic.clear}</button>
+        </div>
         <div class="sm-strip"></div>
       </div>`;
-      f.sm = { view: f.el.querySelector('canvas'), badge: f.el.querySelector('.sm-badge'), err: f.el.querySelector('.sm-err'), strip: f.el.querySelector('.sm-strip'), bar: f.el.querySelector('.sm-bar') };
+      f.sm = { view: f.el.querySelector('canvas'), badge: f.el.querySelector('.sm-badge'), err: f.el.querySelector('.sm-err'), strip: f.el.querySelector('.sm-strip'), bar: f.el.querySelector('.sm-bar'), rail: f.el.querySelector('.sm-rail') };
+      // the timeline: press on the rail to scrub; drag the end markers to set the range (pointer events on the window, so the drag follows the pointer out of the rail)
+      f.sm.rail.addEventListener('pointerdown', e => {
+        const cur = boardById(this.app.store.doc, b.id), spec = cur && SM.spec(cur).sm; if (!spec?.frames.length) return;
+        e.preventDefault(); e.stopPropagation();
+        const handle = e.target.closest?.('.sm-h')?.dataset.h || '', rail = f.sm.rail;
+        const at = ev => { const r = rail.getBoundingClientRect(), n = spec.frames.length; return Math.max(0, Math.min(n - 1, Math.round(Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)) * (n - 1)))); };
+        const apply = ev => { if (handle) SM.mark(b.id, handle, at(ev)); else { SM.stop(b.id, false); SM.go(b.id, at(ev)); } };
+        apply(e);
+        const move = ev => apply(ev), up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); };
+        addEventListener('pointermove', move); addEventListener('pointerup', up);
+      });
       f.el.addEventListener('click', e => {
         const t = e.target.closest('button,.sm-th'); if (!t) return;
         const cur = boardById(this.app.store.doc, b.id), now = cur && SM.spec(cur).sm;
@@ -590,6 +620,10 @@ export class BoardFrames {
         else if (a === 'onion') SM.edit(b.id, m => { m.onion = m.onion > 0 ? 0 : 0.35; });
         else if (a === 'loop') SM.edit(b.id, m => { m.loop = !m.loop; });
         else if (a === 'save') { const r = t.getBoundingClientRect(); this.app.stopmotionSaveMenu(b.id, r.left, r.bottom); }
+        else if (a === 'rec') SM.record(b.id);
+        else if (a === 'in' || a === 'out') SM.mark(b.id, a);
+        else if (a === 'trim') SM.trim(b.id);
+        else if (a === 'range') SM.clearRange(b.id);
         void now;
       });
       f.el.addEventListener('change', e => {
@@ -597,19 +631,32 @@ export class BoardFrames {
         if (a === 'fps') SM.edit(b.id, m => { m.fps = Math.min(60, Math.max(1, Number(e.target.value) || 8)); });
         else if (a === 'hold') SM.edit(b.id, m => { m.hold = Math.min(12, Math.max(1, Math.round(Number(e.target.value)) || 1)); });
         else if (a === 'source') SM.edit(b.id, m => { m.source = e.target.value; });
+        else if (a === 'recmode') SM.edit(b.id, m => { m.record = e.target.value === 'change' ? 'change' : 'rate'; });
+        else if (a === 'change') SM.edit(b.id, m => { m.change = Math.min(100, Math.max(0.1, Number(e.target.value) || 1)); });
       });
       f.el.addEventListener('keydown', e => e.stopPropagation());   // typing in its fields is not a studio shortcut
       // the live view: the source's picture a few times a second while this board is shown and not playing
       f.liveTimer = setInterval(async () => {
         const st = SM.state(b.id);
-        if (st.playing || st.busy || st.at != null || !f.el.isConnected || f.el.style.opacity === '0') return;
+        if (st.playing || st.busy || st.rec || st.saving || st.at != null || !f.el.isConnected || f.el.style.opacity === '0') return;
         await SM.look(b.id).catch(() => null);
         this.drawStopmotion(f, b.id);
       }, 300);
     }
     // the controls show the spec
     const bar = f.sm.bar, set = (a, v) => { const el = bar.querySelector(`[data-a="${a}"]`); if (el && document.activeElement !== el) el.value = v; };
-    if (sm) { set('fps', sm.fps); set('hold', sm.hold); }
+    if (sm) { set('fps', sm.fps); set('hold', sm.hold); set('change', sm.change); set('recmode', sm.record); }
+    const recBtn = bar.querySelector('[data-a="rec"]');
+    if (recBtn) { recBtn.innerHTML = s.rec ? f.icons.stopRec : f.icons.rec; recBtn.classList.toggle('armed', s.rec?.phase === 'armed'); recBtn.classList.toggle('going', s.rec?.phase === 'recording'); }
+    // the timeline: the range, the frame shown
+    if (f.sm.rail) {
+      const n = sm?.frames.length || 0, [lo, hi] = sm ? rangeOf(sm) : [0, -1], pos = i => (n > 1 ? (i / (n - 1)) * 100 : 0);
+      const rail = f.sm.rail, q = c => rail.querySelector(c);
+      rail.classList.toggle('empty', n < 1);
+      q('.sm-span').style.left = `${pos(lo)}%`; q('.sm-span').style.width = `${Math.max(0, pos(hi) - pos(lo))}%`;
+      q('.sm-hin').style.left = `${pos(lo)}%`; q('.sm-hout').style.left = `${pos(hi)}%`;
+      const knob = q('.sm-knob'); knob.style.display = s.at == null || !n ? 'none' : ''; knob.style.left = `${pos(s.at ?? 0)}%`;
+    }
     const sel = bar.querySelector('[data-a="source"]');
     const cands = boardsOf(doc).filter(x => x.id !== b.id && x.kind !== 'frame' && x.kind !== 'stopmotion' && x.kind !== 'playlist' && x.kind !== 'code');
     const sig = JSON.stringify([cands.map(x => [x.id, x.title]), src?.id]);
@@ -619,14 +666,15 @@ export class BoardFrames {
     const play = bar.querySelector('[data-a="play"]'); if (play) play.innerHTML = s.playing ? f.icons.stop : f.icons.play;
     f.sm.err.textContent = error || '';
     // the strip of frames (rebuilt when the list changes)
-    const key = JSON.stringify(sm?.frames || []);
+    const key = JSON.stringify(sm?.frames || []);   // (the strip is rebuilt only when the list changes; the range only dims the thumbnails)
     if (f.smFrames !== key) {
       f.smFrames = key;
       f.sm.strip.innerHTML = (sm?.frames || []).map((a, i) => `<img class="sm-th" data-i="${i}" alt="" draggable="false">`).join('');
       (sm?.frames || []).forEach((a, i) => SM.url(b.id, a).then(u => { const im = f.sm.strip.children[i]; if (im && u) im.src = u; }));
       if (sm?.frames.length) f.sm.strip.scrollLeft = f.sm.strip.scrollWidth;
     }
-    [...f.sm.strip.children].forEach((im, i) => im.classList.toggle('on', i === (s.at ?? -1)));
+    const [rlo, rhi] = sm ? rangeOf(sm) : [0, -1];
+    [...f.sm.strip.children].forEach((im, i) => { im.classList.toggle('on', i === (s.at ?? -1)); im.classList.toggle('cut', i < rlo || i > rhi); });
     this.drawStopmotion(f, b.id);
   }
 
@@ -643,8 +691,12 @@ export class BoardFrames {
       g.globalAlpha = alpha; g.drawImage(img, (W - w * k) / 2, (H - h * k) / 2, w * k, h * k); g.globalAlpha = 1;
     };
     const frames = sm?.frames || [];
+    const [rlo, rhi] = sm ? rangeOf(sm) : [0, -1], inRange = Math.max(0, rhi - rlo + 1);
     let label = '';
-    if (s.at != null && frames[s.at]) {
+    if (s.rec || s.saving) {
+      if (s.live) fit(s.live);
+      label = s.saving ? 'saving the recording…' : s.rec.phase === 'armed' ? '● armed · waiting for the source to move' : `● rec · ${s.rec.count} frame${s.rec.count === 1 ? '' : 's'}`;
+    } else if (s.at != null && frames[s.at]) {
       const img = await SM.image(id, frames[s.at]); if (img) fit(img);
       label = `${s.at + 1} / ${frames.length}`;
     } else {
@@ -653,7 +705,7 @@ export class BoardFrames {
       if (last && sm.onion > 0) { const img = await SM.image(id, last); if (img && s.live) fit(img, sm.onion); }
       label = `live · ${frames.length} frame${frames.length === 1 ? '' : 's'}`;
     }
-    if (f.sm.badge) f.sm.badge.textContent = `${label} · ${((frames.length) / (sm?.fps || 8)).toFixed(1)} s`;
+    if (f.sm.badge) f.sm.badge.textContent = `${label} · ${(inRange / (sm?.fps || 8)).toFixed(1)} s${inRange < frames.length ? ` (of ${(frames.length / (sm?.fps || 8)).toFixed(1)})` : ''}`;
   }
 
   /** A player's controls, built once and updated with each redraw (a new frame of its source redraws the canvas). */
@@ -766,7 +818,12 @@ export class BoardFrames {
     // A key the studio keeps for itself, pressed while the sketch had the focus: the studio gets it too.
     if (d.type === 'present?') { try { e.source?.postMessage({ amsFrame: d.amsFrame, type: 'present', on: Boolean(this.app.presenting) }, '*'); } catch { /* gone */ } return; }
     if (d.type === 'hotkey' && d.ev) { document.body.dispatchEvent(new KeyboardEvent('keydown', { ...d.ev, bubbles: true, cancelable: true })); return; }
-    if (d.type === 'pipe') { const cb = this.pipes?.get(id); if (cb && d.bitmap) cb(d.bitmap); else d.bitmap?.close?.(); return; }
+    if (d.type === 'pipe') {
+      const cb = this.pipes?.get(id), taps = this.taps?.get(id);
+      if (taps?.size && d.bitmap) for (const t of taps) { try { t(d.bitmap); } catch { /* a tap's own error */ } }
+      if (cb && d.bitmap) cb(d.bitmap); else d.bitmap?.close?.();
+      return;
+    }
     if (d.type === 'snapshot') { if (d.url) { this.snapshots.set(id, d.url); if (f?.still) f.still.innerHTML = `<img src="${d.url}" alt="">`; } for (const w of this.shotWaiters?.get(id) || []) w(d.url || null); this.shotWaiters?.delete(id); return; }
     if (d.type === 'error') { this.app.log(`Board “${boardsOf(this.app.store.doc).find(b => b.id === id)?.title || '?'}”: ${d.message}${d.line ? ` (line ${d.line})` : ''}`, 'error'); if (f) (f.errors ||= []).push(d); this.app.emit('frame-error', id, d); return; }
     if (d.type === 'call') {

@@ -5,10 +5,22 @@
  * or downloaded as WebM, MP4 or GIF.
  */
 import { boardsOf, boardById, boardKind, MAIN } from '../process/boards.js';
-import { readStopmotion, writeStopmotion } from '../process/stopmotion.js';
+import { readStopmotion, writeStopmotion, rangeOf, changedPercent } from '../process/stopmotion.js';
 import { encodeGif } from '../export/gif.js';
 import { download } from './ui.js';
 
+const MAX_FRAMES = 1500;                       // a recording stops here
+const IDLE_MS = 2000;                          // on change: a recording ends when nothing has moved for this long
+const SIG = 64;                                // a picture is compared as a SIG × SIG grey thumbnail
+let probe = null;
+/** A picture as a small grey thumbnail (to tell whether the source moved). */
+function signature(img) {
+  if (!probe) { probe = document.createElement('canvas'); probe.width = probe.height = SIG; probe.g = probe.getContext('2d', { willReadFrequently: true }); }
+  probe.g.drawImage(img, 0, 0, SIG, SIG);
+  const px = probe.g.getImageData(0, 0, SIG, SIG).data, out = new Uint8Array(SIG * SIG);
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) out[j] = (px[i] * 77 + px[i + 1] * 150 + px[i + 2] * 29) >> 8;
+  return out;
+}
 const slug = s => String(s || 'stop-motion').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'stop-motion';
 
 export class StopMotion {
@@ -76,7 +88,7 @@ export class StopMotion {
   // ---- shooting --------------------------------------------------------------------------------------------------------
   async shoot(id) {
     const s = this.state(id);
-    if (s.busy) return;
+    if (s.busy || s.rec) return;
     const b = boardById(this.app.store.doc, id); if (!b) return;
     const { sm, error } = this.spec(b);
     if (!sm) { this.app.log(`Stop motion: ${error}`, 'error'); return; }
@@ -107,7 +119,10 @@ export class StopMotion {
     this.edit(id, m => {                                     // (a shot held for several exposures goes whole)
       let i = at; while (i > 0 && m.frames[i - 1] === asset) i--;
       let j = at; while (j < m.frames.length - 1 && m.frames[j + 1] === asset) j++;
-      m.frames.splice(i, j - i + 1);
+      const c = j - i + 1;
+      m.frames.splice(i, c);
+      if (m.in > j) m.in -= c; else if (m.in >= i) m.in = i;                     // (the range follows the frames)
+      if (m.out != null) { if (m.out > j) m.out -= c; else if (m.out >= i) m.out = Math.max(0, i - 1); }
     });
     const left = this.spec(boardById(this.app.store.doc, id)).sm?.frames || [];
     if (!left.includes(asset)) { try { await this.app.assetStore.remove(asset); } catch { /* gone */ } s.images.delete(asset); }
@@ -140,12 +155,14 @@ export class StopMotion {
     const s = this.state(id);
     clearTimeout(s.timer);
     s.playing = true;
-    if (s.at == null || s.at >= sm.frames.length - 1) s.at = 0;
+    const [lo0, hi0] = rangeOf(sm);
+    if (s.at == null || s.at < lo0 || s.at >= hi0) s.at = lo0;
     const tick = () => {
       const cur = boardById(this.app.store.doc, id), spec = cur && this.spec(cur).sm;
       if (!spec || !s.playing) return;
+      const [lo, hi] = rangeOf(spec);
       s.at += 1;
-      if (s.at >= spec.frames.length) { if (spec.loop) s.at = 0; else { s.at = spec.frames.length - 1; s.playing = false; this.app.canvas.invalidate(); return; } }
+      if (s.at > hi || s.at < lo) { if (spec.loop) s.at = lo; else { s.at = hi; s.playing = false; this.app.canvas.invalidate(); return; } }
       this.app.canvas.invalidate();
       s.timer = setTimeout(tick, 1000 / spec.fps);
     };
@@ -155,13 +172,124 @@ export class StopMotion {
 
   stop(id, redraw = true) { const s = this.state(id); clearTimeout(s.timer); s.playing = false; if (redraw) this.app.canvas.invalidate(); }
 
+  // ---- range and trim ----------------------------------------------------------------------------------------------------
+  /** Set where the film starts ('in') or ends ('out') to a frame (the one shown, when none is given). */
+  mark(id, which, at = null) {
+    const b = boardById(this.app.store.doc, id); if (!b) return;
+    const { sm } = this.spec(b); if (!sm || !sm.frames.length) return;
+    const s = this.state(id), n = sm.frames.length;
+    const i = Math.max(0, Math.min(n - 1, at ?? (s.at == null ? n - 1 : s.at)));
+    this.edit(id, m => {
+      const [lo, hi] = rangeOf(m);
+      if (which === 'in') { m.in = Math.min(i, hi); } else { m.out = Math.max(i, lo); if (m.out >= n - 1) m.out = null; }
+    });
+    this.app.canvas.invalidate();
+  }
+
+  clearRange(id) { this.edit(id, m => { m.in = 0; m.out = null; }); this.app.canvas.invalidate(); }
+
+  /** Keep only the frames in the range. The pictures stay in Assets (Cmd+Z brings the list back). */
+  trim(id) {
+    const b = boardById(this.app.store.doc, id); if (!b) return;
+    const { sm } = this.spec(b); if (!sm) return;
+    const [lo, hi] = rangeOf(sm);
+    if (lo === 0 && hi === sm.frames.length - 1) { this.app.log('Stop motion: the range is all of the frames; set an in or an out first (the bracket buttons).'); return; }
+    this.stop(id, false);
+    this.edit(id, m => { m.frames = m.frames.slice(lo, hi + 1); m.in = 0; m.out = null; });
+    const s = this.state(id); s.at = null;
+    this.app.log(`Trimmed to ${hi - lo + 1} frames. The others are still in Assets (Stop motion/${b.title}).`);
+    this.app.canvas.invalidate();
+  }
+
+  // ---- recording -------------------------------------------------------------------------------------------------------
+  /** The record button: arm (it waits for the source to move, then records), and stop. */
+  record(id) {
+    const s = this.state(id);
+    if (s.rec) { this.endRecording(id); return; }
+    if (s.busy || s.saving) return;
+    const b = boardById(this.app.store.doc, id); if (!b) return;
+    const { sm, error } = this.spec(b);
+    if (!sm) { this.app.log(`Stop motion: ${error}`, 'error'); return; }
+    const src = this.sourceOf(sm);
+    if (!src || src.id === id) { this.app.log('Stop motion: choose the board to record (the menu on the board, or `source:` in its code).', 'error'); return; }
+    this.stop(id, false);
+    s.at = null;
+    const rec = s.rec = { phase: 'armed', sm, srcId: src.id, base: null, last: null, count: 0, pending: [], due: 0, lastKeep: 0, ended: false, timer: 0, off: null, canvas: document.createElement('canvas') };
+    const gap = 1000 / sm.fps;
+    // one picture of the source: decide whether it starts the recording, and whether it is kept
+    const sample = img => {
+      if (rec.ended) return;
+      const sig = signature(img), now = performance.now();
+      if (rec.phase === 'armed') {
+        if (!rec.base) { rec.base = sig; return; }
+        if (changedPercent(rec.base, sig) < sm.change) return;
+        rec.phase = 'recording'; rec.due = now; this.app.canvas.invalidate();
+      }
+      if (sm.record === 'change' && rec.count && now - rec.lastKeep > IDLE_MS) { this.endRecording(id, 'nothing moved'); return; }
+      if (now < rec.due) return;
+      if (sm.record === 'change' && rec.last && changedPercent(rec.last, sig) < sm.change) return;
+      const w = img.width, h = img.height, c = rec.canvas;
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      c.getContext('2d').drawImage(img, 0, 0);
+      rec.pending.push(new Promise(ok => c.toBlob(ok, 'image/webp', 0.9)));   // (the canvas is copied at this call, so it can be drawn on again at once)
+      rec.last = sig; rec.lastKeep = now; rec.count++;
+      rec.due = sm.record === 'change' ? now + gap : (now - rec.due > gap ? now + gap : rec.due + gap);
+      s.live = c;
+      this.app.canvas.invalidate();
+      if (rec.count >= MAX_FRAMES) this.endRecording(id, `${MAX_FRAMES} frames is the most in one recording`);
+    };
+    // (on change, a source that is paused sends no pictures at all, so the quiet is timed apart from them)
+    rec.idle = setInterval(() => { if (sm.record === 'change' && rec.count && performance.now() - rec.lastKeep > IDLE_MS) this.endRecording(id, 'nothing moved'); }, 400);
+    const kind = boardKind(src);
+    rec.off = (kind === 'p5' || kind === 'three') ? this.app.frames?.tap(src.id, sample) : null;
+    if (!rec.off) {                                   // a drawing, a page, a sketch not running: its picture, asked for twice a frame
+      const every = Math.max(16, 500 / sm.fps);
+      const loop = async () => {
+        if (rec.ended) return;
+        const t0 = performance.now();
+        try { const c = await this.app.boardOutput(src.id); if (c) sample(c); } catch { /* try again */ }
+        if (!rec.ended) rec.timer = setTimeout(loop, Math.max(0, every - (performance.now() - t0)));
+      };
+      loop();
+    }
+    this.app.log(`Stop motion: armed. Press play on “${src.title}”; recording starts when it moves${sm.record === 'change' ? ' and keeps what changes' : ` at ${sm.fps} frames a second`}.`);
+    this.app.canvas.invalidate();
+  }
+
+  /** Stop recording and keep what was seen: the pictures become Assets and join the frames. */
+  async endRecording(id, why = '') {
+    const s = this.state(id), rec = s.rec;
+    if (!rec || rec.ended) return;
+    rec.ended = true; rec.off?.(); clearTimeout(rec.timer); clearInterval(rec.idle);
+    s.rec = null;
+    if (!rec.pending.length) { this.app.log('Stop motion: nothing was recorded.'); this.app.canvas.invalidate(); return; }
+    s.saving = true; this.app.canvas.invalidate();
+    try {
+      const b = boardById(this.app.store.doc, id), sm = b && this.spec(b).sm;
+      if (!sm) throw new Error('the board is gone');
+      const blobs = await Promise.all(rec.pending), ids = [], n0 = sm.frames.length;
+      const src = this.sourceOf(sm);
+      for (let i = 0; i < blobs.length; i++) {
+        if (!blobs[i]) continue;
+        const a = await this.app.assetStore.add(blobs[i], { title: `${b.title} ${String(n0 + i + 1).padStart(3, '0')}`, kind: 'frame', folder: `Stop motion/${b.title}`, tags: ['frame', 'stop-motion'], meta: { board: b.title, source: src?.title || '' } });
+        ids.push(a.id);
+      }
+      this.edit(id, m => { m.frames.push(...ids); });
+      s.at = null;
+      this.app.log(`Stop motion: recorded ${ids.length} frames (${(ids.length / sm.fps).toFixed(1)} s)${why ? `; stopped: ${why}` : ''}. Cmd+Z undoes it.`);
+    } catch (err) { this.app.log(`Stop motion: ${err.message}`, 'error'); }
+    s.saving = false;
+    this.app.canvas.invalidate();
+  }
+
   // ---- the film --------------------------------------------------------------------------------------------------------
   /** Draw each frame onto canvases of one size ('width' pixels wide at most). */
   async canvases(id, width) {
     const b = boardById(this.app.store.doc, id), { sm } = this.spec(b);
     const out = [];
     let W = 0, H = 0;
-    for (const asset of sm.frames) {
+    const [lo, hi] = rangeOf(sm);
+    for (const asset of sm.frames.slice(lo, hi + 1)) {
       const bmp = await this.image(id, asset); if (!bmp) continue;
       if (!W) { const k = Math.min(1, width / bmp.width); W = Math.round(bmp.width * k / 2) * 2; H = Math.round(bmp.height * k / 2) * 2; }
       const c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -205,7 +333,7 @@ export class StopMotion {
       const { blob, ext } = await this.film(id, fmt);
       const { sm } = this.spec(b);
       if (to === 'download') { download(blob, `${slug(b.title)}.${ext}`, blob.type); this.app.log(`“${b.title}” saved as ${slug(b.title)}.${ext}.`); return; }
-      const a = await this.app.assetStore.add(blob, { title: `${b.title} (${ext})`, kind: 'import', folder: this.app.assetPanel?.folder || '', tags: ['stop-motion', ext], meta: { source: 'stop motion', fps: sm.fps, frames: sm.frames.length } });
+      const a = await this.app.assetStore.add(blob, { title: `${b.title} (${ext})`, kind: 'import', folder: this.app.assetPanel?.folder || '', tags: ['stop-motion', ext], meta: { source: 'stop motion', fps: sm.fps, frames: rangeOf(sm)[1] - rangeOf(sm)[0] + 1 } });
       this.app.log(`Saved “${a.title}” to Assets.`);
     } catch (err) { this.app.log(`Stop motion: ${err.message}`, 'error'); }
   }
