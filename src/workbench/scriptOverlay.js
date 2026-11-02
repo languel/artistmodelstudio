@@ -44,6 +44,14 @@ export class ScriptOverlay {
     this.mouse.classList.toggle('drag', Boolean(drag));
   }
 
+  /** While recording a region of the window: the subtitles and keys sit inside it (null: the window). */
+  bounds(r) {
+    const sub = this.sub.style, keys = this.keys.style;
+    if (!r) { sub.left = sub.bottom = sub.maxWidth = keys.left = keys.bottom = ''; return; }
+    sub.left = `${r.left + r.width / 2}px`; sub.bottom = `${innerHeight - (r.top + r.height) + Math.round(r.height * 0.05)}px`; sub.maxWidth = `${Math.round(r.width * 0.86)}px`;
+    keys.left = `${r.left + 22}px`; keys.bottom = sub.bottom;
+  }
+
   follow(x, y) { this.mouse.style.transform = `translate(${x + 18}px, ${y + 12}px)`; }
 
   clear() {

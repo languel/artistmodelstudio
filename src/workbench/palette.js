@@ -36,6 +36,7 @@ export function buildCommands(app) {
   for (const e of EXERCISES) out.push(cmd('Exercise', e.title, () => { app.docks.open('script'); app.scriptPanel?.setSource(e.source); app.scriptPanel?.run(); }, '', e.brief));
   for (const w of app.walkthroughs.list()) out.push(cmd('Walkthrough', w.title, () => app.walkthroughs.start(w.id), '', w.summary));
   for (const sc of app.script?.list() || []) out.push(cmd('Script', sc.title, () => app.script.play(sc.id), '', sc.summary));
+  for (const sc of app.script?.list() || []) out.push(cmd('Script', `${sc.title}: record as a video`, () => app.script.play(sc.id, { record: {} }), '', 'Records this tab (cropped to the stage) with the narration as MP4 or WebM, with the subtitles as a .vtt file. The browser asks which tab to share; choose this one'));
   out.push(
     cmd('Script', 'Narration on (scripts are spoken)', () => { app.narrator.on = true; app.log('Narration on: scripts are spoken, in the narrator voice.'); }),
     cmd('Script', 'Narration off (subtitles only)', () => { app.narrator.on = false; app.log('Narration off: scripts play with subtitles only.'); }),

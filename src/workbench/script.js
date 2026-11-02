@@ -22,6 +22,8 @@ import { boardsOf } from '../process/boards.js';
 import { ScriptOverlay } from './scriptOverlay.js';
 import { h } from './ui.js';
 import { askConfirm } from './dialog.js';
+import { Capture, toVtt } from './scriptRecorder.js';
+import { download } from './ui.js';
 
 const ABORT = Symbol('stop');
 const ease = t => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
@@ -67,23 +69,55 @@ export class ScriptPlayer {
   togglePause() { if (!this.run) return; this.run.paused = !this.run.paused; this.pauseBtn.textContent = this.run.paused ? '▶' : '❚❚'; this.pauseBtn.title = this.run.paused ? 'Go on (Space)' : 'Pause between cues (Space)'; }
 
   /** Play a script (by id or the object). Resolves when it ends or is stopped. */
-  async play(which, { narrate } = {}) {
+  async play(which, { narrate, record = null } = {}) {
     const script = typeof which === 'string' ? this.scripts.get(which) : which;
     if (!script) throw new Error(`No script “${which}”`);
     this.stop();
-    const g = this.app.guide, run = this.run = { script, aborted: false, paused: false, hl: [], clips: [], player: null };
+    // Recording: the browser asks for the tab first (it needs the click that started this), then the voice is prepared, then it records.
+    let cap = null;
+    if (record) {
+      try { cap = await Capture.open({ stage: record.crop === false ? null : this.app.stageArea }); }
+      catch (err) { this.app.log(`Recording: ${err.name === 'NotAllowedError' ? 'the tab was not shared' : err.message}`, 'error'); return null; }
+    }
+    const g = this.app.guide, run = this.run = { script, aborted: false, paused: false, hl: [], clips: [], player: null, cap, timeline: [] };
     this.bar.hidden = false; this.pauseBtn.textContent = '❚❚';
     g.card.hidden = true; g.cursor.style.opacity = '1';
     this.app.emit('script', 'start', script.id);
     try {
       if (script.lesson) { const { openLesson } = await import('./walkthroughs.js'); await openLesson(this.app, script.lesson); await frameNext(); }
       if (narrate ?? this.app.narrator?.on) await this.prepare(script, run);
+      if (cap) {
+        this.bar.classList.add('rec');
+        this.overlay.bounds(cap.region);
+        this.overlay.subtitle(''); await new Promise(r => setTimeout(r, 400));   // (the preparing text off the screen first)
+        cap.start(run.clips.some(Boolean) ? this.app.narrator.stream.stream : null, record.format);
+        await this.pause(500);
+      }
       for (let i = 0; i < script.cues.length; i++) { await this.gate(); await this.cue(script.cues[i], i); }
       this.overlay.subtitle('');
+      if (cap) await this.pause(700);
     } catch (err) {
       if (err !== ABORT) { this.app.log(`Script “${script.title}”: ${err.message}`, 'error'); console.error(err); }
     }
+    let movie = null;
+    if (cap && !run.aborted) {
+      try { movie = await this.keepMovie(run, cap, record); } catch (err) { this.app.log(`Recording: ${err.message}`, 'error'); }
+    } else cap?.close();
     this.finish(run);
+    return movie;
+  }
+
+  /** The movie and its subtitles: kept in Assets, and downloaded. */
+  async keepMovie(run, cap, opts) {
+    const { script } = run, { blob, ext } = await cap.finish();
+    const name = script.id, vtt = new Blob([toVtt(run.timeline)], { type: 'text/vtt' });
+    blob.kindHint = 'video'; vtt.kindHint = 'text';
+    const A = this.app.assetStore;
+    const movie = await A.add(blob, { title: `${script.title} (${ext})`, kind: 'import', folder: 'Videos', tags: ['video', 'script', ext], meta: { script: script.id, seconds: Math.round(cap.seconds()) } });
+    await A.add(vtt, { title: `${script.title} (subtitles)`, kind: 'import', folder: 'Videos', tags: ['subtitles', 'vtt'], meta: { script: script.id } });
+    if (opts.download !== false) { download(blob, `${name}.${ext}`, blob.type); download(vtt, `${name}.vtt`, 'text/vtt'); }
+    this.app.log(`Recorded “${script.title}”: ${(blob.size / 1e6).toFixed(1)} MB ${ext.toUpperCase()}, with a ${name}.vtt of subtitles. It is in Assets (Videos).`);
+    return { asset: movie.id, blob, ext, vtt };
   }
 
   /** Make every line's audio before the first cue, so each cue knows how long it is (and nothing waits for the voice while it plays). */
@@ -117,7 +151,9 @@ export class ScriptPlayer {
     this.run = null;
     this.clearHighlights(run);
     this.overlay.clear();
-    this.bar.hidden = true;
+    this.bar.hidden = true; this.bar.classList.remove('rec');
+    this.overlay.bounds(null);
+    run.cap?.close();
     const g = this.app.guide; g.cursor.style.opacity = '0';
     this.app.emit('script', 'end', run.script.id);
   }
@@ -126,6 +162,7 @@ export class ScriptPlayer {
     const t0 = performance.now(), clip = this.run.clips[index];
     this.app.emit('say', c.say || '', 'Script');
     this.overlay.subtitle(c.say || '');
+    const start = this.run.cap ? this.run.cap.seconds() : 0;
     const player = clip ? (this.run.player = this.app.narrator.play(clip.buffer)) : null;
     let spoken = !player;
     player?.ended.then(() => { spoken = true; });
@@ -144,6 +181,7 @@ export class ScriptPlayer {
       if (left > 0) await this.pause(left / Math.max(this.pace, 0.0001));
     }
     if (clip && c.hold && !this.fast) { const left = c.hold * this.pace - (performance.now() - t0); if (left > 0) await this.pause(left / Math.max(this.pace, 0.0001)); }
+    if (this.run.cap && c.say) this.run.timeline.push({ start, end: this.run.cap.seconds(), text: c.say });
   }
 
   // ---- cues --------------------------------------------------------------------------------------------------------------
