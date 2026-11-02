@@ -23,6 +23,7 @@ import { ScriptOverlay } from './scriptOverlay.js';
 import { h } from './ui.js';
 import { askConfirm } from './dialog.js';
 import { Capture, toVtt } from './scriptRecorder.js';
+import { playerPageHtml } from './playerPage.js';
 import { download } from './ui.js';
 
 const ABORT = Symbol('stop');
@@ -105,6 +106,39 @@ export class ScriptPlayer {
     } else cap?.close();
     this.finish(run);
     return movie;
+  }
+
+  /** The script as an Asset (kind “Scripts”): opening it in the Assets panel plays it, in a scene that has the lesson's boards. */
+  async saveAsset(which) {
+    const script = typeof which === 'string' ? this.scripts.get(which) : which;
+    if (!script) throw new Error(`No script “${which}”`);
+    const blob = new Blob([JSON.stringify(script)], { type: 'application/json' });
+    blob.kindHint = 'json';
+    const a = await this.app.assetStore.add(blob, { title: script.title, kind: 'script', folder: 'Scripts', tags: ['script'], program: JSON.parse(JSON.stringify(script)), meta: { cues: script.cues.length } });
+    this.app.log(`“${script.title}” is in Assets (Scripts): open it there to play it.`);
+    return a;
+  }
+
+  /** The script as one HTML file that plays on its own (the slide, the narration inside, the same cursor and subtitles). */
+  async exportPage(which, { narrate, download: save = true } = {}) {
+    const script = typeof which === 'string' ? this.scripts.get(which) : which;
+    if (!script) throw new Error(`No script “${which}”`);
+    this.stop();
+    const run = this.run = { script, aborted: false, paused: false, hl: [], clips: [], player: null, timeline: [] };
+    this.bar.hidden = true;
+    let html = '';
+    try {
+      if (script.lesson) { const { openLesson } = await import('./walkthroughs.js'); await openLesson(this.app, script.lesson); await frameNext(); }
+      if (narrate ?? this.app.narrator?.on) await this.prepare(script, run);
+      const { loadThreeFile } = await import('./boardFrames.js');
+      html = await playerPageHtml(this.app, script, run.clips, { loadThreeFile, p5Text: () => this.app.frames.p5Text() });
+    } catch (err) {
+      if (err !== ABORT) { this.app.log(`Export “${script.title}”: ${err.message}`, 'error'); console.error(err); }
+    }
+    this.finish(run);
+    if (!html) return null;
+    if (save) { download(html, `${script.id}.html`, 'text/html'); this.app.log(`“${script.title}” saved as ${script.id}.html (${(html.length / 1e6).toFixed(1)} MB): open it in any browser and press Play.`); }
+    return html;
   }
 
   /** The movie and its subtitles: kept in Assets, and downloaded. */

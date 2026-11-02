@@ -33,6 +33,7 @@ export class Narrator {
     this.worker = null; this.requests = new Map(); this.nextId = 1;
     this.voices = []; this.loading = null; this.loaded = false;
     this.buffers = new Map();     // hash → AudioBuffer
+    this.blobs = new Map();       // hash → the WAV (for an export)
     this.assets = null;           // hash → asset id (read from Assets once)
     this.ctx = null; this.out = null; this.stream = null;
   }
@@ -92,12 +93,12 @@ export class Narrator {
   async clip(text, { voice = this.voice, speed = this.speed, folder = 'Narration', onProgress } = {}) {
     const hash = clipHash(KOKORO, voice, speed, text), ctx = this.audio();
     const mem = this.buffers.get(hash);
-    if (mem) return { buffer: mem, duration: mem.duration, hash };
+    if (mem && this.blobs.has(hash)) return { buffer: mem, duration: mem.duration, hash, blob: this.blobs.get(hash) };
     const known = await this.known(), id = known.get(hash);
     if (id) {
       try {
         const a = await this.app.assetStore.get(id);
-        if (a?.blob) { const buffer = await ctx.decodeAudioData(await a.blob.arrayBuffer()); this.buffers.set(hash, buffer); return { buffer, duration: buffer.duration, hash }; }
+        if (a?.blob) { const buffer = await ctx.decodeAudioData(await a.blob.arrayBuffer()); this.buffers.set(hash, buffer); this.blobs.set(hash, a.blob); return { buffer, duration: buffer.duration, hash, blob: a.blob }; }
       } catch { /* made again below */ }
     }
     await this.load(onProgress);
@@ -105,13 +106,13 @@ export class Narrator {
     const samples = r.audio, rate = r.samplingRate;
     const wav = new Blob([encodeWav(samples, rate)], { type: 'audio/wav' });
     const buffer = await ctx.decodeAudioData(await wav.arrayBuffer());
-    this.buffers.set(hash, buffer);
+    this.buffers.set(hash, buffer); this.blobs.set(hash, wav);
     wav.kindHint = 'audio'; wav.durationMs = Math.round(buffer.duration * 1000);   // (how the Assets list knows to draw an audio card)
     try {
       const a = await this.app.assetStore.add(wav, { title: `Narration · ${text.slice(0, 48)}`, kind: 'audio', folder, tags: ['narration', 'kokoro', voice], meta: { narration: true, hash, text, voice, speed, model: KOKORO, duration: buffer.duration } });
       known.set(hash, a.id);
     } catch { /* kept in memory only */ }
-    return { buffer, duration: buffer.duration, hash };
+    return { buffer, duration: buffer.duration, hash, blob: wav };
   }
 
   /** Play a clip. → { ended: Promise, stop() } */

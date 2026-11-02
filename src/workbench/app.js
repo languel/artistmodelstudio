@@ -1538,6 +1538,7 @@ export class Workbench {
     if (!isDrawing && (a.kind === 'video' || /^(video|image)\//.test(a.blob?.type || ''))) { await this.previewAsset(a); return; }
     if (a.kind === 'audio' || a.kind === 'text') { this.docks.open('timeline'); this.log(`Drag “${a.title}” onto the Timeline (or the canvas, for text).`); return; }
     if (a.kind === 'take' && a.program?.clips) { await this.openTake(a.id); return; }
+    if (a.kind === 'script' && a.program?.cues) { this.script.register(a.program); this.script.play(a.program.id); return; }
     if (a.kind === 'walkthrough' && a.program?.steps) { await this.walkthroughs.loadUser(); this.walkthroughs.start(a.program.id); return; }
     if (a.kind === 'dataset' && a.program?.jsonl) {
       this.docks.open('decide');

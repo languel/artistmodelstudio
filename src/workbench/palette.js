@@ -37,6 +37,9 @@ export function buildCommands(app) {
   for (const w of app.walkthroughs.list()) out.push(cmd('Walkthrough', w.title, () => app.walkthroughs.start(w.id), '', w.summary));
   for (const sc of app.script?.list() || []) out.push(cmd('Script', sc.title, () => app.script.play(sc.id), '', sc.summary));
   for (const sc of app.script?.list() || []) out.push(cmd('Script', `${sc.title}: record as a video`, () => app.script.play(sc.id, { record: {} }), '', 'Records this tab (cropped to the stage) with the narration as MP4 or WebM, with the subtitles as a .vtt file. The browser asks which tab to share; choose this one'));
+  for (const sc of app.script?.list() || []) out.push(
+    cmd('Script', `${sc.title}: export as a page that plays on its own`, () => app.script.exportPage(sc.id), '', 'One HTML file: the slide, the narration inside, and the same cursor and subtitles. Open it anywhere and press Play'),
+    cmd('Script', `${sc.title}: keep in Assets (plays from there)`, () => app.script.saveAsset(sc.id), '', 'The script as an asset: open it in the Assets panel to play it in a scene that has the lesson'));
   out.push(
     cmd('Script', 'Narration on (scripts are spoken)', () => { app.narrator.on = true; app.log('Narration on: scripts are spoken, in the narrator voice.'); }),
     cmd('Script', 'Narration off (subtitles only)', () => { app.narrator.on = false; app.log('Narration off: scripts play with subtitles only.'); }),
