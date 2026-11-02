@@ -36,6 +36,16 @@ export function buildCommands(app) {
   for (const e of EXERCISES) out.push(cmd('Exercise', e.title, () => { app.docks.open('script'); app.scriptPanel?.setSource(e.source); app.scriptPanel?.run(); }, '', e.brief));
   for (const w of app.walkthroughs.list()) out.push(cmd('Walkthrough', w.title, () => app.walkthroughs.start(w.id), '', w.summary));
   for (const sc of app.script?.list() || []) out.push(cmd('Script', sc.title, () => app.script.play(sc.id), '', sc.summary));
+  out.push(
+    cmd('Script', 'Narration on (scripts are spoken)', () => { app.narrator.on = true; app.log('Narration on: scripts are spoken, in the narrator voice.'); }),
+    cmd('Script', 'Narration off (subtitles only)', () => { app.narrator.on = false; app.log('Narration off: scripts play with subtitles only.'); }),
+    cmd('Script', 'Narrator voice…', async () => {
+      try {
+        const voices = await app.narrator.load(p => app.log(`Loading the voice · ${Math.round(p)}%`));
+        const { showMenu } = await import('./menu.js');
+        showMenu([{ label: 'Narrator voice' }, ...voices.map(v => ({ label: v.label, active: v.id === app.narrator.voice, run: async () => { app.narrator.voice = v.id; const c = await app.narrator.clip(`This is ${v.label.split(' · ')[0]}.`); app.narrator.play(c.buffer); } }))], innerWidth / 2, innerHeight / 3);
+      } catch (err) { app.log(`Narration: ${err.message}`, 'error'); }
+    }));
   for (const t of app.docsTopics?.() || []) out.push(cmd('Docs', t.title, () => app.openDocs(t.id), '', t.summary));
   out.push(
     cmd('Decide', 'Analyze reference', () => { app.docks.open('decide'); app.decidePanel?.analyze(); }),

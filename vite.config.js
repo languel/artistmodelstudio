@@ -133,6 +133,8 @@ export default defineConfig({
     include: ['p5.brush/standalone', 'p5'],
     exclude: ['@huggingface/transformers']
   },
+  // Workers are modules (the narration worker loads Kokoro with a dynamic import).
+  worker: { format: 'es' },
   build: {
     target: 'esnext',
     rollupOptions: { input: { main: 'index.html', classic: 'classic.html' } }

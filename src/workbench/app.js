@@ -63,6 +63,7 @@ import { loadLibrary } from '../process/brushes.js';
 import { mountDocs, docsTopicList } from './panels/docs.js';
 import { Walkthroughs } from './walkthroughs.js';
 import { ScriptPlayer } from './script.js';
+import { Narrator } from './narration.js';
 import { SCRIPTS } from './scripts.js';
 import { openPalette } from './palette.js';
 import { showMenu } from './menu.js';
@@ -1410,6 +1411,7 @@ export class Workbench {
     this.guide = new Guide(this);
     try { if (localStorage.getItem('ams_guide_enabled') === '0') this.guide.enabled = false; } catch { /* ignore */ }
     this.walkthroughs = new Walkthroughs(this);
+    this.narrator = new Narrator(this);
     this.script = new ScriptPlayer(this);
     for (const sc of SCRIPTS) this.script.register(sc);
     this.toolList = TOOLS.filter(Boolean);

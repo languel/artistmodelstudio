@@ -15,11 +15,13 @@
  *                                       board from the first line that has `from` to the next line that has `to`
  *     key: 'Alt+K'  (run: true)         show the keys, and press them
  *     wait: ms
- *   `say` is the subtitle while the cue lasts (long enough to read); `hold` is the least time it lasts, in ms.
+ *   `say` is the subtitle while the cue lasts and, when narration is on, the words the voice speaks (`speak` says other words: a
+ *   pronunciation, a pause); the cue lasts until the voice has finished. `hold` is the least time it lasts, in ms.
  */
 import { boardsOf } from '../process/boards.js';
 import { ScriptOverlay } from './scriptOverlay.js';
 import { h } from './ui.js';
+import { askConfirm } from './dialog.js';
 
 const ABORT = Symbol('stop');
 const ease = t => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
@@ -65,16 +67,17 @@ export class ScriptPlayer {
   togglePause() { if (!this.run) return; this.run.paused = !this.run.paused; this.pauseBtn.textContent = this.run.paused ? '▶' : '❚❚'; this.pauseBtn.title = this.run.paused ? 'Go on (Space)' : 'Pause between cues (Space)'; }
 
   /** Play a script (by id or the object). Resolves when it ends or is stopped. */
-  async play(which) {
+  async play(which, { narrate } = {}) {
     const script = typeof which === 'string' ? this.scripts.get(which) : which;
     if (!script) throw new Error(`No script “${which}”`);
     this.stop();
-    const g = this.app.guide, run = this.run = { script, aborted: false, paused: false, hl: [] };
+    const g = this.app.guide, run = this.run = { script, aborted: false, paused: false, hl: [], clips: [], player: null };
     this.bar.hidden = false; this.pauseBtn.textContent = '❚❚';
     g.card.hidden = true; g.cursor.style.opacity = '1';
     this.app.emit('script', 'start', script.id);
     try {
       if (script.lesson) { const { openLesson } = await import('./walkthroughs.js'); await openLesson(this.app, script.lesson); await frameNext(); }
+      if (narrate ?? this.app.narrator?.on) await this.prepare(script, run);
       for (let i = 0; i < script.cues.length; i++) { await this.gate(); await this.cue(script.cues[i], i); }
       this.overlay.subtitle('');
     } catch (err) {
@@ -83,7 +86,31 @@ export class ScriptPlayer {
     this.finish(run);
   }
 
-  stop() { if (this.run) { this.run.aborted = true; this.finish(this.run); } }
+  /** Make every line's audio before the first cue, so each cue knows how long it is (and nothing waits for the voice while it plays). */
+  async prepare(script, run) {
+    const N = this.app.narrator, lines = script.cues.map(c => c.speak ?? c.say).map(t => (t ? String(t).trim() : ''));
+    if (!lines.some(Boolean)) return;
+    if (!N.ready && !N.loaded && !(await askConfirm('Narration uses a voice that runs in your browser: a one-time download of about 90 MB. Narrate? (No plays the script with subtitles only.)'))) return;
+    let done = 0;
+    const todo = lines.filter(Boolean).length;
+    try {
+      for (let i = 0; i < lines.length; i++) {
+        this.check();
+        if (!lines[i]) continue;
+        this.overlay.subtitle(`Preparing the narration · ${done + 1} of ${todo}`);
+        run.clips[i] = await N.clip(lines[i], { voice: script.voice, folder: `Narration/${script.title}`, onProgress: p => this.overlay.subtitle(`Loading the voice · ${Math.round(p)}%`) });
+        done++;
+      }
+    } catch (err) {
+      if (err === ABORT) throw err;
+      run.clips = [];
+      this.app.log(`Narration: ${err.message}. The script plays with subtitles only.`, 'error');
+    }
+    this.overlay.subtitle('');
+    this.check();
+  }
+
+  stop() { if (this.run) { this.run.aborted = true; this.run.player?.stop(); this.finish(this.run); } }
 
   finish(run) {
     if (this.run !== run) return;
@@ -96,9 +123,12 @@ export class ScriptPlayer {
   }
 
   async cue(c, index) {
-    const t0 = performance.now();
+    const t0 = performance.now(), clip = this.run.clips[index];
     this.app.emit('say', c.say || '', 'Script');
     this.overlay.subtitle(c.say || '');
+    const player = clip ? (this.run.player = this.app.narrator.play(clip.buffer)) : null;
+    let spoken = !player;
+    player?.ended.then(() => { spoken = true; });
     if (c.goto) await this.goto(c.goto);
     if (c.restart) await this.restart(c.restart);
     if (c.drag) await this.drag(c.drag);
@@ -106,11 +136,14 @@ export class ScriptPlayer {
     if (c.select) await this.select(c.select);
     if (c.key) await this.key(c.key, c.run);
     if (c.wait) await this.pause(c.wait);
-    // the subtitle stays long enough to read
-    const least = Math.max(c.hold || 0, c.say ? readMs(c.say) : 0) * (this.fast ? 0 : this.pace);
-    const left = least - (performance.now() - t0);
-    if (left > 0) await this.pause(left / Math.max(this.pace, 0.0001));
-    void index;
+    // the cue lasts until the voice has finished (or, without one, long enough to read the subtitle) and for its hold
+    while (!spoken) { await new Promise(r => setTimeout(r, 40)); this.check(); }
+    if (clip) await this.pause(250 / Math.max(this.pace, 0.0001));
+    else if (!this.fast) {
+      const least = Math.max(c.hold || 0, c.say ? readMs(c.say) : 0) * this.pace, left = least - (performance.now() - t0);
+      if (left > 0) await this.pause(left / Math.max(this.pace, 0.0001));
+    }
+    if (clip && c.hold && !this.fast) { const left = c.hold * this.pace - (performance.now() - t0); if (left > 0) await this.pause(left / Math.max(this.pace, 0.0001)); }
   }
 
   // ---- cues --------------------------------------------------------------------------------------------------------------
