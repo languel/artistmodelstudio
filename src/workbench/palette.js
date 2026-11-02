@@ -35,6 +35,7 @@ export function buildCommands(app) {
   for (const p of app.docks.panels.values()) out.push(cmd('Panel', p.title, () => app.docks.open(p.id)));
   for (const e of EXERCISES) out.push(cmd('Exercise', e.title, () => { app.docks.open('script'); app.scriptPanel?.setSource(e.source); app.scriptPanel?.run(); }, '', e.brief));
   for (const w of app.walkthroughs.list()) out.push(cmd('Walkthrough', w.title, () => app.walkthroughs.start(w.id), '', w.summary));
+  for (const sc of app.script?.list() || []) out.push(cmd('Script', sc.title, () => app.script.play(sc.id), '', sc.summary));
   for (const t of app.docsTopics?.() || []) out.push(cmd('Docs', t.title, () => app.openDocs(t.id), '', t.summary));
   out.push(
     cmd('Decide', 'Analyze reference', () => { app.docks.open('decide'); app.decidePanel?.analyze(); }),

@@ -35,3 +35,19 @@ it('builds as a scene: a board per step, each sketch parses and the last one is 
   expect(size('The puppet')).toBeLessThan(size('A set in layers'));
   expect(size('A set in layers')).toBeLessThan(size('A walk'));
 });
+
+it('has a performed script whose cues name boards the lesson builds, and whose code lines are in the code', async () => {
+  const { HINGE } = await import('../examples/lessons/reiniger/script.js');
+  const app = fakeApp();
+  await buildLessonScene(app, { lesson: LESSON });
+  const boards = boardsOf(app.store.doc), has = t => boards.some(b => b.title === t);
+  const ACTIONS = ['goto', 'restart', 'drag', 'click', 'select', 'key', 'wait'];
+  for (const c of HINGE.cues) {
+    expect(Object.keys(c).filter(k => ACTIONS.includes(k)).length, c.say).toBeLessThanOrEqual(4);
+    for (const t of [c.goto, c.restart, c.drag?.on, c.click?.summary, c.select?.pseudo, c.select?.code]) if (t) expect(has(t), t).toBe(true);
+    if (c.select?.code) {
+      const code = boards.find(b => b.title === c.select.code.replace(/ · code$/, '') && b.kind === 'three').code;
+      expect(code).toContain(c.select.from); expect(code).toContain(c.select.to);
+    }
+  }
+});

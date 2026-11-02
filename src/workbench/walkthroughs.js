@@ -53,7 +53,7 @@ function goTo(app, title) {
 }
 
 /** A lesson (lessons.js) as the open scene: built the first time, opened after that. */
-async function openLesson(app, id, language = 'studio') {
+export async function openLesson(app, id, language = 'studio') {
   const { LESSONS, buildLesson } = await import('./lessons.js');
   const L = LESSONS.find(l => l.id === id) || LESSONS[0];
   const isExpl = id === 'sampling-expl' || language === 'expl';

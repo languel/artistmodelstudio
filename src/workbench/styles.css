@@ -1060,3 +1060,21 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 
 .wb-present-play { position: absolute; right: 18px; bottom: 46px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 15px; border: 1px solid var(--wb-line); background: color-mix(in srgb, var(--wb-panel) 80%, transparent); color: var(--wb-muted); cursor: pointer; opacity: 0.45; transition: opacity 0.2s; z-index: 6; }
 .wb-present-play:hover { opacity: 1; color: var(--wb-text); }
+
+/* Scripts: subtitles, keys, the mouse (see script.js) */
+.wb-sc-sub { position: fixed; left: 50%; bottom: 6%; transform: translateX(-50%); z-index: 95; max-width: min(900px, 86vw); padding: 10px 20px; border-radius: 10px; background: rgba(12, 12, 12, 0.78); color: #fff; font: 600 clamp(15px, 1.7vw, 24px)/1.35 system-ui, -apple-system, 'Inter', sans-serif; text-align: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; text-wrap: balance; }
+.wb-sc-sub.on { opacity: 1; }
+.wb-sc-keys { position: fixed; left: 22px; bottom: 6%; z-index: 95; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.wb-sc-key { display: flex; gap: 4px; opacity: 0; transform: translateY(6px); transition: opacity 0.2s, transform 0.2s; }
+.wb-sc-key.on { opacity: 1; transform: none; }
+.wb-sc-key kbd { min-width: 30px; padding: 5px 9px; border-radius: 7px; background: rgba(245, 243, 238, 0.96); color: #1c1c1c; border: 1px solid #b9b5ab; border-bottom-width: 3px; font: 600 15px/1 system-ui, sans-serif; text-align: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
+.wb-sc-mouse { position: fixed; left: 0; top: 0; z-index: 92; pointer-events: none; opacity: 0; transition: opacity 0.15s; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)); }
+.wb-sc-mouse.on { opacity: 1; }
+.wb-sc-mouse svg { display: block; }
+.wb-sc-mouse .sc-body { fill: rgba(245, 243, 238, 0.95); stroke: #1c1c1c; stroke-width: 1.4; }
+.wb-sc-mouse path { stroke: #1c1c1c; stroke-width: 1.2; fill: transparent; }
+.wb-sc-mouse.left .sc-l { fill: #e0a030; }
+.wb-sc-mouse.right .sc-r { fill: #e0a030; }
+.wb-sc-bar { position: fixed; top: 10px; right: 14px; z-index: 96; display: flex; gap: 4px; opacity: 0.35; transition: opacity 0.2s; }
+.wb-sc-bar:hover { opacity: 1; }
+.wb-md .pseudo li.sc-hl { background: color-mix(in srgb, #e0a030 22%, transparent); border-radius: 3px; }
