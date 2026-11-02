@@ -74,6 +74,7 @@ export const LESSON = {
   subtitle: 'From a spinning cube to a body you can play, dress, draw with and paint with.',
   idea: 'A three.js scene is a few objects and a loop. Give it a body (joints in metres) and everything else, instruments, costumes, drawings, paint, is a rule that reads those joints.',
   main: 'route',
+  models: [{ title: 'Fox', url: '/models/fox/Fox.glb', license: 'Fox: CC0 model (PixelMannen); CC-BY rig and animation (tomkranis, AsoboStudio, scurest). Khronos glTF Sample Assets.', source: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox' }],
   codePanel: true,   // each slide's right column: the notes, and an editor on the sketch's code
   sources: {},
   sections: [
@@ -189,7 +190,30 @@ tick = t => {
     tint.setHSL(0.08 + q.y * 0.18, 0.8, 0.6); col.set([tint.r, tint.g, tint.b], n * 3);
   }
   pts.geometry.attributes.position.needsUpdate = pts.geometry.attributes.color.needsUpdate = true;
-};`) }
+};`) },
+        { id: 'fox', title: '1.4 · A model that moves', w: 800, h: 600, ground: '#141414',
+          idea: 'A model is a file: the mesh, the skeleton and the clips that move its joints, in one **.glb**. The loader gives them back, and a mixer plays a clip by its name; switching clips cross-fades. This is the Fox from the glTF sample models: its model is CC0, its rig and clips are CC-BY (credits in the bibliography). A walk stands in for the dance until there is a dancer to load.',
+          pseudo: `load the file: mesh, skeleton, clips
+scale it to 1.2 m tall and stand it on the floor
+the mixer plays one clip; when the choice changes, cross-fade to it
+every frame: the mixer advances by the time that passed`,
+          three: sketch([BASE], `import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+let clip = 'Walk' /* Survey|Walk|Run */;
+let mixer = null, actions = {}, current = null, shown = clip, last = null;
+new GLTFLoader().load(window.__amsFiles?.['Fox.glb'], gltf => {
+  const fox = gltf.scene; scene.add(fox);
+  const box = new THREE.Box3().setFromObject(fox), k = 1.2 / (box.max.y - box.min.y);
+  fox.scale.setScalar(k); fox.position.y = -new THREE.Box3().setFromObject(fox).min.y;
+  mixer = new THREE.AnimationMixer(fox);
+  for (const a of gltf.animations) actions[a.name] = mixer.clipAction(a);
+  current = actions[clip] || Object.values(actions)[0]; current?.play();
+});
+tick = now => {
+  if (!mixer) return;
+  const dt = last === null ? 0 : now - last; last = now;
+  if (clip !== shown && actions[clip]) { const next = actions[clip]; next.reset().play(); current?.crossFadeTo(next, 0.4, false); current = next; shown = clip; }
+  mixer.update(dt);
+};`) },
       ]
     },
     {

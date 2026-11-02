@@ -12,7 +12,7 @@ export const LESSONS = [
 ];
 
 /** A board only the latest version of a lesson has: a scene built earlier without it is out of date (the tour builds a new one). */
-export const LESSON_NEWEST = { threejs: '4.1 · An installation' };
+export const LESSON_NEWEST = { threejs: '1.4 · A model that moves' };
 
 /** Build a lesson as a new scene. language: 'studio', 'p5' or 'expl' (barebones p5.js sketch). Returns the number of boards. */
 export async function buildLesson(app, id = 'sampling', { language = 'studio', expl = false } = {}) {

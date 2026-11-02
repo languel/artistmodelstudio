@@ -8,6 +8,7 @@ import { boardsOf, boardKind, boardsInFrame, isFrame } from '../process/boards.j
 import { renderMarkdown, esc, mathHtml } from '../process/markdown.js';
 import { pseudoCss } from '../process/pseudo.js';
 import { sketchPage } from './exportPage.js';
+import { filesOf } from './boardFrames.js';
 import RUNTIME from './playerRuntime.js?raw';
 import DRAW from './scriptDraw.js?raw';
 
@@ -24,45 +25,70 @@ export function titlesOf(script) {
 
 /**
  * The page. `app` gives the document and the sketch loaders; `clips` is one narration clip per cue ({ blob } or nothing), or [].
+ * A script may run over several slides (frames): each is a section of the page, shown while its cues run. A slide's sketches are
+ * loaded only while it shows, so a long explainer does not run every sketch at once.
  */
 export async function playerPageHtml(app, script, clips = [], { loadThreeFile, p5Text } = {}) {
   const doc = app.store.doc, all = boardsOf(doc);
-  const first = script.cues.find(c => c.goto)?.goto;
-  const frame = all.find(b => isFrame(b) && b.title === first);
-  if (!frame) throw new Error(`The script starts on “${first}”, which is not a slide (a frame) in this scene.`);
-  const inside = boardsInFrame(doc, frame).filter(b => !isFrame(b));
-  const missing = titlesOf(script).filter(t => t !== frame.title && !inside.some(b => b.title === t));
-  if (missing.length) throw new Error(`The script names boards outside its slide (not supported in a page yet): ${missing.join(', ')}`);
-
-  const panes = [];
-  for (const b of inside) {
-    const kind = boardKind(b), box = `left:calc(var(--k) * ${Math.round(b.x - frame.x)}px);top:calc(var(--k) * ${Math.round(b.y - frame.y)}px);width:${Math.round(b.width)}px;height:${Math.round(b.height)}px`;
-    const attrs = `class="pane ${kind}" data-board="${esc(b.title)}" style="${box};--ground:${/^#[0-9a-f]{3,8}$/i.test(b.ground || '') ? b.ground : '#1c1c1c'}"`;
-    if (kind === 'three' || kind === 'p5') {
-      const src = await sketchPage({ kind, title: b.title, code: b.code || '', ground: b.ground, controls: false, loadFile: loadThreeFile, p5Source: kind === 'p5' ? await p5Text() : '' });
-      panes.push(`<div ${attrs}><iframe sandbox="allow-scripts allow-same-origin" srcdoc="${esc(src)}" title="${esc(b.title)}"></iframe></div>`);
-    } else if (kind === 'markdown') {
-      panes.push(`<div ${attrs}><div class="md">${renderMarkdown(b.code || '', { resolve: () => ({ missing: true }) })}</div></div>`);
-    } else if (kind === 'code') {
-      const of = all.find(x => x.id === b.of), lines = String(of?.code || '').replace(/\n$/, '').split('\n');
-      panes.push(`<div ${attrs}><div class="head">${esc(b.title)}</div><div class="lines">${lines.map((l, i) => `<div class="ln"><i>${i + 1}</i><span class="t">${esc(l) || ' '}</span></div>`).join('')}</div></div>`);
-    } else if (kind === 'html') {
-      panes.push(`<div ${attrs}><iframe sandbox="allow-scripts" srcdoc="${esc(b.code || '')}" title="${esc(b.title)}"></iframe></div>`);
-    }
+  const frameOf = title => all.find(b => isFrame(b) && b.title === title);
+  // the slides in the order the script first shows them
+  const order = [];
+  for (const c of script.cues) for (const t of [c.goto, c.restart, c.drag?.on, c.draw?.on, c.formula?.on, c.clear?.on, c.click?.summary, c.select?.pseudo, c.select?.code]) if (t && !order.includes(t)) order.push(t);
+  const slides = [], where = {};
+  const firstGoto = script.cues.find(c => c.goto)?.goto;
+  if (!firstGoto || !frameOf(firstGoto)) throw new Error(`The script starts on “${firstGoto}”, which is not a slide (a frame) in this scene.`);
+  for (const t of [firstGoto, ...script.cues.filter(c => c.goto).map(c => c.goto)]) {
+    const f = frameOf(t);
+    if (!f || slides.some(x => x.frame.id === f.id)) continue;
+    slides.push({ frame: f, inside: boardsInFrame(doc, f).filter(b => !isFrame(b)) });
   }
-  const clipUris = await Promise.all(script.cues.map(async (c, i) => (clips[i]?.blob ? toDataUri(clips[i].blob) : null)));
+  const slideOf = t => {
+    const f = frameOf(t); if (f) return slides.findIndex(x => x.frame.id === f.id);
+    return slides.findIndex(x => x.inside.some(b => b.title === t));
+  };
+  for (const t of order) { const i = slideOf(t); if (i >= 0) where[t] = i; }
+  const missing = order.filter(t => where[t] === undefined);
+  if (missing.length) throw new Error(`The script names boards outside its slides (not supported in a page yet): ${missing.join(', ')}`);
+
+  const modelFiles = {};
+  const panes = [];
+  for (const sl of slides) {
+    const parts = [];
+    for (const b of sl.inside) {
+      const kind = boardKind(b), box = `left:calc(var(--k) * ${Math.round(b.x - sl.frame.x)}px);top:calc(var(--k) * ${Math.round(b.y - sl.frame.y)}px);width:${Math.round(b.width)}px;height:${Math.round(b.height)}px`;
+      const attrs = `class="pane ${kind}" data-board="${esc(b.title)}" style="${box};--ground:${/^#[0-9a-f]{3,8}$/i.test(b.ground || '') ? b.ground : '#1c1c1c'}"`;
+      if (kind === 'three' || kind === 'p5') {
+        // the files the sketch reads by name (a model, a picture) go in as data
+        const files = {};
+        for (const n of filesOf(b.code || '', kind)) { const url = await app.frames.fileFor(n); if (url) { files[n] = url; modelFiles[n] = url; } }
+        const src = await sketchPage({ kind, title: b.title, code: b.code || '', ground: b.ground, controls: false, loadFile: loadThreeFile, p5Source: kind === 'p5' ? await p5Text() : '', files });
+        parts.push(`<div ${attrs}><iframe sandbox="allow-scripts allow-same-origin" data-srcdoc="${esc(src)}" title="${esc(b.title)}"></iframe></div>`);
+      } else if (kind === 'markdown') {
+        parts.push(`<div ${attrs}><div class="md">${renderMarkdown(b.code || '', { resolve: () => ({ missing: true }) })}</div></div>`);
+      } else if (kind === 'code') {
+        const of = all.find(x => x.id === b.of), lines = String(of?.code || '').replace(/\n$/, '').split('\n');
+        parts.push(`<div ${attrs}><div class="head">${esc(b.title)}</div><div class="lines">${lines.map((l, i) => `<div class="ln"><i>${i + 1}</i><span class="t">${esc(l) || ' '}</span></div>`).join('')}</div></div>`);
+      } else if (kind === 'html') {
+        parts.push(`<div ${attrs}><iframe sandbox="allow-scripts" srcdoc="${esc(b.code || '')}" title="${esc(b.title)}"></iframe></div>`);
+      }
+    }
+    panes.push({ w: Math.round(sl.frame.width), h: Math.round(sl.frame.height), title: sl.frame.title, html: parts.join('\n') });
+  }
+  const clipData = await Promise.all(script.cues.map(async (c, i) => (clips[i]?.blob ? toDataUri(clips[i].blob) : null)));
   // the TeX in the cues, made into HTML here (the page has no KaTeX)
   const math = {};
   const texes = script.cues.flatMap(c => [c.formula?.tex, ...(c.draw?.shapes || []).map(x => x.tex)]).filter(Boolean);
   for (const t of texes) math[t] = mathHtml(t, false);
-  const data = { math, title: script.title, id: script.id, W: Math.round(frame.width), H: Math.round(frame.height), cues: script.cues, clips: clipUris };
-  const usesMath = panes.join('').includes('katex') || texes.length > 0;
+  const data = { math, title: script.title, id: script.id, where, slides: panes.map(p => ({ w: p.w, h: p.h })), cues: script.cues, clips: clipData };
+  const usesMath = panes.some(p => p.html.includes('katex')) || texes.length > 0;
+  const body = panes.map((p, i) => `<section class="slide" data-slide="${i}" style="--W:${p.w}px;--H:${p.h}px">${p.html}</section>`).join('\n');
+  const models = Object.entries(modelFiles).map(([n, u]) => `<script>window.__amsFiles = window.__amsFiles || {}; window.__amsFiles[${json(n)}] = ${json(u)};</script>`).join('');
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(script.title)}</title>
 ${usesMath ? '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.9/dist/katex.min.css">' : ''}
 <style>${CSS}\n${pseudoCss('.md', { fg: '#e6e4de', muted: '#8d8b85', line: '#5b5a56' })}</style></head>
 <body>
-<main class="stage" style="--W:${data.W}px;--H:${data.H}px">${panes.join('\n')}</main>
+<main class="stage" style="--W:${panes[0]?.w || 800}px;--H:${panes[0]?.h || 600}px">${body}</main>
 <div class="cur" hidden><svg viewBox="0 0 28 34" width="22" height="27"><path d="M2 2v25l7-7 5 12 5-2-5-12h10L2 2z" fill="#f4f4f2" stroke="#1c1c1c" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
 <div class="halo"></div>
 <div class="mouse"><svg viewBox="0 0 24 32" width="22" height="30"><rect class="body" x="3" y="2" width="18" height="28" rx="9"/><path class="l" d="M3 12V11a9 9 0 019-9v10z"/><path class="r" d="M12 2a9 9 0 019 9v1h-9z"/><path d="M3 12h18M12 2v10" fill="none"/></svg></div>
@@ -70,6 +96,7 @@ ${usesMath ? '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.
 <div class="ui"><div class="title">${esc(script.title)}</div><button class="play" title="Play with sound (Space)">▶ Play</button>
 <span class="ctl" hidden><button class="pause" title="Pause between steps (Space)">Pause</button><button class="stop" title="Stop (Esc)">Stop</button></span>
 <button class="cc on" title="Subtitles (C)">CC</button></div>
+${models}
 <script>${DRAW.slice(DRAW.indexOf('function scriptDraw')).replace(/^export .*$/m, '')}\n(${RUNTIME.slice(RUNTIME.indexOf('function playerRuntime'))})(${json(data)});</script>
 </body></html>
 `;
@@ -77,7 +104,8 @@ ${usesMath ? '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.
 
 const CSS = `
 *{box-sizing:border-box}html,body{margin:0;height:100%;background:#141414;color:#e6e4de;font:14px/1.5 system-ui,-apple-system,'Inter',sans-serif;overflow:hidden}
-.stage{--k:1;position:absolute;left:50%;top:50%;width:calc(var(--k) * var(--W));height:calc(var(--k) * var(--H));transform:translate(-50%,-50%);background:#1a1a1a;border-radius:6px;overflow:hidden}
+.slide{position:absolute;inset:0;width:calc(var(--k) * var(--W));height:calc(var(--k) * var(--H));display:none}.slide.on{display:block}
+.stage{--k:1;position:absolute;left:50%;top:50%;width:calc(var(--k) * var(--W));height:calc(var(--k) * var(--H));transform:translate(-50%,-50%);background:#1a1a1a;border-radius:6px;overflow:visible}
 .pane{position:absolute;transform:scale(var(--k));transform-origin:0 0;background:var(--ground);border:1px solid #333;border-radius:4px;overflow:hidden}
 .pane.flash{outline:2px solid #e0a030}
 .pane iframe{width:100%;height:100%;border:0;display:block;background:transparent}

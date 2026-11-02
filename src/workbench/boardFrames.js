@@ -72,7 +72,9 @@ const LOADERS = ['loadImage', 'createVideo', 'createAudio', 'loadJSON', 'loadStr
 export const filesOf = (code, kind = 'p5') => [...new Set([
   ...String(code || '').matchAll(new RegExp(`(?:${LOADERS.join('|')})\\(\\s*["'\`]([^"'\`]+)["'\`]`, 'g')),
   // three.js: loader.load('x.jpg') and loader.loadAsync('x.jpg') (TextureLoader, ImageLoader) read a picture by name too
-  ...(kind === 'three' ? String(code || '').matchAll(/\.load(?:Async)?\(\s*["'`]([^"'`]+\.(?:jpe?g|png|gif|webp))["'`]/gi) : [])
+  ...(kind === 'three' ? String(code || '').matchAll(/\.load(?:Async)?\(\s*["'`]([^"'`]+\.(?:jpe?g|png|gif|webp))["'`]/gi) : []),
+  // three.js: a model file named in the code (a .glb or .gltf) is read as data too: window.__amsFiles['Fox.glb']
+  ...(kind === 'three' ? String(code || '').matchAll(/["'`]([^"'`]+\.(?:glb|gltf))["'`]/gi) : [])
 ].map(m => m[1]))];
 const fileLoader = files => `(() => {
   const F = ${JSON.stringify(files).replace(/</g, '\\u003c')};

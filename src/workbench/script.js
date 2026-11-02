@@ -16,6 +16,7 @@
  *     draw: { on, space?, shapes }      draw over a board, shape by shape (lines and arcs draw themselves on; see scriptDraw.js)
  *     formula: { on, tex, at, align? }  a formula (TeX) on a board, at a place given as fractions of it
  *     clear: { on, layer? }             take the drawing (or one layer: 'draw', 'formula') off a board; it comes before draw in a cue
+ *     set: { on, name, value }          change a control of a sketch (its menu or slider), as a person would
  *     key: 'Alt+K'  (run: true)         show the keys, and press them
  *     wait: ms
  *   `say` is the subtitle while the cue lasts and, when narration is on, the words the voice speaks (`speak` says other words: a
@@ -214,6 +215,7 @@ export class ScriptPlayer {
     if (c.draw) await this.draw(c.draw);
     if (c.formula) await this.formula(c.formula);
     if (c.select) await this.select(c.select);
+    if (c.set) this.setControl(c.set);
     if (c.key) await this.key(c.key, c.run);
     if (c.wait) await this.pause(c.wait);
     // the cue lasts until the voice has finished (or, without one, long enough to read the subtitle) and for its hold
@@ -313,6 +315,14 @@ export class ScriptPlayer {
       await this.down('left'); el.click(); this.up();
       await this.pause(350);
     }
+  }
+
+  /** Change a control of a running sketch, as its slider or menu would (the sketch follows at once). */
+  setControl({ on, name, value }) {
+    const b = this.board(on); const f = b && this.app.frames?.frames.get(b.id);
+    if (!f?.iframe?.contentWindow) return;
+    try { f.iframe.contentWindow.postMessage({ amsFrame: f.token, type: 'ctl', key: name, value }, '*'); } catch { /* gone */ }
+    (f.vals ||= {})[name] = value;
   }
 
   /** Draw over a board: the strokes draw themselves on, one after another (scriptDraw.js). */

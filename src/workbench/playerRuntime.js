@@ -10,8 +10,23 @@ function playerRuntime(DATA) {
   const ABORT = Symbol('stop');
   let run = null, pos = { x: innerWidth / 2, y: innerHeight - 90 };
 
-  const fit = () => { const k = Math.min(innerWidth / DATA.W, innerHeight / DATA.H) * 0.97; stage.style.setProperty('--k', k); };
-  addEventListener('resize', fit); fit();
+  // Slides: one section per frame of the script. A slide's sketches run only while it shows; the others are unloaded.
+  let slide = -1;
+  const fit = () => { const cur = DATA.slides[Math.max(0, slide)] || { w: 800, h: 600 }; const k = Math.min(innerWidth / cur.w, innerHeight / cur.h) * 0.97; stage.style.setProperty('--k', k); stage.style.setProperty('--W', cur.w + 'px'); stage.style.setProperty('--H', cur.h + 'px'); };
+  const showSlide = i => {
+    if (i === slide || i < 0) return;
+    slide = i;
+    document.querySelectorAll('.slide').forEach((sec, j) => {
+      sec.classList.toggle('on', j === i);
+      for (const f of sec.querySelectorAll('iframe[data-srcdoc]')) {
+        if (j === i) { if (!f.getAttribute('srcdoc')) f.srcdoc = f.dataset.srcdoc; }
+        else if (f.getAttribute('srcdoc') != null) { f.removeAttribute('srcdoc'); f.src = 'about:blank'; }
+      }
+    });
+    fit();
+  };
+  addEventListener('resize', fit);
+  showSlide(0);
 
   const place = (x, y) => { pos = { x, y }; cur.style.transform = `translate(${x - 3}px,${y - 2}px)`; mouse.style.transform = `translate(${x + 18}px,${y + 12}px)`; };
   const press = (btn, on) => { mouse.classList.toggle('on', on); mouse.classList.toggle('left', on && btn === 'left'); };
@@ -52,8 +67,12 @@ function playerRuntime(DATA) {
   };
 
   const cues = {
-    async goto(t) { const el = board(t) || document.querySelector('.stage'); if (el && el.classList.contains('pane')) { el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 900); } await pause(500); },
-    async restart(t) { const f = $('iframe', board(t)); if (!f) return; await new Promise(r => { f.addEventListener('load', r, { once: true }); f.srcdoc = f.srcdoc; }); await pause(900); },
+    async goto(t) {
+      const i = DATA.where[t]; if (i !== undefined && i !== slide) { showSlide(i); await pause(400); }
+      const el = board(t); if (el && el.classList.contains('pane')) { el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 900); }
+      await pause(500);
+    },
+    async restart(t) { const f = $('iframe', board(t)); if (!f) return; await new Promise(r => { f.addEventListener('load', r, { once: true }); f.srcdoc = f.dataset.srcdoc || f.srcdoc; }); await pause(900); },
     async drag(d) {
       const f = $('iframe', board(d.on)); if (!f) return;
       const w = f.contentWindow, aspect = w.innerWidth / w.innerHeight;
@@ -102,6 +121,7 @@ function playerRuntime(DATA) {
     async clear(c) { const b = board(c.on); if (b) await scriptDraw(b, { clear: c.layer || true }); },
     async draw(d, layer) { const b = board(d.on); if (!b) return; await scriptDraw(b, { ...d, layer: d.layer || layer || 'draw' }, { html: t => DATA.math[t] || '', pace: 1 }); check(); },
     async formula(c) { await cues.draw({ on: c.on, layer: c.layer || 'formula', shapes: [{ t: 'formula', at: c.at, align: c.align, tex: c.tex, size: c.size }] }, 'formula'); },
+    async set(c) { const f = $('iframe', board(c.on)); try { if (f && f.contentWindow && f.contentWindow.__set) f.contentWindow.__set(c.name, c.value); } catch { /* the sketch's own error */ } await pause(300); },
     async key(k) { showKeys(k); await pause(500); },
     async wait(ms) { await pause(ms); }
   };
@@ -120,7 +140,7 @@ function playerRuntime(DATA) {
     run = { aborted: false, paused: false, audio: null };
     playBtn.hidden = true; ctl.hidden = false; pauseBtn.textContent = 'Pause';
     // the slide starts as the script found it
-    for (const f of document.querySelectorAll('.pane iframe')) { await new Promise(r => { f.addEventListener('load', r, { once: true }); f.srcdoc = f.srcdoc; }); }
+    if (slide < 0) showSlide(0);
     try {
       for (let i = 0; i < DATA.cues.length; i++) {
         await gate();
@@ -135,6 +155,7 @@ function playerRuntime(DATA) {
         if (c.draw) await cues.draw(c.draw);
         if (c.formula) await cues.formula(c.formula);
         if (c.select) await cues.select(c.select);
+        if (c.set) await cues.set(c.set);
         if (c.key) await cues.key(c.key);
         if (c.wait) await cues.wait(c.wait);
         if (DATA.clips[i]) { while (!done) { await sleep(40); check(); } await pause(250); }

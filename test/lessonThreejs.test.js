@@ -10,7 +10,8 @@ describe('the three.js lesson', () => {
     const ids = LESSON.sections.flatMap(s => s.boards).map(b => b.id);
     expect(ids).toContain('controls');
     expect(ids.at(-1)).toBe('install');
-    expect(boards.length).toBe(13 - 1);   // (the route is studio code)
+    expect(ids).toContain('fox');
+    expect(boards.length).toBe(14 - 1);   // (the route is studio code)
   });
 
   it('every sketch is valid code (imports aside) and uses the standard window size', () => {
@@ -33,7 +34,7 @@ describe('the three.js lesson', () => {
       expect(() => new Function(code.replace(/^import .*$/gm, '')), b.title).not.toThrow();
       total += written;
     }
-    expect(total).toBe(13);   // the controls board (5), the installation (3), the pinboard (2) and the harp (3)
+    expect(total).toBe(14);   // the controls board (5), the installation (3), the pinboard (2), the harp (3) and the fox's clip (1)
   });
 
   it('the tour goes only to boards the lecture has', () => {

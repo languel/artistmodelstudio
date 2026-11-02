@@ -40,7 +40,8 @@ it('makes a page with the slide, the script and a runtime that parses', async ()
   expect(script).toBeTruthy();
   expect(() => new Function(`${script[1]}\nreturn (${script[2]})`)).not.toThrow();
   const data = JSON.parse(script[3].replace(/\\u003c/g, '<'));
-  expect(data).toMatchObject({ id: 't', W: 1000, H: 600 });
+  expect(data).toMatchObject({ id: 't', slides: [{ w: 1000, h: 600 }] });
+  expect(data.where).toEqual({ 'Slide': 0, 'Slide · notes': 0, 'Slide · code': 0 });
   expect(data.cues).toHaveLength(4);
 });
 

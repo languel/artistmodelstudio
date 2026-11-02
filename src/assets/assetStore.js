@@ -116,7 +116,7 @@ async function makeThumb(blob) {
   const kind = blob.kindHint;
   if (kind === 'stream') return streamThumb(blob);
   if (kind === 'video' || (blob.type || '').startsWith('video/')) return videoThumb(blob);
-  if (kind === 'audio' || kind === 'text' || kind === 'json') return cardThumb(blob, kind);
+  if (kind === 'audio' || kind === 'text' || kind === 'json' || kind === 'model') return cardThumb(blob, kind);
   // createImageBitmap works in background tabs too (img.decode() can wait until the tab is shown).
   const img = typeof createImageBitmap === 'function' ? await createImageBitmap(blob).catch(() => blobToImage(blob)) : await blobToImage(blob);
   if (img.naturalWidth === undefined) { img.naturalWidth = img.width; img.naturalHeight = img.height; }

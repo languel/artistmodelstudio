@@ -31,10 +31,12 @@ const head = (title, ground) => `<!doctype html>
  * kind 'three' (needs `loadFile`, which reads a three.js file by its path under node_modules/three) or 'p5' (needs `p5Source`).
  * `controls`: add the panel. Resolves the HTML text.
  */
-export async function sketchPage({ kind, title, code, ground, controls = false, loadFile, p5Source }) {
+export async function sketchPage({ kind, title, code, ground, controls = false, loadFile, p5Source, files = {} }) {
   const inst = instrument(code);
   const specs = controlSpecs(code);
   const parts = [head(title, ground), `<script>${shim(inst.values, title, kind === 'p5')}</script>`];
+  // the files the sketch reads by name (a model, a picture) are in the page as data: window.__amsFiles
+  if (Object.keys(files).length) parts.push(`<script>window.__amsFiles = ${json(files)};</script>`);
   const mode = panelOf(code);   // // @panel open | hidden | off
   if (controls && mode !== 'off') parts.push(`<script>${panelScript(specs, code, mode === 'hidden' ? { start: 'hidden' } : {})}</script>`);
   if (kind === 'three') {
