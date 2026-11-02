@@ -241,6 +241,7 @@ export class Outputs {
     const W = Math.max(2, Math.round(c.clientWidth * dpr)), H = Math.max(2, Math.round(c.clientHeight * dpr));
     if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
     const g = c.getContext('2d');
+    if (!g) return;   // (no canvas to draw on: a test page, or one that is going away)
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = o.kind === 'window' ? '#000' : 'transparent';
     g.clearRect(0, 0, W, H);
