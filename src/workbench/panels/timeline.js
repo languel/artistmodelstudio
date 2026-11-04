@@ -8,13 +8,18 @@ import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
 import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf } from '../../process/take.js';
 import { showMenu } from '../menu.js';
-import { createTimelineTicks, formatTimecode, formatMusicalPosition, secondsToFrame } from '../../time/transport.js';
+import { formatMusicalPosition, secondsToFrame } from '../../time/transport.js';
 import { RULERS, FPS_CHOICES, QUANT_CHOICES, SNAP_CHOICES, snapStep, timeContext } from '../../time/sceneTransport.js';
+import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, timeTicks, frameTicks, beatTicks, gridLayer, timeLabel, editPoints, nextEdit, MAX_CONTENT_PX } from '../../time/timelineView.js';
 
 const TRACK_LABEL = { title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
 const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`; };
 const RULER_NAMES = { time: 'Minutes and seconds', beats: 'Bars, beats and sixteenths', frames: 'Frames' };
-const RULER_MODE = { time: 'timecode', beats: 'beats', frames: 'frame' };   // (the names src/time/transport.js uses)
+/** The clips' colours in the navigator (as the lanes have them). */
+const NAV_COLORS = { title: '#c9c1b4', say: '#e7d8a8', draw: '#b9c6b0', action: '#9b9a97', camera: '#b3bfd0', audio: '#d0b3c4' };
+const ZOOM_IN = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5M10.5 8v5"/></svg>';
+const ZOOM_OUT = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5"/></svg>';
+const ZOOM_STEP = 1.5;
 
 export function mountTimeline(root, app) {
   const P = () => app.player, R = () => app.recorder;
@@ -27,13 +32,28 @@ export function mountTimeline(root, app) {
     return fmt(ms);
   };
   const stampOf = (t, total) => (st => (st.ruler === 'time' ? `${fmt(t)} / ${fmt(total)}` : stamp(t)))(S());
-  let pps = 60;             // pixels per second
+  // The view: pps is the zoom (pixels a second); where it starts is the lanes' scrollLeft.
+  let pps = 60;
+  let pendingLeft = null;   // where the next drawLanes puts the view (after a zoom or a fit)
+  let expectLeft = 0;       // the scroll set here last: any other is the user's, and holds back following
+  let followHold = false;   // the user moved the view while playing: the playhead does not pull it back
+  const views = [];         // earlier views, for X (back)
   let selected = null;
   const bar = h('div', { class: 'wb-tl-bar' });
   const labels = h('div', { class: 'wb-tl-labels' });
   const lanes = h('div', { class: 'wb-tl-lanes', tabIndex: 0 });
   const body = h('div', { class: 'wb-tl-body' }, labels, lanes);
-  root.append(h('div', { class: 'wb-tl' }, bar, body));
+  // The navigator: the whole timeline in a strip, with the view as a window on it.
+  const navCanvas = h('canvas', { class: 'wb-tl-nav-c' });
+  const navWin = h('div', { class: 'wb-tl-nav-win', title: 'The view: drag to pan, drag an edge to zoom' }, h('div', { class: 'wb-tl-nav-h in' }), h('div', { class: 'wb-tl-nav-h out' }));
+  const navHead = h('div', { class: 'wb-tl-nav-head' });
+  const nav = h('div', { class: 'wb-tl-nav', title: 'The whole timeline: drag the window to pan, its edges to zoom; press elsewhere to go there; double-click to fit all; the wheel zooms' }, navCanvas, navWin, navHead);
+  const zoomBtn = (title, html, run) => h('button', { class: 'wb-icon-btn', type: 'button', title, html, onclick: ev => run(ev) });
+  const zoomBar = h('div', { class: 'wb-tl-zoom' },
+    zoomBtn('Zoom out (− in the timeline; Ctrl/⌘ + wheel zooms at the pointer)', ZOOM_OUT, () => { zoomBy(1 / ZOOM_STEP); lanes.focus({ preventScroll: true }); }),
+    zoomBtn('Zoom in (= in the timeline)', ZOOM_IN, () => { zoomBy(ZOOM_STEP); lanes.focus({ preventScroll: true }); }),
+    zoomBtn('Fit: all, the loop range, the selected clip… (F frames the selection, \\ fits all)', icon('fit'), ev => showMenu(fitItems(), ev.clientX, ev.clientY)));
+  root.append(h('div', { class: 'wb-tl' }, bar, h('div', { class: 'wb-tl-navrow' }, zoomBar, nav), body));
 
   // Selecting only moves the highlight (rebuilding the lanes would replace a clip mid-drag).
   const select = c => {
@@ -156,44 +176,183 @@ export function mountTimeline(root, app) {
   ];
 
   // ---- lanes ---------------------------------------------------------------------------------
-  const fitZoom = () => { const d = P().duration; const w = lanes.clientWidth || 600; pps = Math.max(2, Math.min(400, (w - 40) / Math.max(1, d / 1000))); };
   const x = ms => (ms / 1000) * pps;
   const live = () => (!P()?.take && R()?.recording ? R().take : null);
+  // ---- the view: zoom, pan, fit ----
+  const viewW = () => lanes.clientWidth || 600;
+  const current = () => ({ pps, left: lanes.scrollLeft });
+  const span = () => Math.max(1000, P()?.duration || 0);
+  const scrollTo = left => { lanes.scrollLeft = Math.max(0, left); expectLeft = lanes.scrollLeft; };
+  /** Keep the view to come back to (X). */
+  const remember = () => {
+    const v = current(), last = views[views.length - 1];
+    if (!last || Math.abs(last.pps - v.pps) > 1e-9 || Math.abs(last.left - v.left) > 1) views.push(v);
+    if (views.length > 40) views.shift();
+  };
+  /** Show a view ({ pps, left }); `keep` remembers the one before it. */
+  const setView = (v, keep = false) => {
+    if (keep) remember();
+    pps = clampPps(v.pps, span()); pendingLeft = Math.max(0, v.left);
+    drawLanes();
+  };
+  // (on opening a take: the next drawLanes shows all of it)
+  const fitZoom = () => { const v = fitRange(0, span(), viewW(), { pad: 0.02, durMs: span() }); pps = v.pps; pendingLeft = v.left; };
+  const fitAll = (keep = true) => setView(fitRange(0, span(), viewW(), { pad: 0.02, durMs: span() }), keep);
+  const fitMs = (lo, hi, pad = 0.06) => setView(fitRange(lo, hi, viewW(), { pad, durMs: span() }), true);
+  const fitLoop = () => { const r = P().loopRange; if (r) fitMs(r[0], r[1]); else app.log('No loop range: Shift-drag the ruler to mark one (or I and O in the timeline).'); };
+  const fitClip = c => { if (c) fitMs(c.start, c.start + (c.dur || 0), 0.1); };
+  /** F: the selected clip, else the loop range, else all of it. */
+  const fitSelection = () => (selected ? fitClip(selected) : P().loopRange ? fitLoop() : fitAll());
+  /** Show [lo, hi] exactly (the navigator's edges). */
+  const showRange = (lo, hi) => { const w = viewW(), next = clampPps(w / Math.max(0.001, (hi - lo) / 1000), span()); setView({ pps: next, left: (lo / 1000) * next }); };
+  /** Where zooming holds still: the playhead when it is in view, else the middle. */
+  const headAnchor = () => { const hx = x(P().t) - lanes.scrollLeft; return hx >= 0 && hx <= viewW() ? hx : viewW() / 2; };
+  const zoomBy = (f, anchorPx = headAnchor()) => setView(zoomAt(current(), f, anchorPx, span()));
+  const back = () => { const v = views.pop(); if (v) setView(v); };
+  const centreHead = () => { followHold = false; setView(centerOn(current(), P().t, viewW())); };
+  /** Seek and keep the playhead in view (keys, edit points). */
+  const seekShow = t => {
+    const p = P(); p.seek(t); followHold = false;
+    if (x(p.t) > laneWidth - 60) drawLanes();
+    const v = reveal(current(), p.t, viewW());
+    if (Math.abs(v.left - lanes.scrollLeft) > 0.5) scrollTo(v.left);
+  };
+  const fitItems = () => [
+    { label: 'Fit all', keys: '\\', run: () => fitAll() },
+    { label: 'Fit the loop range', keys: 'L', disabled: !P().loopRange, run: fitLoop },
+    { label: 'Fit the selected clip', keys: 'F', disabled: !selected, run: () => fitClip(selected) },
+    { label: 'Centre on the playhead', keys: '.', run: centreHead },
+    '-',
+    { label: 'Zoom in', keys: '=', run: () => zoomBy(ZOOM_STEP) },
+    { label: 'Zoom out', keys: '−', run: () => zoomBy(1 / ZOOM_STEP) },
+    { label: 'Previous view', keys: 'X', disabled: !views.length, run: back },
+    '-',
+    { label: '← → a frame (beats: a beat), Shift: a second (a bar)' },
+    { label: '↑ ↓ the previous and next clip edge' },
+    { label: 'I O mark the loop range at the playhead' }
+  ].map(it => (it.run ? { ...it, run: () => { it.run(); lanes.focus({ preventScroll: true }); } } : it));
   // The playhead is one element moved by a transform every frame; lanes are rebuilt only when clips change.
   const playhead = h('div', { class: 'wb-tl-playhead' });
   let laneWidth = 0;
-  const setHead = ms => { playhead.style.transform = `translateX(${x(ms)}px)`; };
-  // Follow in pages: when the playhead nears the right edge, jump so it sits near the left.
+  const setHead = ms => { playhead.style.transform = `translateX(${x(ms)}px)`; setNavHead(ms); };
+  // Follow in pages: when the playhead nears the right edge, jump so it sits near the left. Not while
+  // the user has moved the view away (until the playhead comes back into it, or play starts again).
   const follow = ms => {
     const hx = x(ms), left = lanes.scrollLeft, w = lanes.clientWidth;
-    if (hx > left + w * 0.9 || hx < left) lanes.scrollLeft = Math.max(0, hx - w * 0.2);
+    if (followHold) { if (hx >= left && hx <= left + w * 0.9) followHold = false; else return; }
+    if (hx > left + w * 0.9 || hx < left) scrollTo(hx - w * 0.2);
   };
+  // While a drag is near the left or right edge of the lanes, scroll that way (faster the further out).
+  const edgeScroll = tick => {
+    let ev = null, raf2 = 0;
+    const step = () => {
+      raf2 = 0; if (!ev) return;
+      const r = lanes.getBoundingClientRect(), m = 28;
+      const over = ev.clientX < r.left + m ? ev.clientX - (r.left + m) : ev.clientX > r.right - m ? ev.clientX - (r.right - m) : 0;
+      if (!over) return;
+      const before = lanes.scrollLeft;
+      scrollTo(before + Math.sign(over) * Math.min(48, 3 + Math.abs(over) * 0.6));
+      if (lanes.scrollLeft !== before) tick(ev);
+      if (!raf2) raf2 = requestAnimationFrame(step);
+    };
+    return { move: e => { ev = e; if (!raf2) raf2 = requestAnimationFrame(step); }, stop: () => { ev = null; cancelAnimationFrame(raf2); raf2 = 0; } };
+  };
+  // ---- the ruler and the grid: drawn only near the view (a long film zoomed in is millions of pixels wide) ----
+  let rulerEl = null, gridEl = null, rulerSpan = [0, -1];
+  const drawRuler = (force = false) => {
+    if (!rulerEl) return;
+    const w = viewW(), left = lanes.scrollLeft;
+    if (!force && left >= rulerSpan[0] && left + w <= rulerSpan[1]) return;
+    const a = Math.max(0, left - w), b = Math.min(laneWidth, left + 2 * w);
+    rulerSpan = [a, b];
+    const st = S(), t0 = a / pps, t1 = b / pps;
+    const { step, ticks } = st.ruler === 'beats' ? beatTicks(t0, t1, pps, st) : st.ruler === 'frames' ? frameTicks(t0, t1, pps, st.fps) : timeTicks(t0, t1, pps);
+    const label = t => (st.ruler === 'beats' ? formatMusicalPosition(t, st.tempo, st.signature).replace(/(\.1)?\.1$/, '') : st.ruler === 'frames' ? String(secondsToFrame(t, st.fps)) : timeLabel(t, step));
+    rulerEl.replaceChildren(...ticks.map(k => h('span', { class: k.major ? 'major' : 'minor', style: { left: `${k.time * pps}px` } }, k.major ? label(k.time) : '')));
+    // The grid's lines over the lanes (each step, and the bars more strongly in the beats ruler).
+    if (gridEl) {
+      const q = snapStep(st, pps) * pps, barPx = (60 / st.tempo) * (4 / st.signature.denominator) * st.signature.numerator * pps;
+      const layers = q >= 4 ? [st.ruler === 'beats' && barPx > q ? gridLayer(barPx, a, 'var(--wb-tl-grid-strong)') : null, gridLayer(q, a, 'var(--wb-tl-grid)')].filter(Boolean) : [];
+      Object.assign(gridEl.style, { left: `${a}px`, width: `${b - a}px`, backgroundImage: layers.join(', ') || 'none' });
+    }
+  };
+  // ---- the navigator ----
+  let navFrozen = null, navDrawnTotal = 0;
+  const navTotal = () => navFrozen ?? Math.max(span(), ((lanes.scrollLeft + viewW()) / pps) * 1000);
+  const drawNav = () => {
+    const p = P(); if (!p) return;
+    const w = nav.clientWidth, hh = nav.clientHeight; if (!w || !hh) return;
+    const dpr = window.devicePixelRatio || 1;
+    if (navCanvas.width !== Math.round(w * dpr) || navCanvas.height !== Math.round(hh * dpr)) { navCanvas.width = Math.round(w * dpr); navCanvas.height = Math.round(hh * dpr); }
+    const g = navCanvas.getContext?.('2d'); if (!g) return;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hh);
+    const total = navDrawnTotal = navTotal(), k = w / total;
+    const lr = p.loopRange;
+    if (lr) { g.globalAlpha = p.loop ? 0.28 : 0.16; g.fillStyle = getComputedStyle(nav).getPropertyValue('--wb-accent-2').trim() || '#c0563f'; g.fillRect(lr[0] * k, 0, Math.max(1, (lr[1] - lr[0]) * k), hh); g.globalAlpha = 1; }
+    const take = p.take || live();
+    if (take) {
+      const tracks = tracksOf(take), row = new Map(tracks.map((tr, i) => [tr.id, i]));
+      const rh = (hh - 2) / Math.max(1, tracks.length);
+      for (const c of take.clips) {
+        const i = row.get(laneOf(c)) ?? 0;
+        g.fillStyle = NAV_COLORS[c.track] || '#999';
+        g.fillRect(c.start * k, 1 + i * rh, Math.max(1, (c.dur || 0) * k), Math.max(1, rh > 3 ? rh - 1 : rh));
+      }
+    }
+    drawNavWin();
+    setNavHead(p.t);
+  };
+  const drawNavWin = () => {
+    const w = nav.clientWidth; if (!w) return;
+    if (navFrozen == null && Math.abs(navTotal() - navDrawnTotal) > 1) return drawNav();
+    const k = w / navTotal(), [t0, t1] = visibleRange(current(), viewW());
+    navWin.style.left = `${t0 * k}px`; navWin.style.width = `${Math.max(6, (t1 - t0) * k)}px`;
+  };
+  const setNavHead = ms => { const w = nav.clientWidth; if (w) navHead.style.transform = `translateX(${(ms / navTotal()) * w}px)`; };
+  nav.addEventListener('pointerdown', ev => {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    const r = nav.getBoundingClientRect(), total = navFrozen = navTotal(), k = r.width / total;
+    const tAt = e => (e.clientX - r.left) / k;
+    const [t0, t1] = visibleRange(current(), viewW());
+    const edge = ev.target.closest('.wb-tl-nav-h');
+    remember();
+    let mv;
+    if (edge) {
+      // An edge: zoom, the other edge held still.
+      const isIn = edge.classList.contains('in');
+      mv = e => { const t = Math.max(0, Math.min(total, tAt(e))); if (isIn) showRange(Math.min(t, t1 - 50), t1); else showRange(t0, Math.max(t, t0 + 50)); };
+    } else {
+      // The window: pan, held where it was pressed; elsewhere: the view jumps there (centred), then pans.
+      const inside = navWin.contains(ev.target), grab = inside ? tAt(ev) - t0 : (t1 - t0) / 2;
+      mv = e => { followHold = true; scrollTo((Math.max(0, tAt(e) - grab) / 1000) * pps); drawRuler(); drawNavWin(); };
+      if (!inside) mv(ev);
+    }
+    nav.classList.add('dragging');
+    const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); nav.classList.remove('dragging'); navFrozen = null; drawNav(); lanes.focus({ preventScroll: true }); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  });
+  nav.addEventListener('dblclick', () => fitAll());
+  nav.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    const d = (ev.deltaMode === 1 ? 16 : 1) * (Math.abs(ev.deltaY) >= Math.abs(ev.deltaX) ? ev.deltaY : ev.deltaX);
+    if (ev.shiftKey) { followHold = true; scrollTo(lanes.scrollLeft + d); return; }
+    zoomBy(Math.exp(-d * 0.003), viewW() / 2);
+  }, { passive: false });
   const drawLanes = () => {
     const p = P(), rec = live(), take = p?.take || rec;
     const tracks = take ? tracksOf(take) : TRACKS.map(k => ({ id: k, kind: k, name: TRACK_NAMES[k] }));
     labels.replaceChildren(h('div', { class: 'wb-tl-rulerlabel' }), ...tracks.map(tr => trackLabel(tr, take, Boolean(rec))));
     // (without a take the lanes are empty and the playhead still runs: scores play on it)
     const now = rec ? R().now() : p.t;
-    const d = rec ? now : p.duration, W = Math.max(lanes.clientWidth, x(d) + (rec ? lanes.clientWidth : 120));
+    const left0 = pendingLeft ?? lanes.scrollLeft;
+    const d = rec ? now : p.duration, W = Math.round(Math.min(MAX_CONTENT_PX, Math.max(lanes.clientWidth + left0, x(d) + (rec ? lanes.clientWidth : 120))));
     laneWidth = W;
     const st = S();
-    const ruler = h('div', { class: 'wb-tl-ruler', style: { width: `${W}px` } });
-    if (st.ruler === 'time') {
-      const step = pps > 80 ? 1 : pps > 25 ? 5 : pps > 8 ? 10 : 30;
-      for (let s = 0; s * 1000 <= d + step * 1000; s += step) ruler.append(h('span', { style: { left: `${x(s * 1000)}px` } }, fmt(s * 1000).replace(/\.0$/, '')));
-    } else {
-      // Bars and beats, or frames: the ticks and labels of the Underscores ruler.
-      const secs = W / pps;
-      for (const k of createTimelineTicks(secs, 12, { mode: RULER_MODE[st.ruler], rangeStart: 0, rangeEnd: secs, pixelWidth: W, fps: st.fps, tempo: st.tempo, signature: st.signature })) {
-        const label = !k.showLabel ? '' : st.ruler === 'beats' ? formatMusicalPosition(k.time, st.tempo, st.signature).replace(/(\.1)?\.1$/, '') : String(secondsToFrame(k.time, st.fps));
-        ruler.append(h('span', { class: k.major ? 'major' : 'minor', style: { left: `${x(k.time * 1000)}px` } }, label));
-      }
-    }
-    // The grid's lines over the lanes (each step, and the bars more strongly in the beats ruler).
-    const step = snapStep(st, pps) * pps, barPx = (60 / st.tempo) * (4 / st.signature.denominator) * st.signature.numerator * pps;
-    const gridStyle = step >= 4 ? { backgroundImage: [st.ruler === 'beats' && barPx > step ? `repeating-linear-gradient(90deg, var(--wb-tl-grid-strong) 0 1px, transparent 1px ${barPx}px)` : null, `repeating-linear-gradient(90deg, var(--wb-tl-grid) 0 1px, transparent 1px ${step}px)`].filter(Boolean).join(', ') } : {};
+    const ruler = rulerEl = h('div', { class: 'wb-tl-ruler', style: { width: `${W}px` }, title: 'Press or drag to scrub; Shift-drag marks a loop range; double-click fits all; right-click for more' });
+    ruler.addEventListener('dblclick', () => fitAll());
     const rows = tracks.map(tr => {
-      const row = h('div', { class: `wb-tl-row${tr.muted ? ' muted' : ''}`, 'data-track': tr.id, 'data-kind': tr.kind, style: { width: `${W}px`, ...gridStyle } });
+      const row = h('div', { class: `wb-tl-row${tr.muted ? ' muted' : ''}`, 'data-track': tr.id, 'data-kind': tr.kind, style: { width: `${W}px` } });
       for (const c of (take?.clips || []).filter(c => laneOf(c) === tr.id)) row.append(clipEl(c, Boolean(rec)));
       return row;
     });
@@ -205,18 +364,26 @@ export function mountTimeline(root, app) {
       const hd = h('div', { class: `wb-tl-loop-h ${side}`, title: side === 'in' ? 'Loop in: drag (Alt: any time)' : 'Loop out: drag (Alt: any time)' });
       hd.addEventListener('pointerdown', ev => {
         ev.stopPropagation(); ev.preventDefault();
-        const mv = e2 => {
+        const set = e2 => {
           const cur = p.loopRange; if (!cur) return;
           const t = snapped(e2);
           const [lo, hi] = side === 'in' ? [Math.min(t, cur[1] - 20), cur[1]] : [cur[0], Math.max(t, cur[0] + 20)];
           p.setSettings({ loop: { start: lo / 1000, end: hi / 1000 } });
         };
-        const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); drawLanes(); };
+        const edge = edgeScroll(set), mv = e2 => { set(e2); edge.move(e2); };
+        const up = () => { edge.stop(); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); drawLanes(); };
         window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
       });
       band.append(hd);
     }
-    lanes.replaceChildren(ruler, ...rows, band, playhead);
+    // (the band and the playhead as tall as the lanes, so they scroll with them)
+    const H = 18 + rows.length * 24;
+    band.style.height = playhead.style.height = `${H}px`;
+    gridEl = h('div', { class: 'wb-tl-grid', style: { height: `${H - 18}px` } });
+    lanes.replaceChildren(ruler, gridEl, ...rows, band, playhead);
+    if (pendingLeft != null) { lanes.scrollLeft = pendingLeft; pendingLeft = null; }
+    expectLeft = lanes.scrollLeft;
+    drawRuler(true); drawNav();
     setHead(now);
     if (rec) return;   // read-only until the recording stops
     // Scrub by clicking or dragging on the ruler or empty lanes.
@@ -228,7 +395,15 @@ export function mountTimeline(root, app) {
     const snapped = ev => snapMs(at(ev), ev);
     ruler.addEventListener('contextmenu', ev => {
       ev.preventDefault();
-      showMenu([{ label: 'Clear the loop range', disabled: !p.loopRange, run: () => p.setSettings({ loop: { start: 0, end: 0 } }) }], ev.clientX, ev.clientY);
+      showMenu([
+        { label: 'Fit all', keys: '\\', run: () => fitAll() },
+        { label: 'Fit the loop range', keys: 'L', disabled: !p.loopRange, run: fitLoop },
+        { label: 'Previous view', keys: 'X', disabled: !views.length, run: back },
+        '-',
+        { label: 'Loop in at the playhead', keys: 'I', run: markIn },
+        { label: 'Loop out at the playhead', keys: 'O', run: markOut },
+        { label: 'Clear the loop range', disabled: !p.loopRange, run: () => p.setSettings({ loop: { start: 0, end: 0 } }) }
+      ], ev.clientX, ev.clientY);
     });
     for (const el of [ruler, ...rows]) el.addEventListener('pointerdown', ev => {
       if (ev.target.closest('.wb-tl-clip')) return;
@@ -236,9 +411,10 @@ export function mountTimeline(root, app) {
       if (ev.shiftKey) {
         // Mark a loop range: drag from where you press.
         const a = snapped(ev);
-        const mv = e2 => { const b = snapped(e2); band.style.display = ''; band.style.left = `${x(Math.min(a, b))}px`; band.style.width = `${x(Math.abs(b - a))}px`; };
+        const show = e2 => { const b = snapped(e2); band.style.display = ''; band.style.left = `${x(Math.min(a, b))}px`; band.style.width = `${x(Math.abs(b - a))}px`; };
+        const edge = edgeScroll(show), mv = e2 => { show(e2); edge.move(e2); };
         const up = e2 => {
-          window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+          edge.stop(); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
           const b = snapped(e2), lo = Math.min(a, b), hi = Math.max(a, b);
           p.setSettings({ loop: hi - lo >= 20 ? { start: lo / 1000, end: hi / 1000 } : { start: 0, end: 0 } });
           if (hi - lo >= 20 && !p.loop) p.loop = true;
@@ -247,8 +423,11 @@ export function mountTimeline(root, app) {
         window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
         return;
       }
+      // Scrub; held near an edge, the view scrolls on and the playhead goes with it.
+      followHold = false;
       scrub(ev);
-      const mv = e2 => scrub(e2), up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); };
+      const edge = edgeScroll(scrub), mv = e2 => { scrub(e2); edge.move(e2); };
+      const up = () => { edge.stop(); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); };
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
     });
   };
@@ -288,15 +467,16 @@ export function mountTimeline(root, app) {
       if (ev.button !== 0) return;
       ev.stopPropagation(); select(c);
       const grip = ev.target.classList.contains('wb-tl-grip');
-      const x0 = ev.clientX, s0 = c.start, d0 = c.dur;
-      const mv = e2 => {
-        const dt = ((e2.clientX - x0) / pps) * 1000;
+      const x0 = ev.clientX, sl0 = lanes.scrollLeft, s0 = c.start, d0 = c.dur;
+      const place = e2 => {
+        const dt = ((e2.clientX - x0 + lanes.scrollLeft - sl0) / pps) * 1000;
         // On the grid (Alt or Shift: free): the start, or the end when the right edge is dragged.
         const free = e2.altKey || e2.shiftKey, q = free ? 0 : snapStep(S(), pps) * 1000;
         const on = v => (q ? Math.round(v / q) * q : v);
         if (grip) c.dur = Math.max(q || 100, Math.round(on(s0 + d0 + dt) - s0)); else c.start = Math.max(0, Math.round(on(s0 + dt)));
         el.style.left = `${x(c.start)}px`; el.style.width = `${Math.max(6, x(c.dur))}px`;
       };
+      const edge = edgeScroll(place), mv = e2 => { place(e2); edge.move(e2); };
       const lane0 = laneOf(c);
       let lane = lane0;
       const mvLane = e2 => {
@@ -306,7 +486,7 @@ export function mountTimeline(root, app) {
       };
       window.addEventListener('pointermove', mvLane);
       const up = () => {
-        window.removeEventListener('pointermove', mv); window.removeEventListener('pointermove', mvLane); window.removeEventListener('pointerup', up);
+        edge.stop(); window.removeEventListener('pointermove', mv); window.removeEventListener('pointermove', mvLane); window.removeEventListener('pointerup', up);
         if (lane !== lane0) c.lane = lane;
         if (c.start !== s0 || c.dur !== d0 || lane !== lane0) edited();
       };
@@ -318,7 +498,8 @@ export function mountTimeline(root, app) {
   };
   const drawLabel = c => { const d = c.diff || {}; const n = (d.add || []).length, u = (d.update || []).length, r = (d.remove || []).length; return `${c.label || 'change'}${n ? ` +${n}` : ''}${u ? ` ~${u}` : ''}${r ? ` −${r}` : ''}`; };
   const clipMenu = c => [
-    { label: 'Go to start', run: () => P().seek(c.start) },
+    { label: 'Go to start', run: () => seekShow(c.start) },
+    { label: 'Zoom to the clip', keys: 'F', run: () => fitClip(c) },
     { label: 'Show code', hint: 'This clip as clip({ … }): edit and apply', run: () => app.openCode?.('clip', c) },
     c.track === 'draw' ? { label: c.fx?.drawOn === false ? 'Reveal gradually' : 'Show at once', run: () => { c.fx = { ...(c.fx || {}), drawOn: c.fx?.drawOn === false }; edited(); } } : null,
     { label: 'Speed', items: [0.25, 0.5, 2, 4].map(k => ({ label: k < 1 ? `${1 / k}× slower` : `${k}× faster`, run: () => { c.dur = Math.max(100, Math.round(c.dur / k)); edited(); } })) },
@@ -381,12 +562,89 @@ export function mountTimeline(root, app) {
     app.log(`Added “${a.title}” at ${fmt(t)}.`);
   });
 
-  lanes.addEventListener('wheel', ev => { if (!(ev.metaKey || ev.ctrlKey)) return; ev.preventDefault(); pps = Math.max(2, Math.min(600, pps * Math.exp(-ev.deltaY * 0.004))); drawLanes(); }, { passive: false });
+  // The wheel: Ctrl/⌘ (or a pinch) zooms at the pointer; Shift pans; with no tracks to scroll, the wheel pans.
+  let lastWheel = 0;
+  lanes.addEventListener('wheel', ev => {
+    const u = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? viewW() : 1, dx = ev.deltaX * u, dy = ev.deltaY * u;
+    if (ev.metaKey || ev.ctrlKey) {
+      ev.preventDefault();
+      if (performance.now() - lastWheel > 500) remember();   // (one gesture is one step back)
+      lastWheel = performance.now();
+      zoomBy(Math.exp(-dy * 0.004), ev.clientX - lanes.getBoundingClientRect().left);
+      return;
+    }
+    const noRows = lanes.scrollHeight <= lanes.clientHeight + 1;
+    if (ev.shiftKey || (noRows && Math.abs(dy) > Math.abs(dx))) { ev.preventDefault(); followHold = true; lanes.scrollLeft += ev.shiftKey ? dx || dy : dy; }
+    else if (dx) followHold = true;
+  }, { passive: false });
+  // The middle button drags the view (anywhere on the lanes, clips too).
+  lanes.addEventListener('mousedown', ev => { if (ev.button === 1) ev.preventDefault(); });
+  lanes.addEventListener('pointerdown', ev => {
+    if (ev.button !== 1) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const x0 = ev.clientX, y0 = ev.clientY, l0 = lanes.scrollLeft, t0 = lanes.scrollTop;
+    followHold = true; lanes.classList.add('panning');
+    const mv = e2 => { lanes.scrollLeft = l0 - (e2.clientX - x0); lanes.scrollTop = t0 - (e2.clientY - y0); };
+    const up = () => { lanes.classList.remove('panning'); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  }, true);
+  // Scrolling: the track names follow up and down, the ruler and navigator follow across.
+  let scrollRaf = 0;
+  lanes.addEventListener('scroll', () => {
+    labels.scrollTop = lanes.scrollTop;
+    if (Math.abs(lanes.scrollLeft - expectLeft) > 2) { followHold = true; expectLeft = lanes.scrollLeft; }
+    if (!scrollRaf) scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; drawRuler(); drawNavWin(); });
+  });
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { drawRuler(true); drawNav(); }).observe(lanes);
+
+  // Stepping and marking from the keyboard.
+  const nudge = (dir, big) => {
+    const st = S(), beat = (60 / st.tempo) * (4 / st.signature.denominator), barS = beat * st.signature.numerator;
+    const q = (st.ruler === 'beats' ? (big ? barS : beat) : big ? 1 : 1 / st.fps) * 1000, t = P().t;
+    const n = dir > 0 ? Math.floor(t / q + 1e-6) + 1 : Math.ceil(t / q - 1e-6) - 1;
+    seekShow(Math.max(0, n * q));
+  };
+  const jumpEdit = dir => {
+    const p = P(), take = p.take || live();
+    const t = nextEdit(editPoints(take?.clips, p.loopRange, take ? p.duration : 0), p.t, dir);
+    if (t != null) seekShow(t);
+  };
+  const markIn = () => {
+    const p = P(), t = Math.round(p.t), lr = p.loopRange;
+    const hi = lr && lr[1] > t + 20 ? lr[1] : p.take && p.duration > t + 20 ? p.duration : t + 4000;
+    p.setSettings({ loop: { start: t / 1000, end: hi / 1000 } }); if (!p.loop) p.loop = true; drawBar(); drawLanes();
+  };
+  const markOut = () => {
+    const p = P(), t = Math.round(p.t), lr = p.loopRange;
+    if (t < 20) return;
+    const lo = lr && lr[0] < t - 20 ? lr[0] : 0;
+    p.setSettings({ loop: { start: lo / 1000, end: t / 1000 } }); if (!p.loop) p.loop = true; drawBar(); drawLanes();
+  };
+  // Keys while the timeline has focus (they do not reach the canvas's shortcuts; Home and End, and anything with Alt, Ctrl or ⌘, do).
+  const KEYS = {
+    ArrowLeft: ev => nudge(-1, ev.shiftKey), ArrowRight: ev => nudge(1, ev.shiftKey),
+    ArrowUp: () => jumpEdit(-1), ArrowDown: () => jumpEdit(1),
+    '=': () => zoomBy(ZOOM_STEP), '+': () => zoomBy(ZOOM_STEP), '-': () => zoomBy(1 / ZOOM_STEP), _: () => zoomBy(1 / ZOOM_STEP),
+    '\\': () => fitAll(), '|': () => fitAll(),
+    f: fitSelection, F: () => fitAll(), z: fitSelection, l: fitLoop, L: fitLoop, x: back, X: back, '.': centreHead,
+    i: markIn, I: markIn, o: markOut, O: markOut
+  };
+  const SEEKS = /^(Arrow\w+|[iIoO])$/;   // (not while recording: the recording keeps its own time)
   lanes.addEventListener('keydown', ev => {
     if (ev.key === ' ' || ev.key === 'Delete' || ev.key === 'Backspace') ev.stopPropagation();   // (other keys, the transport's Home and End among them, reach the shortcuts)
     if (ev.key === ' ') { ev.preventDefault(); P().toggle(); }
     if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected) { ev.preventDefault(); deleteClip(selected); }
+    const run = !(ev.metaKey || ev.ctrlKey || ev.altKey) && KEYS[ev.key];
+    if (run && !(R()?.recording && SEEKS.test(ev.key))) { ev.preventDefault(); ev.stopPropagation(); run(ev); }
   });
+  // For agents and tests: the view, and the same moves as the buttons and keys.
+  app.timelineView = {
+    get: () => { const [t0, t1] = visibleRange(current(), viewW()); return { pps, start: t0, end: t1 }; },
+    fit: (what = 'all') => (what === 'loop' ? fitLoop() : what === 'clip' ? fitClip(selected) : what === 'selection' ? fitSelection() : fitAll()),
+    show: (start, end) => showRange(start, end),
+    zoom: f => zoomBy(f),
+    back
+  };
 
   let lastPlaying = false;
   // One animation loop while playing or recording: move the playhead, rewrite the time, follow.
@@ -415,7 +673,7 @@ export function mountTimeline(root, app) {
   const sync = () => {
     const p = P(); if (!p) return;
     checkSettings();
-    if (lastPlaying !== p.playing) { lastPlaying = p.playing; drawBar(); timeEl = null; }   // redraw the bar only when play/pause flips
+    if (lastPlaying !== p.playing) { lastPlaying = p.playing; if (p.playing) followHold = false; drawBar(); timeEl = null; }   // redraw the bar only when play/pause flips
     if (p.playing) kick(); else { setHead(p.t); timeEl ||= bar.querySelector('.wb-tl-time'); if (timeEl) timeEl.textContent = stampOf(p.t, p.duration); }
   };
   const attach = () => { if (!P() || !R()) return setTimeout(attach, 30); P().on(sync); app.store.subscribe(checkSettings); settingsKey = JSON.stringify({ ...P().settings, mixer: 0 }); drawBar(); drawLanes(); loadTakes(); };
@@ -424,7 +682,7 @@ export function mountTimeline(root, app) {
   const liveRedraw = () => { if (liveQueued) return; liveQueued = true; setTimeout(() => { liveQueued = false; if (live()) drawLanes(); }, 250); };
   app.on('recording-update', liveRedraw);
   app.on('recording', on => {
-    if (on && !P().take) pps = 40;
+    if (on && !P().take) { pps = 40; followHold = false; }
     drawBar(); timeEl = null; drawLanes();
     if (on) kick();
   });
