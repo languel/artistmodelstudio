@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, rulerStep, timeTicks, frameTicks, beatTicks, gridLayer, timeLabel, editPoints, nextEdit, MIN_PPS, MAX_PPS } from './timelineView.js';
+import { rulerTicks } from './timelineView.js';
+const rulerTicksAt = (st, pps) => rulerTicks(st, 0, 600 / pps, pps);
+import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, rulerStep, timeTicks, frameTicks, beatTicks, autoGrid, gridLayer, timeLabel, editPoints, nextEdit, MIN_PPS, MAX_PPS } from './timelineView.js';
 
 describe('timeline view', () => {
   it('clamps the zoom, closer for short timelines than for long ones', () => {
@@ -100,5 +102,17 @@ describe('timeline view', () => {
     expect(gridLayer(50, 0, 'red')).toBe('repeating-linear-gradient(90deg, red 0px 1px, transparent 1px 50px)');
     // a box 120 px in: the next line is 30 px into it (at 150)
     expect(gridLayer(50, 120, 'red')).toBe('repeating-linear-gradient(90deg, red -20px -19px, transparent -19px 30px)');
+  });
+
+  it('puts the grid on the ruler\'s marks', () => {
+    const marks = (st, pps) => { const { ticks } = rulerTicksAt(st, pps); return ticks.map(k => k.time); };
+    for (const st of [{ ruler: 'time' }, { ruler: 'frames', fps: 30 }, { ruler: 'frames', fps: 24 }, { ruler: 'beats', tempo: 97, signature: { numerator: 3, denominator: 4 } }]) {
+      for (const pps of [0.05, 0.5, 3, 4.5, 7, 12, 40, 66, 150, 700, 3000]) {
+        const g = autoGrid(st, pps);
+        // every tick of the ruler is on a grid line
+        for (const t of marks(st, pps)) expect(Math.abs(t / g - Math.round(t / g))).toBeLessThan(1e-6);
+        if (st.ruler === 'frames') expect(Math.abs(g * st.fps - Math.round(g * st.fps))).toBeLessThan(1e-6);   // whole frames
+      }
+    }
   });
 });

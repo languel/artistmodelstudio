@@ -10,7 +10,7 @@ import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, c
 import { showMenu } from '../menu.js';
 import { formatMusicalPosition, secondsToFrame } from '../../time/transport.js';
 import { RULERS, FPS_CHOICES, QUANT_CHOICES, SNAP_CHOICES, snapStep, timeContext } from '../../time/sceneTransport.js';
-import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, timeTicks, frameTicks, beatTicks, gridLayer, timeLabel, editPoints, nextEdit, MAX_CONTENT_PX } from '../../time/timelineView.js';
+import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, rulerTicks, autoGrid, gridLayer, timeLabel, editPoints, nextEdit, MAX_CONTENT_PX } from '../../time/timelineView.js';
 
 const TRACK_LABEL = { title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
 const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`; };
@@ -20,6 +20,15 @@ const NAV_COLORS = { title: '#c9c1b4', say: '#e7d8a8', draw: '#b9c6b0', action: 
 const ZOOM_IN = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5M10.5 8v5"/></svg>';
 const ZOOM_OUT = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5"/></svg>';
 const ZOOM_STEP = 1.5;
+const svg = (d, extra = '') => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"${extra}>${d}</svg>`;
+/** Insert at the playhead: the playhead, and a plus beside it. */
+const INSERT = svg('<path d="M7 4v16"/><path d="M4.5 4h5L7 7z" fill="currentColor"/><path d="M16 8v8M12 12h8"/>');
+/** A summary: the take squeezed toward the middle. */
+const SUMMARY = svg('<path d="M2.5 12h5M5.5 9l2.5 3-2.5 3M21.5 12h-5M18.5 9L16 12l2.5 3M12 5v14"/>');
+/** A walkthrough: a dotted route with a step at its end. */
+const WALKTHROUGH = svg('<path d="M4 19c2-6 6-3 8-8s4-6 7-6" stroke-dasharray="1.6 2.6"/><circle cx="19" cy="5" r="2.2" fill="currentColor" stroke="none"/><circle cx="4" cy="19" r="1.6"/>');
+/** A track: a lane with a plus. */
+const ADD_TRACK = svg('<rect x="3" y="7" width="12" height="10" rx="2"/><path d="M19 9v6M16 12h6"/>');
 
 export function mountTimeline(root, app) {
   const P = () => app.player, R = () => app.recorder;
@@ -48,12 +57,15 @@ export function mountTimeline(root, app) {
   const navWin = h('div', { class: 'wb-tl-nav-win', title: 'The view: drag to pan, drag an edge to zoom' }, h('div', { class: 'wb-tl-nav-h in' }), h('div', { class: 'wb-tl-nav-h out' }));
   const navHead = h('div', { class: 'wb-tl-nav-head' });
   const nav = h('div', { class: 'wb-tl-nav', title: 'The whole timeline: drag the window to pan, its edges to zoom; press elsewhere to go there; double-click to fit all; the wheel zooms' }, navCanvas, navWin, navHead);
+  const navInfo = h('span', { class: 'wb-tl-navinfo', title: 'What the view shows, of the whole timeline' });
   const zoomBtn = (title, html, run) => h('button', { class: 'wb-icon-btn', type: 'button', title, html, onclick: ev => run(ev) });
   const zoomBar = h('div', { class: 'wb-tl-zoom' },
     zoomBtn('Zoom out (− in the timeline; Ctrl/⌘ + wheel zooms at the pointer)', ZOOM_OUT, () => { zoomBy(1 / ZOOM_STEP); lanes.focus({ preventScroll: true }); }),
     zoomBtn('Zoom in (= in the timeline)', ZOOM_IN, () => { zoomBy(ZOOM_STEP); lanes.focus({ preventScroll: true }); }),
     zoomBtn('Fit: all, the loop range, the selected clip… (F frames the selection, \\ fits all)', icon('fit'), ev => showMenu(fitItems(), ev.clientX, ev.clientY)));
-  root.append(h('div', { class: 'wb-tl' }, bar, h('div', { class: 'wb-tl-navrow' }, zoomBar, nav), body));
+  // (the navigator under the tracks, as an editor's zoom bar: it stands in for the scrollbar)
+  const tl = h('div', { class: 'wb-tl' }, bar, body, h('div', { class: 'wb-tl-navrow' }, zoomBar, nav, navInfo));
+  root.append(tl);
 
   // Selecting only moves the highlight (rebuilding the lanes would replace a clip mid-drag).
   const select = c => {
@@ -104,11 +116,12 @@ export function mountTimeline(root, app) {
       rate,
       h('button', { class: `wb-icon-btn${p?.loop ? ' on' : ''}`, title: p.loopRange ? 'Loop the marked range (Shift-drag the ruler to mark one; right-click it to clear)' : 'Loop (Shift-drag the ruler to mark a range)', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a6 6 0 016-6h8l-3-3M20 12a6 6 0 01-6 6H6l3 3"/></svg>', onclick: () => { p.loop = !p.loop; drawBar(); drawLanes(); } }),
       sel,
-      h('button', { class: 'wb-icon-btn', title: 'Add at the playhead', disabled: !take, onclick: e => showMenu(addItems(), e.clientX, e.clientY), html: icon('plus') }),
+      h('button', { class: 'wb-icon-btn', title: 'Insert at the playhead: a title card, a line of narration, a camera keyframe, a hold, a sound (a take is started if there is none)', disabled: Boolean(rec), onclick: e => showMenu(addItems(), e.clientX, e.clientY), html: INSERT }),
+      h('button', { class: 'wb-icon-btn', title: 'Add a track', disabled: Boolean(rec), onclick: e => showMenu(trackItems(), e.clientX, e.clientY), html: ADD_TRACK }),
       take?.original
         ? h('button', { class: 'wb-icon-btn', title: 'Back to the take this summary was made from (the summary is discarded unless saved)', onclick: () => { const o = take.original; P().load(o); select(null); fitZoom(); drawBar(); drawLanes(); }, html: icon('undo') })
-        : h('button', { class: 'wb-btn', title: 'A short-form summary: narration kept, the drawing brisk, analysis and waiting sped through, a hold at the end', disabled: !take || Boolean(take.summaryOf) || /\(summary\)$/.test(take.title), onclick: makeSummary }, 'Summary'),
-      h('button', { class: 'wb-btn', title: 'Make a live walkthrough from this take (steps from narration; the drawing replayed with the guide)', disabled: !take, onclick: () => app.walkthroughs.fromTake(p.take).then(w => app.log(`Walkthrough “${w.title}” is in Docs → Walkthroughs and the palette.`)) }, 'Walkthrough'),
+        : h('button', { class: 'wb-icon-btn', title: 'Summary: a short cut of this take (narration kept, the drawing brisk, analysis and waiting sped through, a hold at the end)', disabled: !take || Boolean(take.summaryOf) || /\(summary\)$/.test(take.title), onclick: makeSummary, html: SUMMARY }),
+      h('button', { class: 'wb-icon-btn', title: 'Walkthrough: a live walkthrough from this take (steps from narration; the drawing replayed with the guide)', disabled: !take, onclick: () => app.walkthroughs.fromTake(p.take).then(w => app.log(`Walkthrough “${w.title}” is in Docs → Walkthroughs and the palette.`)), html: WALKTHROUGH }),
       h('button', { class: 'wb-icon-btn', title: 'Export', disabled: !take, onclick: e => showMenu(exportItems(), e.clientX, e.clientY), html: icon('export') }),
       h('button', { class: 'wb-icon-btn', title: 'Save the edited take to Assets', disabled: !take, onclick: saveTake, html: icon('save') }),
       take ? h('button', { class: 'wb-icon-btn', title: 'Close the take (back to your drawing)', html: icon('close'), onclick: () => { p.close(); select(null); drawBar(); drawLanes(); } }) : null].filter(Boolean));
@@ -136,16 +149,22 @@ export function mountTimeline(root, app) {
     app.log(`Summary: ${fmt(s.duration)} from ${fmt(duration(src))} (not saved yet).`);
   };
 
+  /** The take being edited, started (empty, from the drawing as it is) if there is none. */
+  const ensureTake = () => {
+    if (!P().take) { P().load(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(app.store.doc)) })); fitZoom(); drawBar(); }
+    return P().take;
+  };
+  /** Add a track of a kind (from the bar's button and the track names' menu). */
+  const trackItems = () => [{ label: 'Add a track' }, ...TRACKS.map(k => ({ label: TRACK_NAMES[k], run: () => { addTrack(ensureTake(), k); drawLanes(); } }))];
   const addItems = () => {
     const t = Math.round(P().t);
-    const add = clip => { P().take.clips.push({ id: clipId(), fx: {}, ...clip }); edited(); select(P().take.clips[P().take.clips.length - 1]); };
+    const add = clip => { const take = ensureTake(); take.clips.push({ id: clipId(), fx: {}, ...clip }); edited(); select(take.clips[take.clips.length - 1]); };
     return [
-      { label: 'Track', items: TRACKS.map(k => ({ label: TRACK_NAMES[k], run: () => { addTrack(P().take, k); drawLanes(); } })) },
-      '-',
+      { label: `Insert at the playhead (${stamp(t)})` },
       { label: 'Title card', run: () => add({ track: 'title', start: t, dur: 2500, text: 'Title', sub: '', fx: { fade: 400 } }) },
       { label: 'Narration', run: () => add({ track: 'say', start: t, dur: readingTime('A line of narration'), text: 'A line of narration' }) },
       { label: 'Camera keyframe (current view)', run: () => add({ track: 'camera', start: t, dur: 800, ...viewNow() }) },
-      { label: 'Hold (2 s from here)', hint: 'Push everything after the playhead 2 s later', run: () => { for (const c of P().take.clips) if (c.start >= t) c.start += 2000; edited(); } },
+      { label: 'Hold (2 s from here)', hint: 'Push everything after the playhead 2 s later', disabled: !P().take?.clips.length, run: () => { for (const c of P().take.clips) if (c.start >= t) c.start += 2000; edited(); } },
       '-',
       { label: 'Audio file…', hint: 'A sound or voiceover (played in the standalone player)', run: pickAudio }
     ];
@@ -161,7 +180,7 @@ export function mountTimeline(root, app) {
       const f = input.files[0]; if (!f) return;
       const src = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); });
       const au = new Audio(src); await new Promise(r => { au.onloadedmetadata = r; au.onerror = r; });
-      P().take.clips.push({ id: clipId(), track: 'audio', start: Math.round(P().t), dur: Math.round((au.duration || 5) * 1000), src, label: f.name, fx: {} });
+      ensureTake().clips.push({ id: clipId(), track: 'audio', start: Math.round(P().t), dur: Math.round((au.duration || 5) * 1000), src, label: f.name, fx: {} });
       edited();
     });
     input.click();
@@ -181,7 +200,8 @@ export function mountTimeline(root, app) {
   // ---- the view: zoom, pan, fit ----
   const viewW = () => lanes.clientWidth || 600;
   const current = () => ({ pps, left: lanes.scrollLeft });
-  const span = () => Math.max(1000, P()?.duration || 0);
+  /** The length fit-all shows: the take's (an empty one: half a minute to work in). */
+  const span = () => Math.max(1000, P()?.duration || 30000);
   const scrollTo = left => { lanes.scrollLeft = Math.max(0, left); expectLeft = lanes.scrollLeft; };
   /** Keep the view to come back to (X). */
   const remember = () => {
@@ -257,6 +277,8 @@ export function mountTimeline(root, app) {
     };
     return { move: e => { ev = e; if (!raf2) raf2 = requestAnimationFrame(step); }, stop: () => { ev = null; cancelAnimationFrame(raf2); raf2 = 0; } };
   };
+  /** The grid's step (s): the bar's choice, or (Auto) a division of the ruler's ticks, so the lines fall on its marks. */
+  const gridStep = (st, zoom) => (st.snap === 'auto' ? autoGrid(st, zoom) : snapStep(st, zoom));
   // ---- the ruler and the grid: drawn only near the view (a long film zoomed in is millions of pixels wide) ----
   let rulerEl = null, gridEl = null, rulerSpan = [0, -1];
   const drawRuler = (force = false) => {
@@ -266,12 +288,12 @@ export function mountTimeline(root, app) {
     const a = Math.max(0, left - w), b = Math.min(laneWidth, left + 2 * w);
     rulerSpan = [a, b];
     const st = S(), t0 = a / pps, t1 = b / pps;
-    const { step, ticks } = st.ruler === 'beats' ? beatTicks(t0, t1, pps, st) : st.ruler === 'frames' ? frameTicks(t0, t1, pps, st.fps) : timeTicks(t0, t1, pps);
+    const { step, ticks } = rulerTicks(st, t0, t1, pps);
     const label = t => (st.ruler === 'beats' ? formatMusicalPosition(t, st.tempo, st.signature).replace(/(\.1)?\.1$/, '') : st.ruler === 'frames' ? String(secondsToFrame(t, st.fps)) : timeLabel(t, step));
     rulerEl.replaceChildren(...ticks.map(k => h('span', { class: k.major ? 'major' : 'minor', style: { left: `${k.time * pps}px` } }, k.major ? label(k.time) : '')));
     // The grid's lines over the lanes (each step, and the bars more strongly in the beats ruler).
     if (gridEl) {
-      const q = snapStep(st, pps) * pps, barPx = (60 / st.tempo) * (4 / st.signature.denominator) * st.signature.numerator * pps;
+      const q = gridStep(st, pps) * pps, barPx = (60 / st.tempo) * (4 / st.signature.denominator) * st.signature.numerator * pps;
       const layers = q >= 4 ? [st.ruler === 'beats' && barPx > q ? gridLayer(barPx, a, 'var(--wb-tl-grid-strong)') : null, gridLayer(q, a, 'var(--wb-tl-grid)')].filter(Boolean) : [];
       Object.assign(gridEl.style, { left: `${a}px`, width: `${b - a}px`, backgroundImage: layers.join(', ') || 'none' });
     }
@@ -305,8 +327,12 @@ export function mountTimeline(root, app) {
   const drawNavWin = () => {
     const w = nav.clientWidth; if (!w) return;
     if (navFrozen == null && Math.abs(navTotal() - navDrawnTotal) > 1) return drawNav();
-    const k = w / navTotal(), [t0, t1] = visibleRange(current(), viewW());
-    navWin.style.left = `${t0 * k}px`; navWin.style.width = `${Math.max(6, (t1 - t0) * k)}px`;
+    const total = navTotal(), k = w / total, [t0, t1] = visibleRange(current(), viewW());
+    navWin.style.left = `${t0 * k}px`; navWin.style.width = `${Math.max(14, (t1 - t0) * k)}px`;
+    // The view against the whole: where it is, and how much of it.
+    const all = span(), shown = Math.min(t1, all) - Math.min(t0, all);
+    navInfo.textContent = `${stamp(t0)}–${stamp(Math.min(t1, all))} · ${shown >= all - 1 ? 'all' : `${Math.max(0.1, (shown / all) * 100).toFixed(shown / all < 0.1 ? 1 : 0)}%`} of ${stamp(all)}`;
+    navWin.classList.toggle('all', shown >= all - 1 && t0 <= 1);
   };
   const setNavHead = ms => { const w = nav.clientWidth; if (w) navHead.style.transform = `translateX(${(ms / navTotal()) * w}px)`; };
   nav.addEventListener('pointerdown', ev => {
@@ -341,12 +367,14 @@ export function mountTimeline(root, app) {
   }, { passive: false });
   const drawLanes = () => {
     const p = P(), rec = live(), take = p?.take || rec;
-    const tracks = take ? tracksOf(take) : TRACKS.map(k => ({ id: k, kind: k, name: TRACK_NAMES[k] }));
-    labels.replaceChildren(h('div', { class: 'wb-tl-rulerlabel' }), ...tracks.map(tr => trackLabel(tr, take, Boolean(rec))));
+    // No tracks until there is something to put on one (a recording, a drop, an insert) or you add one.
+    const tracks = take ? tracksOf(take) : [];
+    const addRow = rec ? null : h('div', { class: 'wb-tl-addtrack' }, h('button', { type: 'button', title: 'Add a track', onclick: ev => showMenu(trackItems(), ev.clientX, ev.clientY) }, h('span', { html: ADD_TRACK }), 'Track'));
+    labels.replaceChildren(h('div', { class: 'wb-tl-rulerlabel' }), ...tracks.map(tr => trackLabel(tr, take, Boolean(rec))), ...(addRow ? [addRow] : []));
     // (without a take the lanes are empty and the playhead still runs: scores play on it)
     const now = rec ? R().now() : p.t;
     const left0 = pendingLeft ?? lanes.scrollLeft;
-    const d = rec ? now : p.duration, W = Math.round(Math.min(MAX_CONTENT_PX, Math.max(lanes.clientWidth + left0, x(d) + (rec ? lanes.clientWidth : 120))));
+    const d = rec ? now : Math.max(p.duration, p.t, p.take ? 30000 : 0), W = Math.round(Math.min(MAX_CONTENT_PX, Math.max(lanes.clientWidth + left0, x(d) + (rec ? lanes.clientWidth : 120))));
     laneWidth = W;
     const st = S();
     const ruler = rulerEl = h('div', { class: 'wb-tl-ruler', style: { width: `${W}px` }, title: 'Press or drag to scrub; Shift-drag marks a loop range; double-click fits all; right-click for more' });
@@ -376,11 +404,14 @@ export function mountTimeline(root, app) {
       });
       band.append(hd);
     }
-    // (the band and the playhead as tall as the lanes, so they scroll with them)
+    // Under the tracks, the rest of the panel (beside the Track button): scrubbed like a lane, and where things are dropped.
     const H = 18 + rows.length * 24;
-    band.style.height = playhead.style.height = `${H}px`;
-    gridEl = h('div', { class: 'wb-tl-grid', style: { height: `${H - 18}px` } });
-    lanes.replaceChildren(ruler, gridEl, ...rows, band, playhead);
+    const fill = h('div', { class: 'wb-tl-fill', style: { width: `${W}px`, height: `max(24px, calc(100% - ${H}px))` } },
+      rows.length || rec ? null : h('span', { class: 'wb-tl-hint' }, 'No tracks yet: record, insert at the playhead, add a track, or drop sound, text or a drawing here'));
+    // (the band, the grid and the playhead as tall as the lanes, so they scroll with them)
+    band.style.height = playhead.style.height = `max(100%, ${H + 24}px)`;
+    gridEl = h('div', { class: 'wb-tl-grid', style: { height: `max(calc(100% - 18px), ${H - 18 + 24}px)` } });
+    lanes.replaceChildren(ruler, gridEl, ...rows, fill, band, playhead);
     if (pendingLeft != null) { lanes.scrollLeft = pendingLeft; pendingLeft = null; }
     expectLeft = lanes.scrollLeft;
     drawRuler(true); drawNav();
@@ -389,7 +420,7 @@ export function mountTimeline(root, app) {
     // Scrub by clicking or dragging on the ruler or empty lanes.
     const at = ev => { const r = lanes.getBoundingClientRect(); return ((ev.clientX - r.left + lanes.scrollLeft) / pps) * 1000; };
     // The grid (the bar's ⊞ select): the playhead, the loop range and clips fall on it; Alt for any time. With the grid off, Ctrl snaps to the ruler's divisions.
-    const grid = ev => { const q = snapStep(st, pps) || (ev.ctrlKey ? snapStep({ ...st, snap: 'auto' }, pps) : 0); return ev.altKey ? 0 : q * 1000; };
+    const grid = ev => { const q = gridStep(st, pps) || (ev.ctrlKey ? autoGrid(st, pps) : 0); return ev.altKey ? 0 : q * 1000; };
     const snapMs = (ms, ev) => { const q = grid(ev); return q ? Math.max(0, Math.round(ms / q) * q) : Math.max(0, Math.round(ms)); };
     const scrub = ev => p.seek(snapMs(at(ev), ev));
     const snapped = ev => snapMs(at(ev), ev);
@@ -405,7 +436,7 @@ export function mountTimeline(root, app) {
         { label: 'Clear the loop range', disabled: !p.loopRange, run: () => p.setSettings({ loop: { start: 0, end: 0 } }) }
       ], ev.clientX, ev.clientY);
     });
-    for (const el of [ruler, ...rows]) el.addEventListener('pointerdown', ev => {
+    for (const el of [ruler, ...rows, fill]) el.addEventListener('pointerdown', ev => {
       if (ev.target.closest('.wb-tl-clip')) return;
       select(null);
       if (ev.shiftKey) {
@@ -471,7 +502,7 @@ export function mountTimeline(root, app) {
       const place = e2 => {
         const dt = ((e2.clientX - x0 + lanes.scrollLeft - sl0) / pps) * 1000;
         // On the grid (Alt or Shift: free): the start, or the end when the right edge is dragged.
-        const free = e2.altKey || e2.shiftKey, q = free ? 0 : snapStep(S(), pps) * 1000;
+        const free = e2.altKey || e2.shiftKey, q = free ? 0 : gridStep(S(), pps) * 1000;
         const on = v => (q ? Math.round(v / q) * q : v);
         if (grip) c.dur = Math.max(q || 100, Math.round(on(s0 + d0 + dt) - s0)); else c.start = Math.max(0, Math.round(on(s0 + dt)));
         el.style.left = `${x(c.start)}px`; el.style.width = `${Math.max(6, x(c.dur))}px`;
@@ -573,9 +604,10 @@ export function mountTimeline(root, app) {
       zoomBy(Math.exp(-dy * 0.004), ev.clientX - lanes.getBoundingClientRect().left);
       return;
     }
+    // (the lanes have no scrollbar across, the navigator is theirs: sideways scrolling is done here)
     const noRows = lanes.scrollHeight <= lanes.clientHeight + 1;
-    if (ev.shiftKey || (noRows && Math.abs(dy) > Math.abs(dx))) { ev.preventDefault(); followHold = true; lanes.scrollLeft += ev.shiftKey ? dx || dy : dy; }
-    else if (dx) followHold = true;
+    const across = ev.shiftKey ? dx || dy : Math.abs(dx) > Math.abs(dy) ? dx : noRows ? dy : 0;
+    if (across) { ev.preventDefault(); followHold = true; lanes.scrollLeft += across; }
   }, { passive: false });
   // The middle button drags the view (anywhere on the lanes, clips too).
   lanes.addEventListener('mousedown', ev => { if (ev.button === 1) ev.preventDefault(); });
@@ -630,13 +662,25 @@ export function mountTimeline(root, app) {
     i: markIn, I: markIn, o: markOut, O: markOut
   };
   const SEEKS = /^(Arrow\w+|[iIoO])$/;   // (not while recording: the recording keeps its own time)
-  lanes.addEventListener('keydown', ev => {
-    if (ev.key === ' ' || ev.key === 'Delete' || ev.key === 'Backspace') ev.stopPropagation();   // (other keys, the transport's Home and End among them, reach the shortcuts)
-    if (ev.key === ' ') { ev.preventDefault(); P().toggle(); }
-    if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected) { ev.preventDefault(); deleteClip(selected); }
+  // The Timeline's keys work while the pointer is over it, or while something in it has focus (as in
+  // an editor with panes): they are taken before the canvas's shortcuts see them. Typing in a field
+  // is left alone; Home, End, and anything with Alt, Ctrl or ⌘ go on to the shortcuts.
+  let hover = false;
+  tl.addEventListener('pointerenter', () => { hover = true; });
+  tl.addEventListener('pointerleave', () => { hover = false; });
+  const typing = el => el?.closest?.('input, textarea, select, [contenteditable], .cm-editor');
+  window.addEventListener('keydown', ev => {
+    if (!tl.isConnected || !tl.offsetParent || ev.defaultPrevented) return;
+    const ae = document.activeElement;
+    if (typing(ev.target) || typing(ae)) return;
+    if (!hover && !tl.contains(ae)) return;
+    if (document.querySelector('.wb-menu, .wb-dialog')?.isConnected && !tl.contains(ev.target)) return;   // (a menu or dialog has the keys)
+    const take = () => { ev.preventDefault(); ev.stopPropagation(); };
+    if (ev.key === ' ' && !(ev.shiftKey || ev.altKey || ev.metaKey || ev.ctrlKey)) { take(); P().toggle(); return; }
+    if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !R()?.recording) { take(); deleteClip(selected); return; }
     const run = !(ev.metaKey || ev.ctrlKey || ev.altKey) && KEYS[ev.key];
-    if (run && !(R()?.recording && SEEKS.test(ev.key))) { ev.preventDefault(); ev.stopPropagation(); run(ev); }
-  });
+    if (run && !(R()?.recording && SEEKS.test(ev.key))) { take(); run(ev); }
+  }, true);
   // For agents and tests: the view, and the same moves as the buttons and keys.
   app.timelineView = {
     get: () => { const [t0, t1] = visibleRange(current(), viewW()); return { pps, start: t0, end: t1 }; },
@@ -646,7 +690,7 @@ export function mountTimeline(root, app) {
     back
   };
 
-  let lastPlaying = false;
+  let lastPlaying = false, lastTake = null;
   // One animation loop while playing or recording: move the playhead, rewrite the time, follow.
   let raf = 0, timeEl = null;
   const loop = () => {
@@ -673,6 +717,7 @@ export function mountTimeline(root, app) {
   const sync = () => {
     const p = P(); if (!p) return;
     checkSettings();
+    if (lastTake !== p.take) { lastTake = p.take; drawBar(); timeEl = null; drawLanes(); }   // (a take opened or closed from elsewhere: an agent, Assets)
     if (lastPlaying !== p.playing) { lastPlaying = p.playing; if (p.playing) followHold = false; drawBar(); timeEl = null; }   // redraw the bar only when play/pause flips
     if (p.playing) kick(); else { setHead(p.t); timeEl ||= bar.querySelector('.wb-tl-time'); if (timeEl) timeEl.textContent = stampOf(p.t, p.duration); }
   };

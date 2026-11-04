@@ -106,7 +106,8 @@ export class TakePlayer {
   /** Where the playhead is right now (ms): `t` is as of its last tick, up to a frame or a timer old. Sound wants this one. */
   position() { return this.playing ? this.t + (performance.now() - (this.at ?? performance.now())) * this.rate : this.t; }
 
-  seek(t) { this.t = Math.max(0, this.take ? Math.min(this.duration, t) : t); this.at = performance.now(); this.render(); this.syncAudio(); this.emit(); }
+  // (past a take's end too: that is where the next thing goes; playing from there starts it over)
+  seek(t) { this.t = Math.max(0, Number.isFinite(t) ? t : this.duration); this.at = performance.now(); this.render(); this.syncAudio(); this.emit(); }
 
   /** The range playback wraps in (ms), or null: the loop range, else the whole take. */
   wrapRange() {

@@ -58,14 +58,35 @@ describe('takes', () => {
   it('tracks: add more of a kind; muted tracks do not play', async () => {
     const { tracksOf, addTrack } = await import('../src/process/take.js');
     const take = createTake({ title: 't', baseline: base, clips: [{ id: 's1', track: 'say', start: 0, dur: 1000, text: 'a', fx: {} }] });
-    expect(tracksOf(take).map(t => t.id)).toEqual(['title', 'say', 'draw', 'action', 'camera', 'audio']);
+    // Only the tracks something sits on: a narration clip makes a Narration track.
+    expect(tracksOf(take).map(t => t.id)).toEqual(['say']);
     const n2 = addTrack(take, 'say');
-    expect(tracksOf(take).map(t => t.id).slice(0, 3)).toEqual(['title', 'say', n2.id]);
+    expect(tracksOf(take).map(t => t.id)).toEqual(['say', n2.id]);
+    // A new kind goes in the usual order (titles first), and is named for its kind.
+    const ti = addTrack(take, 'title');
+    expect(ti).toMatchObject({ id: 'title', name: 'Titles' });
+    expect(tracksOf(take).map(t => t.id)).toEqual(['title', 'say', n2.id]);
     take.clips.push({ id: 's2', track: 'say', lane: n2.id, start: 0, dur: 1000, text: 'b', fx: {} });
     const { activeAt } = await import('../src/process/take.js');
     expect(activeAt(take, 'say', 500).map(c => c.text)).toEqual(['a', 'b']);
     n2.muted = true;
     expect(activeAt(take, 'say', 500).map(c => c.text)).toEqual(['a']);
+  });
+
+  it('tracks: a take starts with none; a clip of a new kind brings its track; old takes keep only used tracks', async () => {
+    const { tracksOf, TRACKS, TRACK_NAMES } = await import('../src/process/take.js');
+    const empty = createTake({ title: 't', baseline: base });
+    expect(tracksOf(empty)).toEqual([]);
+    empty.clips.push({ id: 'a1', track: 'audio', start: 0, dur: 1000, fx: {} });
+    expect(tracksOf(empty).map(t => t.kind)).toEqual(['audio']);
+    // Saved before: all six tracks, untouched; only the ones with clips stay.
+    const old = createTake({ title: 'o', baseline: base, clips: [{ id: 'c', track: 'camera', start: 0, dur: 0, z: 1 }] });
+    old.tracks = TRACKS.map(k => ({ id: k, kind: k, name: TRACK_NAMES[k] }));
+    expect(tracksOf(old).map(t => t.id)).toEqual(['camera']);
+    // …but tracks someone named or muted are theirs.
+    const kept = createTake({ title: 'k', baseline: base });
+    kept.tracks = TRACKS.map(k => ({ id: k, kind: k, name: k === 'say' ? 'Voice' : TRACK_NAMES[k] }));
+    expect(tracksOf(kept)).toHaveLength(6);
   });
 
   it('camera eases between keyframes', () => {

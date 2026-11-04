@@ -74,27 +74,48 @@ function ticksOver(step, n, t0, t1) {
   return out;
 }
 
-/** Ticks of the time ruler over [t0, t1] (s). */
-export function timeTicks(t0, t1, pps, minPx = 64) {
-  const [step, n] = pick(TIME_STEPS, pps, minPx);
-  return { step, ticks: ticksOver(step, n, t0, t1) };
+/** Labelled steps of the frames ruler, in frames, each split into minor ticks of whole frames. */
+const FRAME_STEPS = fps => {
+  const counts = [1, 2, 5, 10, Math.round(fps / 2), fps, 2 * fps, 5 * fps, 10 * fps, 30 * fps, 60 * fps, 300 * fps, 600 * fps, 1800 * fps, 3600 * fps]
+    .filter((f, i, a) => i === 0 || f > a[i - 1]);
+  // (the most ticks that are whole frames: a second at 30 fps in 3 or 5, at 24 in 4)
+  const split = f => (f === 1 ? 1 : [5, 4, 3, 2].find(n => f % n === 0 && f / n >= 1) || 1);
+  return counts.map(f => [f / fps, split(f)]);
+};
+const BEAT_STEPS = (beat, bar, num) => [[beat / 4, 1], [beat / 2, 2], [beat, 4], [bar, num], [bar * 2, 2], [bar * 4, 4], [bar * 8, 2], [bar * 16, 4], [bar * 32, 2], [bar * 64, 4], [bar * 128, 2]];
+const meter = ({ tempo = 120, signature = { numerator: 4, denominator: 4 } } = {}) => { const beat = (60 / tempo) * (4 / signature.denominator); return { beat, bar: beat * signature.numerator, num: signature.numerator }; };
+
+/**
+ * The ruler's division at a zoom: [labelled step (s), minor ticks in it]. `st` is the scene's
+ * transport ({ ruler: 'time' | 'frames' | 'beats', fps, tempo, signature }).
+ */
+export function rulerDivision(st, pps, minPx) {
+  if (st.ruler === 'frames') return pick(FRAME_STEPS(st.fps || 30), pps, minPx ?? 44);
+  if (st.ruler === 'beats') { const m = meter(st); return pick(BEAT_STEPS(m.beat, m.bar, m.num), pps, minPx ?? 44); }
+  return pick(TIME_STEPS, pps, minPx ?? 64);
 }
 
-/** Ticks of the frames ruler: labels every 1, 2, 5, 10… frames, a second, or seconds. */
-export function frameTicks(t0, t1, pps, fps = 30, minPx = 44) {
-  const f = 1 / fps;
-  const steps = [[1, 1], [2, 2], [5, 5], [10, 2], [Math.round(fps / 2), 3], [fps, fps >= 24 ? 4 : 2], [2 * fps, 2], [5 * fps, 5], [10 * fps, 2], [30 * fps, 3], [60 * fps, 2], [300 * fps, 5], [600 * fps, 2], [1800 * fps, 3], [3600 * fps, 2]]
-    .filter(([s], i, a) => i === 0 || s > a[i - 1][0]).map(([s, n]) => [s * f, s === 1 ? 1 : n]);
-  const [step, n] = pick(steps, pps, minPx);
+/** The ruler's ticks over [t0, t1] (s): { step, ticks: [{ time, major }] } (majors are labelled). */
+export function rulerTicks(st, t0, t1, pps) {
+  const [step, n] = rulerDivision(st, pps);
   return { step, ticks: ticksOver(step, n, t0, t1) };
 }
+export const timeTicks = (t0, t1, pps, minPx = 64) => { const [step, n] = pick(TIME_STEPS, pps, minPx); return { step, ticks: ticksOver(step, n, t0, t1) }; };
+export const frameTicks = (t0, t1, pps, fps = 30) => rulerTicks({ ruler: 'frames', fps }, t0, t1, pps);
+export const beatTicks = (t0, t1, pps, st = {}) => rulerTicks({ ...st, ruler: 'beats' }, t0, t1, pps);
 
-/** Ticks of the bars-and-beats ruler: labels every sixteenth, eighth, beat, bar, or bars. */
-export function beatTicks(t0, t1, pps, { tempo = 120, signature = { numerator: 4, denominator: 4 } } = {}, minPx = 44) {
-  const beat = (60 / tempo) * (4 / signature.denominator), bar = beat * signature.numerator;
-  const steps = [[beat / 4, 1], [beat / 2, 2], [beat, 4], [bar, signature.numerator], [bar * 2, 2], [bar * 4, 4], [bar * 8, 2], [bar * 16, 4], [bar * 32, 2], [bar * 64, 4], [bar * 128, 2]];
-  const [step, n] = pick(steps, pps, minPx);
-  return { step, ticks: ticksOver(step, n, t0, t1) };
+/**
+ * The grid's step (s) when it follows the zoom: the ruler's minor tick, split further while the lines
+ * stay `minPx` apart. Always a division of the ruler's ticks, so the lines fall on the marks (and in
+ * frames, on whole frames).
+ */
+export function autoGrid(st, pps, minPx = 12) {
+  const [step, n] = rulerDivision(st, pps), minor = step / n;
+  let splits = [5, 4, 2];
+  if (st.ruler === 'frames') { const f = Math.round(minor * (st.fps || 30)); splits = [5, 4, 3, 2].filter(k => f % k === 0); }
+  if (st.ruler === 'beats') splits = [4, 2];
+  for (const k of splits) if ((minor / k) * pps >= minPx) return minor / k;
+  return minor;
 }
 
 /**

@@ -72,7 +72,10 @@ describe('a take on the same transport', () => {
     p.load(take);
     expect(p.duration).toBe(2000);
     p.seek(5000);
-    expect(p.t).toBe(2000);            // clamped to the take
+    expect(p.t).toBe(5000);            // past the end: where the next clip goes
+    p.play();
+    expect(p.t).toBe(0);               // playing from there starts the take over
+    p.pause(); frames.length = 0;
     p.seek(0); p.play(); frame(2500);
     expect(p.playing).toBe(false);
     expect(p.t).toBe(2000);

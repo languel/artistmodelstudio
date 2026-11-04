@@ -91,16 +91,25 @@ export const TRACK_NAMES = { title: 'Titles', say: 'Narration', draw: 'Drawing',
 
 /**
  * Tracks (as in an editor): any number of each kind, in order, each with a name and mute.
- * A clip's kind is c.track; the track it sits on is c.lane (older takes: the kind's first track).
+ * A clip's kind is c.track; the track it sits on is c.lane (or, without one, the track whose id is
+ * its kind, else the kind's first track). A take starts with no tracks: a track is made when you add
+ * one, or when a clip of a kind with no track arrives (recorded, dropped, inserted).
  */
 export function tracksOf(take) {
-  if (!Array.isArray(take.tracks) || !take.tracks.length) {
-    take.tracks = TRACKS.map(k => ({ id: k, kind: k, name: TRACK_NAMES[k] }));
-    Object.defineProperty(take, '_derived', { value: true, enumerable: false, configurable: true, writable: true });
+  if (!Array.isArray(take.tracks)) take.tracks = [];
+  // Takes saved before tracks started empty have all six, untouched: keep only those with clips.
+  if (take.tracks.length === TRACKS.length && take.tracks.every((t, i) => t.id === TRACKS[i] && t.kind === TRACKS[i] && t.name === TRACK_NAMES[t.kind] && !t.muted)) {
+    take.tracks = take.tracks.filter(t => (take.clips || []).some(c => laneOf(c) === t.id));
   }
-  // Clips on tracks that no longer exist fall back to the first track of their kind.
   const ids = new Set(take.tracks.map(t => t.id));
-  for (const c of take.clips) if (c.lane && !ids.has(c.lane)) delete c.lane;
+  for (const c of take.clips || []) {
+    if (c.lane && !ids.has(c.lane)) delete c.lane;   // (its track was deleted: the kind's first track)
+    if (ids.has(laneOf(c))) continue;
+    const first = take.tracks.find(t => t.kind === c.track);
+    const t = first || placeTrack(take.tracks, c.track);
+    ids.add(t.id);
+    if (t.id !== c.track) c.lane = t.id;
+  }
   return take.tracks;
 }
 export const laneOf = c => c.lane || c.track;
@@ -110,16 +119,20 @@ export function on(take, c) {
   return !tr?.muted;
 }
 
-/** Add a track of a kind (after the last track of that kind); returns it. */
-export function addTrack(take, kind, name) {
-  const tracks = tracksOf(take);
+/** A new track of a kind, after the others of its kind (the kinds in the order of TRACKS). */
+function placeTrack(tracks, kind, name) {
   const n = tracks.filter(t => t.kind === kind).length + 1;
-  let id = `${kind}-${n}`; for (let i = n; tracks.some(t => t.id === id); i++) id = `${kind}-${i + 1}`;
-  const t = { id, kind, name: name || `${TRACK_NAMES[kind] || kind} ${n}` };
+  // The first track of a kind has the kind as its id (so clips without a lane sit on it).
+  let id = tracks.some(t => t.id === kind) ? `${kind}-${n}` : kind;
+  for (let i = n; tracks.some(t => t.id === id); i++) id = `${kind}-${i + 1}`;
+  const t = { id, kind, name: name || (n === 1 ? TRACK_NAMES[kind] || kind : `${TRACK_NAMES[kind] || kind} ${n}`) };
   const last = tracks.map(x => x.kind).lastIndexOf(kind);
-  tracks.splice(last < 0 ? tracks.length : last + 1, 0, t);
+  const order = k => { const i = TRACKS.indexOf(k); return i < 0 ? TRACKS.length : i; };
+  const at = last >= 0 ? last + 1 : (i => (i < 0 ? tracks.length : i))(tracks.findIndex(x => order(x.kind) > order(kind)));
+  tracks.splice(at, 0, t);
   return t;
 }
+export function addTrack(take, kind, name) { return placeTrack(tracksOf(take), kind, name); }
 
 /** How long a line of narration needs to be read (ms). */
 export const readingTime = text => Math.max(1600, String(text || '').split(/\s+/).length * 320);
