@@ -550,7 +550,7 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-hist-row:hover { background: var(--wb-hover); }
 .wb-hist-row.sel { background: var(--wb-selection); }
 .wb-hist-row.preview { box-shadow: inset 2px 0 0 var(--wb-accent-2); }
-.wb-hist-time { font: 11px var(--font-mono, ui-monospace, monospace); color: var(--wb-muted); }
+.wb-hist-time { font: 11px var(--font-mono, ui-monospace, monospace); color: var(--wb-muted); white-space: nowrap; overflow: hidden; }
 .wb-hist-label, .wb-hist-sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-hist-row.agent .wb-hist-label { color: color-mix(in srgb, var(--wb-text) 75%, #a58cc9); }
 .wb-hist-eye { width: 18px; height: 18px; font-size: 10px; }

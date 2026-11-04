@@ -10,7 +10,9 @@ import { showMenu } from '../menu.js';
 import { createTake, touch } from '../../process/take.js';
 
 const FILTERS = [['all', 'All'], ['you', 'You'], ['agent', 'Agents'], ['draw', 'Marks']];
-const time = t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+/** A clock time, always 24-hour hh:mm:ss (fixed width; a 12-hour locale's "PM" wrapped the column). The full date is in the row's title. */
+const pad = n => String(n).padStart(2, '0');
+const time = t => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
 
 export function mountHistory(root, app) {
   const H = () => app.history;
@@ -69,7 +71,7 @@ export function mountHistory(root, app) {
     if (!items.length) { list.replaceChildren(h('div', { class: 'wb-tl-empty' }, 'Changes appear here as you draw.')); return; }
     list.replaceChildren(...items.map(e => {
       const row = h('div', { class: `wb-hist-row${selected.has(e.id) ? ' sel' : ''}${previewing === e.id ? ' preview' : ''}${e.by === 'agent' ? ' agent' : ''}`, draggable: 'true', 'data-id': e.id, title: 'Drag onto the Timeline to make clips' },
-        h('span', { class: 'wb-hist-time' }, time(e.t)),
+        h('span', { class: 'wb-hist-time', title: new Date(e.t).toLocaleString() }, time(e.t)),
         h('span', { class: 'wb-hist-label' }, e.label),
         h('span', { class: 'wb-hist-sum wb-muted' }, e.summary),
         h('span', { class: 'wb-hist-by wb-muted' }, e.by === 'agent' ? 'agent' : ''),
