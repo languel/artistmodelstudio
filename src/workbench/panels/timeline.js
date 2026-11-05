@@ -943,7 +943,14 @@ export function mountTimeline(root, app) {
     f: fitSelection, F: () => fitAll(), z: fitSelection, l: fitLoop, L: fitLoop, x: back, X: back, '.': centreHead,
     i: markIn, I: markIn, o: markOut, O: markOut, D: duplicatePicked
   };
-  const SEEKS = /^(Arrow\w+|[iIoO])$/;   // (not while recording: the recording keeps its own time)
+  const SEEKS = /^(Arrow\w+|[iIoO])$/;
+  // What the Timeline's keys do, in words (for View → Show user actions).
+  const KEY_LABELS = { ArrowLeft: 'Step back', ArrowRight: 'Step on', ArrowUp: 'To the previous clip edge', ArrowDown: 'To the next clip edge', '=': 'Zoom in', '+': 'Zoom in', '-': 'Zoom out', _: 'Zoom out', '\\': 'Fit all', '|': 'Fit all', f: 'Frame the selection', F: 'Fit all', z: 'Frame the selection', l: 'Fit In to Out', L: 'Fit In to Out', x: 'Previous view', X: 'Previous view', '.': 'Centre on the playhead', i: 'In at the playhead', I: 'In at the playhead', o: 'Out at the playhead', O: 'Out at the playhead', D: 'Duplicate the picked clips', ' ': 'Play / pause', Delete: 'Delete the picked clips', Backspace: 'Delete the picked clips', Escape: 'Out of the composition' };
+  app.timelineKeyLabel = ev => {
+    if ((ev.metaKey || ev.ctrlKey) && /^[zZyY]$/.test(ev.key)) return ev.shiftKey || /^[yY]$/.test(ev.key) ? 'Redo on the Timeline' : 'Undo on the Timeline';
+    if ((ev.metaKey || ev.ctrlKey) && /^[gG]$/.test(ev.key)) return ev.shiftKey ? 'Ungroup the composition' : 'Group into a composition';
+    return ev.metaKey || ev.ctrlKey || ev.altKey ? null : KEY_LABELS[ev.key] || null;
+  };   // (not while recording: the recording keeps its own time)
   // The Timeline's keys work while the pointer is over it, or while something in it has focus (as in
   // an editor with panes): they are taken before the canvas's shortcuts see them. Typing in a field
   // is left alone; Home, End, and anything with Alt, Ctrl or ⌘ go on to the shortcuts.

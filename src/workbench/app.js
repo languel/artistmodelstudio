@@ -45,6 +45,7 @@ import { mountOutliner } from './panels/outliner.js';
 import { mountSettings } from './panels/settings.js';
 import { mountShortcuts } from './panels/shortcuts.js';
 import { mountCode } from './panels/code.js';
+import { UserActions } from './userActions.js';
 import { mountTimeline } from './panels/timeline.js';
 import { mountMixer } from './panels/mixer.js';
 import { Recorder } from './recorder.js';
@@ -1488,6 +1489,7 @@ export class Workbench {
     try { this.scoreView = { ...SCORE_LOOK, names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { ...SCORE_LOOK, names: false }; }
     this.scoreOverlay = new ScoreOverlay(this);   // and shows them: travelers, lit events
     this.shortcuts = new Shortcuts(this);
+    this.userActions = new UserActions(this);   // (the keys and clicks you make, and what they do: View → Show user actions)
     this.registerPanels();
     const hadCamera = Boolean(localStorage.getItem('ams_workbench_camera_v1'));
     this.docks.render();

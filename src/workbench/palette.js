@@ -29,6 +29,7 @@ export function buildCommands(app) {
     cmd('Record', 'Stop recording', () => app.recorder.stop()),
     cmd('Record', 'Timeline', () => app.docks.open('timeline')),
     cmd('View', 'Reset layout', () => app.docks.reset()),
+    cmd('View', 'Show user actions', () => app.userActions?.toggle(), '', 'The keys and clicks you make, and what they do: an overlay for teaching, demos and recordings'),
     cmd('View', 'Classic studio', () => { window.location.href = '/classic.html'; })
   ];
   for (const [id, label, key] of app.toolList || []) out.push(cmd('Tool', label, () => app.setTool(id), key));
@@ -58,7 +59,7 @@ export function buildCommands(app) {
     cmd('Agent', 'How did you do that? (replay last agent session)', () => window.ams.callTool('ams_sessions', { action: 'replay' }))
   );
   // Show the keys as currently assigned (Shortcuts panel), not the defaults.
-  const K = { 'File:Save to Assets': 'file.save', 'Edit:Undo': 'edit.undo', 'Edit:Redo': 'edit.redo', 'Edit:Select all': 'edit.selectAll', 'Edit:Pick a color (eyedropper)': 'edit.eyedropper', 'View:Picture view': 'view.toggle', 'View:Process view': 'view.toggle', 'View:Fit artboard': 'view.fit', 'View:Toggle reference': 'view.reference', 'View:Toggle grid': 'view.grid', 'View:Toggle snap to grid': 'view.snap' };
+  const K = { 'View:Show user actions': 'view.userActions', 'File:Save to Assets': 'file.save', 'Edit:Undo': 'edit.undo', 'Edit:Redo': 'edit.redo', 'Edit:Select all': 'edit.selectAll', 'Edit:Pick a color (eyedropper)': 'edit.eyedropper', 'View:Picture view': 'view.toggle', 'View:Process view': 'view.toggle', 'View:Fit artboard': 'view.fit', 'View:Toggle reference': 'view.reference', 'View:Toggle grid': 'view.grid', 'View:Toggle snap to grid': 'view.snap' };
   for (const c of out) {
     const id = K[c.id] || (c.category === 'Tool' ? `tool.${(app.toolList || []).find(t => t[1] === c.name)?.[0]}` : null);
     if (id && app.shortcuts) c.keys = app.shortcuts.label(id);

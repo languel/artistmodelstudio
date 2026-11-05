@@ -95,7 +95,8 @@ It is kept minimal.
 
 - **Two islands:** the tools sit top centre; the menu island sits top left (menu, picture or process view, points, present, theme).
   - Drag either island, or the zoom control, by its dotted grip; double-click the grip to put it back.
-  - **Alt+Z** (zen mode; also **Cmd+.**) hides all of the interface and leaves only the drawing. The command palette (and `ams_ui`) hides the tools, menu island, zoom control or panels one by one.
+  - **Alt+Z** (zen mode; also **Cmd+.**) hides all of the interface and leaves only the drawing.
+  - **Show user actions** (**⌘⌥I** / Ctrl+Alt+I, or the command palette; after Underscores' screencast input): a small overlay showing each key you press (with the command it is bound to), each click, drag or scroll (with its modifiers, and where: the canvas, the Timeline, a panel) and **what it did**: the drawing's change (*add line*, *duplicate*, *undo*), a tool chosen, play or pause, the playhead moved, a selection, the line logged; when nothing followed, the command's or the control's name. The latest is large, the four before it are listed under it. Drag its header to move it, double-click its glyph for one line only, × hides it; it is remembered in this browser. Pointer moves are left out (a drag is one line); typing in a field is not shown. The command palette (and `ams_ui`) hides the tools, menu island, zoom control or panels one by one.
 - **Panels on demand:** Scenes, Boards, Stages, Outliner, Assets, Properties, Code and the rest open as needed.
 - **Right-click and Opt+right-click:**
   - Right-click a toolbar button for its list (Brush, Sculpt, Construction) or its settings (the grid button: grid and drawing).
