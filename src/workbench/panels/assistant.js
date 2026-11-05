@@ -198,7 +198,7 @@ export function mountAssistant(root, app) {
         pending.remove(); const say = String(raw || '').trim(); add('bot', say); history.push({ who: 'bot', text: say });
       } else for (let round = 0; round < cfg.rounds && !busy.signal.aborted; round++) {
         const pending = add('sys', round ? 'Reading the results…' : 'Working…', 'pending');
-        const raw = await artist.complete({ system: flow ? flowPrompt(app) : systemPrompt(app), user: transcript, temperature: flow ? 0.3 : cfg.temperature, signal: busy.signal, json: true, ...(flow ? { maxTokens: 600 } : {}) });   // (json: an engine that can force valid JSON does; small models otherwise drop a brace)
+        const raw = await artist.complete({ system: flow ? flowPrompt(app) : systemPrompt(app), user: transcript, temperature: flow ? cfg.flowTemperature : cfg.temperature, signal: busy.signal, json: true, ...(flow ? { maxTokens: 600 } : {}) });   // (json: an engine that can force valid JSON does; small models otherwise drop a brace)
         pending.remove();
         const r = parseReply(raw);
         // It asked anyway: once, tell it to assume and act.
