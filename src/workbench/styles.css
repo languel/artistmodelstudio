@@ -1244,3 +1244,21 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-lecture-hud button { border: 0; border-radius: 999px; background: none; color: inherit; font: inherit; padding: 2px 8px; cursor: pointer; }
 .wb-lecture-hud button:hover { background: var(--wb-on); }
 .wb-lecture-hud button.stop { background: #d8402f; color: #fff; }
+
+/* Assistant: the tool calls of a reply are one quiet line that opens */
+.wb-trace { align-self: flex-start; max-width: 100%; font: var(--ui-small) var(--font-mono); color: var(--wb-muted); }
+.wb-trace > summary { cursor: pointer; list-style: none; padding: 1px 2px; border-radius: 4px; user-select: none; }
+.wb-trace > summary::-webkit-details-marker { display: none; }
+.wb-trace > summary:hover { color: var(--wb-text); background: var(--wb-on); }
+.wb-trace.failed > summary { color: #c9695f; }
+.wb-trace[open] > summary { color: var(--wb-text); }
+.wb-trace-body { margin: 3px 0 4px 6px; padding-left: 8px; border-left: 1px solid var(--wb-line); display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; }
+.wb-trace-line { white-space: pre-wrap; word-break: break-word; line-height: 1.35; }
+.wb-trace-line b { color: var(--wb-text); font-weight: 600; }
+.wb-trace-line.error { color: #c9695f; }
+.wb-trace-out { opacity: .75; }
+.wb-chat.no-trace .wb-trace.done:not(.failed) { display: none; }
+.wb-chat.no-trace .wb-trace-body { display: none; }
+.wb-chat.no-trace .wb-trace > summary { pointer-events: none; }
+.wb-spin { display: inline-block; width: 1ch; color: var(--wb-accent-2, #c0563f); }
+.wb-msg.pending { font-family: var(--font-mono); }

@@ -90,7 +90,7 @@ export function modelSection(app) {
     body.replaceChildren(
       row('Engine', selectField(ENGINES.filter(([id]) => id in ENGINE_NAMES), engine, v => { engine = v; tag = ''; favOnly = false; setEngine(v); build(); }, 'What the assistant talks to')),
       ...fields,
-      engine === 'webgpu' ? h('div', { class: 'wb-row wb-small wb-muted wb-model-note' }, 'Runs in this browser on your GPU; the first use downloads the model.') : null,
+      engine === 'webgpu' || engine === 'lfm3' ? h('div', { class: 'wb-row wb-small wb-muted wb-model-note' }, 'Runs in this browser on your GPU; the first use downloads the model.') : null,
       engine === 'agent' ? h('div', { class: 'wb-row wb-small wb-muted wb-model-note' }, 'An external agent answers over MCP (ams_pending → ams_answer); there is no model to pick.') : null,
       engine !== 'agent' ? row('Model', h('span', { class: 'wb-model-ctl' }, h('span', { class: 'wb-combo' }, input, list), star, reload)) : null,
       engine === 'openrouter' ? row('Show', selectField([['', 'All'], ['free', 'Free'], ['image', 'Image input']], tag, v => { tag = v; paint(); }, 'Narrow the OpenRouter list')) : null,
@@ -100,6 +100,7 @@ export function modelSection(app) {
       row('Steps', numberField({ value: a.rounds, min: 1, max: 12, step: 1, def: 6, title: 'How many times it may act, look at the results and act again for one message', onChange: v => setAssistantSettings({ rounds: Math.round(v) }) })),
       row('Remember', numberField({ value: a.history, min: 2, max: 40, step: 1, def: 12, title: 'How many earlier messages go back to the model each time', onChange: v => setAssistantSettings({ history: Math.round(v) }) })),
       row('Quick field', tempField('flowTemperature', 'flow', 'Temperature for the / field, which acts at once, never asks, and answers in a few words. Lower is steadier')),
+      row('Tool details', (() => { const c = h('input', { type: 'checkbox', checked: a.traces, title: 'For debugging: show each tool call and its result under every reply in the Assistant. Off, replies show only the words (the calls are always in the request log)' }); c.addEventListener('change', () => { setAssistantSettings({ traces: c.checked }); }); return c; })()),
       row('Studio tools', (() => { const c = h('input', { type: 'checkbox', checked: a.tools, title: 'Let it draw and change the studio through its tools. Off: it only talks' }); c.addEventListener('change', () => setAssistantSettings({ tools: c.checked })); return c; })())
     );
     // With an external agent none of these apply (it asks for itself): dimmed, and the controls off.

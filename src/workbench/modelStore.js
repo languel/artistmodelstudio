@@ -8,7 +8,7 @@
 export const ASSISTANT_ENGINE_KEY = 'ams_assistant_engine';
 const FAV_KEY = 'ams_model_favorites';
 const SETTINGS_KEY = 'ams_assistant_settings';
-export const ENGINE_NAMES = { ollama: 'Ollama', webgpu: 'In-browser', openrouter: 'OpenRouter', openai: 'OpenAI-compatible', agent: 'Agent (MCP)' };
+export const ENGINE_NAMES = { ollama: 'Ollama', lfm3: 'LFM3-Omni', webgpu: 'In-browser', openrouter: 'OpenRouter', openai: 'OpenAI-compatible', agent: 'Agent (MCP)' };
 
 /** What each engine needs to connect: [label, localStorage key, input type, placeholder]. */
 export const ENGINE_FIELDS = {
@@ -16,6 +16,7 @@ export const ENGINE_FIELDS = {
   openai: [['Base URL', 'ams_openai_base_url', 'text', 'https://api.openai.com/v1'], ['API key', 'ams_openai_key', 'password', '']],
   openrouter: [['API key', 'ams_openrouter_key', 'password', '']],
   webgpu: [],
+  lfm3: [],
   agent: []
 };
 
@@ -30,7 +31,7 @@ export function setEngine(engine) { set(ASSISTANT_ENGINE_KEY, engine); changed()
 export function useModel(app, engine, model) {
   set(ASSISTANT_ENGINE_KEY, engine);
   const artist = app.artists.get(engine);
-  if (model) { artist?.setModel?.(model); const key = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model' }[engine]; if (key) set(key, model); }
+  if (model) { artist?.setModel?.(model); const key = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model', lfm3: 'ams_lfm3_model' }[engine]; if (key) set(key, model); }
   changed();
 }
 
@@ -64,7 +65,7 @@ export function allFavorites(app) {
 }
 
 // ---- how the assistant asks ---------------------------------------------------------------------------------------
-export const ASSISTANT_DEFAULTS = { temperature: null, rounds: 6, tools: true, history: 12, flowTemperature: null }   // (null: the model's own recommendation, else 0.4 for the chat and 0.1 for the quick field)
+export const ASSISTANT_DEFAULTS = { temperature: null, rounds: 6, tools: true, history: 12, flowTemperature: null, traces: false }   // (null: the model's own recommendation, else 0.4 for the chat and 0.1 for the quick field)
 export const FALLBACK_TEMPERATURE = { chat: 0.4, flow: 0.1 };;
 export function assistantSettings() {
   let saved = {};

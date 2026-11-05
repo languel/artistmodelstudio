@@ -8,10 +8,10 @@ import { icon } from './icons.js';
 import { favorites, toggleFavorite, isFavorite } from './modelStore.js';
 
 export const ENGINES = [
-  ['ollama', 'Ollama (local)'], ['webgpu', 'In-browser (WebGPU)'], ['openrouter', 'OpenRouter'],
+  ['ollama', 'Ollama (local)'], ['lfm3', 'LFM3-Omni (this browser)'], ['webgpu', 'In-browser (WebGPU)'], ['openrouter', 'OpenRouter'],
   ['openai', 'OpenAI-compatible'], ['agent', 'Agent (MCP)']
 ];
-export const MODEL_KEYS = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model' };
+export const MODEL_KEYS = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model', lfm3: 'ams_lfm3_model' };
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return v; };
 
 /** An engine's models in groups (Favorites first, whatever the engine), with whether it is ready and why not. */
@@ -45,6 +45,10 @@ async function loadEngineModels(engineId, artist) {
         ['All', list.filter(m => !free.includes(m)).map(m => ({ id: m.id, name: label(m) }))]
       ]
     };
+  }
+  if (engineId === 'lfm3') {
+    const gpu = Boolean(navigator.gpu), models = artist.getAvailableModels?.() || [];
+    return { ready: gpu, status: !gpu ? 'WebGPU unavailable in this browser' : artist.ready ? 'loaded' : 'not loaded yet: the first use downloads the model (kept by the browser)', groups: [['Models', models.map(m => ({ id: m.id, name: m.name || m.id }))]] };
   }
   if (engineId === 'webgpu') {
     const models = artist.getAvailableModels?.() || [];

@@ -13,6 +13,7 @@ import { TrainedModelArtist } from './TrainedModelArtist.js';
 import { ReferenceFitterArtist } from './ReferenceFitterArtist.js';
 import { DistilledArtist } from './DistilledArtist.js';
 import { AgentArtist } from './AgentArtist.js';
+import { Lfm3WebGPUArtist } from './Lfm3WebGPUArtist.js';
 
 export class ArtistRegistry {
   constructor() {
@@ -33,6 +34,7 @@ export class ArtistRegistry {
     this.register(openai);
     this.register(ollama);
     this.register(webgpu);
+    this.register(new Lfm3WebGPUArtist());
     this.register(trained);
     this.register(distilled);
     this.register(new AgentArtist());

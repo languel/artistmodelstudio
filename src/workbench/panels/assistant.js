@@ -110,6 +110,8 @@ export function mountAssistant(root, app) {
   root.classList.add('wb-assistant-host');
   const wrap = h('div', { class: 'wb-assistant' });
   const log = h('div', { class: 'wb-chat' });
+  const paintTraces = () => log.classList.toggle('no-trace', !assistantSettings().traces);   // (tool details are for debugging: off unless asked for)
+  paintTraces();
   const input = h('textarea', { class: 'wb-compose-input', rows: 1, placeholder: 'Ask, or tell it what to draw…  (!board list runs a tool; !help)' });
   const chips = h('div', { class: 'wb-compose-chips' });
   let savedChat = [];
@@ -119,7 +121,49 @@ export function mountAssistant(root, app) {
   let busy = null;
   const attachments = [];   // { name, text }
   const hint = h('div', { class: 'wb-chat-empty' }, h('b', {}, 'Assistant'), h('span', {}, 'Ask, or tell it to draw. It works through the same tools an agent uses, and every action is shown and can be replayed.'));
-  const add = (who, text, kind = '') => { hint.remove(); const m = h('div', { class: `wb-msg ${who} ${kind}` }, text); log.append(m); log.scrollTop = log.scrollHeight; return m; };
+  // What you see is what you said: the context line and attached files travel with the message but stay out of the bubble (hover for them).
+  const SPIN = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  let spinTimer = 0;
+  const spinTick = () => {
+    const els = log.querySelectorAll('.wb-spin');
+    if (!els.length) { clearInterval(spinTimer); spinTimer = 0; return; }
+    const f = SPIN[Math.floor(performance.now() / 90) % SPIN.length];
+    els.forEach(e => { e.textContent = f; });
+  };
+  const keepSpinning = () => { if (!spinTimer) spinTimer = setInterval(spinTick, 90); };
+  const add = (who, text, kind = '') => {
+    hint.remove();
+    let shown = text, extra = {};
+    if (who === 'you' && kind !== 'cmd') { const m = /^(\[Context:[^\]]*\])\n/.exec(text); if (m) { extra.title = m[1]; shown = text.slice(m[0].length); } shown = shown.replace(/\n\nAttached [\s\S]*$/, ''); }
+    const el = h('div', { class: `wb-msg ${who} ${kind}`, ...extra }, ...(kind === 'pending' ? [h('span', { class: 'wb-spin' }, SPIN[0]), h('span', { class: 'wb-pending-text' }, ` ${shown}`)] : [shown]));
+    if (kind === 'pending') keepSpinning();
+    if (who === 'you') trace = null;
+    log.append(el); log.scrollTop = log.scrollHeight; return el;
+  };
+
+  // The tool calls of a reply: one quiet line, "✓ changed 2", that opens to the calls and what came back. While it works it spins.
+  let trace = null;
+  const VERB = { ams_add: 'drew', ams_update: 'changed', ams_transform: 'moved', ams_delete: 'removed', ams_command: 'ran' };
+  const paintTrace = t => {
+    const counts = {}; let failed = 0;
+    for (const c of t.calls) { if (c.error) failed++; else { const v = VERB[c.tool] || 'used'; counts[v] = (counts[v] || 0) + 1; } }
+    const done = Object.entries(counts).map(([v, n]) => `${v} ${n}`).join(' · ');
+    t.label.textContent = `${t.running ? '' : failed && !done ? '✗ ' : '✓ '}${t.running ? 'working' : done || (failed ? '' : 'done')}${failed ? `${done ? ' · ' : ''}${failed} did not work` : ''}`;
+    t.el.classList.toggle('failed', failed > 0); t.el.classList.toggle('done', !t.running);
+  };
+  const traceStep = c => {
+    if (!trace || trace.ended) {
+      const label = h('span', { class: 'wb-trace-label' }), spin = h('span', { class: 'wb-spin' }, SPIN[0]), body = h('div', { class: 'wb-trace-body' });
+      const el = h('details', { class: 'wb-trace' }, h('summary', {}, spin, ' ', label), body);
+      trace = { el, label, spin, body, calls: [], running: true, ended: false };
+      log.append(el); keepSpinning();
+    }
+    trace.calls.push(c);
+    const brief = v => JSON.stringify(v ?? null).replace(/"data:image[^"]+"/g, '"<image>"').slice(0, 240);
+    trace.body.append(h('div', { class: `wb-trace-line${c.error ? ' error' : ''}` }, h('b', {}, `${c.error ? '✗' : '✓'} ${c.tool.replace(/^ams_/, '')}`), ' ', brief(c.args), h('div', { class: 'wb-trace-out' }, c.error ? c.error : `→ ${brief(c.out)}`)));
+    paintTrace(trace); log.scrollTop = log.scrollHeight;
+  };
+  const traceEnd = () => { if (trace && !trace.ended) { trace.ended = true; trace.running = false; trace.spin.remove(); paintTrace(trace); } };
   // The console: ! lines run tools directly (no model); ↑ and ↓ go through what was run.
   const ran = []; let back = 0;
   const runCommand = async line => {
@@ -134,7 +178,13 @@ export function mountAssistant(root, app) {
     } catch (err) { add('sys', err.message, 'error'); }
     persist();
   };
-  if (history.length) for (const m of history) add(m.who, m.text); else log.append(hint);
+  if (history.length) {
+    for (const m of history) {
+      if (m.who !== 'results') { traceEnd(); add(m.who, m.text); continue; }
+      for (const line of String(m.text).split('\n')) { const mm = /^(\w+) (?:→ (.*)|failed: (.*))$/.exec(line); if (mm) traceStep({ tool: mm[1], args: null, out: mm[2] ? (() => { try { return JSON.parse(mm[2]); } catch { return mm[2]; } })() : undefined, error: mm[3] }); }
+    }
+    traceEnd();
+  } else log.append(hint);
 
   // ---- the composer: attachments, the text, then the controls: attach, model, tools, send ------------------------------
   const paintChips = () => chips.replaceChildren(...attachments.map((a, i) => h('span', { class: 'wb-chip', title: `${a.text.length} characters` }, `📎 ${a.name}`, h('button', { class: 'wb-chip-x', title: 'Remove', onclick: () => { attachments.splice(i, 1); paintChips(); } }, '×'))));
@@ -158,6 +208,7 @@ export function mountAssistant(root, app) {
   toolsBtn.onclick = () => { setAssistantSettings({ tools: !assistantSettings().tools }); paintTools(); };
   const moreBtn = h('button', { class: 'wb-compose-icon', title: 'More', html: '⋯', onclick: e => { const r = e.currentTarget.getBoundingClientRect(); showMenu([
     { label: 'How did you do that?', hint: 'Replay the latest agent or assistant session with the guide', run: () => window.ams.callTool('ams_sessions', { action: 'replay' }).catch(err => app.log(err.message, 'error')) },
+    { label: `${assistantSettings().traces ? '✓ ' : ''}Show tool details`, hint: 'For debugging: each tool call and what came back, under every reply (always in the request log: ams_requests)', run: () => { setAssistantSettings({ traces: !assistantSettings().traces }); paintTraces(); } },
     { label: 'Clear the conversation', run: () => { history.length = 0; log.replaceChildren(hint); persist(); } }
   ], r.left, r.top - 6, { up: true }); } });
   const sendBtn = h('button', { class: 'wb-compose-send', title: 'Send (Enter)', html: SEND, onclick: () => (busy ? busy.abort() : send()) });
@@ -187,6 +238,8 @@ export function mountAssistant(root, app) {
     const askTemp = (v, kind) => (v != null ? v : engine === 'ollama' ? undefined : FALLBACK_TEMPERATURE[kind]);
     if (!artist?.complete || engine === 'agent') { add('sys', 'Pick a model engine (Ollama, WebGPU, OpenRouter or OpenAI-compatible) from the model button. An external agent drives the tools directly over MCP.', 'error'); return { error: 'Pick a model engine: click here for the Assistant.' }; }
     busy = new AbortController();
+    const onStatus = e => { const p = log.querySelector('.pending .wb-pending-text'); if (p) p.textContent = ` ${e.detail}`; };   // (an engine that has to load first says how far it is)
+    window.addEventListener('ams-engine-status', onStatus);
     if (flow) app.store.beginStep();
     const rq = flow ? app.requests?.start(text.replace(/^\[Context:[^\]]*\]\n/, ''), 'model', { model: `${engine}:${artist.model || ''}` }) : null, rqCalls = [];
     let nudged = false, retried = false, said = '', failed = '';
@@ -219,15 +272,16 @@ export function mountAssistant(root, app) {
             rqCalls.push({ tool: a.tool, args: a.args || {} });
             const brief = JSON.stringify(out ?? null).replace(/"data:image[^"]+"/g, '"<image>"').slice(0, 600);
             results.push(`${a.tool} → ${brief}`);
-            add('act', `${a.tool.replace(/^ams_/, '')} ✓`);
+            traceStep({ tool: a.tool, args: a.args || {}, out });
           } catch (err) {
             rqCalls.push({ tool: a.tool, args: a.args || {}, error: err.message });
             results.push(`${a.tool} failed: ${err.message}`);
-            add('act', `${a.tool.replace(/^ams_/, '')} failed: ${err.message}`, 'error');
+            traceStep({ tool: a.tool, args: a.args || {}, error: err.message });
             failed = err.message;
           }
         }
         history.push({ who: 'results', text: results.join('\n') });
+        if (r.done !== false) traceEnd();
         transcript += `\nASSISTANT: ${JSON.stringify(r)}\nRESULTS: ${results.join('\n')}`;
         // In flow mode a failed call gets one more try, with the error in front of the model (and the reminder to change what it sent).
         if (flow && !retried && results.some(x => / failed: /.test(x))) { retried = true; failed = ''; transcript += '\nUSER: That failed. Fix the arguments as the error says and do it again, with different arguments than before.'; continue; }
@@ -238,6 +292,8 @@ export function mountAssistant(root, app) {
       add('sys', busy?.signal.aborted ? 'Stopped.' : `Error: ${err.message}`, busy?.signal.aborted ? '' : 'error');
       if (!busy?.signal.aborted) failed = err.message;
     } finally {
+      traceEnd();
+      window.removeEventListener('ams-engine-status', onStatus);
       if (flow) app.store.endStep();
       if (rq) app.requests.done(rq, { calls: rqCalls, error: failed, said });
       persist();
