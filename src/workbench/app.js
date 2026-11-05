@@ -1256,10 +1256,10 @@ export class Workbench {
     this.store.emit('score view');   // (Properties shows the switch)
   }
 
-  /** The score as a MIDI file, rendered ahead of time for `seconds` (the loop range, if one is set, else 60): downloaded. */
+  /** The score as a MIDI file, rendered ahead of time for `seconds` (to Out, else the loop region's end, if marked, else 60): downloaded. */
   async exportMidi(seconds) {
     const [{ renderScore }, { midiFile }, { download }] = await Promise.all([import('../score/runner.js'), import('../score/midifile.js'), import('./ui.js')]);
-    const st = this.player.settings, range = this.player.loopRange;
+    const st = this.player.settings, range = this.player.inOut || this.player.loopRange;
     const len = Math.min(900, Math.max(1, Number(seconds) || (range ? range[1] / 1000 : 60)));
     const out = renderScore(this.store.doc, st, len);
     for (const e of out.errors) this.log(`Score: ${e}`, 'error');

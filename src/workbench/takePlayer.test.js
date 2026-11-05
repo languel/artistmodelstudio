@@ -65,6 +65,33 @@ describe('the transport without a take', () => {
   });
 });
 
+describe('In and Out, and the loop region, kept apart', () => {
+  it('plays from In to Out and stops; Home goes to In', () => {
+    const p = make();
+    p.setSettings({ range: { start: 2, end: 4 } });
+    expect(p.inOut).toEqual([2000, 4000]);
+    expect(p.loopRange).toBe(null);
+    p.rewind();
+    expect(p.t).toBe(2000);
+    p.play(); frame(1000); frame(3000);
+    expect(p.playing).toBe(false);
+    expect(p.t).toBe(4000);            // stopped at Out
+    clock = 0; frames.length = 0;
+  });
+
+  it('Loop goes round the loop region; without one, In to Out', () => {
+    const p = make();
+    p.setSettings({ range: { start: 2, end: 4 } });
+    p.loop = true;
+    expect(p.wrapRange()).toEqual([2000, 4000]);
+    p.setSettings({ loop: { start: 10, end: 12 } });
+    expect(p.wrapRange()).toEqual([10000, 12000]);
+    expect(p.inOut).toEqual([2000, 4000]);   // (the loop does not move In and Out)
+    p.loop = false;
+    expect(p.wrapRange()).toBe(null);
+  });
+});
+
 describe('a take on the same transport', () => {
   it('still stops at its end, and loops the whole take', () => {
     const p = make();

@@ -4,7 +4,7 @@ import { normalizeDocument, createDocument } from '../process/document.js';
 
 describe('scene transport', () => {
   it('fills defaults and clamps', () => {
-    expect(normalizeTransport(undefined)).toEqual({ ...DEFAULT_TRANSPORT, signature: { numerator: 4, denominator: 4 }, loop: { start: 0, end: 0 } });
+    expect(normalizeTransport(undefined)).toEqual({ ...DEFAULT_TRANSPORT, signature: { numerator: 4, denominator: 4 }, loop: { start: 0, end: 0 }, range: { start: 0, end: 0 } });
     const t = normalizeTransport({ tempo: 9000, signature: { numerator: 7, denominator: 8 }, fps: 29, ruler: 'nope', loop: { start: 4, end: 2 } });
     expect(t).toMatchObject({ tempo: 400, signature: { numerator: 7, denominator: 8 }, fps: 30, ruler: 'time' });
     expect(loopRange(t)).toBe(null);

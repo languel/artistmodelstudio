@@ -7,7 +7,7 @@
  */
 import { docAt, duration, touch, on } from '../process/take.js';
 import { advanceTransportPlaybackTime } from '../time/transport.js';
-import { normalizeTransport, loopRange } from '../time/sceneTransport.js';
+import { normalizeTransport, loopRange, inOutRange } from '../time/sceneTransport.js';
 
 /** How long the timeline is drawn when nothing gives it a length (ms). */
 export const DEFAULT_SPAN = 60000;
@@ -54,13 +54,15 @@ export class TakePlayer {
     this.app.store.change('transport', d => { d.transport = normalizeTransport({ ...normalizeTransport(d.transport), ...patch }); });
     this.emit();
   }
-  /** The loop range in ms, or null. */
+  /** The loop region in ms, or null. */
   get loopRange() { const r = loopRange(this.settings); return r ? [r[0] * 1000, r[1] * 1000] : null; }
+  /** In and Out in ms, or null. */
+  get inOut() { const r = inOutRange(this.settings); return r ? [r[0] * 1000, r[1] * 1000] : null; }
   /** The length of the timeline (ms): the take's, else the loop range's end, else a default; a score may extend it. */
   get duration() {
     if (this.take) return duration(this.take);
     // (the drawn length grows with the playhead, half a minute at a time)
-    return Math.max(this.loopRange?.[1] || 0, this.extent || 0, DEFAULT_SPAN, (Math.floor(this.t / 30000) + 2) * 30000);
+    return Math.max(this.loopRange?.[1] || 0, this.inOut?.[1] || 0, this.extent || 0, DEFAULT_SPAN, (Math.floor(this.t / 30000) + 2) * 30000);
   }
 
   /** Load a take for review (the canvas shows it until close). */
@@ -109,10 +111,10 @@ export class TakePlayer {
   // (past a take's end too: that is where the next thing goes; playing from there starts it over)
   seek(t) { this.t = Math.max(0, Number.isFinite(t) ? t : this.duration); this.at = performance.now(); this.render(); this.syncAudio(); this.emit(); }
 
-  /** The range playback wraps in (ms), or null: the loop range, else the whole take. */
+  /** The range playback wraps in (ms), or null: with Loop on, the loop region, else In to Out, else the whole take. */
   wrapRange() {
     if (!this.loop) return null;
-    return this.loopRange || (this.take ? [0, this.duration] : null);
+    return this.loopRange || this.inOut || (this.take ? [0, this.duration] : null);
   }
 
   play() {
@@ -120,6 +122,9 @@ export class TakePlayer {
     const wrap = this.wrapRange();
     if (this.take && !wrap && this.t >= this.duration) this.t = 0;
     if (wrap && (this.t < wrap[0] || this.t >= wrap[1])) this.t = wrap[0];
+    // Not looping, from before Out: play stops at Out (as an editor's In to Out).
+    const io = this.inOut;
+    this.stopAt = !wrap && io && this.t < io[1] ? io[1] : null;
     this.playing = true;
     let last = performance.now();
     this.at = last;
@@ -131,7 +136,8 @@ export class TakePlayer {
       // Time is the wall clock's (not the frames'): a slow frame skips ahead, it does not slow the music.
       this.t = advanceTransportPlaybackTime(this.t / 1000, (now - last) / 1000, { rate: this.rate, loopEnabled: Boolean(r), loopStart: r ? r[0] / 1000 : 0, loopEnd: r ? r[1] / 1000 : 0 }) * 1000;
       last = now; this.at = now;
-      if (this.take && !r && this.t >= this.duration) { this.t = this.duration; this.playing = false; }
+      if (!r && this.stopAt != null && this.t >= this.stopAt) { this.t = this.stopAt; this.playing = false; clearInterval(this.timer); }
+      else if (this.take && !r && this.t >= this.duration) { this.t = this.duration; this.playing = false; clearInterval(this.timer); }
       this.render(); this.syncAudio(); this.emit();
     };
     // Every frame (a skipped tick must not end the chain: on a 120 Hz screen frames come every 8 ms).
@@ -144,8 +150,8 @@ export class TakePlayer {
     this.emit();
   }
 
-  /** Back to the start (the loop range's start, if one is marked). */
-  rewind() { const r = this.loopRange; this.seek(r ? r[0] : 0); }
+  /** Back to the start: In, if marked; else, while looping, the loop region's start; else 0. */
+  rewind() { const io = this.inOut, r = this.loop ? this.loopRange : null; this.seek(io ? io[0] : r ? r[0] : 0); }
 
   /** Pause and go back to the start. */
   stop() { this.pause(); this.rewind(); }

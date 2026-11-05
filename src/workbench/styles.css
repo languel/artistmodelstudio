@@ -490,11 +490,11 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-body { display: flex; flex: 1; min-height: 0; border-top: 1px solid var(--wb-line); }
 .wb-tl-labels { flex: none; width: 76px; border-right: 1px solid var(--wb-line); }
 .wb-tl-labels > div, .wb-tl-row { height: 24px; box-sizing: border-box; border-bottom: 1px solid color-mix(in srgb, var(--wb-line) 60%, transparent); }
-.wb-tl-rulerlabel, .wb-tl-ruler { height: 18px !important; }
+.wb-tl-rulerlabel, .wb-tl-ruler { height: 24px !important; }
 .wb-tl-label { font-size: 11px; color: var(--wb-muted); line-height: 24px; padding-left: 6px; }
 .wb-tl-lanes { position: relative; flex: 1; overflow: auto; outline: none; }
 .wb-tl-ruler { position: relative; border-bottom: 1px solid var(--wb-line); cursor: text; }
-.wb-tl-ruler span { position: absolute; top: 2px; font: 10px var(--font-mono, monospace); color: var(--wb-muted); transform: translateX(2px); border-left: 1px solid var(--wb-line); padding-left: 2px; }
+.wb-tl-ruler span { position: absolute; top: 8px; font: 10px var(--font-mono, monospace); color: var(--wb-muted); transform: translateX(2px); border-left: 1px solid var(--wb-line); padding-left: 2px; }
 .wb-tl-row { position: relative; }
 .wb-tl-clip { position: absolute; top: 3px; height: 17px; box-sizing: border-box; border-radius: 4px; font-size: 10.5px; line-height: 15px; padding: 0 6px 0 5px; overflow: hidden; white-space: nowrap; cursor: grab; border: 1px solid transparent; color: #1d1b19; }
 .wb-tl-clip.sel { border-color: var(--wb-text); box-shadow: 0 0 0 1px var(--wb-text); }
@@ -506,13 +506,24 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-clip.t-action { background: color-mix(in srgb, var(--wb-muted) 45%, transparent); color: var(--wb-text); }
 .wb-tl-clip.t-camera { background: #b3bfd0; }
 .wb-tl-clip.t-audio { background: #d0b3c4; }
-.wb-tl-ruler span.minor { top: 11px; height: 6px; padding: 0; border-left-color: color-mix(in srgb, var(--wb-line) 70%, transparent); }
+.wb-tl-ruler span.minor { top: 17px; height: 6px; padding: 0; border-left-color: color-mix(in srgb, var(--wb-line) 70%, transparent); }
 .wb-tl-ruler span.major { height: 16px; }
 .wb-tl-ruler-mode { width: 40px; }
 .wb-tl-units { width: 48px; }
 .wb-tl-tempo { width: 52px; font-family: var(--font-mono); }
 .wb-tl-loop { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--wb-accent-2) 10%, transparent); border-left: 1px solid color-mix(in srgb, var(--wb-accent-2) 50%, transparent); border-right: 1px solid color-mix(in srgb, var(--wb-accent-2) 50%, transparent); pointer-events: none; }
-.wb-tl-loop.on { background: color-mix(in srgb, var(--wb-accent-2) 18%, transparent); }
+.wb-tl-loop.on { background: color-mix(in srgb, var(--wb-accent-2) 9%, transparent); }
+/* The loop region: a strip along the top of the ruler (coloured while Loop is on, an outline when off). */
+.wb-tl-loopbar { position: absolute; top: 1px; height: 6px; box-sizing: border-box; border-radius: 3px; border: 1px solid color-mix(in srgb, var(--wb-accent-2) 55%, transparent); background: transparent; cursor: grab; z-index: 1; }
+.wb-tl-loopbar.on { background: var(--wb-accent-2); border-color: var(--wb-accent-2); }
+.wb-tl-loopbar-h { position: absolute; top: -2px; bottom: -2px; width: 8px; cursor: ew-resize; }
+.wb-tl-loopbar-h.in { left: -4px; }
+.wb-tl-loopbar-h.out { right: -4px; }
+/* In and Out: brackets on the ruler, and the time outside them dimmed. */
+.wb-tl-io { position: absolute; top: 7px; bottom: 0; width: 7px; box-sizing: border-box; border: 2px solid var(--wb-text); cursor: ew-resize; z-index: 2; }
+.wb-tl-io.in { border-right: 0; margin-left: -1px; }
+.wb-tl-io.out { border-left: 0; margin-left: -6px; }
+.wb-tl-ioshade { position: absolute; top: 0; background: color-mix(in srgb, var(--wb-text) 9%, transparent); pointer-events: none; z-index: 3; }
 .wb-tl-playhead { position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: #c0563f; pointer-events: none; will-change: transform; }
 .wb-tl-empty { padding: 14px; color: var(--wb-muted); }
 
@@ -913,7 +924,8 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 .wb-tl-loop, .wb-tl-playhead { bottom: auto; z-index: 3; }
 .wb-tl-playhead::before { content: ''; position: absolute; top: 0; left: -4px; border: 4.5px solid transparent; border-top: 6px solid var(--wb-accent-2); border-bottom: 0; }
 .wb-tl-lanes.panning, .wb-tl-lanes.panning * { cursor: grabbing !important; }
-.wb-tl-grid { position: absolute; top: 18px; pointer-events: none; }
+.wb-tl-grid { position: absolute; top: 24px; pointer-events: none; }
+.wb-tl-ticks { position: absolute; inset: 0; pointer-events: none; }
 /* Dropping History changes: a line where they will go, and a note by the pointer. */
 .wb-tl-dropmark { position: absolute; left: 0; top: 0; width: 2px; margin-left: -1px; background: var(--wb-select, #3b82f6); z-index: 4; pointer-events: none; }
 .wb-tl-droptip { position: absolute; z-index: 5; padding: 2px 7px; border-radius: 4px; background: var(--wb-panel-2); border: 1px solid var(--wb-line); font-size: 11px; color: var(--wb-text); white-space: nowrap; pointer-events: none; box-shadow: var(--wb-shadow); }

@@ -140,11 +140,11 @@ export function timeLabel(sec, step = 1) {
 
 // ---- edit points ------------------------------------------------------------------------------
 
-/** The times (ms) worth stopping at, sorted: the start, the clips' starts and ends, the loop range. */
+/** The times (ms) worth stopping at, sorted: the start, the clips' starts and ends, the ranges given (a range or a list of them). */
 export function editPoints(clips = [], loop = null, end = 0) {
   const set = new Set([0]);
   for (const c of clips) { set.add(Math.round(c.start || 0)); set.add(Math.round((c.start || 0) + (c.dur || 0))); }
-  if (loop) { set.add(Math.round(loop[0])); set.add(Math.round(loop[1])); }
+  for (const r of !loop ? [] : Array.isArray(loop[0]) ? loop : [loop]) { set.add(Math.round(r[0])); set.add(Math.round(r[1])); }
   if (end > 0) set.add(Math.round(end));
   return [...set].sort((a, b) => a - b);
 }

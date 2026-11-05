@@ -6,7 +6,8 @@
  *   signature   { numerator, denominator }
  *   fps         frames a second, for the frame ruler
  *   ruler       'time' | 'beats' | 'frames'
- *   loop        { start, end } seconds; end <= start means "no range" (the whole take)
+ *   loop        { start, end } seconds: the loop region (what Loop plays round); end <= start means none
+ *   range       { start, end } seconds: In and Out (what plays, fits and exports; Home goes to In); end <= start means none
  *   snap        the Timeline's grid: 'auto' (follows the zoom), 'off', or a time ('1 beat', '0.25 beat', '1 frame'…)
  *   quant       a time ('1 beat', '1 bar', '1 s', '0.5 beat'…) that path lengths are rounded to; '' for none
  *   mixer       the channel mixer and global scale (src/score/mixer.js)
@@ -27,15 +28,15 @@ export const DEFAULT_TRANSPORT = Object.freeze({
   quant: '',
   snap: 'auto',
   mixer: Object.freeze(normalizeMixer(null)),
-  loop: Object.freeze({ start: 0, end: 0 })
+  loop: Object.freeze({ start: 0, end: 0 }),
+  range: Object.freeze({ start: 0, end: 0 })
 });
 
 const num = (v, d) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : d);
 
 export function normalizeTransport(t) {
   const s = t && typeof t === 'object' ? t : {};
-  const start = Math.max(0, num(s.loop?.start, 0));
-  const end = Math.max(0, num(s.loop?.end, 0));
+  const span = r => { const a = Math.max(0, num(r?.start, 0)), b = Math.max(0, num(r?.end, 0)); return b > a ? { start: a, end: b } : { start: 0, end: 0 }; };
   return {
     tempo: clampTempo(s.tempo ?? DEFAULT_TRANSPORT.tempo),
     signature: normalizeTimeSignature(s.signature),
@@ -45,12 +46,15 @@ export function normalizeTransport(t) {
     snap: typeof s.snap === 'string' && s.snap.length < 24 && s.snap.trim() ? s.snap.trim() : 'auto',
     quant: typeof s.quant === 'string' && s.quant.length < 24 ? s.quant.trim() : '',
     mixer: normalizeMixer(s.mixer),
-    loop: end > start ? { start, end } : { start: 0, end: 0 }
+    loop: span(s.loop),
+    range: span(s.range)
   };
 }
 
-/** The loop range in seconds, or null when none is set. */
+/** The loop region in seconds, or null when none is set. */
 export const loopRange = t => (t.loop.end > t.loop.start ? [t.loop.start, t.loop.end] : null);
+/** In and Out in seconds, or null when not marked. */
+export const inOutRange = t => (t.range?.end > t.range?.start ? [t.range.start, t.range.end] : null);
 
 /** The time context the expression parser and the ruler need. */
 export const timeContext = t => ({ tempo: t.tempo, signature: t.signature, fps: t.fps });
