@@ -13,7 +13,7 @@ import { icon } from '../icons.js';
 import { showMenu } from '../menu.js';
 import { modelPill } from '../modelPill.js';
 import { attachMic, looksReady } from '../voice.js';
-import { ENGINE_NAMES, currentEngine, setEngine, useModel, allFavorites, favorites, isFavorite, toggleFavorite, assistantSettings, setAssistantSettings } from '../modelStore.js';
+import { ENGINE_NAMES, currentEngine, setEngine, useModel, allFavorites, favorites, isFavorite, toggleFavorite, assistantSettings, setAssistantSettings, FALLBACK_TEMPERATURE } from '../modelStore.js';
 import { parseCommand, brief, help } from '../console.js';
 
 const ATTACH_MAX = 40000;   // characters of an attached file that go to the model
@@ -183,6 +183,8 @@ export function mountAssistant(root, app) {
     history.push({ who: 'you', text: full }); persist();
     const cfg = assistantSettings(), engine = currentEngine();
     const artist = app.artists.get(engine);
+    // Unset: Ollama applies the model's own recommendation; other engines get a plain default.
+    const askTemp = (v, kind) => (v != null ? v : engine === 'ollama' ? undefined : FALLBACK_TEMPERATURE[kind]);
     if (!artist?.complete || engine === 'agent') { add('sys', 'Pick a model engine (Ollama, WebGPU, OpenRouter or OpenAI-compatible) from the model button. An external agent drives the tools directly over MCP.', 'error'); return { error: 'Pick a model engine: click here for the Assistant.' }; }
     busy = new AbortController();
     if (flow) app.store.beginStep();
@@ -194,11 +196,11 @@ export function mountAssistant(root, app) {
     try {
       if (!cfg.tools && !flow) {
         const pending = add('sys', 'Working…', 'pending');
-        const raw = await artist.complete({ system: TALK_ONLY, user: transcript, temperature: cfg.temperature, signal: busy.signal });
+        const raw = await artist.complete({ system: TALK_ONLY, user: transcript, temperature: askTemp(cfg.temperature, 'chat'), signal: busy.signal });
         pending.remove(); const say = String(raw || '').trim(); add('bot', say); history.push({ who: 'bot', text: say });
       } else for (let round = 0; round < cfg.rounds && !busy.signal.aborted; round++) {
         const pending = add('sys', round ? 'Reading the results…' : 'Working…', 'pending');
-        const raw = await artist.complete({ system: flow ? flowPrompt(app) : systemPrompt(app), user: transcript, temperature: flow ? cfg.flowTemperature : cfg.temperature, signal: busy.signal, json: true, ...(flow ? { maxTokens: 600 } : {}) });   // (json: an engine that can force valid JSON does; small models otherwise drop a brace)
+        const raw = await artist.complete({ system: flow ? flowPrompt(app) : systemPrompt(app), user: transcript, temperature: askTemp(flow ? cfg.flowTemperature : cfg.temperature, flow ? 'flow' : 'chat'), signal: busy.signal, json: true, ...(flow ? { maxTokens: 600 } : {}) });   // (json: an engine that can force valid JSON does; small models otherwise drop a brace)
         pending.remove();
         const r = parseReply(raw);
         // It asked anyway: once, tell it to assume and act.

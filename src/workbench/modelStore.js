@@ -64,7 +64,8 @@ export function allFavorites(app) {
 }
 
 // ---- how the assistant asks ---------------------------------------------------------------------------------------
-export const ASSISTANT_DEFAULTS = { temperature: 0.4, rounds: 6, tools: true, history: 12, flowTemperature: 0.1 };
+export const ASSISTANT_DEFAULTS = { temperature: null, rounds: 6, tools: true, history: 12, flowTemperature: null }   // (null: the model's own recommendation, else 0.4 for the chat and 0.1 for the quick field)
+export const FALLBACK_TEMPERATURE = { chat: 0.4, flow: 0.1 };;
 export function assistantSettings() {
   let saved = {};
   try { saved = JSON.parse(get(SETTINGS_KEY, '{}')) || {}; } catch { /* ignore */ }

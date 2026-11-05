@@ -172,10 +172,23 @@ export class OllamaArtist extends Artist {
 
   /** One chat completion: { system, user, image?, temperature?, signal } → text. */
   // json: force valid JSON, with a token cap (in JSON mode a small model can pad with whitespace for ever).
-  async complete({ system, user, image = null, temperature = 0.7, signal, json = false, maxTokens = 2000 } = {}) {
+  /**
+   * What the model's maker recommends (its Modelfile parameters, from /api/show): { temperature, top_p, top_k, num_ctx… } as numbers.
+   * Cached per model. When a request names no temperature, Ollama itself applies these.
+   */
+  async recommended(model = this.model) {
+    this._rec ||= new Map();
+    if (!this._rec.has(model)) {
+      this._rec.set(model, fetch(`${this.endpoint}/api/show`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }) })
+        .then(r => r.json()).then(d => { const out = {}; for (const line of String(d.parameters || '').split('\n')) { const m = /^(\w+)\s+(.+)$/.exec(line.trim()); if (m && Number.isFinite(Number(m[2]))) out[m[1]] = Number(m[2]); } return out; }).catch(() => ({})));
+    }
+    return this._rec.get(model);
+  }
+
+  async complete({ system, user, image = null, temperature = null, signal, json = false, maxTokens = 2000 } = {}) {
     const res = await fetch(`${this.endpoint}/api/chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
-      body: JSON.stringify({ model: this.model, stream: false, think: false, ...(json ? { format: 'json' } : {}), options: { temperature, ...(json ? { num_predict: maxTokens } : {}) }, messages: [...(system ? [{ role: 'system', content: system }] : []), ollamaMessage(user, image)] })
+      body: JSON.stringify({ model: this.model, stream: false, think: false, ...(json ? { format: 'json' } : {}), options: { ...(temperature != null ? { temperature } : {}), ...(json ? { num_predict: maxTokens } : {}) }, messages: [...(system ? [{ role: 'system', content: system }] : []), ollamaMessage(user, image)] })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);

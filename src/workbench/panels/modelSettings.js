@@ -8,7 +8,7 @@
 import { h, row, selectField, numberField, section } from '../ui.js';
 import { icon } from '../icons.js';
 import { ENGINES, loadModels } from '../modelPicker.js';
-import { ENGINE_FIELDS, ENGINE_NAMES, currentEngine, setEngine, useModel, favorites, isFavorite, toggleFavorite, filterModels, assistantSettings, setAssistantSettings } from '../modelStore.js';
+import { ENGINE_FIELDS, ENGINE_NAMES, currentEngine, setEngine, useModel, favorites, isFavorite, toggleFavorite, filterModels, assistantSettings, setAssistantSettings, FALLBACK_TEMPERATURE } from '../modelStore.js';
 
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return v; };
 
@@ -18,6 +18,7 @@ export function modelSection(app) {
   const body = h('div', { class: 'wb-model-body' });
   box.append(body);
 
+  let builtModel = '';
   const build = () => {
     const artist = app.artists.get(engine);
     let info = { ready: false, status: '', groups: [] }, query = '', active = -1, shown = [];
@@ -74,6 +75,18 @@ export function modelSection(app) {
       return row(label, f);
     });
     const a = assistantSettings();
+    // Temperature: unset means the model's own (Ollama reads it from the model), shown here as what it is; ↺ goes back to that.
+    const modelNow = builtModel = artist?.getModel?.() || '';
+    artist._recFor ||= {};   // (per model: what its maker recommends, once asked)
+    if (artist?.recommended && !(modelNow in artist._recFor)) { artist._recFor[modelNow] = null; artist.recommended(modelNow).then(r => { artist._recFor[modelNow] = r; if (document.body.contains(box)) build(); }); }
+    const rec = artist?._recFor?.[modelNow] || null;
+    const others = rec ? Object.entries(rec).filter(([k]) => k !== 'temperature').map(([k, v]) => `${k} ${v}`).join(', ') : '';
+    const tempField = (key, kind, title) => {
+      const own = rec?.temperature, shown = a[key] ?? own ?? FALLBACK_TEMPERATURE[kind];
+      const f = numberField({ value: shown, min: 0, max: 2, step: 0.05, def: own ?? FALLBACK_TEMPERATURE[kind], title: `${title}${own != null ? `. This model recommends ${own}` : ''}${others ? `. Its other settings (applied by Ollama): ${others}` : ''}`, onChange: v => { setAssistantSettings({ [key]: v }); reset.hidden = false; } });
+      const reset = h('button', { class: 'wb-icon-btn', type: 'button', title: own != null ? `Use the model's own setting (${own})` : `Use the default (${FALLBACK_TEMPERATURE[kind]})`, hidden: a[key] == null, html: '↺', onclick: () => { setAssistantSettings({ [key]: null }); build(); } });
+      return h('span', { class: 'wb-model-ctl' }, f, reset, a[key] == null && own != null ? h('span', { class: 'wb-small wb-muted', title: 'The model recommends this' }, 'model') : null);
+    };
     body.replaceChildren(
       row('Engine', selectField(ENGINES.filter(([id]) => id in ENGINE_NAMES), engine, v => { engine = v; tag = ''; favOnly = false; setEngine(v); build(); }, 'What the assistant talks to')),
       ...fields,
@@ -83,10 +96,10 @@ export function modelSection(app) {
       engine === 'openrouter' ? row('Show', selectField([['', 'All'], ['free', 'Free'], ['image', 'Image input']], tag, v => { tag = v; paint(); }, 'Narrow the OpenRouter list')) : null,
       h('div', { class: 'wb-row wb-model-status' }, h('span', { class: 'wb-row-label' }), status),
       h('div', { class: 'wb-sub', title: engine === 'agent' ? 'Not used with an external agent: it chooses how to ask for itself' : 'How the Assistant panel asks the model (the quick / field has its own temperature, below)' }, 'Asking'),
-      row('Temperature', numberField({ value: a.temperature, min: 0, max: 2, step: 0.05, def: 0.4, title: 'Lower: steadier. Higher: more varied', onChange: v => setAssistantSettings({ temperature: v }) })),
+      row('Temperature', tempField('temperature', 'chat', 'Lower: steadier. Higher: more varied')),
       row('Steps', numberField({ value: a.rounds, min: 1, max: 12, step: 1, def: 6, title: 'How many times it may act, look at the results and act again for one message', onChange: v => setAssistantSettings({ rounds: Math.round(v) }) })),
       row('Remember', numberField({ value: a.history, min: 2, max: 40, step: 1, def: 12, title: 'How many earlier messages go back to the model each time', onChange: v => setAssistantSettings({ history: Math.round(v) }) })),
-      row('Quick field', numberField({ value: a.flowTemperature, min: 0, max: 2, step: 0.05, def: 0.1, title: 'Temperature for the / field, which acts at once, never asks, and answers in a few words. Lower is steadier', onChange: v => setAssistantSettings({ flowTemperature: v }) })),
+      row('Quick field', tempField('flowTemperature', 'flow', 'Temperature for the / field, which acts at once, never asks, and answers in a few words. Lower is steadier')),
       row('Studio tools', (() => { const c = h('input', { type: 'checkbox', checked: a.tools, title: 'Let it draw and change the studio through its tools. Off: it only talks' }); c.addEventListener('change', () => setAssistantSettings({ tools: c.checked })); return c; })())
     );
     // With an external agent none of these apply (it asks for itself): dimmed, and the controls off.
@@ -95,6 +108,6 @@ export function modelSection(app) {
     refresh();
   };
   build();
-  window.addEventListener('ams-model', () => { if (currentEngine() !== engine && document.body.contains(box)) { engine = currentEngine(); build(); } });
+  window.addEventListener('ams-model', () => { if (!document.body.contains(box)) return; if (currentEngine() !== engine) { engine = currentEngine(); build(); } else if ((app.artists.get(engine)?.getModel?.() || '') !== builtModel) build(); });
   return box;
 }
