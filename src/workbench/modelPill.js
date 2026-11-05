@@ -13,11 +13,12 @@ export function modelPill(app) {
     const engine = currentEngine(), m = app.artists.get(engine)?.getModel?.() || '';
     pill.replaceChildren(h('span', { class: 'wb-pill-engine' }, ENGINE_NAMES[engine] || engine), m && engine !== 'agent' ? h('span', { class: 'wb-pill-model' }, m) : null, h('span', { class: 'wb-tool-caret' }));
   };
-  pill.onclick = () => {
+  pill.onclick = async () => {
     const r = pill.getBoundingClientRect(), engine = currentEngine(), artist = app.artists.get(engine), cur = artist?.getModel?.() || '';
     const favs = allFavorites(app);
-    // (an Ollama favorite the machine no longer has)
-    const missing = f => { if (f.engine !== 'ollama') return false; try { const have = app.artists.get('ollama')?.getAvailableModels?.() || []; return have.length > 0 && !have.some(m => (m.id || m) === f.id); } catch { return false; } };
+    // (an Ollama favorite the machine does not have: judged by Ollama's own list, asked for now; if it cannot be reached nothing is flagged)
+    const have = favs.some(f => f.engine === 'ollama') ? new Set(await app.artists.get('ollama')?.fetchAvailableModels?.().catch(() => []) || []) : new Set();
+    const missing = f => f.engine === 'ollama' && have.size > 0 && !have.has(f.id);
     const starOf = (e, id, on) => ({ on, title: on ? 'Unfavorite' : 'Favorite', run: () => toggleFavorite(e, id, app.artists.get(e)) });
     const isCur = f => f.engine === engine && f.id === cur;
     const here = cur && engine !== 'agent';
