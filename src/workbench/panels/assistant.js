@@ -72,9 +72,11 @@ To show how something was done, use ams_sessions with action "replay".
 
 Current state: ${state}
 
-Reply with ONE JSON object and nothing else:
-{"say": "what you tell the user", "actions": [{"tool": "ams_…", "args": {…}}], "done": true}
-Set "done": false only if you need to see the results of your actions before continuing.`;
+Reply with ONE JSON object and nothing else. Its keys:
+- "say": a sentence or two for the user, in plain words.
+- "actions": a list of tool calls, each an object with "tool" (a name from the list above) and "args" (that tool's arguments); an empty list when you are only talking.
+- "done": true, unless you need to see the results of your actions before going on (then false).
+For instance, to answer a question you can already answer from the state above: {"say":"There are 5 marks on the Marks stage.","actions":[],"done":true}`;
 }
 
 /**
@@ -134,9 +136,14 @@ export function parseReply(text) {
       if (j && typeof j === 'object' && ('say' in j || 'actions' in j)) return { say: String(j.say || ''), actions: Array.isArray(j.actions) ? j.actions : [], done: j.done !== false };
     } catch { /* not JSON: the next one */ }
   }
+  // The sentence it meant to say, when the rest cannot be read (never show the person a JSON fragment).
+  const said = /"say"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(t);
+  const salvage = said ? (() => { try { return JSON.parse(`"${said[1]}"`); } catch { return said[1]; } })() : null;
   // Brackets miscounted: close what is open and drop what is stray, then read it.
   const fixed = repairJson(t);
   if (fixed) { try { const j = JSON.parse(fixed); if (j && typeof j === 'object' && ('say' in j || 'actions' in j)) return { say: String(j.say || ''), actions: Array.isArray(j.actions) ? j.actions : [], done: j.done !== false, repaired: true }; } catch { /* no */ } }
+  if (salvage) return { say: salvage, actions: [], done: true, salvaged: true };
+  if (/^\s*[{[]/.test(t)) return { say: 'I could not read my own reply. Try asking again, or in other words.', actions: [], done: true, unreadable: true };
   return { say: t, actions: [], done: true };
 }
 
@@ -312,8 +319,8 @@ export function mountAssistant(root, app) {
         const r = parseReply(raw);
         // It asked anyway: once, tell it to assume and act.
         if (flow && !nudged && !r.actions.length && /\?\s*$/.test(r.say || '')) { nudged = true; transcript += `\nASSISTANT: ${JSON.stringify(r)}\nUSER: Do not ask. Make your best assumption and do it now.`; continue; }
-        if (flow && !retried && !r.actions.length && /^\s*[{[]/.test(r.say || '')) { retried = true; transcript += '\nUSER: Reply with only one valid JSON object, nothing else.'; continue; }
-        if (flow && !r.actions.length && /^\s*[{[]/.test(r.say || '')) { failed = 'The model’s reply could not be read. Nothing was changed.'; add('sys', failed, 'error'); break; }
+        if (flow && !retried && !r.actions.length && r.unreadable) { retried = true; transcript += '\nUSER: Reply with only one valid JSON object, nothing else.'; continue; }
+        if (flow && !r.actions.length && r.unreadable) { failed = 'The model’s reply could not be read. Nothing was changed.'; add('sys', failed, 'error'); break; }
         if (r.say) { said = r.say; add('bot', r.say); history.push({ who: 'bot', text: r.say }); autoSpeak(r.say); }
         if (!r.actions.length) break;
         const sig = JSON.stringify(r.actions);

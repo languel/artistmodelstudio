@@ -34,4 +34,18 @@ describe('reading a reply whose brackets are miscounted', () => {
   it('does not take a bracket inside a string for structure', () => {
     expect(JSON.parse(repairJson('{"say":"use } and ] freely","actions":[]'))).toEqual({ say: 'use } and ] freely', actions: [] });
   });
+
+  it('salvages the sentence from a reply it cannot otherwise read, and never shows JSON', () => {
+    const broken = '{"say": "The scene has 5 marks.", "actions": [{"tool": "ams_x", "args": {"a": }}], "done": false';
+    const r = parseReply(broken);
+    expect(r.say).toBe('The scene has 5 marks.');
+    const junk = parseReply('{"actions": [ {"tool": ');
+    expect(junk.unreadable).toBe(true);
+    expect(junk.say).not.toMatch(/[{}]/);
+  });
+  it('reads the reply a user once got as raw text (an extra closing brace at the end)', () => {
+    const shot = '{"say": "The scene is titled \'Scene 4\' with 5 elements.", "actions": [{"tool": "ams_vocabulary", "args": {"principles":"You are drawing.\\nartboard(w, h, ground)\\n"}, "done": false}}';
+    const r = parseReply(shot);
+    expect(r.say).toBe("The scene is titled 'Scene 4' with 5 elements.");
+  });
 });
