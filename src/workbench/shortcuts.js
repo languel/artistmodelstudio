@@ -62,6 +62,8 @@ export function defaultCommands(app) {
     cmd('view.frameBoard', 'View', 'Frame the active board', ['alt+home'], () => app.canvas.animateTo(app.canvas.camFor(app.activeBoard || 'main'), 400)),
     cmd('view.frameSelection', 'View', 'Frame the selection', ['alt+shift+home'], () => { if (!app.canvas.frameSelection()) app.canvas.animateTo(app.canvas.camFor(app.activeBoard || 'main'), 400); }),
     cmd('tool.board', 'Tools', 'Board', [';'], () => app.setTool('board')),
+    cmd('panel.code', 'Panels', 'Code: the selection as code (the selected marks, else the picked clip, else the score)', ['mod+;'], () => (app.canvas.selected.size ? app.openCode?.('selection') : app.selectedClip ? app.openCode?.('clip', app.selectedClip) : app.openCode?.()), { global: true }),
+    cmd('panel.properties', 'Panels', 'Properties', ['alt+;'], () => app.docks.open('properties'), { global: true }),
     cmd('view.present', 'View', 'Present the boards', ['mod+alt+p'], () => app.present()),
     cmd('view.perform', 'View', 'Perform: the active board alone, filling the screen, running, with no interface (Esc leaves; Ctrl+Opt+F: whole board or fill)', ['ctrl+alt+p', 'mod+alt+shift+p'], () => app.perform(), { global: true }),
     cmd('ui.all', 'View', 'Zen mode: hide all the interface, leaving only the drawing (again to bring it back)', ['alt+z', 'mod+.'], () => app.toggleZen(), { global: true }),
@@ -116,6 +118,7 @@ export function comboOf(e) {
   // Shifted punctuation (?, +) is its own key; letters and digits keep shift as a modifier.
   let key = k.length === 1 ? k.toLowerCase() : k.toLowerCase();
   if (e.altKey && e.code?.startsWith('Key')) key = e.code.slice(3).toLowerCase();
+  if (e.altKey && e.code === 'Semicolon') key = ';';   // (Option+; arrives as … on a Mac)
   if (e.shiftKey && e.code?.startsWith('Digit')) key = e.code.slice(5);   // Shift+2 arrives as '@'; the digit is what is meant
   const withMod = mods.includes('mod') || mods.includes('ctrl');
   if (e.code === 'Slash' && withMod) key = '/';                       // ⌘? arrives as '/' on some layouts

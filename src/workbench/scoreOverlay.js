@@ -11,7 +11,7 @@ import { localTime } from '../score/travel.js';
 import { formatDuration } from '../time/sceneTransport.js';
 
 /** How a score is drawn over the canvas (Canvas menu; a traveler can say its own: travel.glow, travel.glowSize, travel.trail). */
-export const SCORE_LOOK = Object.freeze({ glow: 0.4, glowSize: 3.2, trail: 0.6, trailAlpha: 0.55, blip: 1, color: '' });   // (color: the highlight of everything lit; empty: the theme's accent)
+export const SCORE_LOOK = Object.freeze({ glow: 0.4, glowSize: 3.2, trail: 0.6, trailAlpha: 0.55, trailPaused: 1, blip: 1, color: '' });   // (trailPaused: tails stay when the transport stops)   // (color: the highlight of everything lit; empty: the theme's accent)
 const pathLen = pts => { let t = 0; for (let i = 1; i < pts.length; i++) t += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return t; };
 const FLASH = 0.55;   // seconds an event's blip lasts
 
@@ -277,13 +277,14 @@ export class ScoreOverlay {
       const past = [];
       const onPath = new Map(world.travelers().filter(t => t.path && !t.fn && !t.body).map(t => [t.id, t]));
       // (travelers on a path draw their trail along it, below; the others from where they were)
-      if (p.playing && TRAIL > 0.05 && now.some(q => !onPath.has(q.id))) for (let i = 1; i <= steps; i++) past.push(new Map(world.positions(Math.max(0, pos - (TRAIL * i) / steps)).map(q => [q.id, q])));
+      const tails = p.playing || Boolean(({ ...SCORE_LOOK, ...app.scoreView }).trailPaused);   // (paused: the tails stay where they were, unless turned off)
+      if (tails && TRAIL > 0.05 && now.some(q => !onPath.has(q.id))) for (let i = 1; i <= steps; i++) past.push(new Map(world.positions(Math.max(0, pos - (TRAIL * i) / steps)).map(q => [q.id, q])));
       for (const q of now) {
         const [x, y] = at(q.x, q.y);
         const bw = widths.get(q.id), mine = own.get(q.id) || {};
         const trailLen = mine.trail ?? look.trail, glow = mine.glow ?? look.glow, glowSize = mine.glowSize ?? look.glowSize;
         const tr = onPath.get(q.id);
-        if (p.playing && !q.r && trailLen > 0.05 && tr) {
+        if (tails && !q.r && trailLen > 0.05 && tr) {
           // The trail along the path, as finely as it bends. Looping, the part behind the wrap runs on to the
           // path's end while the head starts again from its beginning (on a closed path they meet: a tail as long
           // as a lap is an ouroboros); going back and forth it is one piece.
@@ -313,7 +314,7 @@ export class ScoreOverlay {
             if (o && !last) o.head = null;   // (the older part ends at the path's end, without a dot)
             if (o && (o.left.length || last)) fillLaserOutline(ctx, o, accent);
           });
-        } else if (p.playing && !q.r && trailLen > 0.05) {   // the trail: the laser pointer's ribbon, one filled shape that tapers to nothing
+        } else if (tails && !q.r && trailLen > 0.05) {   // the trail: the laser pointer's ribbon, one filled shape that tapers to nothing
           const pts = [];
           for (let i = past.length - 1; i >= 0; i--) {   // oldest first
             const b = past[i].get(q.id);
