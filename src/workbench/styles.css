@@ -1276,3 +1276,17 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-speak-toggle.on { color: var(--wb-accent-2, #c0563f); }
 .wb-spin { display: inline-block; width: 1ch; color: var(--wb-accent-2, #c0563f); }
 .wb-msg.pending { font-family: var(--font-mono); }
+
+/* The Assistant panel's modes: Chat, Generate, Decide */
+.wb-panel-body:has(> .wb-assist) { height: 100%; box-sizing: border-box; padding: 0; gap: 0; }
+.wb-dock-content:has(> .wb-panel-body > .wb-assist) { overflow: hidden; }
+.wb-assist { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.wb-assist-modes { display: flex; gap: 2px; padding: 6px 8px 4px; flex: none; }
+.wb-assist-mode { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 0; border-radius: 999px; background: none; color: var(--wb-muted); font: inherit; font-size: var(--ui-small); cursor: pointer; }
+.wb-assist-mode:hover { background: var(--wb-on); color: var(--wb-text); }
+.wb-assist-mode.on { background: var(--wb-on); color: var(--wb-text); box-shadow: inset 0 0 0 1px var(--wb-line); }
+.wb-assist-glyph { display: inline-flex; }
+.wb-assist-glyph svg { width: 14px; height: 14px; }
+.wb-assist-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.wb-assist-body[hidden] { display: none; }
+.wb-assist-body > .wb-assistant { height: 100%; }

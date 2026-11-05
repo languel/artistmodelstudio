@@ -49,6 +49,8 @@ export function buildCommands(app) {
   ];
   for (const [id, label, key] of app.toolList || []) out.push(cmd('Tool', label, () => app.setTool(id), key));
   for (const p of app.docks.panels.values()) out.push(cmd('Panel', p.title, () => app.docks.open(p.id)));
+  // (Generate and Decide are modes of the Assistant panel)
+  for (const [id, [panel, mode]] of Object.entries(app.docks.aliases || {})) if (panel === 'assistant') out.push(cmd('Panel', `Assistant: ${mode[0].toUpperCase()}${mode.slice(1)}`, () => app.docks.open(id), '', `The Assistant panel in ${mode} mode`));
   for (const e of EXERCISES) out.push(cmd('Exercise', e.title, () => { app.docks.open('script'); app.scriptPanel?.setSource(e.source); app.scriptPanel?.run(); }, '', e.brief));
   for (const w of app.walkthroughs.list()) out.push(cmd('Walkthrough', w.title, () => app.walkthroughs.start(w.id), '', w.summary));
   for (const sc of app.script?.list() || []) out.push(cmd('Script', sc.title, () => app.script.play(sc.id), '', sc.summary));

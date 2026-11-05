@@ -11,6 +11,7 @@ import { generateScore } from '../../process/prompt.js';
 import { EXERCISES } from '../../process/exercises.js';
 import { renderToCanvas } from '../../process/render.js';
 import { modelPill } from '../modelPill.js';
+import { attachMic, looksReady } from '../voice.js';
 import { currentEngine, useModel } from '../modelStore.js';
 
 const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg>';
@@ -32,6 +33,8 @@ export function mountGenerate(root, app) {
   const status = h('div', { class: 'wb-script-out' });
   const hint = h('div', { class: 'wb-chat-empty' }, h('b', {}, 'Generate'), h('span', {}, 'Describe a drawing. Each candidate is a recorded process: open it on the board, save it to Assets, or read its score.'));
   const prompt = h('textarea', { class: 'wb-compose-input', rows: 1, placeholder: 'What to draw…' });
+  const micHost = h('span', { class: 'wb-mic-host' });
+  attachMic(prompt, { host: micHost, onDone: text => { if (looksReady(text) && !busy) go(); } });   // (any text field can be dictated into)
   const grow = () => { prompt.style.height = 'auto'; prompt.style.height = `${Math.min(prompt.scrollHeight, 180)}px`; };
   prompt.addEventListener('input', () => { app.genPrompt = prompt.value; grow(); });
   prompt.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); } });
@@ -60,7 +63,7 @@ export function mountGenerate(root, app) {
     composer.replaceChildren(
       chips.length ? h('div', { class: 'wb-compose-chips' }, ...chips.map(c => h('span', { class: 'wb-chip' }, c))) : '',
       prompt,
-      h('div', { class: 'wb-compose-row' }, optsBtn, pill, countBtn, h('span', { style: { flex: 1 } }), sendBtn));
+      h('div', { class: 'wb-compose-row' }, optsBtn, pill, countBtn, h('span', { style: { flex: 1 } }), micHost, sendBtn));
     status.textContent = busy ? busy.status : (engineId === 'agent' ? 'Agent engine: requests wait until an agent answers over MCP (ams_pending → ams_answer).' : status.textContent === 'starting' ? '' : status.textContent);
     status.hidden = !status.textContent;
     renderList();

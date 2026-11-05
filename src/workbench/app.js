@@ -3,6 +3,7 @@
  * and the process document at the center. Everything the user can do is also a
  * command (see mcp.js), so agents drive the same surface.
  */
+import { mountAssist } from './panels/assist.js';
 import { Speaker } from './voiceOut.js';
 import { RequestLog } from './requestLog.js';
 import { Lecture } from './lecture.js';
@@ -41,9 +42,6 @@ import { mountProperties } from './panels/properties.js';
 import { mountScript } from './panels/script.js';
 import { mountProcess } from './panels/process.js';
 import { mountLog } from './panels/log.js';
-import { mountGenerate } from './panels/generate.js';
-import { mountAssistant } from './panels/assistant.js';
-import { mountDecide } from './panels/decide.js';
 import { mountOutliner } from './panels/outliner.js';
 import { mountSettings } from './panels/settings.js';
 import { mountShortcuts } from './panels/shortcuts.js';
@@ -1366,8 +1364,9 @@ export class Workbench {
     this.root.append(shell, h('div', { 'data-floating': '' }), h('div', { class: 'wb-dock-hint' }));
     this.docks = new DockManager(this.root, { onLayout: () => this.canvas?.resize() });
     // Score and Brushes are modes of one Code panel; old names open it in the right mode.
-    this.docks.aliases = { brushes: ['script', 'brush'], code: ['script', null] };
-    this.docks.onAlias = mode => { if (mode) this.codeMode?.(mode); };
+    // (Generate and Decide are modes of the Assistant panel; opening them by name switches its mode)
+    this.docks.aliases = { brushes: ['script', 'brush'], code: ['script', null], generate: ['assistant', 'generate'], decide: ['assistant', 'decide'] };
+    this.docks.onAlias = (mode, panel) => { if (!mode) return; if (panel === 'assistant') this.setAssistMode?.(mode); else this.codeMode?.(mode); };
 
     this.canvas = new CanvasView(this.stageArea, this.store, {
       getTool: () => this.tool,
@@ -1551,9 +1550,7 @@ export class Workbench {
     if (!this.embed) reg('properties', 'Properties', 'properties', 'right', mountProperties);
     reg('script', 'Code', 'script', 'right', mountCode);
     reg('process', 'Process', 'process', 'right', mountProcess);
-    reg('generate', 'Generate', 'sparkles', 'right', mountGenerate);
-    reg('assistant', 'Assistant', 'chat', 'right', mountAssistant);
-    reg('decide', 'Decide', 'exercise', 'right', mountDecide);
+    reg('assistant', 'Assistant', 'chat', 'right', mountAssist);   // Chat, Generate and Decide are its modes (panels/assist.js)
     reg('settings', 'Settings', 'gear', 'right', mountSettings);
     reg('shortcuts', 'Shortcuts', 'keyboard', 'right', mountShortcuts);
     reg('docs', 'Docs', 'help', 'right', mountDocs);   // (a question mark, last in the row)
