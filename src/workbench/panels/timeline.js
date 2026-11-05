@@ -543,10 +543,39 @@ export function mountTimeline(root, app) {
 
   // Drop from Assets: sound → an audio clip, text → narration, a drawing → a drawing clip that reveals it.
   const blobURL = blob => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
-  lanes.addEventListener('dragover', ev => { if ([...ev.dataTransfer.types].some(t => t === 'text/asset-id' || t === 'application/x-ams-history')) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; lanes.classList.add('drop'); } });
-  lanes.addEventListener('dragleave', ev => { if (!lanes.contains(ev.relatedTarget)) lanes.classList.remove('drop'); });
+  // Where dropped History changes go: at the end of what is there (so a composition is assembled step
+  // by step), at the playhead (⌥⇧), or where they are dropped, on the grid (Ctrl/⌘).
+  const pointerMs = ev => { const r = lanes.getBoundingClientRect(); return Math.max(0, ((ev.clientX - r.left + lanes.scrollLeft) / pps) * 1000); };
+  const historyDrop = ev => {
+    const q = gridStep(S(), pps) * 1000;
+    if (ev.altKey && ev.shiftKey) return { t: Math.round(P().t), how: 'at the playhead' };
+    if (ev.ctrlKey || ev.metaKey) { const raw = pointerMs(ev); return { t: q ? Math.max(0, Math.round(raw / q) * q) : Math.round(raw), how: q ? 'here, on the grid' : 'here' }; }
+    const clips = P().take?.clips || [], end = clips.length ? Math.max(...clips.map(c => c.start + (c.dur || 0))) : 0;
+    return { t: q && end ? Math.ceil(end / q - 1e-6) * q : Math.round(end), how: clips.length ? 'at the end' : 'at the start' };
+  };
+  const dropMark = h('div', { class: 'wb-tl-dropmark' });
+  const dropTip = h('div', { class: 'wb-tl-droptip' });
+  const clearDrop = () => { lanes.classList.remove('drop'); dropMark.remove(); dropTip.remove(); };
+  lanes.addEventListener('dragover', ev => {
+    const types = [...ev.dataTransfer.types];
+    if (!types.some(t => t === 'text/asset-id' || t === 'application/x-ams-history')) return;
+    ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; lanes.classList.add('drop');
+    if (!types.includes('application/x-ams-history')) return;
+    // A line where they will go, and a note by the pointer saying where (and the other choices).
+    const d = historyDrop(ev);
+    dropMark.style.transform = `translateX(${x(d.t)}px)`;
+    dropMark.style.height = playhead.style.height;
+    const r = lanes.getBoundingClientRect();
+    dropTip.textContent = `${d.how[0].toUpperCase()}${d.how.slice(1)} (${stamp(d.t)})  ·  ⌥⇧ playhead  ·  Ctrl/⌘ here`;
+    dropTip.style.left = `${ev.clientX - r.left + lanes.scrollLeft + 12}px`;
+    dropTip.style.top = `${Math.min(ev.clientY - r.top + 14, lanes.clientHeight - 24) + lanes.scrollTop}px`;
+    if (!dropMark.isConnected) lanes.append(dropMark, dropTip);
+  });
+  lanes.addEventListener('dragleave', ev => { if (!lanes.contains(ev.relatedTarget)) clearDrop(); });
+  window.addEventListener('dragend', clearDrop);
   lanes.addEventListener('drop', async ev => {
-    lanes.classList.remove('drop');
+    const where = historyDrop(ev), dropMs = Math.round(pointerMs(ev));   // (read before a take is started: that changes the view)
+    clearDrop();
     ev.preventDefault();
     if (R().recording) { app.log('Stop recording to add media.'); return; }
     // History entries → drawing clips, in order, from the drop point.
@@ -554,26 +583,29 @@ export function mountTimeline(root, app) {
     if (hist) {
       const ids = JSON.parse(hist);
       const H = app.history;
-      if (!P().take) {
-        const first = Math.min(...ids.map(i => H.indexOf(i)));
-        P().load(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(H.stateAfter(first - 1))) })); fitZoom();
-      }
-      const r0 = lanes.getBoundingClientRect();
-      const t0 = Math.max(0, Math.round(((ev.clientX - r0.left + lanes.scrollLeft) / pps) * 1000));
       const row0 = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('.wb-tl-row');
       const lane = row0?.dataset.kind === 'draw' ? { lane: row0.dataset.track } : {};
-      for (const c of H.clipsFrom(ids, t0)) P().take.clips.push({ id: clipId(), ...c, ...lane });
-      edited(); drawBar(); fitZoom(); drawLanes();
-      app.log(`Added ${ids.length} change${ids.length === 1 ? '' : 's'} from History at ${fmt(t0)}.`);
+      if (!P().take) {
+        const first = Math.min(...ids.map(i => H.indexOf(i)));
+        P().load(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(H.stateAfter(first - 1))) }));
+      }
+      const t0 = where.t, added = H.clipsFrom(ids, t0);
+      if (!added.length) { app.log('Those changes are muted in History.'); drawBar(); drawLanes(); return; }
+      for (const c of added) P().take.clips.push({ id: clipId(), ...c, ...lane });
+      edited(); drawBar();
+      // (the view stays; it moves only to show where they went)
+      const v = reveal(current(), t0, viewW(), 60);
+      if (Math.abs(v.left - lanes.scrollLeft) > 0.5) scrollTo(v.left);
+      const skipped = ids.length - added.length;
+      app.log(`Added ${added.length} change${added.length === 1 ? '' : 's'} from History ${where.how} (${stamp(t0)})${skipped ? `; ${skipped} muted left out` : ''}.`);
       return;
     }
     const id = ev.dataTransfer.getData('text/asset-id');
     if (!id) return;
     const a = await app.assetStore.get(id);
     if (!a) return;
-    if (!P().take) { P().load(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(app.store.doc)) })); fitZoom(); }
-    const r = lanes.getBoundingClientRect();
-    const t = Math.max(0, Math.round(((ev.clientX - r.left + lanes.scrollLeft) / pps) * 1000));
+    if (!P().take) P().load(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(app.store.doc)) }));
+    const t = dropMs;
     const take = P().take;
     const row = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('.wb-tl-row');
     const onRow = kind => (row?.dataset.kind === kind ? { lane: row.dataset.track } : {});

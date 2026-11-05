@@ -56,15 +56,30 @@ export class History {
 
   clear() { this.entries = []; this.baseline = clone(this.app.store.doc); this.last = clone(this.app.store.doc); this._states = null; this.emit(); }
 
-  /** The document right after entry i (-1: the baseline). */
+  /** The document right after entry i (-1: the baseline), without the muted entries. */
   stateAfter(i) {
     if (i < 0) return this.baseline;
     if (!this._states) {
       this._states = [];
       let d = this.baseline;
-      for (const e of this.entries) { d = applyDiff(d, e.diff); this._states.push(d); }
+      for (const e of this.entries) { if (!e.muted) d = applyDiff(d, e.diff); this._states.push(d); }
     }
     return this._states[i];
+  }
+
+  /** Mute or unmute entries: a muted change is left out of previews, playback, takes and clips. */
+  setMuted(ids, muted) {
+    for (const e of this.entries) if (ids.includes(e.id)) e.muted = Boolean(muted);
+    this._states = null;
+    this.emit();
+  }
+
+  /** How long an entry plays (ms): a single stroke as long as it took to draw, several marks briskly, other changes a moment. */
+  durationOf(e) {
+    const adds = e.diff.add || [];
+    if (adds.length === 1 && adds[0].points?.length > 1) { const p = adds[0].points; return Math.min(20000, Math.max(300, (p[p.length - 1][2] ?? 0) - (p[0][2] ?? 0))) || 900; }
+    if (adds.length > 1) return Math.min(6000, Math.max(600, adds.length * 140));
+    return 400;
   }
 
   indexOf(id) { return this.entries.findIndex(e => e.id === id); }
@@ -73,11 +88,8 @@ export class History {
   clipsFrom(ids, t = 0, gap = 250) {
     const out = [];
     let at = t;
-    for (const e of this.entries.filter(x => ids.includes(x.id))) {
-      const adds = e.diff.add || [];
-      let dur = 400;
-      if (adds.length === 1 && adds[0].points?.length > 1) { const p = adds[0].points; dur = Math.min(20000, Math.max(300, (p[p.length - 1][2] ?? 0) - (p[0][2] ?? 0))) || 900; }
-      else if (adds.length > 1) dur = Math.min(6000, Math.max(600, adds.length * 140));
+    for (const e of this.entries.filter(x => ids.includes(x.id) && !x.muted)) {
+      const dur = this.durationOf(e);
       out.push({ track: 'draw', start: Math.round(at), dur: Math.round(dur), diff: clone(e.diff), label: e.label, by: e.by, fx: {} });
       at += dur + gap;
     }
