@@ -30,14 +30,16 @@ const SCALES = [['', 'No scale'], ...scaleNames().map(n => [n.toLowerCase().repl
 
 /** Change a mark's play in one undo step; its marker brush follows. */
 export function editPlay(app, id, fn, label = 'play') {
+  const ids = Array.isArray(id) ? id : [id];   // (several marks: each takes the same change)
   app.store.change(label, d => {
-    const el = d.elements.find(x => x.id === id);
-    if (!el) return;
-    const play = structuredClone(el.play || {});
-    fn(play, el, d);
-    if (Object.keys(play).length) el.play = play; else delete el.play;
-    const realize = realizeAfter(el, el.play);
-    if (realize !== el.realize) el.realize = { ...realize };
+    for (const el of d.elements) {
+      if (!ids.includes(el.id)) continue;
+      const play = structuredClone(el.play || {});
+      fn(play, el, d);
+      if (Object.keys(play).length) el.play = play; else delete el.play;
+      const realize = realizeAfter(el, el.play);
+      if (realize !== el.realize) el.realize = { ...realize };
+    }
   });
 }
 
@@ -68,15 +70,15 @@ export function nameRow(app, e) {
   return row('Name', textField(e.label || '', v => app.store.patchElements([e.id], { label: v || null }, 'rename'), { placeholder: e.id, title: 'What this mark is called (links and labels use it). Empty: its id' }));
 }
 
-export function playSection(app, e) {
-  return section('Play', Boolean(e.play), ...playBody(app, e));
+export function playSection(app, e, ids = null) {
+  return section(ids && ids.length > 1 ? `Play · ${ids.length} marks` : 'Play', Boolean(e.play), ...playBody(app, e, { ids }));
 }
 
 /** The controls of Play, as a list of nodes (a section in Properties, a popover at the pointer). */
-export function playBody(app, e) {
+export function playBody(app, e, { ids = null } = {}) {
   const doc = app.store.doc;
   const play = e.play || {};
-  const edit = (fn, label) => editPlay(app, e.id, fn, label);
+  const edit = (fn, label) => editPlay(app, ids?.length ? ids : e.id, fn, label);   // (a selection: the same change to each of the marks)
   const view = app.scoreView || {};
 
   // ---- what it is ----

@@ -74,6 +74,8 @@ of the picture, and the Generate panel can send it to vision models.
 
 ## Editing
 
+**Several marks selected:** Properties shows what they share, and a change goes to all of them in one undo step. Element, Brush and Look as before; **Play** shows the first mark's controls and applies each change to every selected mark that plays alike (the same Play parts: all travelers, all events…), and says how many do; **Physics** shows the role, shape and material, *Mixed* where they differ; **Reason** shows *Mixed* when they differ and sets one for all.
+
 - **Transforms:** select, then hover near the frame. A corner scales (Shift keeps proportions, Alt from the center), a side stretches, just inside (or outside) a corner rotates (Shift snaps to 15°).
 - **Right-click** a mark: arrange, move to stage, brush, sculpt, simplify (fewer points, same shape), duplicate, group, lock, hide, delete. Right-click the empty canvas: select all, fit, grid, snap, a note there.
 - **Image layers:** drag an asset from Assets (or image files from the desktop) onto the canvas. Pictures become image layers that move, scale and rotate like any mark and travel inside the drawing; a saved drawing comes in as a group of its marks.

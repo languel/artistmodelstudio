@@ -58,10 +58,17 @@ export function mountProperties(el, app) {
     }, app));
     else el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc));
     el.append(lookSection(e, patch => patchAll(patch, 'look')));
-    if (!multi && e.role !== 'note' && e.role !== 'image') el.append(playSection(app, e));
+    if (e.role !== 'note' && e.role !== 'image') {
+      // Several marks: the controls of the first, applied to every selected mark that has the same Play parts (a traveler's tail on all the travelers).
+      const kinds = m => Object.keys(m.play || {}).filter(k => k !== 'in').sort().join(',');
+      const same = multi ? sel.map(s => app.store.doc.elements.find(x => x.id === s.id)).filter(m => m && m.role !== 'note' && m.role !== 'image' && kinds(m) === kinds(e)) : null;
+      const sec = playSection(app, e, same?.map(m => m.id));
+      if (multi && same.length < sel.length) sec.append(h('div', { class: 'wb-muted wb-small' }, `${same.length} of the ${sel.length} marks play alike: a change goes to those`));
+      el.append(sec);
+    }
     { const ps = multi ? physicsMultiSection(app, sel) : physicsSection(app, e); if (ps) el.append(ps); }   // (on a board with physics on)
     el.append(section('Reason', true,
-      whyField(e.why, v => patchAll({ why: v }, 'why')),
+      whyField(multi && new Set(sel.map(s => app.store.doc.elements.find(x => x.id === s.id)?.why || '')).size > 1 ? '' : e.why, v => patchAll({ why: v }, 'why'), multi && new Set(sel.map(s => app.store.doc.elements.find(x => x.id === s.id)?.why || '')).size > 1 ? 'Mixed: type to give them all one reason' : 'Why is this here?'),
       h('div', { class: 'wb-muted wb-small' }, multi ? '' : `By ${esc(e.by?.name || 'unknown')} (${esc(e.by?.kind || '')}) · seed ${e.seed}`)
     ));
   };
