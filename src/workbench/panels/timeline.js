@@ -464,8 +464,7 @@ export function mountTimeline(root, app) {
     const band = h('div', { class: 'wb-tl-loop on', style: wrap ? span2(wrap) : { display: 'none' } });
     // Under the tracks, the rest of the panel (beside the Track button): scrubbed like a lane, and where things are dropped.
     const H = RULER_H + rows.length * 24;
-    const fill = h('div', { class: 'wb-tl-fill', style: { width: `${W}px`, height: `max(24px, calc(100% - ${H}px))` } },
-      rows.length || rec ? null : h('span', { class: 'wb-tl-hint' }, 'No tracks yet: record, insert at the playhead, add a track, or drop sound, text or a drawing here'));
+    const fill = h('div', { class: 'wb-tl-fill', style: { width: `${W}px`, height: `max(24px, calc(100% - ${H}px))` } });
     // (the band, the grid and the playhead as tall as the lanes, so they scroll with them)
     band.style.height = playhead.style.height = `max(100%, ${H + 24}px)`;
     for (const sh of shades) sh.style.height = band.style.height;

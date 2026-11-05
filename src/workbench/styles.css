@@ -913,7 +913,6 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 /* The lanes scroll across by the navigator (and the wheel), not a scrollbar of their own. */
 .wb-tl-lanes { overflow-x: hidden; overflow-y: auto; }
 .wb-tl-fill { position: relative; box-sizing: border-box; }
-.wb-tl-hint { position: sticky; left: 12px; display: inline-block; padding: 6px 0; font-size: 11px; color: var(--wb-muted); pointer-events: none; }
 .wb-tl-addtrack { height: 24px; display: flex; align-items: center; }
 .wb-tl-addtrack button { display: inline-flex; align-items: center; gap: 4px; height: 20px; margin-left: 2px; padding: 0 6px 0 3px; border: 0; border-radius: var(--radius); background: transparent; color: var(--wb-muted); font-size: 11px; cursor: pointer; }
 .wb-tl-addtrack button:hover { background: var(--wb-hover); color: var(--wb-text); }
