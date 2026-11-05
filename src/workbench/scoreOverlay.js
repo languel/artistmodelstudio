@@ -211,6 +211,22 @@ export class ScoreOverlay {
         ctx.fillStyle = accent; ctx.strokeStyle = accent; ctx.lineJoin = 'round';
         const d = trig.regionDef, z = cvw.cam.z;
         const path = () => { ctx.beginPath(); d.pts.forEach(([x, y], i) => { const [sx, sy] = at(x, y); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); }); };
+        // A line: it does not swell; it brightens, and each crossing blips where the traveler went through it.
+        if (d.kind === 'line') {
+          path(); ctx.globalAlpha = 0.45 * env; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.stroke();
+          for (const f of score.flashes) {
+            if (f.board !== board.id || f.trigger !== trig.id || f.x === undefined) continue;
+            const a = pos - f.t; if (!(a >= 0 && a < FLASH)) continue;
+            const kk = a / FLASH, e2 = Math.min(1, a / 0.025) * Math.exp(-4 * kk), [bx, by] = at(f.x, f.y), r = 6;
+            const g = ctx.createRadialGradient(bx, by, 0, bx, by, r * 3.2);
+            g.addColorStop(0, accent); g.addColorStop(0.35, accent); g.addColorStop(1, 'transparent');
+            ctx.globalAlpha = 0.6 * e2; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, r * 3.2, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 0.95 * e2; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(bx, by, r * (0.6 + 0.4 * e2), 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 0.8 * (1 - kk); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(bx, by, r * (1.2 + 3 * kk), 0, Math.PI * 2); ctx.stroke();
+          }
+          ctx.globalAlpha = 1; moving = true;
+          continue;
+        }
         // The object itself swells and settles with the envelope (about its centre).
         const swell = 1 + 0.3 * env, c0 = d.kind === 'circle' ? at(d.x, d.y) : at(d.pts.reduce((m, q) => m + q[0], 0) / d.pts.length, d.pts.reduce((m, q) => m + q[1], 0) / d.pts.length);
         ctx.save(); ctx.translate(c0[0], c0[1]); ctx.scale(swell, swell); ctx.translate(-c0[0], -c0[1]);

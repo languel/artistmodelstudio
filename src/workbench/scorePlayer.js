@@ -55,10 +55,10 @@ export class ScorePlayer {
       outputs: () => this.outputs(),
       onError: msg => { this.errors.push(msg); app.log?.(`Score: ${msg}`, 'error'); },
       onEffects: (fx, board) => this.applyEffects(fx, board),
-      onEvents: (evs, board) => { for (const e of evs) if (e.trigger) this.flashes.push({ board: board.id, trigger: e.trigger, t: e.t, type: e.type }); this.bus.record(evs, board, this.rawDoc()); }
+      onEvents: (evs, board) => { for (const e of evs) if (e.trigger) this.flashes.push({ board: board.id, trigger: e.trigger, t: e.t, type: e.type, x: e.x, y: e.y }); this.bus.record(evs, board, this.rawDoc()); }
     });
     this.bus = createBus();   // the score as named signals (src/score/bus.js): the embed's __, Poliplan's score messages
-    this.flashes = [];   // what the overlay lights up: { board, trigger, t (s), type }
+    this.flashes = [];   // what the overlay lights up: { board, trigger, t (s), type, x, y (where it was touched, on the board) }
     app.player.on(() => this.onPlayer());
   }
 
