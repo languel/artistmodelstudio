@@ -443,8 +443,8 @@ export class Workbench {
   lineStackButton() { return this.stackToolButton(LINES, this.lineTool, 'Line', 'Shift+1 cycles line, gesture and guide'); }
 
   setTool(t) {
-    // Choosing a tool means drawing again: leave a take being reviewed.
-    if (this.player?.take) this.player.close();
+    // Choosing a tool means drawing again: leave a take being reviewed (not while recording onto it).
+    if (this.player?.take && !this.recorder?.overdubbing) this.player.close();
     if (LINES.some(c => c[0] === t)) this.lineTool = t;
     if (t === 'select' || t === 'direct') this.selectTool = t;
     if (PANS.some(c => c[0] === t)) this.panTool = t;

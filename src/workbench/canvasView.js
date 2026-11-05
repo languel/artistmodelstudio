@@ -883,7 +883,7 @@ export class CanvasView {
       const f = document.activeElement;
       if (f && f !== document.body && f.closest?.('input, textarea, select, [contenteditable]') && !f.classList.contains('wb-note-input')) f.blur();
       if (this.space) this.spaceUsed = true;
-      if (e.button === 1 || this.space || this.getTool() === 'hand' || this.previewDoc) return this.startPan(e);
+      if (e.button === 1 || this.space || this.getTool() === 'hand' || (this.previewDoc && !this.overdub)) return this.startPan(e);   // (a take shown is only looked at, unless it is being recorded onto)
       if (e.button !== 0) return;
       if (this.clickPath) { this.clickPathClick(e); return; }
       c.setPointerCapture(e.pointerId);

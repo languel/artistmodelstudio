@@ -1144,3 +1144,7 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .sc-over { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: visible; }
 .sc-label { position: absolute; white-space: nowrap; transform: translate(-50%, -50%); font: 600 22px/1 'Latin Modern Roman', 'Times New Roman', Georgia, serif; text-shadow: 0 0 4px #fff, 0 0 4px #fff, 0 0 2px #fff; }
 .sc-label.sc-formula { color: #fff; background: rgba(18, 18, 22, 0.9); padding: 8px 14px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); text-shadow: none; }
+/* Record buttons (the Timeline's, History's capture): square like the other buttons, the glyph centred; red while on. */
+.wb-icon-btn.wb-tl-rec { width: 24px; height: 24px; padding: 0; display: inline-grid; place-items: center; border-radius: var(--radius); color: var(--wb-accent-2); }
+.wb-icon-btn.wb-tl-rec.on { color: #fff; background: var(--wb-accent-2); border-radius: var(--radius); }
+.wb-icon-btn.wb-tl-rec svg { display: block; }

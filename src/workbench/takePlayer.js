@@ -120,7 +120,7 @@ export class TakePlayer {
   play() {
     if (this.playing) return;
     const wrap = this.wrapRange();
-    if (this.take && !wrap && this.t >= this.duration) this.t = 0;
+    if (this.take && !wrap && !this.recording && this.t >= this.duration) this.t = 0;
     if (wrap && (this.t < wrap[0] || this.t >= wrap[1])) this.t = wrap[0];
     // Not looping, from before Out: play stops at Out (as an editor's In to Out).
     const io = this.inOut;
@@ -137,7 +137,7 @@ export class TakePlayer {
       this.t = advanceTransportPlaybackTime(this.t / 1000, (now - last) / 1000, { rate: this.rate, loopEnabled: Boolean(r), loopStart: r ? r[0] / 1000 : 0, loopEnd: r ? r[1] / 1000 : 0 }) * 1000;
       last = now; this.at = now;
       if (!r && this.stopAt != null && this.t >= this.stopAt) { this.t = this.stopAt; this.playing = false; clearInterval(this.timer); }
-      else if (this.take && !r && this.t >= this.duration) { this.t = this.duration; this.playing = false; clearInterval(this.timer); }
+      else if (this.take && !r && !this.recording && this.t >= this.duration) { this.t = this.duration; this.playing = false; clearInterval(this.timer); }
       this.render(); this.syncAudio(); this.emit();
     };
     // Every frame (a skipped tick must not end the chain: on a 120 Hz screen frames come every 8 ms).

@@ -109,7 +109,7 @@ export function mountTimeline(root, app) {
   let takes = [];
   const loadTakes = async () => { takes = (await app.assetStore.all()).filter(a => a.kind === 'take').sort((a, b) => (b.created || 0) - (a.created || 0)); drawBar(); };
   const drawBar = () => {
-    const p = P(), take = p?.take, rec = R()?.recording;
+    const p = P(), take = p?.take, rec = R()?.recording, od = R()?.overdubbing;
     const sel = h('select', { class: 'wb-select wb-tl-take', title: 'Takes (recordings in Assets)' },
       h('option', { value: '' }, take ? `${take.title}${take.assetId ? '' : ' (unsaved)'}` : 'Takes…'),
       ...takes.map(a => h('option', { value: a.id }, `${a.title} · ${fmt(a.meta?.duration || 0)}`)));
@@ -135,7 +135,7 @@ export function mountTimeline(root, app) {
     const rate = h('select', { class: 'wb-select', title: 'Playback rate' }, ...[0.5, 1, 2, 4, 8].map(r => h('option', { value: r, selected: r === (p?.rate || 1) }, `${r}×`)));
     rate.addEventListener('change', () => { p.rate = Number(rate.value); rate.blur(); });
     bar.replaceChildren(...[
-      h('button', { class: `wb-icon-btn wb-tl-rec${rec ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : 'Record: everything that happens becomes a take', html: rec ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>', onclick: () => (rec ? R().stop() : R().start()) }),
+      h('button', { class: `wb-icon-btn wb-tl-rec${rec || od ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : od ? 'Stop recording (Space too; the take is saved)' : `Record onto the Timeline: the transport plays (${p.loop ? 'round the loop: each pass adds to the last' : p.inOut ? 'from In to Out' : 'from the playhead'}) and each gesture you draw goes on the drawing track where the playhead is`, html: rec || od ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="5.5" fill="currentColor"/></svg>', onclick: () => (rec ? R().stop() : od ? R().stopOverdub() : R().startOverdub()) }),
       h('button', { class: 'wb-icon-btn', title: 'Play / pause (Space in the timeline)', html: p?.playing ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : icon('play'), onclick: () => p.toggle() }),
       h('span', { class: 'wb-tl-time' }, rec && !take ? `● ${fmt(R().now())}` : stampOf(p.t, p.duration)),
       ruler,
@@ -801,7 +801,7 @@ export function mountTimeline(root, app) {
     setHead(t);
     timeEl ||= bar.querySelector('.wb-tl-time');
     if (timeEl?.isConnected) timeEl.textContent = rec ? `● ${fmt(t)}` : stampOf(t, p.duration); else timeEl = null;
-    if ((rec || !p.take) && x(t) > laneWidth - 60) drawLanes();          // grow a screen at a time
+    if ((rec || !p.take || R()?.overdubbing) && x(t) > laneWidth - 60) drawLanes();          // grow a screen at a time
     if (rec || p.playing) follow(t);
     if (rec || p.playing) raf = requestAnimationFrame(loop);
   };
