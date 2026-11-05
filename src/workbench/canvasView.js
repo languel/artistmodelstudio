@@ -778,6 +778,9 @@ export class CanvasView {
 
     c.addEventListener('pointermove', e => {
       if (this.pointer) return;
+      // A take shown (not being recorded onto) is only looked at: the pointer pans it, whatever the tool.
+      if (this.previewDoc && !this.overdub) { if (this.canvas.style.cursor !== 'grab') this.canvas.style.cursor = 'grab'; this.brushAt = null; this.hovered = null; this.panOnly = true; return; }
+      if (this.panOnly) { this.panOnly = false; this.updateCursor(); }   // (the take was closed: the tool's cursor again)
       const [sx, sy] = this.local(e);
       const [wx, wy] = this.toWorld(sx, sy);
       const tool = this.getTool();
@@ -1856,6 +1859,7 @@ export class CanvasView {
   }
 
   updateCursor() {
+    if (this.previewDoc && !this.overdub) { this.canvas.style.cursor = 'grab'; return; }   // (a take shown: it pans)
     const t = this.getTool();
     this.canvas.style.cursor = this.space || t === 'hand' ? 'grab' : t === 'select' || t === 'direct' ? 'default' : t === 'note' ? 'text' : t === 'sculpt' ? 'none' : 'crosshair';
   }

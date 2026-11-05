@@ -30,7 +30,8 @@ export class TakePlayer {
       // A quiet label: this is a recording, not the drawing (Esc or any tool goes back).
       ctx.save();
       ctx.font = '12px Inter, system-ui, sans-serif';
-      const label = `Reviewing: ${this.take.title}`;
+      // (it is only looked at: say so, and how to get back to the drawing)
+      const label = this.recording ? `Recording onto: ${this.take.title}` : `Reviewing: ${this.take.title} · view only (the × in the Timeline, or a tool, goes back to the drawing)`;
       const w = Math.min(W - 24, ctx.measureText(label).width + 20);
       ctx.fillStyle = 'rgba(20,19,18,0.72)';
       ctx.beginPath(); ctx.roundRect ? ctx.roundRect(12, 12, w, 24, 12) : ctx.rect(12, 12, w, 24); ctx.fill();
