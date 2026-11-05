@@ -16,6 +16,7 @@ import { attachMic, looksReady } from '../voice.js';
 import { ENGINE_NAMES, currentEngine, setEngine, useModel, allFavorites, favorites, isFavorite, toggleFavorite, assistantSettings, setAssistantSettings, FALLBACK_TEMPERATURE } from '../modelStore.js';
 import { parseCommand, brief, help } from '../console.js';
 import { voiceSettings, setVoice } from '../voiceOut.js';
+import { nativePrompt, nativeToolset } from '../nativeTools.js';
 
 const ATTACH_MAX = 40000;   // characters of an attached file that go to the model
 const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg>';
@@ -251,8 +252,14 @@ export function mountAssistant(root, app) {
   const grow = () => { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; };
   input.addEventListener('input', grow);
   const micHost = h('span', { class: 'wb-mic-host' });
+  // Speak replies: a small speaker beside the mic, on or off (the voice and language are in Settings › Model › Voice)
+  const SPEAKER = on => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="${on ? 'currentColor' : 'none'}"/>${on ? '<path d="M15.5 9a4.2 4.2 0 010 6M18 6.5a8 8 0 010 11"/>' : '<path d="M16 9.5l5 5M21 9.5l-5 5"/>'}</svg>`;
+  const speakBtn = h('button', { class: 'wb-compose-icon wb-speak-toggle', type: 'button', onclick: () => { const on = !voiceSettings().speak; setVoice({ speak: on }); if (!on) app.speaker.stop(); } });
+  const paintSpeak = () => { const on = voiceSettings().speak; speakBtn.innerHTML = SPEAKER(on); speakBtn.classList.toggle('on', on); speakBtn.title = on ? 'Spoken replies: on (click to turn off)' : 'Spoken replies: off (click to hear replies)'; };
+  window.addEventListener('ams-voice', paintSpeak);
+  paintSpeak();
   const composer = h('div', { class: 'wb-composer' }, chips, input, h('div', { class: 'wb-compose-row' },
-    h('button', { class: 'wb-compose-icon', title: 'Attach', html: icon('plus'), onclick: attachMenu }), pill, toolsBtn, h('span', { style: { flex: 1 } }), moreBtn, micHost, sendBtn), fileIn);
+    h('button', { class: 'wb-compose-icon', title: 'Attach', html: icon('plus'), onclick: attachMenu }), pill, toolsBtn, h('span', { style: { flex: 1 } }), moreBtn, speakBtn, micHost, sendBtn), fileIn);
   attachMic(input, { host: micHost, onDone: text => { if (looksReady(text) && !busy) send(); } });
   paintTools();
 
@@ -283,7 +290,17 @@ export function mountAssistant(root, app) {
     let lastSig = '';
     let transcript = flow ? `USER: ${text}` : history.slice(-cfg.history).map(m => `${m.who === 'you' ? 'USER' : m.who === 'bot' ? 'ASSISTANT' : 'RESULTS'}: ${m.text}`).join('\n');
     try {
-      if (!cfg.tools && !flow) {
+      if (flow && artist.chat && localStorage.getItem('ams_native_tools') !== '0') {
+        // A model with native tool calling does not write JSON: it calls the tools, and the results go back to it.
+        const pending = add('sys', 'Working…', 'pending');
+        let res;
+        try {
+          res = await artist.chat({ messages: [{ role: 'system', content: nativePrompt(app) }, { role: 'user', content: text }], tools: nativeToolset(app, { quiet: true, onCall: c => { rqCalls.push({ tool: c.tool, args: c.args, ...(c.error ? { error: c.error } : {}) }); traceStep(c); } }), signal: busy.signal, maxRounds: 3 });
+        } finally { pending.remove(); }
+        if (res.text) { said = res.text; add('bot', res.text); history.push({ who: 'bot', text: res.text }); autoSpeak(res.text); }
+        if (res.calls.length && res.calls.every(c => c.error)) failed = res.calls.at(-1).error;
+        history.push({ who: 'results', text: res.calls.map(c => c.error ? `${c.name} failed: ${c.error}` : `${c.name} → ${JSON.stringify(c.result ?? null).slice(0, 300)}`).join('\n') });
+      } else if (!cfg.tools && !flow) {
         const pending = add('sys', 'Working…', 'pending');
         const raw = await artist.complete({ system: TALK_ONLY, user: transcript, temperature: askTemp(cfg.temperature, 'chat'), signal: busy.signal });
         pending.remove(); const say = String(raw || '').trim(); add('bot', say); history.push({ who: 'bot', text: say }); autoSpeak(say);

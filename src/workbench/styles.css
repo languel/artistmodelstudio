@@ -1273,5 +1273,6 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-say-btn { margin-left: 6px; padding: 0 3px; border: 0; background: none; color: var(--wb-muted); font-size: 11px; cursor: pointer; opacity: 0; vertical-align: baseline; }
 .wb-msg.bot:hover .wb-say-btn, .wb-say-btn:focus-visible { opacity: .8; }
 .wb-say-btn:hover { opacity: 1 !important; }
+.wb-speak-toggle.on { color: var(--wb-accent-2, #c0563f); }
 .wb-spin { display: inline-block; width: 1ch; color: var(--wb-accent-2, #c0563f); }
 .wb-msg.pending { font-family: var(--font-mono); }
