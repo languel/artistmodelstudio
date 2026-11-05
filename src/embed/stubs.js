@@ -43,6 +43,7 @@ export const sanitizeHtml = s => esc(s);
 export const frontMatter = s => ({ data: {}, body: String(s || '') });
 export const linksOf = () => [];
 export const renderMarkdown = s => esc(s);
+export const mathHtml = s => esc(s);
 export const md = renderMarkdown;
 export const pageRuntime = '';
 export const pageBoards = () => [];
