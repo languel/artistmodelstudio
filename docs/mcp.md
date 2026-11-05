@@ -108,3 +108,8 @@ The **Prompt** menu next to the prompt box chooses what engines receive:
 - **Engines that take images:** OpenRouter and OpenAI-compatible (vision models), Ollama (vision models), and WebGPU LFM2.5-VL. The Agent engine receives the image as `referenceImage` in its brief.
 - **Describing:** these engines also implement `describe()`. MCP has `ams_set_prompt_mode`, `ams_describe_reference`, and `promptMode` on `ams_generate_round`.
 - **Other engines:** models without image input get the text only. WebGPU logs a warning.
+
+## Commands (what the keys and the command palette do)
+
+- `ams_commands { query? }`: the registry (every shortcut command, the palette's own entries, the slash commands), ranked for the query with the current selection as context.
+- `ams_command { id, arg? }`: run one by id, exact name, `/slash arg`, or a plain phrase about the selection ("change the fill to red", "hatch it", "opacity 50"). It acts on the selection like the user's own key. See [quick-commands.md](quick-commands.md).
