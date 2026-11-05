@@ -48,6 +48,12 @@ export const TASKS = [
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
+/** The Assistant builds itself the first time it is shown: build it without showing it. */
+export function ensureAssistant(app) {
+  if (!app.assistantAsk) { const p = app.docks.panels.get('assistant'); if (p) app.docks.mountBody(p); }
+  if (!app.assistantAsk) throw new Error('The Assistant panel is not available');
+}
+
 export async function reset(app) {
   app.store.change('eval reset', d => { d.elements.length = 0; });
   app.canvas.select([]);
@@ -91,6 +97,7 @@ export async function runTask(app, task, { mode = 'model', timeout = 60000, use 
 }
 
 export async function run(app, { mode = 'model', only: ids = null, use = 'say' } = {}) {
+  ensureAssistant(app);
   const out = [];
   for (const t of TASKS) { if (ids && !ids.includes(t.id)) continue; out.push(await runTask(app, t, { mode, use })); }
   await reset(app);

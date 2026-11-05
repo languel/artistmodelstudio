@@ -16,7 +16,11 @@ export function showMenu(items, x, y, { up = false } = {}) {   // up: y is the b
       if (it === '-') { m.append(h('hr')); continue; }
       if (it.label && !it.run && !it.items) { m.append(h('div', { class: 'wb-menu-label' }, it.label)); continue; }
       const b = h('button', { title: it.hint || '', class: `${it.items ? 'wb-menu-sub' : ''}${it.active ? ' active' : ''}`, disabled: it.disabled || false },
-        it.icon ? h('span', { class: 'wb-menu-icon', html: it.icon }) : null, h('span', { class: it.icon ? 'wb-menu-text' : '' }, it.label), it.keys ? h('kbd', {}, it.keys) : it.items ? h('span', { class: 'wb-menu-arrow' }, '›') : null);
+        it.star ? (() => {   // a star at the left that toggles on its own: { on, title, run() → the new state }
+          const st = h('span', { class: `wb-menu-icon wb-menu-star${it.star.on ? ' on' : ''}`, title: it.star.title, html: it.star.on ? '★' : '☆' });
+          st.addEventListener('click', ev => { ev.stopPropagation(); const now = it.star.run(ev); it.star.on = now; st.classList.toggle('on', now); st.textContent = now ? '★' : '☆'; st.title = now ? 'Unfavorite' : 'Favorite'; });
+          return st;
+        })() : it.icon ? h('span', { class: 'wb-menu-icon', html: it.icon }) : null, h('span', { class: it.icon ? 'wb-menu-text' : '' }, it.label), it.keys ? h('kbd', {}, it.keys) : it.items ? h('span', { class: 'wb-menu-arrow' }, '›') : null);
       if (it.items) {
         const open = () => { const br = b.getBoundingClientRect(); build(it.items, br.right + 2, br.top - 4, level + 1, br); };
         b.addEventListener('pointerenter', open); b.addEventListener('click', open);

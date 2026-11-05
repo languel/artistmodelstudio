@@ -1266,5 +1266,8 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-lfm-bar > span { display: block; height: 100%; width: 0; background: var(--wb-accent-2, #c0563f); transition: width .25s; }
 .wb-lfm-bar.on > span { animation: wb-pulse 1.4s ease-in-out infinite; }
 .wb-lfm-note.error { color: #c9695f; }
+.wb-menu-star { cursor: pointer; }
+.wb-menu-star:not(.on) { opacity: .45; }
+.wb-menu-star:hover { opacity: 1; color: var(--wb-accent-2, #c0563f); }
 .wb-spin { display: inline-block; width: 1ch; color: var(--wb-accent-2, #c0563f); }
 .wb-msg.pending { font-family: var(--font-mono); }
