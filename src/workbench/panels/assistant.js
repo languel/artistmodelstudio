@@ -235,7 +235,7 @@ export function mountAssistant(root, app) {
     const cfg = assistantSettings(), engine = currentEngine();
     const artist = app.artists.get(engine);
     // Unset: Ollama applies the model's own recommendation; other engines get a plain default.
-    const askTemp = (v, kind) => (v != null ? v : engine === 'ollama' ? undefined : FALLBACK_TEMPERATURE[kind]);
+    const askTemp = (v, kind) => (v != null ? v : engine === 'ollama' || engine === 'lfm3' ? undefined : FALLBACK_TEMPERATURE[kind]);   // (Ollama and LFM3 have their own recommendation: Ollama applies it, LFM3 is greedy)
     if (!artist?.complete || engine === 'agent') { add('sys', 'Pick a model engine (Ollama, WebGPU, OpenRouter or OpenAI-compatible) from the model button. An external agent drives the tools directly over MCP.', 'error'); return { error: 'Pick a model engine: click here for the Assistant.' }; }
     busy = new AbortController();
     const onStatus = e => { const p = log.querySelector('.pending .wb-pending-text'); if (p) p.textContent = ` ${e.detail}`; };   // (an engine that has to load first says how far it is)

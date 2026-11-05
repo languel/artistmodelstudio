@@ -1260,5 +1260,11 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-chat.no-trace .wb-trace.done:not(.failed) { display: none; }
 .wb-chat.no-trace .wb-trace-body { display: none; }
 .wb-chat.no-trace .wb-trace > summary { pointer-events: none; }
+.wb-lfm-ctl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.wb-lfm-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+.wb-lfm-bar { height: 4px; border-radius: 2px; background: var(--wb-line); overflow: hidden; }
+.wb-lfm-bar > span { display: block; height: 100%; width: 0; background: var(--wb-accent-2, #c0563f); transition: width .25s; }
+.wb-lfm-bar.on > span { animation: wb-pulse 1.4s ease-in-out infinite; }
+.wb-lfm-note.error { color: #c9695f; }
 .wb-spin { display: inline-block; width: 1ch; color: var(--wb-accent-2, #c0563f); }
 .wb-msg.pending { font-family: var(--font-mono); }

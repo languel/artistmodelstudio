@@ -74,6 +74,45 @@ export function modelSection(app) {
       f.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') f.blur(); });
       return row(label, f);
     });
+    // LFM3 runs here, so Settings is where it is fetched and tried: load (with the progress), then a test that asks it something and one that has it speak.
+    const lfmControls = () => {
+      const bar = h('span', { class: 'wb-lfm-bar' }, h('span', {})), note = h('div', { class: 'wb-small wb-muted wb-lfm-note' });
+      const load = h('button', { class: 'wb-btn', type: 'button' }), test = h('button', { class: 'wb-btn', type: 'button', title: 'Ask it one short question and time the answer' }, 'Test'), hear = h('button', { class: 'wb-btn', type: 'button', title: 'Have it say a sentence aloud' }, 'Hear it');
+      const fill = f => { bar.firstChild.style.width = `${Math.round((f ?? 0) * 100)}%`; bar.classList.toggle('on', f != null && f < 1); };
+      const paint = () => {
+        const ready = artist.ready, was = ls('ams_lfm3_loaded') === '1';
+        load.textContent = ready ? 'Loaded' : was ? 'Load' : 'Download (1.6 GB)'; load.disabled = ready;
+        load.title = ready ? 'The model is loaded in this page' : was ? 'Load the model from this browser\'s copy' : 'Fetch the model once (about 1.6 GB); the browser keeps it';
+        test.disabled = hear.disabled = !ready; fill(ready ? 1 : null);
+        note.textContent = ready ? `Ready${artist.deviceInfo?.description ? ` on ${artist.deviceInfo.description}` : ''}.` : was ? 'Not loaded in this page yet.' : 'Not downloaded yet.';
+      };
+      load.onclick = async () => {
+        load.disabled = true; note.className = 'wb-small wb-muted wb-lfm-note';
+        try { await artist.ensureLoaded((text, f) => { note.textContent = text; fill(f); }); ls('ams_lfm3_loaded', '1'); paint(); refresh(); }
+        catch (err) { load.disabled = false; fill(null); note.textContent = err.message; note.classList.add('error'); }
+      };
+      test.onclick = async () => {
+        test.disabled = true; note.className = 'wb-small wb-muted wb-lfm-note'; note.textContent = 'Asking…';
+        const t0 = performance.now();
+        try { const r = await artist.complete({ system: 'Answer in one short sentence.', user: 'What is a drawing program for?' }); note.textContent = `✓ “${r.slice(0, 120)}” in ${Math.round(performance.now() - t0)} ms`; }
+        catch (err) { note.textContent = `✗ ${err.message}`; note.classList.add('error'); }
+        test.disabled = false;
+      };
+      hear.onclick = async () => {
+        hear.disabled = true; note.className = 'wb-small wb-muted wb-lfm-note'; note.textContent = 'Speaking…';
+        const t0 = performance.now();
+        try {
+          const { samples, rate } = await artist.speak('Hello, this is the studio. I can talk now.');
+          const ctx = new (window.AudioContext || window.webkitAudioContext)(), buf = ctx.createBuffer(1, samples.length, rate); buf.copyToChannel(samples, 0);
+          const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.start();
+          note.textContent = `✓ ${(samples.length / rate).toFixed(1)} s of speech made in ${Math.round(performance.now() - t0)} ms`;
+          src.onended = () => ctx.close();
+        } catch (err) { note.textContent = `✗ ${err.message}`; note.classList.add('error'); }
+        hear.disabled = false;
+      };
+      paint();
+      return h('div', { class: 'wb-row wb-lfm' }, h('span', { class: 'wb-row-label' }), h('div', { class: 'wb-lfm-ctl' }, h('div', { class: 'wb-lfm-buttons' }, load, test, hear), bar, note));
+    };
     const a = assistantSettings();
     // Temperature: unset means the model's own (Ollama reads it from the model), shown here as what it is; ↺ goes back to that.
     const modelNow = builtModel = artist?.getModel?.() || '';
@@ -93,6 +132,7 @@ export function modelSection(app) {
       engine === 'webgpu' || engine === 'lfm3' ? h('div', { class: 'wb-row wb-small wb-muted wb-model-note' }, 'Runs in this browser on your GPU; the first use downloads the model.') : null,
       engine === 'agent' ? h('div', { class: 'wb-row wb-small wb-muted wb-model-note' }, 'An external agent answers over MCP (ams_pending → ams_answer); there is no model to pick.') : null,
       engine !== 'agent' ? row('Model', h('span', { class: 'wb-model-ctl' }, h('span', { class: 'wb-combo' }, input, list), star, reload)) : null,
+      engine === 'lfm3' ? lfmControls() : null,
       engine === 'openrouter' ? row('Show', selectField([['', 'All'], ['free', 'Free'], ['image', 'Image input']], tag, v => { tag = v; paint(); }, 'Narrow the OpenRouter list')) : null,
       h('div', { class: 'wb-row wb-model-status' }, h('span', { class: 'wb-row-label' }), status),
       h('div', { class: 'wb-sub', title: engine === 'agent' ? 'Not used with an external agent: it chooses how to ask for itself' : 'How the Assistant panel asks the model (the quick / field has its own temperature, below)' }, 'Asking'),
