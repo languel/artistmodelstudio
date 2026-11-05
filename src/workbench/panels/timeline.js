@@ -11,8 +11,10 @@ import { showMenu } from '../menu.js';
 import { TimelineUndo } from '../timelineUndo.js';
 import { formatMusicalPosition, secondsToFrame } from '../../time/transport.js';
 import { RULERS, FPS_CHOICES, QUANT_CHOICES, SNAP_CHOICES, snapStep, timeContext } from '../../time/sceneTransport.js';
+import { waveFor, fromPeaks, drawWave } from '../waveform.js';
 import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, rulerTicks, autoGrid, gridLayer, timeLabel, editPoints, nextEdit, MAX_CONTENT_PX } from '../../time/timelineView.js';
 
+const AUDIO_CLIP_H = 33;
 const TRACK_LABEL = { comp: 'Composition', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
 const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`; };
 const RULER_NAMES = { time: 'Minutes and seconds', beats: 'Bars, beats and sixteenths', frames: 'Frames' };
@@ -154,7 +156,7 @@ export function mountTimeline(root, app) {
   const barMs = () => beatMs() * S().signature.numerator;
 
   // ---- undo: the take's clips and tracks, and In, Out and the loop region (⌘Z / ⇧⌘Z over the Timeline) ----
-  const HEAVY = new Set(['diff', 'src', 'peaks', 'baseline']);
+  const HEAVY = new Set(['diff', 'src', 'peaks', 'wave', 'baseline']);
   const undo = new TimelineUndo({ key: s => JSON.stringify([s.clips, s.tracks, s.range, s.loop], (k, v) => (HEAVY.has(k) ? undefined : v)) });
   // (a clip copied for undo: a composition's own clips and tracks copied too, at any depth)
   const copyClip = c => ({ ...c, fx: { ...(c.fx || {}) }, ...(c.comp ? { comp: { ...c.comp, tracks: (c.comp.tracks || []).map(x => ({ ...x })), clips: (c.comp.clips || []).map(copyClip) } } : {}) });
@@ -294,8 +296,9 @@ export function mountTimeline(root, app) {
     input.addEventListener('change', async () => {
       const f = input.files[0]; if (!f) return;
       const src = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); });
+      const wave = await waveFor(src);
       const au = new Audio(src); await new Promise(r => { au.onloadedmetadata = r; au.onerror = r; });
-      ensureTake().clips.push({ id: clipId(), track: 'audio', start: Math.round(P().t), dur: Math.round((au.duration || 5) * 1000), src, label: f.name, fx: {} });
+      ensureTake().clips.push({ id: clipId(), track: 'audio', start: Math.round(P().t), dur: wave?.duration || Math.round((au.duration || 5) * 1000), src, label: f.name, wave, fx: {} });
       edited();
     });
     input.click();
@@ -672,7 +675,7 @@ export function mountTimeline(root, app) {
   };
 
   const trackLabel = (tr, take, readOnly) => {
-    const el = h('div', { class: `wb-tl-label${tr.muted ? ' muted' : ''}`, 'data-track-label': tr.id, title: `${TRACK_NAMES[tr.kind] || tr.kind} track · right-click for more` },
+    const el = h('div', { class: `wb-tl-label${tr.muted ? ' muted' : ''}`, 'data-track-label': tr.id, 'data-kind': tr.kind, title: `${TRACK_NAMES[tr.kind] || tr.kind} track · right-click for more` },
       editable(h('span', { class: 'wb-tl-labeltext' }, tr.name), `track:${tr.id}`, () => tr.name, v => { tr.name = v; drawLanes(); commit('track'); }),
       take && !readOnly ? h('button', { class: 'wb-tl-mute', title: tr.muted ? 'Unmute' : 'Mute (the track does not play)', onclick: ev => { ev.stopPropagation(); tr.muted = !tr.muted; edited(); } }, tr.muted ? '○' : '●') : null);
     if (take && !readOnly) {
@@ -702,12 +705,13 @@ export function mountTimeline(root, app) {
         el.append(h('span', { class: `wb-tl-compbit t-${k.track}`, style: { left: `${x(k.start / rate)}px`, width: `${Math.max(2, x((k.dur || 0) / rate))}px` } }));
       }
     }
-    if (c.track === 'audio' && c.peaks?.length) {
-      const cv = h('canvas', { class: 'wb-tl-wave', width: Math.max(8, Math.round(w)), height: 15 });
-      const g = cv.getContext('2d'); g.fillStyle = 'rgba(40,30,36,0.45)';
-      const n = c.peaks.length;
-      for (let i = 0; i < cv.width; i++) { const p = c.peaks[Math.floor((i / cv.width) * n)] || 0; const hh = Math.max(1, p * 14); g.fillRect(i, 7.5 - hh / 2, 1, hh); }
+    if (c.track === 'audio') {
+      // The waveform: real min/max slices, drawn for the width the clip has now (a rough one from the old peaks shows until the sound is decoded).
+      const cv = h('canvas', { class: 'wb-tl-wave' });
       el.prepend(cv);
+      const paint = wave => { if (wave && cv.isConnected !== false) drawWave(cv, wave, { from: 0, to: (c.dur || wave.duration) / 1000, width: w - 2, height: AUDIO_CLIP_H - 2 }); };
+      paint(c.wave || fromPeaks(c.peaks, c.dur));
+      if (!c.wave && c.src) waveFor(c.src).then(wave => { if (wave) { c.wave = wave; paint(wave); } });
     }
     if (readOnly) return el;
     el.addEventListener('pointerdown', ev => {

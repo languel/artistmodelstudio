@@ -7,6 +7,7 @@ import { EXERCISES } from '../process/exercises.js';
 import { createDocument } from '../process/document.js';
 import { findBoard, MAIN } from '../process/boards.js';
 import { intentCommand } from './intents.js';
+import { attachMic } from './voice.js';
 
 export function buildCommands(app) {
   const cmd = (category, name, run, keys = '', hint = '') => ({ id: `${category}:${name}`, category, name, run, keys, hint });
@@ -29,6 +30,11 @@ export function buildCommands(app) {
     cmd('Record', 'Start recording', () => app.recorder.start()),
     cmd('Record', 'Stop recording', () => app.recorder.stop()),
     cmd('Record', 'Timeline', () => app.docks.open('timeline')),
+    cmd('Record', 'Record a lecture: stage and microphone', () => app.lecture.start({ mic: true }), '', 'Records the stage and your voice as a film, kept in Assets (Videos). The browser asks which tab to share: choose this one'),
+    cmd('Record', 'Record a lecture: stage, microphone and camera', () => app.lecture.start({ mic: true, camera: true }), '', 'Also puts your face in a round bubble on the stage (drag it; double-click to resize)'),
+    cmd('Record', 'Record a lecture: the whole tab', () => app.lecture.start({ mic: true, crop: false }), '', 'The panels are in the film too'),
+    cmd('Record', 'Pause or resume the lecture recording', () => app.lecture.pause()),
+    cmd('Record', 'Stop the lecture recording', () => app.lecture.stop()),
     cmd('View', 'Reset layout', () => app.docks.reset()),
     cmd('View', 'Show user actions', () => app.userActions?.toggle(), '', 'The keys and clicks you make, and what they do: an overlay for teaching, demos and recordings'),
     cmd('Physics', 'Physics toolbar', () => app.physicsToolbar?.toggle(), '', 'Its own island: physics for the board you are on'),
@@ -189,7 +195,9 @@ export function openPalette(app, { compact = false } = {}) {
   let list = all, index = 0, spot = null;
   const input = h('input', { class: 'wb-palette-input', placeholder: 'Command, panel, exercise, doc… or ask', spellcheck: 'false' });
   const results = h('div', { class: 'wb-palette-results', role: 'listbox' });
-  const card = h('div', { class: 'wb-palette-card' }, input, results);
+  const bar = h('div', { class: 'wb-palette-bar' }, input);
+  const mic = attachMic(input, { host: bar });
+  const card = h('div', { class: 'wb-palette-card' }, bar, results);
   const overlay = h('div', { class: `wb-palette-overlay${compact ? ' compact' : ''}`, onpointerdown: e => { if (e.target === overlay) close(); } }, card);
   // The compact bar: just the field, at the pointer, acting on what is selected (or under the pointer).
   if (compact) {
@@ -201,7 +209,7 @@ export function openPalette(app, { compact = false } = {}) {
     const now = contextOf(app), what = now.names.length > 2 ? `${now.ids.length} marks` : now.names.join(', ');
     input.placeholder = `${what ? `${what}: ` : ''}do…  (⌘↵ asks the assistant)`;
   }
-  const close = () => overlay.remove();
+  const close = () => { mic.stop(); overlay.remove(); };
   // To the assistant, with what is selected (or under the pointer) as context.
   const toAssistant = q => {
     const c = contextOf(app);
@@ -250,9 +258,11 @@ export function openPalette(app, { compact = false } = {}) {
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !list.length) { e.preventDefault(); return; }
     if (e.key === 'ArrowDown') { e.preventDefault(); index = (index + 1) % list.length; mark(); results.children[index]?.scrollIntoView({ block: 'nearest' }); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); index = index <= 0 ? list.length - 1 : index - 1; mark(); results.children[index]?.scrollIntoView({ block: 'nearest' }); }
+    else if (e.key === 'Enter' && mic.active) { e.preventDefault(); mic.stop(); }   // (first Enter ends the dictation; the next one runs it)
     else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && input.value.trim()) { e.preventDefault(); close(); toAssistant(input.value.trim()); }
     else if (e.key === 'Enter') { e.preventDefault(); if (list[index]) runIt(list[index]); else if (compact) close(); }
     else if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'm' && e.altKey) { e.preventDefault(); mic.toggle(); }
   });
   document.body.append(overlay);
   const box = card.getBoundingClientRect();

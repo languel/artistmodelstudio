@@ -51,3 +51,20 @@ A plane is **stroke** (`color`, `strokeWidth`), **fill** (`fill`) and a **fill s
 ## Files
 
 [palette.js](../src/workbench/palette.js) (bar, ranking, registry), [intents.js](../src/workbench/intents.js) (phrases), [shortcuts.js](../src/workbench/shortcuts.js) (the registry; `/` is `app.slashbar`), [panels/assistant.js](../src/workbench/panels/assistant.js) (flow mode), [propsPopup.js](../src/workbench/propsPopup.js), [glyphSelect.js](../src/workbench/glyphSelect.js), [panels/properties.js](../src/workbench/panels/properties.js), [mcp.js](../src/workbench/mcp.js), [document.js](../src/process/document.js) (`beginStep`, `ensureFill`). Tests: `intents.test.js`, `undoStep.test.js`.
+
+## Dictation (the mic button)
+
+Any text field can have a microphone: `attachMic(field, { host })` in `src/workbench/voice.js`. It is on the `/` bar, the command palette and the Assistant's composer. Click to start, click to stop; the first Enter in the bar ends the dictation and the next one runs it; Alt+M toggles it in the bar. Right-click for the engine and the microphone.
+
+- **Browser speech**: words appear as you speak (Chrome, Edge, Safari). Chrome sends the audio to its speech service.
+- **Whisper, on this machine**: `whisperWorker.js` (`onnx-community/whisper-tiny.en`, about 40 MB once, then the browser's cache) via the `@huggingface/transformers` dependency. You record, and the words appear when you stop. Silence returns nothing (Whisper otherwise invents words).
+
+The default is the browser's when it has one. Devices come from `inputs.js` (shared: the light goes out when nothing holds the stream).
+
+## Lecture recording
+
+`src/workbench/lecture.js` (`app.lecture`): palette › Record: *Record a lecture: stage and microphone / with camera / the whole tab*, *Pause or resume*, *Stop*. It records the stage (cropped; Chrome and Edge) and the microphone; the camera is a round bubble on the stage (drag; double-click to resize), so it is in the film because it is on the page. The bar at the bottom left shows time, level, pause and stop. The film is kept in Assets (Videos) and downloaded. Built on `Capture` from `scriptRecorder.js`.
+
+## Waveforms
+
+`src/workbench/waveform.js`: `analyse` keeps 100 min/max/loudness slices a second; `drawWave` paints any stretch one column a pixel, as an envelope with the loudness inside. Audio clips on the Timeline use it (`clip.wave`, made on demand, also for files added with "Audio file…"); the audio lane is 40 px tall.

@@ -3,6 +3,7 @@
  * and the process document at the center. Everything the user can do is also a
  * command (see mcp.js), so agents drive the same surface.
  */
+import { Lecture } from './lecture.js';
 import { openToolParams, openGridParams, openCanvasParams, openToolDefaults, openBoardParams } from './toolParams.js';
 import { openRadial } from './radial.js';
 import { boardAt, boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard, rateOf, newBoardId, nextBoardPlace } from '../process/boards.js';
@@ -1489,6 +1490,7 @@ export class Workbench {
       else if (e.altKey && !e.ctrlKey && !e.shiftKey) { const b = boardsOf(this.store.doc)[n - 1]; if (b) { e.preventDefault(); this.goToBoard(b.id, { animate: true }); } }
     }, true);
     this.recorder = new Recorder(this);
+    this.lecture = new Lecture(this);
     this.player = new TakePlayer(this);
     this.score = new ScorePlayer(this);   // plays marks with `play` on the transport
     try { this.scoreView = { ...SCORE_LOOK, names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { ...SCORE_LOOK, names: false }; }

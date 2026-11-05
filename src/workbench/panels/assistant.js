@@ -12,6 +12,7 @@ import { h } from '../ui.js';
 import { icon } from '../icons.js';
 import { showMenu } from '../menu.js';
 import { modelPill } from '../modelPill.js';
+import { attachMic } from '../voice.js';
 import { ENGINE_NAMES, currentEngine, setEngine, useModel, allFavorites, favorites, isFavorite, toggleFavorite, assistantSettings, setAssistantSettings } from '../modelStore.js';
 import { parseCommand, brief, help } from '../console.js';
 
@@ -152,8 +153,10 @@ export function mountAssistant(root, app) {
   const sendBtn = h('button', { class: 'wb-compose-send', title: 'Send (Enter)', html: SEND, onclick: () => (busy ? busy.abort() : send()) });
   const grow = () => { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; };
   input.addEventListener('input', grow);
+  const micHost = h('span', { class: 'wb-mic-host' });
   const composer = h('div', { class: 'wb-composer' }, chips, input, h('div', { class: 'wb-compose-row' },
-    h('button', { class: 'wb-compose-icon', title: 'Attach', html: icon('plus'), onclick: attachMenu }), pill, toolsBtn, h('span', { style: { flex: 1 } }), moreBtn, sendBtn), fileIn);
+    h('button', { class: 'wb-compose-icon', title: 'Attach', html: icon('plus'), onclick: attachMenu }), pill, toolsBtn, h('span', { style: { flex: 1 } }), moreBtn, micHost, sendBtn), fileIn);
+  attachMic(input, { host: micHost });
   paintTools();
 
   app.assistantAsk = (text, opts) => { input.value = text; return send(opts); };
