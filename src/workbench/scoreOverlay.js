@@ -7,6 +7,7 @@
 import { centerOf, outlineOf, pointAt } from '../score/geometry.js';
 import { snapStep } from '../time/sceneTransport.js';
 import { laserOutline, fillLaserOutline } from './laser.js';
+import { localTime } from '../score/travel.js';
 import { formatDuration } from '../time/sceneTransport.js';
 
 /** How a score is drawn over the canvas (Canvas menu; a traveler can say its own: travel.glow, travel.glowSize, travel.trail). */
@@ -274,12 +275,45 @@ export class ScoreOverlay {
       for (const e of score.doc().elements) if (e.play?.travel && (e.play.travel.glow !== undefined || e.play.travel.glowSize !== undefined || e.play.travel.trail !== undefined)) own.set(e.id, e.play.travel);
       const TRAIL = Math.max(0.05, Math.max(look.trail, ...[...own.values()].map(t => t.trail ?? 0))), steps = now.length > 40 ? 3 : 7;   // (seconds of the longest trail; fewer looks when there are many)
       const past = [];
-      if (p.playing && TRAIL > 0.05) for (let i = 1; i <= steps; i++) past.push(new Map(world.positions(Math.max(0, pos - (TRAIL * i) / steps)).map(q => [q.id, q])));
+      const onPath = new Map(world.travelers().filter(t => t.path && !t.fn && !t.body).map(t => [t.id, t]));
+      // (travelers on a path draw their trail along it, below; the others from where they were)
+      if (p.playing && TRAIL > 0.05 && now.some(q => !onPath.has(q.id))) for (let i = 1; i <= steps; i++) past.push(new Map(world.positions(Math.max(0, pos - (TRAIL * i) / steps)).map(q => [q.id, q])));
       for (const q of now) {
         const [x, y] = at(q.x, q.y);
         const bw = widths.get(q.id), mine = own.get(q.id) || {};
         const trailLen = mine.trail ?? look.trail, glow = mine.glow ?? look.glow, glowSize = mine.glowSize ?? look.glowSize;
-        if (p.playing && !q.r && trailLen > 0.05) {   // the trail: the laser pointer's ribbon, one filled shape that tapers to nothing
+        const tr = onPath.get(q.id);
+        if (p.playing && !q.r && trailLen > 0.05 && tr) {
+          // The trail along the path, as finely as it bends. Looping, the part behind the wrap runs on to the
+          // path's end while the head starts again from its beginning (on a closed path they meet: a tail as long
+          // as a lap is an ouroboros); going back and forth it is one piece.
+          const spec = tr.spec, lap = Math.max(0.001, spec.dur / Math.max(0.001, spec.rate));
+          const n = Math.min(160, Math.max(12, Math.ceil((trailLen / lap) * 140)));
+          const segs = [[]];
+          let cycle = null;
+          for (let i = 0; i <= n; i++) {
+            const t = pos - trailLen * (1 - i / n);
+            if (t < spec.start) continue;
+            const lt = localTime(t, spec);
+            if (cycle !== null && lt.cycle !== cycle && spec.loop === 'loop') {
+              const tw = (spec.start + lt.cycle * lap) * 1000, end = tr.atProgress(1), begin = tr.atProgress(0);
+              const [ex, ey] = at(end.x, end.y), [sx2, sy2] = at(begin.x, begin.y);
+              segs.at(-1).push({ x: ex, y: ey, t: tw });
+              segs.push([{ x: sx2, y: sy2, t: tw }]);
+            }
+            cycle = lt.cycle;
+            if (i === n) break;   // (the head itself is added as the head)
+            const pt = tr.atProgress(lt.progress), [px, py] = at(pt.x, pt.y);
+            segs.at(-1).push({ x: px, y: py, t: t * 1000 });
+          }
+          ctx.globalAlpha = look.trailAlpha;
+          segs.forEach((seg, k) => {
+            const last = k === segs.length - 1;
+            const o = laserOutline(seg, pos * 1000, trailLen * 1000, last ? { head: { x, y } } : {});
+            if (o && !last) o.head = null;   // (the older part ends at the path's end, without a dot)
+            if (o && (o.left.length || last)) fillLaserOutline(ctx, o, accent);
+          });
+        } else if (p.playing && !q.r && trailLen > 0.05) {   // the trail: the laser pointer's ribbon, one filled shape that tapers to nothing
           const pts = [];
           for (let i = past.length - 1; i >= 0; i--) {   // oldest first
             const b = past[i].get(q.id);
