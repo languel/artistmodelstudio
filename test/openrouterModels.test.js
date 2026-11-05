@@ -78,29 +78,29 @@ describe('OpenRouter Models, Search & Favorites', () => {
 
 describe('WebGPU Expanded Model Presets', () => {
   it('includes lightweight, midweight code specialists, and high VRAM models', () => {
-    expect(WEBGPU_MODEL_PRESETS.length).toBeGreaterThanOrEqual(15);
+    expect(WEBGPU_MODEL_PRESETS.length).toBeGreaterThanOrEqual(12);
 
     const ids = WEBGPU_MODEL_PRESETS.map(p => p.id);
-    expect(ids).toContain('onnx-community/LFM2-350M-ONNX');
+    expect(ids).toContain('LiquidAI/LFM3-1.7B-ONNX');
     expect(ids).toContain('onnx-community/LFM2.5-VL-450M-ONNX');
     expect(ids).toContain('LiquidAI/LFM2.5-VL-3B-ONNX');
 
     // Gemma 4 presets
     expect(ids).toContain('google/gemma-4-E2B-it-qat-mobile-transformers');
-    expect(ids).toContain('onnx-community/gemma-4-E2B-it-webgpu');
 
     // Qwen 3.5 presets
     expect(ids).toContain('onnx-community/Qwen3.5-0.8B-ONNX-OPT');
     expect(ids).toContain('onnx-community/Qwen3.5-2B-ONNX-OPT');
     expect(ids).toContain('onnx-community/Qwen3.5-4B-ONNX-OPT');
-    expect(ids).toContain('onnx-community/Qwen3.5-0.8B-ONNX');
+    expect(ids).toContain('onnx-community/Qwen3-4B-Instruct-2507-ONNX');
+    expect(ids).toContain('onnx-community/Phi-3.5-mini-instruct-onnx-web');
 
     expect(ids).toContain('HuggingFaceTB/SmolLM2-135M-Instruct');
     expect(ids).toContain('HuggingFaceTB/SmolLM2-360M-Instruct');
     expect(ids).toContain('onnx-community/Qwen2.5-Coder-0.5B-Instruct');
     expect(ids).toContain('onnx-community/Qwen2.5-Coder-1.5B-Instruct');
-    expect(ids).toContain('onnx-community/Llama-3.2-1B-Instruct');
-    expect(ids).toContain('onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX');
+    // (no ids that no longer exist on Hugging Face)
+    for (const gone of ['onnx-community/gemma-4-E2B-it-webgpu', 'onnx-community/gemma-2-2b-it']) expect(ids).not.toContain(gone);
   });
 
   it('WebGPUTransformersArtist returns available models with custom support', () => {

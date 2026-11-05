@@ -106,8 +106,8 @@ describe('Artist Layer', () => {
     const webgpu = defaultArtistRegistry.get('webgpu');
     expect(webgpu.getModel()).toBeDefined();
     expect(webgpu.getAvailableModels().length).toBeGreaterThan(0);
-    webgpu.setModel('onnx-community/LFM2-350M-ONNX');
-    expect(webgpu.getModel()).toBe('onnx-community/LFM2-350M-ONNX');
+    webgpu.setModel('onnx-community/LFM2.5-350M-ONNX');
+    expect(webgpu.getModel()).toBe('onnx-community/LFM2.5-350M-ONNX');
   });
 
   it('webgpu artist provides full suite of Liquid AI models', () => {
@@ -115,16 +115,16 @@ describe('Artist Layer', () => {
     const models = webgpu.getAvailableModels();
     const modelIds = models.map(m => m.id);
 
-    expect(modelIds).toContain('onnx-community/LFM2-350M-ONNX');
+    // (the old LFM2 350M / 700M / 1.2B were dropped: LFM2.5 and LFM3 replace them)
+    expect(modelIds).toContain('LiquidAI/LFM3-1.7B-ONNX');
+    expect(modelIds).toContain('onnx-community/LFM3-VL-2B-ONNX');
     expect(modelIds).toContain('onnx-community/LFM2.5-350M-ONNX');
     expect(modelIds).toContain('onnx-community/LFM2.5-VL-450M-ONNX');
-    expect(modelIds).toContain('onnx-community/LFM2-700M-ONNX');
-    expect(modelIds).toContain('onnx-community/LFM2-1.2B-ONNX');
     expect(modelIds).toContain('LiquidAI/LFM2.5-1.2B-Instruct-ONNX');
     expect(modelIds).toContain('LiquidAI/LFM2.5-VL-3B-ONNX');
+    expect(modelIds).not.toContain('onnx-community/LFM2-350M-ONNX');
 
-    const lfm350 = models.find(m => m.id === 'onnx-community/LFM2-350M-ONNX');
-    expect(lfm350.group).toContain('Liquid AI');
+    const lfm350 = models.find(m => m.id === 'onnx-community/LFM2.5-350M-ONNX');
     expect(lfm350.isLiquid).toBe(true);
 
     const vl450 = models.find(m => m.id === 'onnx-community/LFM2.5-VL-450M-ONNX');
@@ -138,7 +138,7 @@ describe('Artist Layer', () => {
 
     // Gemma 4
     expect(modelIds).toContain('google/gemma-4-E2B-it-qat-mobile-transformers');
-    expect(modelIds).toContain('onnx-community/gemma-4-E2B-it-webgpu');
+    expect(modelIds).not.toContain('onnx-community/gemma-4-E2B-it-webgpu');   // (gone from Hugging Face)
     const gemma4 = models.find(m => m.id === 'google/gemma-4-E2B-it-qat-mobile-transformers');
     expect(gemma4.group).toContain('Gemma 4');
     expect(gemma4.isGemma4).toBe(true);
@@ -148,7 +148,7 @@ describe('Artist Layer', () => {
     expect(modelIds).toContain('onnx-community/Qwen3.5-2B-ONNX-OPT');
     expect(modelIds).toContain('onnx-community/Qwen3.5-4B-ONNX-OPT');
     const qwen08 = models.find(m => m.id === 'onnx-community/Qwen3.5-0.8B-ONNX-OPT');
-    expect(qwen08.group).toContain('Qwen 3.5');
+    expect(qwen08.isQwen35).toBe(true);
     expect(qwen08.isQwen35).toBe(true);
   });
 

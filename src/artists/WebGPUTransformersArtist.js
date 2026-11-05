@@ -63,156 +63,33 @@ async function loadVisionLanguage(modelId, options) {
 let currentModelId = null;
 
 export const WEBGPU_MODEL_PRESETS = [
-  // Liquid AI (Edge & WebGPU Optimized - Recommended)
-  {
-    id: 'onnx-community/LFM2-350M-ONNX',
-    name: 'LFM2 350M (Ultra Fast, ~312MB) ',
-    group: 'Liquid AI (Edge & WebGPU Optimized)',
-    isDefault: true,
-    isLiquid: true,
-    size: '~312MB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'onnx-community/LFM2.5-350M-ONNX',
-    name: 'LFM2.5 350M (Latest Hybrid Edge, ~300MB)',
-    group: 'Liquid AI (Edge & WebGPU Optimized)',
-    isLiquid: true,
-    size: '~300MB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'onnx-community/LFM2.5-VL-450M-ONNX',
-    name: 'LFM2.5-VL 450M (Vision-Language Ultra-Light, ~450MB)',
-    group: 'Liquid AI (Edge & WebGPU Optimized)',
-    isLiquid: true,
-    isVL: true,
-    size: '~450MB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'onnx-community/LFM2-700M-ONNX',
-    name: 'LFM2 700M (Balanced, ~579MB)',
-    group: 'Liquid AI (Edge & WebGPU Optimized)',
-    isLiquid: true,
-    size: '~579MB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'onnx-community/LFM2-1.2B-ONNX',
-    name: 'LFM2 1.2B (High Quality Edge, ~868MB)',
-    group: 'Liquid AI (Edge & WebGPU Optimized)',
-    isLiquid: true,
-    size: '~868MB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'LiquidAI/LFM2.5-1.2B-Instruct-ONNX',
-    name: 'LFM2.5 1.2B Instruct (~900MB)',
-    group: 'Liquid AI (Edge & WebGPU Optimized)',
-    isLiquid: true,
-    size: '~900MB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'LiquidAI/LFM2.5-VL-3B-ONNX',
-    name: 'LFM2.5-VL 3B (Flagship Multimodal, ~2.2GB)',
-    group: 'Liquid AI (Edge & WebGPU Optimized)',
-    isLiquid: true,
-    isVL: true,
-    size: '~2.2GB',
-    recommendedDtype: 'q4f16'
-  },
-
-  // Gemma 4 (WebGPU Kernel Accelerated)
-  {
-    id: 'google/gemma-4-E2B-it-qat-mobile-transformers',
-    name: 'Gemma 4 E2B (QAT Mobile · WebGPU Kernels, ~980MB) ',
-    group: 'Gemma 4 (WebGPU Kernel Accelerated)',
-    isGemma4: true,
-    size: '~980MB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'onnx-community/gemma-4-E2B-it-webgpu',
-    name: 'Gemma 4 E2B WebGPU (~1.1GB)',
-    group: 'Gemma 4 (WebGPU Kernel Accelerated)',
-    isGemma4: true,
-    size: '~1.1GB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'onnx-community/gemma-2-2b-it',
-    name: 'Gemma 2 2B (Classic ONNX, ~1.5GB)',
-    group: 'Gemma 4 (WebGPU Kernel Accelerated)',
-    size: '~1.5GB',
-    recommendedDtype: 'q4f16'
-  },
-
-  // Qwen 3.5 (In-Browser WebGPU)
-  {
-    id: 'onnx-community/Qwen3.5-0.8B-ONNX-OPT',
-    name: 'Qwen 3.5 0.8B (Optimized WebGPU, ~550MB) ',
-    group: 'Qwen 3.5 (In-Browser WebGPU)',
-    isQwen35: true,
-    size: '~550MB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'onnx-community/Qwen3.5-2B-ONNX-OPT',
-    name: 'Qwen 3.5 2B (Optimized WebGPU, ~1.3GB)',
-    group: 'Qwen 3.5 (In-Browser WebGPU)',
-    isQwen35: true,
-    size: '~1.3GB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'onnx-community/Qwen3.5-4B-ONNX-OPT',
-    name: 'Qwen 3.5 4B (Optimized WebGPU, ~2.6GB)',
-    group: 'Qwen 3.5 (In-Browser WebGPU)',
-    isQwen35: true,
-    size: '~2.6GB',
-    recommendedDtype: 'q4'
-  },
-  {
-    id: 'onnx-community/Qwen3.5-0.8B-ONNX',
-    name: 'Qwen 3.5 0.8B (Standard ONNX, ~600MB)',
-    group: 'Qwen 3.5 (In-Browser WebGPU)',
-    isQwen35: true,
-    size: '~600MB',
-    recommendedDtype: 'q4f16'
-  },
-  {
-    id: 'onnx-community/Qwen3.5-2B-ONNX',
-    name: 'Qwen 3.5 2B (Standard ONNX, ~1.4GB)',
-    group: 'Qwen 3.5 (In-Browser WebGPU)',
-    isQwen35: true,
-    size: '~1.4GB',
-    recommendedDtype: 'q4f16'
-  },
-
-  // Ultra-Lightweight (< 400MB)
-  { id: 'HuggingFaceTB/SmolLM2-135M-Instruct', name: 'SmolLM2 135M (Ultra Fast, ~100MB)', group: 'Ultra-Lightweight (<400MB)' },
-  { id: 'HuggingFaceTB/SmolLM2-360M-Instruct', name: 'SmolLM2 360M (Fast Balanced, ~250MB)', group: 'Ultra-Lightweight (<400MB)' },
-  { id: 'HuggingFaceTB/SmolLM-360M-Instruct', name: 'SmolLM 360M (Classic, ~200MB)', group: 'Ultra-Lightweight (<400MB)' },
-  { id: 'onnx-community/Qwen2.5-0.5B-Instruct', name: 'Qwen 2.5 0.5B (~350MB)', group: 'Ultra-Lightweight (<400MB)' },
-  { id: 'onnx-community/Qwen2.5-Coder-0.5B-Instruct', name: 'Qwen 2.5 Coder 0.5B (Code Specialized, ~350MB)', group: 'Ultra-Lightweight (<400MB)' },
-
-  // Midweight & Code Specialists (~700MB – 1.2GB)
-  { id: 'onnx-community/Qwen2.5-Coder-1.5B-Instruct', name: 'Qwen 2.5 Coder 1.5B (High Capability Code, ~1GB)', group: 'Midweight & Code Specialists (~1GB)' },
-  { id: 'onnx-community/Qwen2.5-1.5B-Instruct', name: 'Qwen 2.5 1.5B (High Quality, ~1GB)', group: 'Midweight & Code Specialists (~1GB)' },
-  { id: 'HuggingFaceTB/SmolLM2-1.7B-Instruct', name: 'SmolLM2 1.7B (High Quality, ~1GB)', group: 'Midweight & Code Specialists (~1GB)' },
-  { id: 'onnx-community/Llama-3.2-1B-Instruct', name: 'Llama 3.2 1B (Meta Open Weights, ~700MB)', group: 'Midweight & Code Specialists (~1GB)' },
-  { id: 'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX', name: 'DeepSeek R1 Distill Qwen 1.5B (Reasoning, ~1GB)', group: 'Midweight & Code Specialists (~1GB)' },
-
-  // High VRAM & Frontier (1.5GB – 3B)
-  { id: 'onnx-community/Llama-3.2-3B-Instruct', name: 'Llama 3.2 3B (Meta High VRAM, ~1.8GB)', group: 'High VRAM / 2B+ Models' }
+  // Recommended in the browser (a model that runs here, no Ollama or server needed). Sizes are the download at the dtype given.
+  { id: 'LiquidAI/LFM3-1.7B-ONNX', name: 'LFM3 1.7B (Liquid AI, newest, ~1.4GB; needs transformers.js 4.4)', group: 'Recommended', isLiquid: true, size: '~1.4GB', recommendedDtype: 'q4f16' },
+  { id: 'onnx-community/Qwen3-4B-Instruct-2507-ONNX', name: 'Qwen3 4B Instruct 2507 (best small all-rounder, ~2.1GB)', group: 'Recommended', size: '~2.1GB', recommendedDtype: 'q4f16' },
+  { id: 'onnx-community/Qwen3.5-4B-ONNX-OPT', name: 'Qwen 3.5 4B (Optimized WebGPU, ~2.6GB)', group: 'Recommended', isQwen35: true, size: '~2.6GB', recommendedDtype: 'q4' },
+  { id: 'onnx-community/Qwen3.5-2B-ONNX-OPT', name: 'Qwen 3.5 2B (Optimized WebGPU, ~1.3GB)', group: 'Recommended', isQwen35: true, size: '~1.3GB', recommendedDtype: 'q4f16' },
+  { id: 'onnx-community/Phi-3.5-mini-instruct-onnx-web', name: 'Phi 3.5 mini 3.8B (Microsoft, ~2.3GB)', group: 'Recommended', size: '~2.3GB', recommendedDtype: 'q4f16' },
+  // Small and quick
+  { id: 'LiquidAI/LFM2.5-1.2B-Instruct-ONNX', name: 'LFM2.5 1.2B Instruct (~900MB)', group: 'Small and quick', isLiquid: true, isDefault: true, size: '~900MB', recommendedDtype: 'q4f16' },
+  { id: 'onnx-community/Qwen3.5-0.8B-ONNX-OPT', name: 'Qwen 3.5 0.8B (Optimized WebGPU, ~550MB)', group: 'Small and quick', isQwen35: true, size: '~550MB', recommendedDtype: 'q4f16' },
+  { id: 'onnx-community/LFM2.5-350M-ONNX', name: 'LFM2.5 350M (~300MB)', group: 'Small and quick', isLiquid: true, size: '~300MB', recommendedDtype: 'q4f16' },
+  { id: 'HuggingFaceTB/SmolLM2-360M-Instruct', name: 'SmolLM2 360M (~250MB)', group: 'Small and quick', size: '~250MB' },
+  { id: 'HuggingFaceTB/SmolLM2-135M-Instruct', name: 'SmolLM2 135M (~100MB)', group: 'Small and quick', size: '~100MB' },
+  // Code specialists (an older generation than the above, but trained for code)
+  { id: 'onnx-community/Qwen2.5-Coder-1.5B-Instruct', name: 'Qwen 2.5 Coder 1.5B (~1GB)', group: 'Code specialists', size: '~1GB' },
+  { id: 'onnx-community/Qwen2.5-Coder-0.5B-Instruct', name: 'Qwen 2.5 Coder 0.5B (~350MB)', group: 'Code specialists', size: '~350MB' },
+  // Pictures in
+  { id: 'onnx-community/LFM3-VL-2B-ONNX', name: 'LFM3-VL 2B (Liquid AI: pictures and video, ~1GB)', group: 'Sees pictures', isLiquid: true, isVL: true, size: '~1GB', recommendedDtype: 'q4f16' },
+  { id: 'onnx-community/LFM2.5-VL-450M-ONNX', name: 'LFM2.5-VL 450M (sees pictures, ~450MB)', group: 'Sees pictures', isLiquid: true, isVL: true, size: '~450MB', recommendedDtype: 'q4f16' },
+  { id: 'LiquidAI/LFM2.5-VL-3B-ONNX', name: 'LFM2.5-VL 3B (sees pictures, ~2.2GB)', group: 'Sees pictures', isLiquid: true, isVL: true, size: '~2.2GB', recommendedDtype: 'q4f16' },
+  // Gemma 4 (WebGPU kernels)
+  { id: 'google/gemma-4-E2B-it-qat-mobile-transformers', name: 'Gemma 4 E2B (QAT mobile, WebGPU kernels, ~980MB)', group: 'Gemma 4', isGemma4: true, size: '~980MB', recommendedDtype: 'q4f16' }
 ];
 
 export class WebGPUTransformersArtist extends Artist {
   constructor(options = {}) {
     super(options.id || 'webgpu', options.name || 'WebGPU (Browser)', 'webgpu');
-    this.modelId = options.modelId || (typeof localStorage !== 'undefined' && localStorage.getItem('ams_webgpu_model')) || 'onnx-community/LFM2-350M-ONNX';
+    this.modelId = options.modelId || (typeof localStorage !== 'undefined' && localStorage.getItem('ams_webgpu_model')) || 'LiquidAI/LFM2.5-1.2B-Instruct-ONNX';
     this.dtype = options.dtype || null; // dynamic detection
     this.onProgress = options.onProgress || null;
     this.isLoading = false;
