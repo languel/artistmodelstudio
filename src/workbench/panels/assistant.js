@@ -350,7 +350,7 @@ export function mountAssistant(root, app) {
       }
     } catch (err) {
       log.querySelector('.pending')?.remove();
-      add('sys', busy?.signal.aborted ? 'Stopped.' : `Error: ${err.message}`, busy?.signal.aborted ? '' : 'error');
+      add('sys', busy?.signal.aborted ? 'Stopped.' : `Error: ${err.message}${/Failed to fetch|NetworkError|ECONNREFUSED|Load failed/i.test(err.message) && engine === 'ollama' && navigator.gpu ? '\nOllama does not seem to be running. To use models that run in this browser instead, type /browser.' : ''}`, busy?.signal.aborted ? '' : 'error');
       if (!busy?.signal.aborted) failed = err.message;
     } finally {
       traceEnd();

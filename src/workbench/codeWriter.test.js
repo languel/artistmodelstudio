@@ -36,6 +36,7 @@ describe('who writes the code', () => {
   });
   it('gives the model the language, with the rules the small models got wrong', () => {
     expect(CODE_SYSTEM).toMatch(/never call board\(\)/);
+    expect(CODE_SYSTEM).toMatch(/Only read a picture/);
     expect(CODE_SYSTEM).toMatch(/source\('name'\)/);
     expect(CODE_SYSTEM).toMatch(/Lighter.*s\.value\(x, y\) > t/);
     expect(CODE_SYSTEM).toMatch(/rows = Math\.round\(cols \* height \/ width\)/);

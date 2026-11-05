@@ -21,6 +21,7 @@ Only the things listed here exist; do not invent others (no brush(), stage(), wa
 - Pictures: const s = source('name'). s.color(x, y) is the picture's color at a place, already a color string: pass it straight in, point(x, y, { color: s.color(x, y) }). s.value(x, y) is its brightness, 0 (dark) to 1 (light). A source can be read with source('name', { fit: 'contain' }).
 - Sizes (point size, line width) are in board units, like width and height (a board is often 800 wide). For a grid of square cells: cell = width / cols, rows = Math.round(cols * height / width), and a dot as big as its cell has size cell.
 - "Lighter" or "brighter than t" means s.value(x, y) > t; "darker than t" means s.value(x, y) < t. "Darker gets bigger" means the size grows as 1 - s.value(x, y).
+- Only read a picture (source) when the request names one; otherwise do not call source() at all.
 - A number a person may want to change gets a range comment: const n = 60 /* 10..120 */.
 Language reference:
 ${SCRIPT_REFERENCE}
@@ -66,7 +67,11 @@ export async function writeCode(app, { request, board = null, repairs = 2, maxTo
   if (!who.artist?.complete) { out.error = `${who.engine} cannot write code here (it has no way to be asked a question: pick an engine in Settings › Model)`; return out; }
   try {
     const id = await boardFor(app, board);
-    onStatus(`Writing code with ${who.model || who.engine}…`);
+    // (a model that runs in this page may have to be fetched first: say how far it is, or a 2 GB download looks like a freeze)
+    const say = text => { onStatus(text); try { window.dispatchEvent(new CustomEvent('ams-engine-status', { detail: text })); } catch { /* no window */ } };
+    const prevProgress = who.artist.onProgress;
+    if (who.engine === 'webgpu') who.artist.onProgress = p => { if (p?.status === 'progress_total' || p?.status === 'progress') say(`Loading ${String(who.model).split('/').pop()}: ${Math.round(p.progress || 0)}%`); prevProgress?.(p); };
+    say(`Writing code with ${who.model || who.engine}…`);
     const ask = user => who.artist.complete({ system: CODE_SYSTEM, user, maxTokens, signal, model: who.own ? undefined : who.model, ...sampling(who.engine) });
     let reply = await ask(request);
     for (out.tries = 1; ; out.tries++) {
@@ -85,6 +90,7 @@ export async function writeCode(app, { request, board = null, repairs = 2, maxTo
       reply = await ask(`${request}\n\nYour code:\n\`\`\`js\n${out.code}\n\`\`\`\nThe studio says: ${out.error}\nFix it, using only the functions listed. Reply with the corrected code block.`);
     }
   } catch (err) { out.error = err.name === 'AbortError' ? 'Stopped.' : err.message; }
+  if (who.engine === 'webgpu') who.artist.onProgress = null;
   out.ms = Math.round(performance.now() - t0);
   return out;
 }

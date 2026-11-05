@@ -9,6 +9,7 @@ import { h, row, selectField, numberField, section } from '../ui.js';
 import { icon } from '../icons.js';
 import { ENGINES, loadModels } from '../modelPicker.js';
 import { voiceSettings, setVoice, LANGUAGES, GENDERS } from '../voiceOut.js';
+import { browserSetup, BROWSER_TIERS, hasWebGPU } from '../browserSetup.js';
 import { ENGINE_FIELDS, ENGINE_NAMES, currentEngine, setEngine, useModel, favorites, isFavorite, toggleFavorite, filterModels, assistantSettings, setAssistantSettings, FALLBACK_TEMPERATURE, codeTarget, setCodeTarget } from '../modelStore.js';
 
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return v; };
@@ -131,6 +132,12 @@ export function modelSection(app) {
         ...(ct ? [row('Model', h('span', { class: 'wb-model-ctl' }, modelIn, models))] : [])
       ];
     };
+    // Browser only: LFM3-Omni for conversation and a small coder in transformers.js, with nothing to install (for students without Ollama).
+    const browserRow = () => {
+      const ok = hasWebGPU();
+      const btn = (tier) => { const t = BROWSER_TIERS[tier]; return h('button', { class: 'wb-btn', type: 'button', disabled: !ok, title: `${t.label}: LFM3-Omni (1.6 GB) talks and draws, ${t.codeName} (${t.score} on the lesson test) writes code; about ${t.gb} GB in all, fetched the first time each is used and kept by the browser`, onclick: () => { browserSetup(app, tier); build(); app.log(`Browser only (${t.label}): they download the first time they are used.`); } }, `${t.label} (~${t.gb} GB)`); };
+      return row('Browser only', h('span', { class: 'wb-lfm-buttons' }, btn('light'), btn('standard')), ok ? 'Everything in this page, nothing to install: LFM3-Omni for conversation and drawing, a small coder for code. Downloads on first use' : 'This browser has no WebGPU (use Chrome or Edge)');
+    };
     const a = assistantSettings();
     // Temperature: unset means the model's own (Ollama reads it from the model), shown here as what it is; ↺ goes back to that.
     const modelNow = builtModel = artist?.getModel?.() || '';
@@ -153,6 +160,7 @@ export function modelSection(app) {
       engine === 'lfm3' ? lfmControls() : null,
       engine === 'openrouter' ? row('Show', selectField([['', 'All'], ['free', 'Free'], ['image', 'Image input']], tag, v => { tag = v; paint(); }, 'Narrow the OpenRouter list')) : null,
       h('div', { class: 'wb-row wb-model-status' }, h('span', { class: 'wb-row-label' }), status),
+      browserRow(),
       ...codeRows(),
       h('div', { class: 'wb-sub', title: engine === 'agent' ? 'Not used with an external agent: it chooses how to ask for itself' : 'How the Assistant panel asks the model (the quick / field has its own temperature, below)' }, 'Asking'),
       row('Temperature', tempField('temperature', 'chat', 'Lower: steadier. Higher: more varied')),
