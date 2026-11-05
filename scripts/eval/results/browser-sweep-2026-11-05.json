@@ -1,0 +1,287 @@
+{
+ "now": "onnx-community/Qwen3.5-4B-ONNX-OPT",
+ "done": false,
+ "savedAt": "2026-11-05T20:54:17.599Z",
+ "note": "lesson test (lessonEval.js), browser transformers.js models, temperature 0.1, 1400 max tokens, no retrieved examples",
+ "models": {
+  "onnx-community/LFM3-VL-2B-ONNX": {
+   "secs": 824,
+   "ask": {
+    "passed": 2,
+    "of": 7
+   },
+   "alt": {
+    "passed": 0,
+    "of": 7
+   },
+   "tasks": [
+    {
+     "use": "ask",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "dots-size",
+     "pass": false,
+     "marks": 0,
+     "wanted": 2700,
+     "tries": 3,
+     "error": "Unexpected identifier 'need' (line 6)"
+    },
+    {
+     "use": "ask",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 0,
+     "wanted": 721,
+     "tries": 3,
+     "error": "Unexpected identifier 'need' (line 6)"
+    },
+    {
+     "use": "ask",
+     "id": "rings",
+     "pass": false,
+     "marks": 0,
+     "wanted": 8,
+     "tries": 3,
+     "error": "Unexpected identifier 'need' (line 6)"
+    },
+    {
+     "use": "ask",
+     "id": "sun",
+     "pass": false,
+     "marks": 0,
+     "wanted": 13,
+     "tries": 3,
+     "error": "Unexpected identifier 'need' (line 6)"
+    },
+    {
+     "use": "ask",
+     "id": "stripes",
+     "pass": false,
+     "marks": 0,
+     "wanted": 20,
+     "tries": 3,
+     "error": "Unexpected identifier 'need' (line 6)"
+    },
+    {
+     "use": "alt",
+     "id": "grid-dots",
+     "pass": false,
+     "marks": 0,
+     "wanted": 24,
+     "tries": 3,
+     "error": "Unexpected identifier 'need' (line 6)"
+    },
+    {
+     "use": "alt",
+     "id": "dots-size",
+     "pass": false,
+     "marks": 0,
+     "wanted": 2700,
+     "tries": 3,
+     "error": "Unexpected identifier 'need' (line 6)"
+    },
+    {
+     "use": "alt",
+     "id": "scattered",
+     "pass": false,
+     "marks": 0,
+     "wanted": 9000,
+     "tries": 3,
+     "error": "It ran, but drew nothing: every mark needs point(), line() or plane(), and rect() and circle() only give points."
+    },
+    {
+     "use": "alt",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 0,
+     "wanted": 721,
+     "tries": 3,
+     "error": "Unexpected identifier 'need' (line 6)"
+    },
+    {
+     "use": "alt",
+     "id": "rings",
+     "pass": false,
+     "marks": 0,
+     "wanted": 8,
+     "tries": 3,
+     "error": "Unexpected token '>' (line 6)"
+    },
+    {
+     "use": "alt",
+     "id": "sun",
+     "pass": false,
+     "marks": 0,
+     "wanted": 13,
+     "tries": 3,
+     "error": "It ran, but drew nothing: every mark needs point(), line() or plane(), and rect() and circle() only give points."
+    },
+    {
+     "use": "alt",
+     "id": "stripes",
+     "pass": false,
+     "marks": 0,
+     "wanted": 20,
+     "tries": 3,
+     "error": "Identifier 's' has already been declared (line 6)"
+    }
+   ]
+  },
+  "onnx-community/Qwen3-4B-Instruct-2507-ONNX": {
+   "secs": 167,
+   "ask": {
+    "passed": 6,
+    "of": 7
+   },
+   "alt": {
+    "passed": 6,
+    "of": 7
+   },
+   "tasks": [
+    {
+     "use": "ask",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2880,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 11288,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 2558,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    }
+   ]
+  }
+ }
+}
+
