@@ -154,3 +154,15 @@ Every tool call goes through `callTool` (mcp.js). **Quiet** calls (the `/` field
 - **Worked-example retrieval hurt** (`codeExamples.js`: the two most similar lesson boards in the prompt, the target left out): 6/14 against 8/14 without. The small model copies them. It is kept as an option (`examples: 2`), off by default.
 - The repair loop rarely rescued a 2B failure (it cannot fix what it does not understand); the mechanical `fixCode` did rescue some.
 - The quick field and chat tasks (move, recolor, a row of circles) are another thing: LFM3 in the browser does those (14/16, and 15/16 through the instant phrases and commands), so a reasonable split is **LFM3 for conversation, commands and drawing, a coder model for writing board code**.
+
+## Models to try for writing code, and for students with no Ollama (survey, 5 Nov 2026)
+
+Results so far are in *Reproducing the lessons* above (Qwen 3.8 9B coder 14/14; LFM3-Omni 2B 9/14 in the browser, 7/14 on Ollama). Next, the same lesson test (`lessonEval.js`, `window.__evalEngine` picks the engine) on:
+
+**Ollama** (downloads started; disk is fine): `lfm2.5:8b` (LFM's offline 8B MoE), `gemma4:12b`, `flint` (a 40B MoE with about 2B active), `qwen3-coder:30b` (a 30B MoE, about 3B active, quick for its size). Already installed: `bonsai-2:27b` (ternary, 8.3 GB), `dlasher/LFM2.5-24B-A2B-ENG:IQ4_NL`, `qwen3.8:27b-mlx`, `d3:2b`, `d1-omni`.
+
+**LM Studio** (running on this machine, port 1234, OpenAI-compatible): use the *OpenAI-compatible* engine with base URL `http://localhost:1234/v1` (no key needed); its models list at `/v1/models`.
+
+**In the browser, no host to run** (for students). The community list at huggingface.co/spaces/webml-community has, among others: *Qwen3.5-WebGPU* (`onnx-community/Qwen3.5-0.8B / 2B / 4B-ONNX`; our *In-browser* engine already lists these, and Qwen2.5-Coder 0.5B / 1.5B, LFM2.5, Gemma 4 E2B, Llama 3.2 3B), *Phi-3.5-webgpu* (`Phi-3.5-mini-instruct-onnx-web`, 3.8B), *LFM3-1.7B-WebGPU-Pi* and *MiniCPM5-2B-WebGPU-Pi* (GGUF, their own runtime), *GPT-OSS-WebGPU* (20B, heavy), *ternary-bonsai-2-webgpu-kernels* (a 27B ternary model with custom WebGPU kernels: the family of the local `bonsai-2:27b`), and smaller ones (SmolLM, Qwen3 0.6B, DeepSeek-R1 distill 1.5B). The *In-browser* engine (`WebGPUTransformersArtist`, transformers.js) can run any of the ONNX ones by model id; the GGUF and kernel ones need their own runtimes (as LFM3-Omni does).
+
+**Design:** a *Code model* setting (engine + model) so conversation, commands and drawing stay on a quick small model while code is written by a bigger one; and a browser-only default for students (LFM3-Omni for conversation, voice and drawing, plus the best in-browser coder that passes the lesson test).
