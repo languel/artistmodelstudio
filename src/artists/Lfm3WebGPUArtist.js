@@ -1,7 +1,7 @@
 /**
  * LFM3-Omni in this browser (WebGPU): one small model for text, tool calls, listening and speaking.
  *
- * The runtime is Liquid AI's own WebGPU library (from their public demo Space, loaded from there at run time and pinned to a commit,
+ * The runtime is Liquid AI's own WebGPU library (from their public demo Space, loaded from there at run time,
  * not copied into this repository: its licence is not stated, so check it before vendoring); the weights come from Hugging Face
  * (LiquidAI/LFM3-Omni-2B-GGUF, licence: LFM Open License v1.0) and are kept by the browser after the first download.
  *
@@ -14,7 +14,8 @@
  */
 import { Artist } from './Artist.js';
 
-const LIB_URL = 'https://huggingface.co/spaces/LiquidAI/LFM3-Omni-2B-WebGPU/resolve/9c2fb176f4c222da394e8037d3c0d0837f70b978/Lfm3OmniForConditionalGeneration.js';
+// (the Space's own static host: the huggingface.co file URLs are served as text/plain, which a browser will not run as a module. This follows the Space's latest version, not a pinned commit.)
+const LIB_URL = 'https://liquidai-lfm3-omni-2b-webgpu.static.hf.space/Lfm3OmniForConditionalGeneration.js';
 export const LFM3_MODEL = 'LiquidAI/LFM3-Omni-2B-GGUF';
 
 let libPromise = null;
@@ -61,7 +62,7 @@ export class Lfm3WebGPUArtist extends Artist {
         this.rate = model.audio_sampling_rate || 24000;
         this.progress = { text: 'Ready', fraction: 1 };
         status('LFM3 ready');
-        return { Lib, model };
+        return { Lib, model, session: model.create_session() };   // (generate() is on the session, which keeps the cache of what it has read)
       })().catch(err => { this.loaded = null; throw err; });
     }
     return this.loaded;
@@ -78,7 +79,7 @@ export class Lfm3WebGPUArtist extends Artist {
 
   /** One text completion: { system, user, temperature?, signal, maxTokens } → text. (json is a request only: the model is asked, not forced.) */
   async complete({ system, user, temperature = null, signal, json = false, maxTokens = 1200 } = {}) {
-    const { model } = await this.ensureLoaded();
+    const { session: model } = await this.ensureLoaded();
     return this.#run(async () => {
       const messages = [...(system ? [{ role: 'system', content: `${system}${json ? '\nReply with one JSON object and nothing else.' : ''}` }] : []), { role: 'user', content: typeof user === 'string' ? user : String(user ?? '') }];
       const g = model.generate(messages, { signal, max_new_tokens: maxTokens, generation_mode: 'text', ...(temperature ? { do_sample: true, temperature } : {}) });
@@ -93,7 +94,7 @@ export class Lfm3WebGPUArtist extends Artist {
    * Runs rounds until the model stops calling tools. → { text, calls: [{ name, args, result, error? }], rounds, finish }
    */
   async chat({ messages, tools = [], signal, maxRounds = 4, maxTokens = 800, onCall = null } = {}) {
-    const { model } = await this.ensureLoaded();
+    const { session: model } = await this.ensureLoaded();
     return this.#run(async () => {
       const specs = tools.map(t => ({ type: 'function', function: { name: t.name, ...(t.description ? { description: t.description } : {}), parameters: t.parameters || { type: 'object', properties: {} } } }));
       const byName = new Map(tools.map(t => [t.name, t]));
@@ -123,7 +124,7 @@ export class Lfm3WebGPUArtist extends Artist {
 
   /** Speech from text: { samples: Float32Array (mono), rate }. language: an English name ("American English", "British English", "French"…). */
   async speak(text, { language = 'American English', gender = 'female', signal } = {}) {
-    const { model } = await this.ensureLoaded();
+    const { session: model } = await this.ensureLoaded();
     return this.#run(async () => {
       const messages = [{ role: 'system', content: `Perform TTS in ${language} using a ${gender} voice.` }, { role: 'user', content: String(text) }];
       const g = model.generate(messages, { signal, generation_mode: 'audio', max_new_tokens: 2000, audio_temperature: 0.4, audio_repetition_penalty: 1.2 });
@@ -137,7 +138,7 @@ export class Lfm3WebGPUArtist extends Artist {
 
   /** Words from speech: samples are 16 kHz mono floats. */
   async transcribe(samples, { language = 'English', signal } = {}) {
-    const { model } = await this.ensureLoaded();
+    const { session: model } = await this.ensureLoaded();
     return this.#run(async () => {
       const messages = [{ role: 'system', content: `Perform ASR in ${language}.` }, { role: 'user', content: [{ type: 'audio', audio: samples }] }];
       const g = model.generate(messages, { signal, generation_mode: 'text', max_new_tokens: 600 });

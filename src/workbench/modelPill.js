@@ -28,7 +28,8 @@ export function modelPill(app) {
       { label: 'All models and settings…', hint: 'Settings → Model: the engine, how to reach it, the model list and favorites', run: () => { app.docks.open('settings'); setTimeout(() => app.modelSection?.scrollIntoView?.({ block: 'start' }), 60); } }
     ].filter(Boolean), r.left, r.top - 6, { up: true });
   };
-  window.addEventListener('ams-model', () => { if (document.body.contains(pill)) paint(); });
+  window.addEventListener('ams-model', paint);   // (also while its panel is behind another tab, so it is right when you come back)
+  pill.addEventListener('pointerenter', paint);
   paint();
   return pill;
 }

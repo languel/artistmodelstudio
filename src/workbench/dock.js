@@ -72,12 +72,22 @@ export class DockManager {
       s.min = false;
     } else {
       const dock = s.placement;
+      const prev = this.state.active[dock];
+      if (prev && prev !== id && this.state.panels[prev]?.open && !this.state.collapsed[dock]) (this.came ||= {})[id] = prev;   // (what to go back to)
       const frontmost = s.open && this.state.active[dock] === id && !this.state.collapsed[dock];
       if (toggle && frontmost) this.state.collapsed[dock] = true;
       else { s.open = true; this.state.active[dock] = id; this.state.collapsed[dock] = false; }
     }
     this.save();
     this.render();
+  }
+
+  /** Go back to the panel that was in front when `id` was opened (Esc in Settings). → whether it did */
+  back(id) {
+    const p = this.came?.[id];
+    if (!p || !this.panels.has(p) || this.state.panels[id]?.placement === 'floating') return false;
+    this.open(p);
+    return true;
   }
 
   /**

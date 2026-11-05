@@ -109,7 +109,7 @@ What the gaps were and how each was bridged (more prompt examples were the *wors
 
 ## LFM3-Omni in the browser (engine `lfm3`)
 
-`src/artists/Lfm3WebGPUArtist.js`: Liquid AI's LFM3-Omni-2B on WebGPU, one model for text, tool calls, listening and speaking. Pick it in the model menu or Settings › Model (*LFM3-Omni (this browser)*). The runtime is Liquid's own WebGPU library, imported at run time from their demo Space (pinned to a commit; **not copied into the repo: its licence is not stated**); the weights are `LiquidAI/LFM3-Omni-2B-GGUF` (LFM Open License v1.0), downloaded once and kept by the browser. Needs WebGPU (Chrome, Edge).
+`src/artists/Lfm3WebGPUArtist.js`: Liquid AI's LFM3-Omni-2B on WebGPU, one model for text, tool calls, listening and speaking. Pick it in the model menu or Settings › Model (*LFM3-Omni (this browser)*). The runtime is Liquid's own WebGPU library, imported at run time from their demo Space's static host (it follows the Space's latest version, not a pinned commit; **not copied into the repo: its licence is not stated**); the weights are `LiquidAI/LFM3-Omni-2B-GGUF` (LFM Open License v1.0), downloaded once and kept by the browser. Needs WebGPU (Chrome, Edge).
 
 - `complete({system, user})`: text, what the chat and the `/` field use. Text is greedy (the model card's recommendation).
 - `chat({messages, tools})`: native tool calls (OpenAI-style specs, `role: "tool"` results, rounds until it stops calling).

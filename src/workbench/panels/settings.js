@@ -48,7 +48,17 @@ export function mountSettings(root, app) {
   const none = h('p', { class: 'wb-muted wb-small', hidden: true }, 'No setting matches.');
   const apply = () => { none.hidden = filterSettings(root, query); };
   search.addEventListener('input', () => { query = search.value; apply(); });
-  search.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape' && search.value) { search.value = ''; query = ''; apply(); } });
+  search.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') { if (search.value) { search.value = ''; query = ''; apply(); } else app.docks.back('settings'); } });
+  // Esc leaves Settings for the panel that was in front when it was opened (a menu, the palette or a field being edited gets the Esc first).
+  const onEsc = e => {
+    if (e.key !== 'Escape' || e.defaultPrevented || !root.isConnected || root.offsetParent === null) return;
+    if (document.querySelector('.wb-menu, .wb-palette-overlay, .wb-cp-pop, .wb-combo-list:not([hidden])')) return;
+    const t = e.target, inField = t && /^(input|textarea|select)$/i.test(t.tagName);
+    if (inField && !root.contains(t)) return;   // (typing somewhere else)
+    if (t && t !== document.body && !root.contains(t)) return;
+    app.docks.back('settings');
+  };
+  window.addEventListener('keydown', onEsc);
   const setArtboard = patch => app.store.change('artboard', d => { d.artboard = { ...d.artboard, ...patch }; });
   const render = () => {
     // The panel may mount during startup, before the canvas and guide exist.

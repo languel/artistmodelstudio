@@ -70,9 +70,19 @@ export const FALLBACK_TEMPERATURE = { chat: 0.4, flow: 0.1 };;
 export function assistantSettings() {
   let saved = {};
   try { saved = JSON.parse(get(SETTINGS_KEY, '{}')) || {}; } catch { /* ignore */ }
-  return { ...ASSISTANT_DEFAULTS, ...saved };
+  // (an earlier version saved every default with the first change: a temperature of exactly 0.4 was never chosen, it was the default)
+  if (saved.temperature === 0.4 && !saved.temperatureChosen) delete saved.temperature;
+  const { temperatureChosen, ...own } = saved;   // (the flag is for this file only)
+  return { ...ASSISTANT_DEFAULTS, ...own };
 }
-export function setAssistantSettings(patch) { set(SETTINGS_KEY, JSON.stringify({ ...assistantSettings(), ...patch })); changed(); }
+export function setAssistantSettings(patch) {
+  let saved = {};
+  try { saved = JSON.parse(get(SETTINGS_KEY, '{}')) || {}; } catch { /* ignore */ }
+  if (saved.temperature === 0.4 && !saved.temperatureChosen) delete saved.temperature;
+  const next = { ...saved, ...patch };
+  if ('temperature' in patch) next.temperatureChosen = patch.temperature != null;   // (a value typed in the field is a choice, even 0.4)
+  set(SETTINGS_KEY, JSON.stringify(next)); changed();
+}
 
 /** A model list narrowed by a search, and to favorites if asked. models: [{ id, name }]. */
 export function filterModels(models, { query = '', favorites: favs = [], favoritesOnly = false } = {}) {
