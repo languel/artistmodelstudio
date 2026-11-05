@@ -425,7 +425,9 @@ export function createWorld(def = {}) {
   function arrive(triggerId, data, t = w.cur) {
     const trig = w.triggers.find(x => x.id === triggerId);
     if (!trig) return false;
-    push({ type: 'arrive', t, trig, tr: null, data, pt: { ...trig.center, u: 0, p: null }, speed: 0 });
+    // (where: the point it was touched at when the data says, as physics does; else its middle)
+    const at = data && Number.isFinite(data.x) && Number.isFinite(data.y) ? { x: data.x, y: data.y, u: 0, p: null } : { ...trig.center, u: 0, p: null };
+    push({ type: 'arrive', t, trig, tr: null, data, pt: at, speed: Number(data?.speed) || 0 });
     return true;
   }
 

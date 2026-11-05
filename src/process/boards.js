@@ -88,7 +88,7 @@ const flagsOf = b => ({ ...Object.fromEntries(BOARD_FLAGS.filter(k => b?.[k]).ma
 export function boardsOf(doc) {
   const a = doc.artboard || { width: 1000, height: 1000, ground: '#f3efe6' };
   return [
-    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.pseudo ? { pseudo: a.pseudo } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.paused ? { paused: true } : {}), ...(a.kind ? { kind: a.kind } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity, ...(a.sourceFit ? { sourceFit: a.sourceFit } : {}), ...(a.sourceBlend ? { sourceBlend: a.sourceBlend } : {}) } : {}), ...fxFields(a), ...flagsOf(a), main: true },
+    { id: MAIN, title: a.title || 'Main', x: 0, y: 0, width: a.width, height: a.height, ground: a.ground, ...(a.text ? { text: a.text } : {}), ...(a.code ? { code: a.code } : {}), ...(a.pseudo ? { pseudo: a.pseudo } : {}), ...(a.follow ? { follow: a.follow } : {}), ...(a.live ? { live: true } : {}), ...(a.paused ? { paused: true } : {}), ...(a.kind ? { kind: a.kind } : {}), ...(a.physics ? { physics: a.physics } : {}), ...(a.source ? { source: a.source, sourceOpacity: a.sourceOpacity, ...(a.sourceFit ? { sourceFit: a.sourceFit } : {}), ...(a.sourceBlend ? { sourceBlend: a.sourceBlend } : {}) } : {}), ...fxFields(a), ...flagsOf(a), main: true },
     ...(doc.boards || []).map(b => ({ ...b, main: false }))
   ];
 }

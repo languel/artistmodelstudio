@@ -1,6 +1,6 @@
 # 2D physics: plan
 
-Status: **proposal**, 5 Nov 2026 (tag `pre-physics` marks the studio before it). Written after reading
+Status: **P0–P3 built** 5 Nov 2026 (tag `pre-physics` marks the studio before it). Decided: Rapier; the Timeline's clock and a free-running clock (step-by-step too); data on marks under `play`; a worker (the page when a worker cannot start); physics per board; a separate toolbar module. Built: `src/physics/` (model.js, core.js, host.js, physics.worker.js, studio.js, toolbar.js, properties.js) and its tests. Not yet: P4 (ropes, thrusters, attractors, collision layers, grabbing a body while it runs, recorded on the take) and P5 (the standalone player, video and embed carry physics); the single-file build is blocked by an older kokoro/transformers alias problem, not by physics. Written after reading
 Underscores' physics (`~/dev/underscores`: `notes/physics.md`, `rapierPhysicsCore.js`, `physics.worker.js`,
 `PhysicsPanel.jsx`, `physicsConstraintAuthoring.js`) and AMS's score kernel (`src/score/world.js`, whose
 `bodies` are a small hand-written gas). The goal is Algodoo: draw things, they become physical; pin them,

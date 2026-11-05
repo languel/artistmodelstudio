@@ -45,6 +45,8 @@ import { mountOutliner } from './panels/outliner.js';
 import { mountSettings } from './panels/settings.js';
 import { mountShortcuts } from './panels/shortcuts.js';
 import { mountCode } from './panels/code.js';
+import { PhysicsStudio } from '../physics/studio.js';
+import { mountPhysicsToolbar } from '../physics/toolbar.js';
 import { UserActions } from './userActions.js';
 import { mountTimeline } from './panels/timeline.js';
 import { mountMixer } from './panels/mixer.js';
@@ -1443,6 +1445,7 @@ export class Workbench {
     this.topbar = h('div', { class: 'wb-topbar' });
     this.zoomIsland = h('div', { class: 'wb-island wb-zoom' });
     this.stageArea.append(this.topbar, this.zoomIsland);
+    if (!this.embed || this.embed.full) mountPhysicsToolbar(this);   // (its own island: src/physics/toolbar.js)
 
     this.guide = new Guide(this);
     try { if (localStorage.getItem('ams_guide_enabled') === '0') this.guide.enabled = false; } catch { /* ignore */ }
@@ -1488,6 +1491,7 @@ export class Workbench {
     this.score = new ScorePlayer(this);   // plays marks with `play` on the transport
     try { this.scoreView = { ...SCORE_LOOK, names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { ...SCORE_LOOK, names: false }; }
     this.scoreOverlay = new ScoreOverlay(this);   // and shows them: travelers, lit events
+    this.physics = new PhysicsStudio(this);   // boards with physics on: their marks fall, roll and swing (src/physics)
     this.shortcuts = new Shortcuts(this);
     this.userActions = new UserActions(this);   // (the keys and clicks you make, and what they do: View → Show user actions)
     this.registerPanels();
@@ -1865,6 +1869,7 @@ export class Workbench {
     const doc = this.store.doc, b = boardById(doc, id);
     if (this.presenting && this.presentPaused) return false;   // the presentation's pause: every board holds
     if (!b || b.paused || b.hidden) return false;   // paused by hand (or hidden): stays paused, even while you are on it
+    if (this.physics?.has(b.id) || b.physics?.on) return true;   // a board with physics runs (its marks move)
     if (this.scoreBoards().has(b.id)) return true;   // a board with a score runs (and sounds) unless paused: the play button is its mute, Opt+click its solo
     if (b.id === (this.activeBoard || MAIN) || b.live) return true;
     // On a frame (a slide), or on a board inside one (its notes, its code): the boards the frame holds are live together.
@@ -2586,7 +2591,7 @@ export class Workbench {
       { label: 'Command palette', keys: this.shortcuts.label('app.palette'), run: () => openPalette(this) },
       { label: 'Docs', keys: this.shortcuts.label('app.docs'), run: () => this.openDocs() },
       '-',
-      { label: 'Toolbar', hint: 'Which sections of the toolbar to show', items: TOOLBAR_SECTIONS.filter(([id]) => id !== 'frame' || !this.overlay).map(([id, name, hint]) => ({ icon: menuBox(this.toolbarOn(id)), label: name, hint, run: () => this.setToolbarSection(id, !this.toolbarOn(id)) })) },
+      { label: 'Toolbar', hint: 'Which sections of the toolbar to show', items: [...TOOLBAR_SECTIONS.filter(([id]) => id !== 'frame' || !this.overlay).map(([id, name, hint]) => ({ icon: menuBox(this.toolbarOn(id)), label: name, hint, run: () => this.setToolbarSection(id, !this.toolbarOn(id)) })), ...(this.physicsToolbar ? ['-', { icon: menuBox(this.physicsToolbar.shown), label: 'Physics toolbar', hint: 'Its own island: physics for the board you are on (play, step, reset, hinges, motors, springs)', run: () => this.physicsToolbar.toggle() }] : [])] },
       { label: 'Panels', hint: 'Show or hide a panel', items: [
         ...[...this.docks.panels.values()].filter(p => !['settings', 'shortcuts'].includes(p.id)).map(p => { const on = Boolean(this.docks.state.panels[p.id]?.open); return { icon: menuBox(on), label: p.title, run: () => (on ? this.docks.close(p.id, { hide: true }) : this.docks.open(p.id)) }; }),
         '-',

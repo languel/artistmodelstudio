@@ -25,7 +25,7 @@ const chan = ch => clampI(ch, 1, 16) - 1;
 export const FIELDS = ['t', 'type', 'x', 'y', 'nx', 'ny', 'u', 'speed', 'p', 'dir', 'lat', 'tag', 'traveler', 'trigger', 'data', 'other'];
 
 /** Names of the helpers (the code compiled from `emit` gets these in scope). */
-export const HELPER_NAMES = ['out', 'note', 'notef', 'cc', 'ccf', 'bend', 'program', 'panic', 'release', 'map', 'clamp', 'lane', 'quant', 'snap', 'step', 'noteName', 'noteNumber', 'rng', 'launch', 'kill', 'spawn', 'effect', 'arrive', 'route', 'state', 'beats', 'seconds'];
+export const HELPER_NAMES = ['out', 'note', 'notef', 'cc', 'ccf', 'bend', 'program', 'panic', 'release', 'map', 'clamp', 'lane', 'quant', 'snap', 'step', 'noteName', 'noteNumber', 'rng', 'launch', 'kill', 'spawn', 'effect', 'arrive', 'route', 'state', 'beats', 'seconds', 'impulse', 'motor'];
 
 /**
  * The helpers for one event. `out(msg)` receives { t, bytes }; `ctx` is the time context
@@ -85,6 +85,9 @@ export function musicHelpers({ out, ctx, event, api }) {
     noteName, noteNumber,
     rng: api.rng, launch: api.launch, kill: api.kill, spawn: api.spawn, effect: api.effect, state: api.state,
     beats: n => seconds(`${n} beats`), seconds,
+    /** Physics (a board with physics on): push a body (pixels a second, as a change of speed: [x, y]); set a hinge's motor (degrees a second). */
+    impulse: (id, v) => api.effect({ type: 'impulse', id, v: Array.isArray(v) ? v : [v?.x || 0, v?.y || 0] }),
+    motor: (id, speed, torque) => api.effect({ type: 'motor', id, speed: Number(speed) || 0, torque }),
     /** out(name, value): publish a number (or a short string) under a name, for hosts and other marks to read. */
     out: (name, value) => publish(name, value, at)
   };

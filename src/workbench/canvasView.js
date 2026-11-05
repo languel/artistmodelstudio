@@ -216,7 +216,8 @@ export class CanvasView {
     ctx.fillStyle = css.getPropertyValue('--wb-canvas').trim() || '#1b1c1f';
     ctx.fillRect(0, 0, this.w, this.h);
     this.drawGrid(false);
-    const doc = this.previewDoc || this.store.doc;   // a take being played shows its own document
+    const doc0 = this.previewDoc || this.store.doc;   // a take being played shows its own document
+    const doc = this.posed?.(doc0) || doc0;   // (physics: the moving marks where they are now)
     const boards = boardsOf(doc);
     // Boards with a mask or effects (opt-in) are composed apart, and drawn on top of the rest (see masks.js).
     const composed = this.composer ? boards.filter(b => b.kind !== 'frame' && !b.hidden && this.composer.needs(b)) : [];
@@ -892,6 +893,8 @@ export class CanvasView {
       c.setPointerCapture(e.pointerId);
       const [sx, sy] = this.local(e);
       const [wx, wy] = this.toWorld(sx, sy);
+      // Placing something with one click (a hinge, a weld, a spring's ends: the physics toolbar), whatever the tool.
+      if (this.placeOnce) { const f = this.placeOnce; this.placeOnce = null; this.updateCursor(); f(...this.snapPt(wx, wy), e); return; }
       // The board being worked on is drawn live (not baked) while the pointer is down.
       this.workBoard = boardAt(this.store.doc, wx, wy)?.id || BLACKBOARD;
       let tool = this.getTool();
@@ -1874,6 +1877,7 @@ export class CanvasView {
   }
 
   updateCursor() {
+    if (this.placeOnce) { this.canvas.style.cursor = 'crosshair'; return; }   // (placing with one click)
     if (this.previewDoc && !this.overdub) { this.canvas.style.cursor = 'grab'; return; }   // (a take shown: it pans)
     const t = this.getTool();
     this.canvas.style.cursor = this.space || t === 'hand' ? 'grab' : t === 'select' || t === 'direct' ? 'default' : t === 'note' ? 'text' : t === 'sculpt' ? 'none' : 'crosshair';

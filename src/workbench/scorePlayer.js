@@ -67,6 +67,8 @@ export class ScorePlayer {
    * mark where it says (board coordinates) that fades and goes after `life` seconds. Live changes: no undo steps.
    */
   applyEffects(list, board) {
+    // (physics: a push or a motor, for the board's world)
+    for (const f of list) if (f.type === 'impulse' || f.type === 'motor') this.app.physics?.effect(f, board.id);
     const marks = list.filter(f => f.type === 'mark' && Number.isFinite(f.x) && Number.isFinite(f.y)).slice(0, 12);   // (a burst is not allowed to flood the page)
     if (!marks.length) return;
     const ids = [];
@@ -141,6 +143,38 @@ export class ScorePlayer {
     entry.world.step(3);   // (what it sends on arrives a little later: it is heard too)
     this.play(msgs.filter(m => m.t <= 3), 0, 3);
     return msgs.length > 0;
+  }
+
+  /**
+   * A physical mark that is also an event was touched (src/physics): it fires, with how hard (speed, pixels a
+   * second) and where (x, y on its board). Playing: into the running score, at the playhead. Not playing (a world
+   * on its own clock): it sounds now, from a score made of the events only (no travelers set off).
+   */
+  physicsHit(id, data) {
+    const mark = this.rawDoc().elements.find(e => e.id === id);
+    if (!mark?.play?.trigger) return false;
+    const key = triggerIdOf(mark);
+    if (this.runner.active) {
+      const t = this.app.player.position() / 1000;
+      for (const { world } of this.runner.entries) if (world.triggers().some(x => x.id === key)) world.arrive(key, data, t);
+      return true;
+    }
+    this.gm.resume().catch(() => {});
+    let c = this.hitCache;
+    if (!c || c.rev !== this.app.store.rev) {
+      const settings = this.app.player.settings, ctx = timeContext(settings), msgs = [], raw = this.rawDoc();
+      const events = { ...raw, elements: raw.elements.filter(e => !e.play?.travel && !e.play?.body) };
+      const entries = buildEntries(events, settings, { helpers: (event, api) => musicHelpers({ out: m => msgs.push(m), ctx, event, api }) });
+      c = this.hitCache = { rev: this.app.store.rev, entries, msgs, t: 0 };
+    }
+    const entry = c.entries.find(e => e.world.triggers().some(x => x.id === key));
+    if (!entry) return false;
+    c.msgs.length = 0;
+    entry.world.arrive(key, data, c.t);
+    entry.world.step(c.t + 2); entry.world.take();
+    this.play(c.msgs.filter(m => m.t <= c.t + 2), c.t, 2);
+    c.t += 2;
+    return true;
   }
 
   /** Send messages (times in seconds from `from`) to the outputs, from now, squeezed into at most `span` seconds. */

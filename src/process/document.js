@@ -464,6 +464,7 @@ export class ProcessStore {
       if (id === MAIN) {
         if ('title' in patch) d.artboard.title = patch.title;
         for (const k of ['width', 'height', 'ground', 'text', 'code', 'pseudo', 'kind']) if (k in patch) { if (patch[k] === '' || patch[k] == null || (k === 'kind' && patch[k] === 'drawing')) delete d.artboard[k]; else d.artboard[k] = patch[k]; }
+        if ('physics' in patch) { if (patch.physics) d.artboard.physics = { ...(d.artboard.physics || {}), ...patch.physics }; else delete d.artboard.physics; }   // (the board's physics world: src/physics/model.js)
         for (const k of BOARD_FLAGS) if (k in patch) { if (patch[k]) d.artboard[k] = true; else delete d.artboard[k]; }
         if ('rate' in patch) { if (rateOf(patch)) d.artboard.rate = rateOf(patch); else delete d.artboard.rate; }
         patchFx(d.artboard, patch); patchLayer(d.artboard, patch);
@@ -476,6 +477,7 @@ export class ProcessStore {
         for (const e of d.elements) if (e.board === id) e.points = e.points.map(([x, y, t, p]) => [x + dx, y + dy, t, p]);
       }
       for (const k of ['title', 'ground', 'width', 'height', 'x', 'y']) if (k in patch) b[k] = patch[k];
+      if ('physics' in patch) { if (patch.physics) b.physics = { ...(b.physics || {}), ...patch.physics }; else delete b.physics; }
       for (const k of BOARD_FLAGS) if (k in patch) { if (patch[k]) b[k] = true; else delete b[k]; }
       if ('rate' in patch) { if (rateOf(patch)) b.rate = rateOf(patch); else delete b.rate; }
       patchFx(b, patch); patchLayer(b, patch);

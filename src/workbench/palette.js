@@ -30,6 +30,12 @@ export function buildCommands(app) {
     cmd('Record', 'Timeline', () => app.docks.open('timeline')),
     cmd('View', 'Reset layout', () => app.docks.reset()),
     cmd('View', 'Show user actions', () => app.userActions?.toggle(), '', 'The keys and clicks you make, and what they do: an overlay for teaching, demos and recordings'),
+    cmd('Physics', 'Physics toolbar', () => app.physicsToolbar?.toggle(), '', 'Its own island: physics for the board you are on'),
+    cmd('Physics', 'Physics on for this board', () => { app.physics?.setWorld(app.activeBoard || 'main', {}); app.physicsToolbar?.show(); }, '', 'What is drawn on the board falls, rolls and collides (closed marks fall, open lines are ground)'),
+    cmd('Physics', 'Physics off for this board', () => app.physics?.setWorld(app.activeBoard || 'main', null)),
+    cmd('Physics', 'Physics: play / pause', () => app.physics?.toggle()),
+    cmd('Physics', 'Physics: reset', () => app.physics?.reset()),
+    cmd('Physics', 'Physics: apply pose', () => app.physics?.applyPose()),
     cmd('View', 'Classic studio', () => { window.location.href = '/classic.html'; })
   ];
   for (const [id, label, key] of app.toolList || []) out.push(cmd('Tool', label, () => app.setTool(id), key));

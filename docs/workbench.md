@@ -343,6 +343,20 @@ The Score panel is a code editor (CodeMirror): line numbers, wrapping, folding, 
 
 The full vocabulary is in the Score panel (**Vocabulary**), in the Docs, and in `ams_vocabulary` for agents.
 
+## Physics
+
+A board can be **physical**, as in Algodoo: turn physics on for it (the **physics toolbar**: Menu → Toolbar → Physics toolbar, or the palette's *Physics on for this board*) and what is drawn on it falls, rolls and collides. Closed marks (planes, circles, closed lines) are bodies that fall; open lines and gestures are ground (ramps, walls, bowls); points are small balls; notes, pictures, guides and a score's paths and travelers stay out. Round closed marks collide as circles, other closed ones as their convex outline, open ones as their stroke (as thick as it is drawn). The board's floor and sides hold things in.
+
+**The toolbar** (its own island; move it by its grip): physics on (click it again for the world: gravity, speed, scale, precision, the floor and sides, off) · **play / pause** · **step** a frame · **reset** (back to the drawing) · **apply pose** (where things are now becomes the drawing, one undo step) · the **clock** · **Hinge** (click on something to pin it there, or where two things overlap to join them) · **Motor** (a hinge that turns: click on a wheel) · **Weld** (glues the two things under it) · **Spring** (click one end, then the other) · what the selection **is** · the **debug** view (colliders, joints).
+
+**Two clocks.** *Timeline*: the world follows the playhead (play, pause, scrub, the loop region, In/Out); scrubbing back restores the nearest checkpoint and replays to there, so a run is the same every time. *Free*: its own clock, for when there is no transport: play, pause, step, reset. Either way, at time 0 the drawing is as drawn; past it, the bodies are drawn where they are (the drawing itself does not change until you apply the pose).
+
+**Properties → Physics** (a mark on a physical board): what it is (as drawn, falls, ground, kinematic, a sensor, not physical), its shape (as drawn, circle, box, convex, outline) and material (density, friction, bounce, damping, spin). A hinge: its motor (speed in degrees a second, torque) and limits; a spring: stiffness, damping and length.
+
+**Events.** A physical mark that is also an event (Play → event) fires when it is touched, at the point of contact, with how hard (`speed`, pixels a second) and where (`x`, `y`): `note(1, 72, map(speed, [0, 800], [40, 127]))` rings louder the harder it is hit. A blip shows where. Score code can act back: `impulse('ball', [0, -400])` kicks a body, `motor('axle', 240)` sets a motor. A traveler set to *kinematic* follows its path as a solid thing and pushes what is in the way.
+
+Physics runs in a worker (Rapier 2D, deterministic, loaded only when a board turns physics on); the marks keep everything (`play.phys`, `play.hinge`, `play.weld`, `play.spring`; the board's `physics`). The plan and what comes next: `docs/notes/physics.md`.
+
 ## Sources
 
 Sources are the project's streams: the camera, and images and videos from Assets. Later they will include other data. The **Sources** panel (left dock) lists them by name, and every scene and board shares them.
