@@ -9,6 +9,8 @@
  *   (await import('/src/workbench/lessonEval.js')).run(app, { use: 'ask' | 'alt' })
  */
 import { SCRIPT_REFERENCE } from '../process/script.js';
+import { examplesFor } from './codeExamples.js';
+import { fixCode } from './codeFix.js';
 
 // Examples of the idioms (the loop, reading a picture, keeping only some marks), on other pictures and shapes than the tasks.
 export const SYSTEM = `You write short programs in a drawing studio's own language (JavaScript). Reply with ONE fenced js code block and nothing else.
@@ -17,6 +19,8 @@ Only the things listed here exist; do not invent others (no brush(), stage(), wa
 - Marks: point(x, y, { size, color }). line(points, { color, width }) with points like [[x, y], [x, y]]. plane(points, { color }) a closed shape; rect(x, y, w, h) and circle(cx, cy, r) give points for plane or line. note(x, y, text).
 - Loops: for (const i of range(n)) { ... }. random() is 0 to 1; random(a, b). Math, sin, cos, PI, TAU work.
 - Pictures: const s = source('name'). s.color(x, y) is the picture's color at a place, already a color string: pass it straight in, point(x, y, { color: s.color(x, y) }). s.value(x, y) is its brightness, 0 (dark) to 1 (light). A source can be read with source('name', { fit: 'contain' }).
+- Sizes (point size, line width) are in board units, like width and height (a board is often 800 wide). For a grid of square cells: cell = width / cols, rows = Math.round(cols * height / width), and a dot as big as its cell has size cell.
+- "Lighter" or "brighter than t" means s.value(x, y) > t; "darker than t" means s.value(x, y) < t. "Darker gets bigger" means the size grows as 1 - s.value(x, y).
 - A number a person may want to change gets a range comment: const n = 60 /* 10..120 */.
 
 Examples:
@@ -39,19 +43,33 @@ for (const i of range(3000)) {
 \`\``;
 
 export const TASKS = [
-  { id: 'grid-dots', lesson: 'sampling', board: '1 · Sample: a color at a place', source: 'seurat',
+  { id: 'grid-dots', lesson: 'sampling', boardId: 'sample', board: '1 · Sample: a color at a place', source: 'seurat',
     ask: 'Draw a grid of dots, 6 columns by 4 rows. Each dot has size 90 and takes its color from the painting named seurat at the dot\'s place.',
     alt: 'Make 6 across and 4 down of big round points (size 90), spaced evenly over the board, painted with whatever color the "seurat" picture has underneath each one.' },
-  { id: 'dots-size', lesson: 'sampling', board: '2 · Dots on a grid', source: 'seurat',
+  { id: 'dots-size', lesson: 'sampling', boardId: 'grid', board: '2 · Dots on a grid', source: 'seurat',
     ask: 'A grid of dots: 60 columns, and as many rows as fit the board\'s shape. The color comes from the painting named seurat; the size is bigger where the painting is darker (cell size times 1.3 minus its brightness).',
     alt: 'Cover the board in a 60-column grid of dots, rows chosen so the cells are square. Sample the "seurat" image for each dot\'s color, and let darker places get larger dots.' },
-  { id: 'scattered', lesson: 'sampling', board: '3 · Scattered dots', source: 'seurat',
+  { id: 'scattered', lesson: 'sampling', boardId: 'scatter', board: '3 · Scattered dots', source: 'seurat',
     ask: 'Put 9000 dots at random places, each of size 7, each colored from the painting named seurat at its place.',
     alt: 'Scatter nine thousand little points (size 7) at random across the board, every one taking the color of the "seurat" picture where it lands.' },
-  { id: 'light-walk', lesson: 'sampling', board: '7 · A pointillist walk', source: 'walk',
+  { id: 'light-walk', lesson: 'sampling', boardId: 'walkdots', board: '7 · A pointillist walk', source: 'walk',
     ask: 'Using the source named walk (fit: contain), put 12000 dots at random places but keep one only where the picture is lighter than 0.3. Dot size is 2 plus 8 times how much lighter than 0.3 it is; color #1d1b19.',
     alt: 'Draw 12000 random candidate points; only where the "walk" picture (letterboxed) has brightness above 0.3 keep the dot, bigger for brighter places, in near-black #1d1b19.' }
 ];
+
+// Not lesson boards: other pictures of the same kind of thing, checked by what they must contain (no reference picture).
+export const HELD_OUT = [
+  { id: 'rings', source: 'seurat', expect: { min: 8, max: 8 }, ask: 'Draw 8 concentric circles around the middle of the board, from small to large, each one drawn as a line (not filled) with the color of the painting named seurat at the point on its right edge.', alt: 'Eight rings, nested around the center, the smallest tiny and the biggest nearly touching the edge; ring colors sampled from the "seurat" picture along the horizontal line through the middle.' },
+  { id: 'sun', source: null, expect: { min: 13, max: 40 }, ask: 'A sun: one circle in the upper middle of the board as a plane filled gold (#f2c14e), with 12 straight rays around it as lines.', alt: 'Draw a sun made of a filled yellow disc near the top center and twelve short lines radiating outward from it evenly.' },
+  { id: 'stripes', source: 'seurat', expect: { min: 20, max: 20 }, ask: 'Twenty vertical stripes across the whole board side by side, each a tall thin rectangle (plane) with the color of the painting named seurat at the middle of the stripe.', alt: 'Cut the board into 20 vertical bands, full height, each filled with the color the "seurat" image has at the center of that band.' }
+];
+
+/** The system prompt for a request: the reference, then the lesson boards most like what is asked (never the one being reproduced). */
+export async function systemFor(request, exclude = [], { k = 2 } = {}) {
+  if (!k) return SYSTEM;
+  const ex = await examplesFor(request, { k, exclude });
+  return ex.length ? `${SYSTEM}\n\nWorked examples from the studio's lessons, close to what was asked:\n${ex.map(e => `\`\`\`js\n${e.code}\n\`\`\``).join('\n')}` : SYSTEM;
+}
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -80,45 +98,54 @@ export async function ensureLesson(app, id) {
   return have();
 }
 
-export async function runTask(app, task, { use = 'ask', maxTokens = 700, repairs = 2 } = {}) {
-  await ensureLesson(app, task.lesson);
-  const board = drawing(app, task.board);
+export async function runTask(app, task, { use = 'ask', maxTokens = 700, repairs = 2, examples = 0 } = {}) {
+  const held = !task.board;   // (a held-out task has no lesson board to compare with)
+  if (!held) await ensureLesson(app, task.lesson);
+  const board = held ? { width: 800, height: 600 } : drawing(app, task.board);
   // (the lesson's own board is run first, so there is a picture to compare with)
-  if (!app.store.doc.elements.some(e => e.board === board.id) && board.code) { await window.ams.callTool('ams_board', { action: 'code', id: board.id, source: board.code }, { quiet: true }); await wait(400); }
+  if (!held && !app.store.doc.elements.some(e => e.board === board.id) && board.code) { await window.ams.callTool('ams_board', { action: 'code', id: board.id, source: board.code }, { quiet: true }); await wait(400); }
   const A = app.artists.get(window.__evalEngine || 'lfm3') || app.artists.get('lfm3');
   const t0 = performance.now();
   const out = { id: task.id, use, ran: false, usesSource: false, marks: 0, wanted: 0, alike: 0, blank: 0, ms: 0, error: null };
-  out.wanted = app.store.doc.elements.filter(e => e.board === board.id).length;
+  out.wanted = held ? task.expect.min : app.store.doc.elements.filter(e => e.board === board.id).length;
   const fresh = (await window.ams.callTool('ams_board', { action: 'add', title: `eval · ${task.id}`, width: board.width, height: board.height }, { quiet: true }));
   const id = fresh.id || app.store.doc.boards.find(b => b.title === `eval · ${task.id}`)?.id;
   try {
-    let reply = await A.complete({ system: SYSTEM, user: task[use], maxTokens });
+    const system = await systemFor(task[use], task.lesson ? [`${task.lesson}/${task.boardId}`] : [], { k: examples });
+    let reply = await A.complete({ system, user: task[use], maxTokens });
     // Write, run, and when it fails show the model what the studio said and let it fix it (twice at most).
     for (out.tries = 1; ; out.tries++) {
-      out.code = codeOf(reply); out.error = null; out.ran = false;
-      try { await window.ams.callTool('ams_board', { action: 'code', id, source: out.code }, { quiet: true }); out.ran = true; } catch (err) { out.error = err.message; }
+      const fixed = fixCode(codeOf(reply)); out.code = fixed.code; out.fixes = fixed.fixes; out.error = null; out.ran = false;
+      try {
+        const res = await window.ams.callTool('ams_board', { action: 'code', id, source: out.code }, { quiet: true });
+        // (the studio reports a broken program as { error, line }, not as an exception; a program that draws nothing is a failure too)
+        if (res?.error) out.error = `${res.error}${res.line ? ` (line ${res.line})` : ''}`;
+        else if (!res?.marks) out.error = 'It ran, but drew nothing: every mark needs point(), line() or plane(), and rect() and circle() only give points.';
+        else out.ran = true;
+      } catch (err) { out.error = err.message; }
       if (out.ran || out.tries > repairs) break;
-      reply = await A.complete({ system: SYSTEM, user: `${task[use]}\n\nYour code:\n\`\`\`js\n${out.code}\n\`\`\`\nThe studio says: ${out.error}\nFix it, using only the functions listed. Reply with the corrected code block.`, maxTokens });
+      reply = await A.complete({ system, user: `${task[use]}\n\nYour code:\n\`\`\`js\n${out.code}\n\`\`\`\nThe studio says: ${out.error}\nFix it, using only the functions listed. Reply with the corrected code block.`, maxTokens });
     }
-    out.usesSource = new RegExp(`source\\(\\s*['"\`]${task.source}['"\`]`).test(out.code);
+    out.usesSource = task.source ? new RegExp(`source\\(\\s*['"\`]${task.source}['"\`]`).test(out.code) : true;
     await wait(300);
     out.marks = app.store.doc.elements.filter(e => e.board === id).length;
+    if (held) throw Object.assign(new Error('held'), { held: true });
     const [a, b] = [await pixels(app, board.id), await pixels(app, id)];
     out.alike = +alike(a, b).toFixed(3);
     // (what a board with nothing on it would score: the floor)
     const empty = (await window.ams.callTool('ams_board', { action: 'add', title: `eval · empty`, width: board.width, height: board.height }, { quiet: true }));
     out.blank = +alike(a, await pixels(app, empty.id || app.store.doc.boards.find(x => x.title === 'eval · empty')?.id)).toFixed(3);
     await window.ams.callTool('ams_board', { action: 'delete', id: empty.id || app.store.doc.boards.find(x => x.title === 'eval · empty')?.id, deleteMarks: true }, { quiet: true }).catch(() => {});
-  } catch (err) { out.error = out.error || err.message; }
+  } catch (err) { if (!err.held) out.error = out.error || err.message; }
   out.ms = Math.round(performance.now() - t0);
   out.score = out.blank < 1 ? +Math.max(0, (out.alike - out.blank) / (1 - out.blank)).toFixed(2) : null;   // (0: as unlike as an empty board; 1: the same picture)
-  out.pass = out.ran && out.usesSource && out.marks > 0 && out.marks >= out.wanted * 0.5 && out.marks <= out.wanted * 2;
+  out.pass = held ? out.ran && out.usesSource && out.marks >= task.expect.min && out.marks <= task.expect.max : out.ran && out.usesSource && out.marks > 0 && out.marks >= out.wanted * 0.5 && out.marks <= out.wanted * 2;
   await window.ams.callTool('ams_board', { action: 'delete', id, deleteMarks: true }, { quiet: true }).catch(() => {});
   return out;
 }
 
-export async function run(app, { use = 'ask', only = null, repairs = 2 } = {}) {
+export async function run(app, { use = 'ask', only = null, repairs = 2, examples = 0 } = {}) {
   const results = [];
-  for (const t of TASKS) { if (only && !only.includes(t.id)) continue; results.push(await runTask(app, t, { use, repairs })); }
+  for (const t of [...TASKS, ...HELD_OUT]) { if (only && !only.includes(t.id)) continue; results.push(await runTask(app, t, { use, repairs, examples })); }
   return { use, passed: results.filter(r => r.pass).length, of: results.length, results };
 }
