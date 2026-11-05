@@ -263,3 +263,10 @@ project (shared: Assets, brush & sculpt libraries, settings)
 - **Everything as code:** brushes, sculpt tools, board code and more are forkable code, and agents can reach everything through MCP.
 - **Names:** project > scene > board > stage and marks.
 - **Commits:** gated on the build and tests. Commit and push when the user asks. The end-of-work reports went out as artifacts.
+
+## To do (added 5 Nov 2026, from testing the assistant and the Guide)
+
+- **Guide pointer in the accent color, glowing**, so it is not mistaken for the user's own cursor (`guide.js`: `ARROW` uses `--wb-guide-body` / `--wb-guide-fill`; the halo is `.wb-guide-halo`).
+- **Options for the Agent card** (it is easy to lose among the panels): position (corner, dock, floating), size, opacity, and a mode where the caption **follows the pointer** as subtitles or a thought bubble attached to it, narrating each action. Not a priority.
+- **Chat mode (not the `/` field) copies its prompt's format placeholders:** the model replied `{"say": "what you tell the user", …}`. `systemPrompt()` in `panels/assistant.js` shows the reply format with placeholder text; a small model copies it. Give it concrete examples like the quick field's, or the narrow prompt, for small models.
+- **Lesson reproduction evals** (`lessonEval.js`): get a small model to rewrite the sampling lesson's boards from descriptions; see docs/quick-commands.md.

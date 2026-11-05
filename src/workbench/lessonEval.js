@@ -70,8 +70,11 @@ async function pixels(app, board, n = 48) {
 }
 const alike = (a, b) => { let d = 0; for (let i = 0; i < a.length; i += 4) d += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]); return 1 - d / ((a.length / 4) * 765); };
 
+/** The board that holds the lesson's drawing code (the slide frame and the notes board have the same title). */
+export const drawing = (app, title) => app.store.doc.boards.find(b => b.title === title && b.code && !b.kind);
+
 export async function ensureLesson(app, id) {
-  const have = () => app.store.doc.boards.find(b => b.title === TASKS.find(t => t.lesson === id).board);
+  const have = () => drawing(app, TASKS.find(t => t.lesson === id).board);
   if (!have()) { const { buildLesson } = await import('./lessons.js'); await buildLesson(app, id); }
   await app.sources.whenReady?.(undefined, 15000);
   return have();
@@ -79,7 +82,7 @@ export async function ensureLesson(app, id) {
 
 export async function runTask(app, task, { use = 'ask', maxTokens = 700, repairs = 2 } = {}) {
   await ensureLesson(app, task.lesson);
-  const board = app.store.doc.boards.find(b => b.title === task.board);
+  const board = drawing(app, task.board);
   // (the lesson's own board is run first, so there is a picture to compare with)
   if (!app.store.doc.elements.some(e => e.board === board.id) && board.code) { await window.ams.callTool('ams_board', { action: 'code', id: board.id, source: board.code }, { quiet: true }); await wait(400); }
   const A = app.artists.get(window.__evalEngine || 'lfm3') || app.artists.get('lfm3');
