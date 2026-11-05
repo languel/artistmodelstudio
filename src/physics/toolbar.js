@@ -17,6 +17,7 @@ export const PHYS_ICONS = {
   play: svg('<path d="M7 5l12 7-12 7z" fill="currentColor"/>'),
   pause: svg('<path d="M8 5v14M16 5v14" stroke-width="2.4"/>'),
   step: svg('<path d="M6 5l9 7-9 7z" fill="currentColor"/><path d="M18 5v14" stroke-width="2.2"/>'),
+  rewind: svg('<path d="M12 5l-8 7 8 7z" fill="currentColor"/><path d="M21 5l-8 7 8 7z" fill="currentColor"/>'),
   reset: svg('<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/>'),
   apply: svg('<path d="M5 12.5l4.5 4.5L19 7"/>'),
   hinge: svg('<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>'),
@@ -93,7 +94,8 @@ export function mountPhysicsToolbar(app) {
     if (!shown) return;
     const st = P()?.boards.get(id), running = P()?.running(id);
     // (rebuilt only when what it shows changes: frames only move the time, so its buttons stay put under the pointer)
-    const sig = JSON.stringify([id, w, running, Boolean(st?.n), Boolean(P()?.debug)]);
+    const rewinding = Boolean(P()?.rewinding(id));
+    const sig = JSON.stringify([id, w, running, rewinding, Boolean(st?.n), Boolean(P()?.debug)]);
     if (sig === built && timeEl?.isConnected) { timeEl.textContent = `${(st?.t || 0).toFixed(2)} s`; return; }
     built = sig;
     const items = [
@@ -105,8 +107,9 @@ export function mountPhysicsToolbar(app) {
     if (w) {
       items.push(
         h('div', { class: 'wb-sep' }),
+        btn(PHYS_ICONS.rewind, `${rewinding ? 'Stop rewinding' : 'Rewind: run the world backwards (twice as fast) to its start'}${w.clock === 'free' ? '' : ' (the Timeline\'s playhead goes back with it)'}`, () => P().rewind(id), { on: rewinding, disabled: !st?.n && !rewinding }),
         btn(running ? PHYS_ICONS.pause : PHYS_ICONS.play, `${running ? 'Pause' : 'Play'}${w.clock === 'free' ? ' (its own clock)' : ' (the Timeline)'}`, () => P().toggle(id), { on: running }),
-        btn(PHYS_ICONS.step, 'Step one frame (1/60 s)', () => P().step(id)),
+        btn(PHYS_ICONS.step, 'Step one frame (1/60 s); Shift: one frame back', ev => P().step(id, ev?.shiftKey ? -1 : 1)),
         btn(PHYS_ICONS.reset, 'Reset: back to the drawing', () => P().reset(id)),
         btn(PHYS_ICONS.apply, 'Apply pose: where things are now becomes the drawing (one undo step)', () => { if (!P().applyPose(id)) app.canvas.flash('Nothing has moved yet'); }, { disabled: !st?.n }),
         h('select', { class: 'wb-select wb-phys-clock', title: 'Its clock: the Timeline\'s playhead (play, scrub, loop) or its own (free-running)', onchange: e => P().setWorld(id, { clock: e.target.value }) },

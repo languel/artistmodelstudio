@@ -163,4 +163,16 @@ describe('physics: the engine', () => {
     expect(frames[1][2]).toBeGreaterThan(frames[0][2]);
     host.drop('main');
   });
+
+  it('rewinding frame by frame gives the same poses as going straight there, and forward again is the same', () => {
+    const scene = physicsScene(doc([
+      ...[0, 1, 2, 3].map(i => ({ id: `b${i}`, role: 'plane', points: circle(380 + i * 41, 120 - i * 70, 22) })),
+      { id: 'ramp', role: 'line', points: [[100, 500, 0, .5], [900, 650, 0, .5]] }
+    ]))[0];
+    const core = createCore(R, scene), straight = (t) => [...createCore(R, scene).to(t).poses];
+    const forward = [...core.to(3).poses];
+    for (let t = 3; t > 0.5; t -= 0.12) expect([...core.to(t).poses]).toEqual(straight(t));   // (a rewind: restore a checkpoint, replay to there)
+    expect([...core.to(3).poses]).toEqual(forward);   // and forward again, the same
+    core.free();
+  });
 });

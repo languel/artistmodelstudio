@@ -15,6 +15,8 @@ import { physicsScene, physicsOf, placeAt, jointKind } from './model.js';
 import { boardById, MAIN } from '../process/boards.js';
 
 export const STEP = 1 / 60;
+/** How fast rewind runs: twice the speed of time. */
+export const REWIND_SPEED = 2;
 const BLIP = 0.5;   // seconds a contact's blip lasts
 
 export class PhysicsStudio {
@@ -22,6 +24,7 @@ export class PhysicsStudio {
     this.app = app;
     this.boards = new Map();   // board id → { scene, key, moving, poses: Map id → { x, y, a }, n, t, clock }
     this.free = new Map();     // board id → { running, t } (the free clock)
+    this.reverse = new Map();  // board id → { at } (worlds being rewound: their clock runs backwards)
     this.blips = [];
     this.listeners = new Set();
     this.host = createPhysicsHost({
@@ -64,7 +67,7 @@ export class PhysicsStudio {
       this.boards.set(id, next);
       this.host.load(id, scene);
     }
-    for (const id of [...this.boards.keys()]) if (!seen.has(id)) { this.host.drop(id); this.boards.delete(id); this.app.canvas.invalidate(); }
+    for (const id of [...this.boards.keys()]) if (!seen.has(id)) { this.host.drop(id); this.boards.delete(id); this.reverse.delete(id); this.app.canvas.invalidate(); }
     this.emit();
     this.loop();
   }
@@ -111,11 +114,13 @@ export class PhysicsStudio {
 
   freeClock(id) { if (!this.free.has(id)) this.free.set(id, { running: false, t: 0, at: 0 }); return this.free.get(id); }
 
-  /** A world is running: its clock moves. */
+  /** A world is running forwards: its clock moves. */
   running(id) {
     const w = this.boards.get(id)?.scene.world;
-    return Boolean(w && (w.clock === 'free' ? this.freeClock(id).running : this.app.player.playing));
+    return Boolean(w && !this.reverse.has(id) && (w.clock === 'free' ? this.freeClock(id).running : this.app.player.playing));
   }
+  /** A world is being rewound. */
+  rewinding(id) { return this.reverse.has(id); }
 
   request(id, force = false) {
     const st = this.boards.get(id);
@@ -126,22 +131,36 @@ export class PhysicsStudio {
     this.host.to(id, t);
   }
 
-  onTransport() { for (const [id, st] of this.boards) if (st.scene.world.clock !== 'free') this.request(id); this.loop(); this.emit(); }
+  onTransport() {
+    // (play pressed on the Timeline while a world is being rewound with it: forwards again)
+    if (this.app.player.playing) for (const id of [...this.reverse.keys()]) if (this.boards.get(id)?.scene.world.clock !== 'free') this.reverse.delete(id);
+    for (const [id, st] of this.boards) if (st.scene.world.clock !== 'free') this.request(id);
+    this.loop(); this.emit();
+  }
 
   /** One loop while anything runs: advance the free clocks, ask the worlds for the time. */
   loop() {
-    if (this.raf) return;
+    if (this.raf || this.ticking) return;   // (a tick that seeks the playhead is told of it: that must not start a second loop)
     const tick = now => {
-      this.raf = 0;
+      this.raf = 0; this.ticking = true;
       let any = false;
       for (const [id, st] of this.boards) {
-        if (st.scene.world.clock === 'free') {
+        const rev = this.reverse.get(id);
+        if (rev) {
+          // Rewinding: the clock runs down (the Timeline's playhead, or the world's own) to the start, and stops there.
+          const dt = Math.min(0.1, (now - (rev.at || now)) / 1000) * REWIND_SPEED;
+          rev.at = now; any = true;
+          if (st.scene.world.clock === 'free') { const c = this.freeClock(id); c.t = Math.max(0, c.t - dt); if (c.t <= 0) this.reverse.delete(id); }
+          else { const p = this.app.player; p.seek(Math.max(0, p.t - dt * 1000)); if (p.t <= 0) this.reverse.delete(id); }
+          if (!this.reverse.has(id)) this.emit();
+        } else if (st.scene.world.clock === 'free') {
           const c = this.freeClock(id);
           if (c.running) { c.t += Math.min(0.1, (now - (c.at || now)) / 1000); c.at = now; any = true; }
         } else if (this.app.player.playing) any = true;
         this.request(id);
       }
       if (this.blips.length) this.app.canvas.invalidate();   // (the blips fade)
+      this.ticking = false;
       if (any || this.blips.length) this.raf = requestAnimationFrame(tick);
     };
     this.raf = requestAnimationFrame(tick);
@@ -177,18 +196,31 @@ export class PhysicsStudio {
   /** Play or pause a board's world (its free clock; with the transport, the transport). */
   toggle(id = this.app.activeBoard || MAIN) {
     const st = this.boards.get(id); if (!st) return;
-    if (st.scene.world.clock === 'free') { const c = this.freeClock(id); c.running = !c.running; c.at = performance.now(); this.loop(); this.emit(); }
+    const wasRewinding = this.reverse.delete(id);   // (play while rewinding: forwards from here)
+    if (st.scene.world.clock === 'free') { const c = this.freeClock(id); c.running = wasRewinding || !c.running; c.at = performance.now(); this.loop(); this.emit(); }
+    else if (wasRewinding) this.app.player.play();
     else this.app.player.toggle();
+  }
+  /** Rewind: the world runs backwards (twice as fast) to its start, silently; again, or play, stops it where it is. */
+  rewind(id = this.app.activeBoard || MAIN) {
+    const st = this.boards.get(id); if (!st) return;
+    if (this.reverse.delete(id)) { this.emit(); return; }
+    if (!st.n && !(st.scene.world.clock !== 'free' && this.app.player.t > 0)) return;   // (already at the start)
+    if (st.scene.world.clock === 'free') this.freeClock(id).running = false; else this.app.player.pause();
+    this.reverse.set(id, { at: performance.now() });
+    this.loop(); this.emit();
   }
   /** One frame on (pausing first). */
   step(id = this.app.activeBoard || MAIN, frames = 1) {
     const st = this.boards.get(id); if (!st) return;
-    if (st.scene.world.clock === 'free') { const c = this.freeClock(id); c.running = false; c.t += frames * STEP / (st.scene.world.speed || 1); this.request(id, true); this.emit(); }
+    this.reverse.delete(id);
+    if (st.scene.world.clock === 'free') { const c = this.freeClock(id); c.running = false; c.t = Math.max(0, c.t + frames * STEP / (st.scene.world.speed || 1)); this.request(id, true); this.emit(); }
     else { const p = this.app.player; p.pause(); p.seek(p.t + (frames * STEP * 1000) / (st.scene.world.speed || 1)); }
   }
   /** Back to the start: the drawing as drawn. */
   reset(id = this.app.activeBoard || MAIN) {
     const st = this.boards.get(id); if (!st) return;
+    this.reverse.delete(id);
     if (st.scene.world.clock === 'free') { const c = this.freeClock(id); c.running = false; c.t = 0; this.request(id, true); this.emit(); }
     else this.app.player.stop();
   }

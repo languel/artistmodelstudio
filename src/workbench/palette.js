@@ -34,6 +34,8 @@ export function buildCommands(app) {
     cmd('Physics', 'Physics on for this board', () => { app.physics?.setWorld(app.activeBoard || 'main', {}); app.physicsToolbar?.show(); }, '', 'What is drawn on the board falls, rolls and collides (closed marks fall, open lines are ground)'),
     cmd('Physics', 'Physics off for this board', () => app.physics?.setWorld(app.activeBoard || 'main', null)),
     cmd('Physics', 'Physics: play / pause', () => app.physics?.toggle()),
+    cmd('Physics', 'Physics: rewind', () => app.physics?.rewind(), '', 'The world runs backwards, twice as fast, to its start (again: stops where it is)'),
+    cmd('Physics', 'Physics: step back one frame', () => app.physics?.step(undefined, -1)),
     cmd('Physics', 'Physics: reset', () => app.physics?.reset()),
     cmd('Physics', 'Physics: apply pose', () => app.physics?.applyPose()),
     cmd('View', 'Classic studio', () => { window.location.href = '/classic.html'; })
