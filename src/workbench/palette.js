@@ -58,6 +58,10 @@ export function buildCommands(app) {
     cmd('Script', `${sc.title}: export as an MP4 video`, () => app.script.exportVideo(sc.id), '', 'Plays the script in a browser of its own (no tab to share), mixes the narration in, fades to black, and saves an MP4 and its subtitles in exports/video. Needs the dev server, ffmpeg and Chrome'),
     cmd('Script', `${sc.title}: keep in Assets (plays from there)`, () => app.script.saveAsset(sc.id), '', 'The script as an asset: open it in the Assets panel to play it in a scene that has the lesson'));
   out.push(
+    cmd('Timeline', 'Voice the narration (make audio from the Narration track)', () => app.voiceNarration?.(), '', 'Each Narration clip becomes sound on the Audio track where it starts, in the narrator voice; kept in Assets'),
+    cmd('Script', 'Narration voice: LFM3-Omni (one model that also listens and writes)', () => { app.narrator.engine = 'lfm3'; app.log('Narration now uses LFM3-Omni (WebGPU). The first line downloads the model.'); }),
+    cmd('Script', 'Narration voice: Kokoro (small, fast, wasm)', () => { app.narrator.engine = 'kokoro'; app.log('Narration now uses Kokoro.'); }),
+    cmd('Script', 'Narration voice (LFM3): female / male, language…', () => { const cur = app.narrator.lfmVoice, v = window.prompt('LFM3 voice, as “Language / gender”, for example “American English / male”, “British English / female”, “French / female”', cur); if (v && /\//.test(v)) app.narrator.lfmVoice = v.trim(); }),
     cmd('Script', 'Narration on (scripts are spoken)', () => { app.narrator.on = true; app.log('Narration on: scripts are spoken, in the narrator voice.'); }),
     cmd('Script', 'Narration off (subtitles only)', () => { app.narrator.on = false; app.log('Narration off: scripts play with subtitles only.'); }),
     cmd('Script', 'Narrator voice…', async () => {

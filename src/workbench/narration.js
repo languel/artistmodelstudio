@@ -53,6 +53,12 @@ export class Narrator {
 
   get on() { return get(KEY.on, '1') !== '0'; }
   set on(v) { set(KEY.on, v ? '1' : '0'); }
+  /** Which voice makes the lines: 'kokoro' (82M, ONNX, wasm) or 'lfm3' (LFM3-Omni, WebGPU: one model that also writes and listens). */
+  get engine() { return get('ams_narration_engine', 'kokoro') === 'lfm3' ? 'lfm3' : 'kokoro'; }
+  set engine(v) { set('ams_narration_engine', v === 'lfm3' ? 'lfm3' : 'kokoro'); }
+  /** The LFM3 voice: a language name and a gender, as its prompt asks for them ("American English / female"). */
+  get lfmVoice() { return get('ams_narration_lfm_voice', 'American English / female'); }
+  set lfmVoice(v) { set('ams_narration_lfm_voice', v); }
   get voice() { return get(KEY.voice, DEFAULT_VOICE); }
   set voice(v) { set(KEY.voice, v); }
   get speed() { return Math.min(1.5, Math.max(0.6, Number(get(KEY.speed, '1')) || 1)); }
@@ -104,7 +110,9 @@ export class Narrator {
 
   /** The clip for a line: from memory, from Assets, or made now. → { buffer, duration, hash } */
   async clip(shown, { voice = this.voice, speed = this.speed, folder = 'Narration', onProgress } = {}) {
-    const text = pronounce(shown), hash = clipHash(KOKORO, voice, speed, text), ctx = this.audio();
+    const lfm = this.engine === 'lfm3', modelId = lfm ? 'LFM3-Omni' : KOKORO, vname = lfm ? this.lfmVoice : voice;
+    // (LFM3 reads plain words: a [word](/ipa/) pronunciation mark keeps the word and drops the sounds)
+    const text = lfm ? shown.replace(/\[([^\]]+)\]\(\/[^/]+\/\)/g, '$1') : pronounce(shown), hash = clipHash(modelId, vname, speed, text), ctx = this.audio();
     const mem = this.buffers.get(hash);
     if (mem && this.blobs.has(hash)) return { buffer: mem, duration: mem.duration, hash, blob: this.blobs.get(hash) };
     const known = await this.known(), id = known.get(hash);
@@ -114,18 +122,44 @@ export class Narrator {
         if (a?.blob) { const buffer = await ctx.decodeAudioData(await a.blob.arrayBuffer()); this.buffers.set(hash, buffer); this.blobs.set(hash, a.blob); return { buffer, duration: buffer.duration, hash, blob: a.blob }; }
       } catch { /* made again below */ }
     }
-    await this.load(onProgress);
-    const r = await this.call({ type: 'generate', text, options: { voice, speed } });
-    const samples = r.audio, rate = r.samplingRate;
+    let samples, rate;
+    if (lfm) {
+      const art = this.app.artists.get('lfm3'), [language, gender] = vname.split(' / ');
+      await art.ensureLoaded(t => onProgress?.(t));
+      ({ samples, rate } = await art.speak(text, { language, gender }));
+    } else {
+      await this.load(onProgress);
+      const r = await this.call({ type: 'generate', text, options: { voice, speed } });
+      samples = r.audio; rate = r.samplingRate;
+    }
     const wav = new Blob([encodeWav(samples, rate)], { type: 'audio/wav' });
     const buffer = await ctx.decodeAudioData(await wav.arrayBuffer());
     this.buffers.set(hash, buffer); this.blobs.set(hash, wav);
     wav.kindHint = 'audio'; wav.durationMs = Math.round(buffer.duration * 1000);   // (how the Assets list knows to draw an audio card)
     try {
-      const a = await this.app.assetStore.add(wav, { title: `Narration · ${shown.slice(0, 48)}`, kind: 'audio', folder, tags: ['narration', 'kokoro', voice], meta: { narration: true, hash, text, voice, speed, model: KOKORO, duration: buffer.duration } });
+      const a = await this.app.assetStore.add(wav, { title: `Narration · ${shown.slice(0, 48)}`, kind: 'audio', folder, tags: ['narration', lfm ? 'lfm3' : 'kokoro', vname], meta: { narration: true, hash, text, voice: vname, speed, model: modelId, duration: buffer.duration } });
       known.set(hash, a.id);
     } catch { /* kept in memory only */ }
     return { buffer, duration: buffer.duration, hash, blob: wav };
+  }
+
+  /**
+   * Narration into sound: every `say` clip of a take that has no voice yet becomes an audio clip on the Audio track at the same time
+   * (made by the voice engine in use, kept in Assets). Returns the audio clips made; the caller adds them to the take.
+   * onLine(i, n, text) as each is made.
+   */
+  async audioForTake(take, { onLine } = {}) {
+    const says = (take?.clips || []).filter(c => c.track === 'say' && (c.text || '').trim());
+    const out = [];
+    for (let i = 0; i < says.length; i++) {
+      const c = says[i], words = (c.speak || c.text).trim();
+      onLine?.(i, says.length, words);
+      const clip = await this.clip(words);
+      const known = await this.known(), asset = known.get(clip.hash);
+      const src = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(clip.blob); });
+      out.push({ track: 'audio', start: c.start, dur: Math.round(clip.duration * 1000), src, label: words.slice(0, 40), ...(asset ? { asset } : {}), fx: {}, narrates: c.id });
+    }
+    return out;
   }
 
   /** Play a clip. → { ended: Promise, stop() } */

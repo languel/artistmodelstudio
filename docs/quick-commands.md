@@ -106,3 +106,22 @@ What the gaps were and how each was bridged (more prompt examples were the *wors
 - **The model's own settings fill the fields** (`OllamaArtist.recommended()` reads `/api/show`: temperature, top_p, top_k, min_p, num_ctx). Unset, a field shows what the model recommends (tagged *model*, hover for the others, which Ollama applies by itself since we send no override) and the request omits the temperature; with no recommendation it falls back to 0.4 (chat) or 0.1 (quick field). Typing a value overrides it; ↺ goes back. Other engines (OpenRouter, OpenAI-compatible) have no such metadata here, so they use the fallbacks. Models that advertise `tools`, `audio` or `speech` in `ollama show` (lfm3-omni does) could also do native tool calls and dictation; not used yet. It does not use Steps or Remember: it keeps no history, gets one retry after a failed call, and has its own token cap.
 - **Agent (MCP):** the Assistant panel does nothing (it says to drive the tools over MCP). The engine only serves the Generate panel (`ams_pending` → `ams_answer`). The Asking settings are dimmed and off for it.
 - **Favorites** are per engine, but the model menu shows all of them. *Remove a favorite* in that menu lists every one with ✕; an Ollama model that is no longer installed is marked.
+
+## LFM3-Omni in the browser (engine `lfm3`)
+
+`src/artists/Lfm3WebGPUArtist.js`: Liquid AI's LFM3-Omni-2B on WebGPU, one model for text, tool calls, listening and speaking. Pick it in the model menu or Settings › Model (*LFM3-Omni (this browser)*). The runtime is Liquid's own WebGPU library, imported at run time from their demo Space (pinned to a commit; **not copied into the repo: its licence is not stated**); the weights are `LiquidAI/LFM3-Omni-2B-GGUF` (LFM Open License v1.0), downloaded once and kept by the browser. Needs WebGPU (Chrome, Edge).
+
+- `complete({system, user})`: text, what the chat and the `/` field use. Text is greedy (the model card's recommendation).
+- `chat({messages, tools})`: native tool calls (OpenAI-style specs, `role: "tool"` results, rounds until it stops calling).
+- `speak(text, {language, gender})` → 24 kHz samples; the prompt is `Perform TTS in <language> using a <gender> voice.` with `audio_temperature` 0.4 and `audio_repetition_penalty` 1.2 (the card's recommendations).
+- `transcribe(samples16k)`: `Perform ASR in English.`
+- The first use shows the download in the chat's spinner line (`ams-engine-status` events).
+
+### Speech out
+
+- **Narration voice** (palette): *Narration voice: LFM3-Omni* or *Kokoro*; *Narration voice (LFM3)* picks the language and gender ("American English / female"). Both make the same kind of clip (an audio Asset, found again by a hash that includes the engine and voice), so scripts and the timeline use whichever is chosen. A `[word](/ipa/)` mark keeps the word and drops the sounds for LFM3.
+- **Narration → audio track**: Timeline › add › *Voice the narration* (or the palette command): every Narration (`say`) clip becomes an audio clip on the Audio track at the same time, with its waveform, kept in Assets (Narration). Run again after editing: only lines without a voice are made (`narrates` links the clip to its line).
+
+## Chat that reads like a conversation
+
+The Assistant shows what you said (the context line and attachments travel with the message but stay out of the bubble; hover for them) and what it said. Its tool calls are not shown: a spinner line (`⠋ working`) while it works, then nothing (a failed call leaves one line, "✗ 1 did not work"). For debugging, ⋯ › *Show tool details* (or Settings › Model › Tool details) shows each call and result under every reply; they are always in the request log (`ams_requests`).

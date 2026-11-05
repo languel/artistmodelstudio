@@ -283,7 +283,8 @@ export function mountTimeline(root, app) {
       { label: 'Camera keyframe (current view)', run: () => add({ track: 'camera', start: t, dur: 800, ...viewNow() }) },
       { label: 'Hold (2 s from here)', hint: 'Push everything after the playhead 2 s later', disabled: !P().take?.clips.length, run: () => { for (const c of P().take.clips) if (c.start >= t) c.start += 2000; edited(); } },
       '-',
-      { label: 'Audio file…', hint: 'A sound or voiceover (played in the standalone player)', run: pickAudio }
+      { label: 'Audio file…', hint: 'A sound or voiceover (played in the standalone player)', run: pickAudio },
+      { label: 'Voice the narration', hint: 'Turns the Narration clips into sound on the Audio track, in the narrator voice (Palette: Narration engine)', run: voiceNarration }
     ];
   };
   const viewNow = () => {
@@ -291,6 +292,20 @@ export function mountTimeline(root, app) {
     const fit = Math.min(cv.w / ab.width, cv.h / ab.height);
     return { cx: (cv.w / 2 - cv.cam.x) / cv.cam.z / ab.width, cy: (cv.h / 2 - cv.cam.y) / cv.cam.z / ab.height, z: cv.cam.z / fit };
   };
+  /** Narration → sound: each Narration clip gets a voice, laid on the Audio track where it starts (again: only lines without one are made). */
+  const voiceNarration = async () => {
+    const take = ensureTake(), say = take.clips.filter(c => c.track === 'say' && (c.text || '').trim());
+    if (!say.length) { app.log('There is no narration on this take to voice: add a Narration clip first.'); return; }
+    const have = new Set(take.clips.filter(c => c.narrates).map(c => c.narrates));
+    const todo = { ...take, clips: take.clips.filter(c => !have.has(c.id)) };
+    try {
+      const made = await app.narrator.audioForTake(todo, { onLine: (i, n, t) => app.log(`Voicing ${i + 1} of ${n}: ${t.slice(0, 50)}${t.length > 50 ? '…' : ''}`) });
+      for (const m of made) { m.id = clipId(); m.wave = await waveFor(m.src); take.clips.push(m); }
+      edited();
+      app.log(made.length ? `Voiced ${made.length} line${made.length > 1 ? 's' : ''} (${app.narrator.engine === 'lfm3' ? 'LFM3-Omni' : 'Kokoro'}): they are on the Audio track, and in Assets (Narration).` : 'Every narration line already has its voice.');
+    } catch (err) { app.log(`Narration: ${err.message}`, 'error'); }
+  };
+  app.voiceNarration = voiceNarration;
   const pickAudio = () => {
     const input = h('input', { type: 'file', accept: 'audio/*' });
     input.addEventListener('change', async () => {

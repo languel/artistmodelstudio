@@ -7,6 +7,7 @@
  */
 import { h } from '../workbench/ui.js';
 import { showMenu } from '../workbench/menu.js';
+import { glyphSelect } from '../workbench/glyphSelect.js';
 import { MAIN } from '../process/boards.js';
 import { BODY_TYPES, physicsOf, candidatesAt, canBePhysical } from './model.js';
 
@@ -18,6 +19,8 @@ export const PHYS_ICONS = {
   pause: svg('<path d="M8 5v14M16 5v14" stroke-width="2.4"/>'),
   step: svg('<path d="M6 5l9 7-9 7z" fill="currentColor"/><path d="M18 5v14" stroke-width="2.2"/>'),
   rewind: svg('<path d="M12 5l-8 7 8 7z" fill="currentColor"/><path d="M21 5l-8 7 8 7z" fill="currentColor"/>'),
+  clockTimeline: svg('<path d="M3 18h18M6 18v-3M10 18v-3M14 18v-3M18 18v-3"/><path d="M12 4v11"/><path d="M9.5 4h5L12 7.2z" fill="currentColor"/>'),
+  clockFree: svg('<circle cx="12" cy="13.5" r="6.5"/><path d="M12 10v3.8l2.6 1.6"/><path d="M9.5 3.5h5"/>'),
   reset: svg('<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/>'),
   apply: svg('<path d="M5 12.5l4.5 4.5L19 7"/>'),
   hinge: svg('<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>'),
@@ -116,8 +119,8 @@ export function mountPhysicsToolbar(app) {
         btn(PHYS_ICONS.step, 'Step one frame (1/60 s); Shift: one frame back', ev => P().step(id, ev?.shiftKey ? -1 : 1)),
         btn(PHYS_ICONS.reset, 'Reset: back to the drawing', () => P().reset(id)),
         btn(PHYS_ICONS.apply, 'Apply pose: where things are now becomes the drawing (one undo step)', () => { if (!P().applyPose(id)) app.canvas.flash('Nothing has moved yet'); }, { disabled: !st?.n }),
-        h('select', { class: 'wb-select wb-phys-clock', title: 'Its clock: the Timeline\'s playhead (play, scrub, loop) or its own (free-running)', onchange: e => P().setWorld(id, { clock: e.target.value }) },
-          h('option', { value: 'transport', selected: w.clock !== 'free' }, 'Timeline'), h('option', { value: 'free', selected: w.clock === 'free' }, 'Free')),
+        // The clock: the menu has a glyph and a name for each; the button shows only the glyph of the one in use (its name is the tooltip).
+        glyphSelect([['transport', 'Timeline'], ['free', 'Free']], w.clock === 'free' ? 'free' : 'transport', v => P().setWorld(id, { clock: v }), { title: 'Its clock: the Timeline\'s playhead (play, scrub, loop) or its own (free-running)', compact: true, glyph: v => (v === 'free' ? PHYS_ICONS.clockFree : PHYS_ICONS.clockTimeline) }),
         timeEl = h('span', { class: 'wb-phys-time', title: 'Where the world is: seconds of simulation' }, `${(st?.t || 0).toFixed(2)} s`),
         h('div', { class: 'wb-sep' }),
         btn(PHYS_ICONS.hinge, 'Hinge: click on something to pin it there, or where two things overlap to join them', () => place('hinge')),
