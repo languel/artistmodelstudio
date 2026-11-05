@@ -68,3 +68,7 @@ The default is the browser's when it has one. Devices come from `inputs.js` (sha
 ## Waveforms
 
 `src/workbench/waveform.js`: `analyse` keeps 100 min/max/loudness slices a second; `drawWave` paints any stretch one column a pixel, as an envelope with the loudness inside. Audio clips on the Timeline use it (`clip.wave`, made on demand, also for files added with "Audio file…"); the audio lane is 40 px tall.
+
+## The microphone as a source
+
+Sources panel › the mic button (or `ams_source add {kind: 'mic'}`). `micSource.js` makes the microphone a source like the camera: its picture is the spectrum now (low pitches left, loud at the top, the wave drawn over it), so `source('mic').value(x, y)`, `.color(x, y)`, a board showing it, and the Sources preview all work. Sound-only extras on the sampler: `.level` (0..1) and `.bands(n)` (n loudness values, low to high). It shares the stream with dictation and lecture recording (`inputs.js`). It is not in exported sketches. The built-in browser pane of the Claude app blocks microphones: test in Chrome.

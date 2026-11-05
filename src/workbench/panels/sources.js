@@ -9,6 +9,7 @@ import { icon } from '../icons.js';
 import { QUALITIES } from '../mediaUrl.js';
 import { STREAM_SAMPLES } from '../streamSamples.js';
 
+const MICICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/></svg>';
 const SPEEDS = [['0', 'paused'], ['0.25', '¼×'], ['0.5', '½×'], ['1', '1×'], ['2', '2×'], ['4', '4×']];
 const SAMPLING = [['continuous', 'continuous'], ['interval', 'every…'], ['hold', 'hold']];
 
@@ -23,7 +24,7 @@ export function mountSources(el, app) {
     thumbs.clear();
     const list = h('div', { class: 'wb-list' });
     for (const d of S.list) {
-      const thumb = h('canvas', { class: `wb-source-thumb${S.paused(d.name) ? ' paused' : ''}`, width: 88, height: 64, title: `${d.kind === 'camera' ? 'Camera' : 'From Assets'}: source('${d.name}')${S.paused(d.name) ? ' · paused: no live board on screen uses it' : ''}` });
+      const thumb = h('canvas', { class: `wb-source-thumb${S.paused(d.name) ? ' paused' : ''}`, width: 88, height: 64, title: `${d.kind === 'camera' ? 'Camera' : d.kind === 'mic' ? 'Microphone (spectrum; .level and .bands(n) in code)' : 'From Assets'}: source('${d.name}')${S.paused(d.name) ? ' · paused: no live board on screen uses it' : ''}` });
       thumbs.set(d.name, thumb);
       const name = editable(h('span', { class: 'wb-source-name', title: `source('${d.name}') · Shift+double-click to rename` }, d.name), `source:${d.name}`, () => d.name, v => S.rename(d.name, v.trim().replace(/\s+/g, '-')));
       const row = h('div', { class: 'wb-source', draggable: 'true', title: `source('${d.name}') · drag onto the canvas for a board showing it` },
@@ -31,7 +32,7 @@ export function mountSources(el, app) {
         h('div', { class: 'wb-source-main' },
           name,
           h('div', { class: 'wb-source-ctl' },
-            d.kind === 'camera' || d.kind === 'board' ? '' : selectField(SPEEDS, String(d.speed ?? 1), v => S.update(d.name, { speed: Number(v) }), 'Playback speed of the clip (the board that draws from it redraws at its own rate)'),
+            d.kind === 'camera' || d.kind === 'mic' || d.kind === 'board' ? '' : selectField(SPEEDS, String(d.speed ?? 1), v => S.update(d.name, { speed: Number(v) }), 'Playback speed of the clip (the board that draws from it redraws at its own rate)'),
             selectField(SAMPLING, d.sampling, v => { S.update(d.name, { sampling: v }); render(); }, 'Sampling: every frame, every few seconds, or one frame held'),
             d.sampling === 'interval' ? h('input', { class: 'wb-num', type: 'number', min: 0.1, step: 0.5, value: d.interval, title: 'Seconds between samples', onchange: e => S.update(d.name, { interval: Math.max(0.1, Number(e.target.value) || 2) }) }) : '')),
         h('button', { class: 'wb-icon-btn', title: 'Remove the source (its asset stays)', html: icon('trash'), onclick: () => { S.remove(d.name); } }));
@@ -61,6 +62,7 @@ export function mountSources(el, app) {
     url.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') go(); });
     el.append(list, h('div', { class: 'wb-row wb-row-actions' }, samples), h('div', { class: 'wb-row wb-row-actions' }, url, quality, h('button', { class: 'wb-icon-btn', title: 'Add the address as a source', html: icon('plus'), onclick: go })), h('div', { class: 'wb-row wb-row-actions' },
       h('button', { class: 'wb-icon-btn', title: 'Add the camera', html: icon('camera'), onclick: () => add({ kind: 'camera' }) }),
+      h('button', { class: 'wb-icon-btn', title: 'Add the microphone: its spectrum is a picture, and source(\'mic\').level and .bands(n) give the loudness', html: MICICON, onclick: () => add({ kind: 'mic' }) }),
       pick));
     paint();
   };

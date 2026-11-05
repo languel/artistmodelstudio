@@ -13,6 +13,7 @@ import { LiveSource, SourceSampler } from '../fitting/referenceSource.js';
 import { setSourceProvider } from '../process/streams.js';
 import { bodyFrom, expressionsOf } from '../process/gestures.js';
 import { isVideoUrl } from './mediaUrl.js';
+import { micLive } from './micSource.js';
 import { boardLive } from './boardSource.js';
 
 const KEY = 'ams_sources_v1';
@@ -55,11 +56,11 @@ export class Sources {
   /** Whether a source is paused (nothing live needs it). */
   paused(name) { return Boolean(this.entries.get(name)?.paused); }
 
-  /** Add a source: { kind: 'camera' } or { kind: 'asset', assetId }. Returns its name. */
+  /** Add a source: { kind: 'camera' } or { kind: 'mic' } or { kind: 'asset', assetId }. Returns its name. */
   async add({ kind, assetId, name, sampling = 'continuous', interval = 2, url, mediaKind, meta, lazy = false, boardId }) {
     const asset = kind === 'asset' ? await this.app.assetStore.get(assetId) : null;
     if (kind === 'asset' && !asset) throw new Error('No such asset');
-    const d = { name: this.uniqueName(name || (kind === 'camera' ? 'cam' : String(asset?.title || 'source').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'source')), kind, ...(assetId ? { assetId } : {}), ...(boardId ? { boardId } : {}), ...(url ? { url, mediaKind, ...(meta ? { meta } : {}) } : {}), ...(lazy ? { lazy: true } : {}), sampling, interval };
+    const d = { name: this.uniqueName(name || (kind === 'camera' ? 'cam' : kind === 'mic' ? 'mic' : String(asset?.title || 'source').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'source')), kind, ...(assetId ? { assetId } : {}), ...(boardId ? { boardId } : {}), ...(url ? { url, mediaKind, ...(meta ? { meta } : {}) } : {}), ...(lazy ? { lazy: true } : {}), sampling, interval };
     this.defs.push(d);
     this.save();
     if (lazy) return d.name;   // a lazy stream starts when a board that shows it is on screen and big enough (see wake)
@@ -100,6 +101,7 @@ export class Sources {
     const e = { def: d, frame: document.createElement('canvas'), data: null, version: 0, landmarks: {}, want: new Map(), busy: false, sampler: new SourceSampler({ mode: d.sampling, interval: d.interval }) };
     this.entries.set(d.name, e);
     if (d.kind === 'camera') e.live = await LiveSource.webcam();
+    else if (d.kind === 'mic') e.live = await micLive();
     else if (d.kind === 'board') e.live = boardLive(this.app, d.boardId);   // a board's picture, live
     else if (d.kind === 'url' && isVideoUrl(d)) e.live = await LiveSource.video(d.url, { crossOrigin: true });   // streamed
     else {
@@ -283,6 +285,9 @@ export class Sources {
         const [u, v] = toSrc(fx, fy);
         return m.data[Math.max(0, Math.min(m.h - 1, Math.floor(v * m.h))) * m.w + Math.max(0, Math.min(m.w - 1, Math.floor(u * m.w)))] || 0;
       },
+      // A microphone: its loudness now (0..1) and n loudness values from low to high pitch (0 for any other source).
+      get level() { return e.live?.kind === 'mic' ? e.live.level : 0; },
+      bands: n => (e.live?.kind === 'mic' ? e.live.bands(n) : new Array(n || 8).fill(0)),
       pixels: (w, h) => {
         const out = new Float32Array(w * h * 3);
         for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const c = rgb((x + 0.5) / w, (y + 0.5) / h); const i = (y * w + x) * 3; out[i] = c[0]; out[i + 1] = c[1]; out[i + 2] = c[2]; }
