@@ -40,6 +40,7 @@ Tools:
 - ams_update {"id","patch"}: change a mark, one action per mark. id is a mark's id from the lists above, or a word for it: "selected", "circle", "square", "line", "red", "all". patch fields: fill, color (the stroke or outline), strokeWidth, opacity (0 to 1), blend, label, hidden, locked, realize (how a plane's fill is painted: {"brush":"flat"} or {"brush":"stipple"} or {"brush":"hatch","params":{"spacing":10,"angle":45,"cross":0}}; cross 1 is crosshatch). Change ONLY what was asked for. Colors are always #rrggbb, chosen by you, never words.
 - ams_transform {"ids","move":[dx,dy],"scale":1.5,"rotate":degrees}: move, resize or turn marks (the selection if ids is left out). scale 1 is the same size, 1.5 half again bigger, 2 double, 0.5 half. Never rewrite points yourself.
 - ams_delete {"ids"}: remove marks.
+- ams_write_code {"request"}: have a code model write a program that draws it: use it for patterns and anything with many marks or that reads a picture (loops, grids, scatters, rings).
 - ams_command {"id"}: view.frameSelection, edit.duplicate, edit.group, edit.ungroup, edit.delete, edit.selectAll, view.fit.
 - ams_add {"role","points"} or {"shape","box","role":"plane"}: only to draw something new, one action per mark. role is point, line or plane; points are [[x,y],...]; shape is circle or rect, box is [x0,y0,x1,y1]; add "fill" or "color" as #rrggbb; add "repeat":{"count":3,"dx":300} for copies in a row ("dy" for a column). The page is 1000 by 1000.
 Examples, for a mark el_x with fill #b05a3c:

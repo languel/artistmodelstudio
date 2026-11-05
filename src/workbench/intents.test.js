@@ -69,4 +69,11 @@ describe('instant phrases', () => {
     expect(say('add a red dot', false)).toMatchObject({ do: 'create', shape: 'point' });
     expect(say('three round shapes side by side', false)).toMatchObject({ do: 'create', shape: 'circle', count: 3 });
   });
+  it('asking for a program', () => {
+    for (const t of ['write code for a spiral of 200 points', 'write a program that scatters 500 dots', 'generate code to draw a grid of circles', 'code a ring of twelve dots', 'make some code for a sun with rays'])
+      expect(say(t, false), t).toMatchObject({ do: 'code' });
+    expect(say('write code for a spiral of 200 points', false).request).toBe('a spiral of 200 points');
+    expect(say('code', false)).toBe(null);
+    expect(say('write code', false)).toBe(null);
+  });
 });
