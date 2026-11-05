@@ -19,7 +19,7 @@ const STYLES = {
   flat: ['flat'], solid: ['flat']
 };
 
-/** { do: 'create', shape: 'circle' | 'rect', fill: hex | null, count?, dir?, said } | { do: 'code', request, said } | { do: 'transform', scale?, move?, said } | { do: 'recolor', pairs: [{ target, hex }], said } | { do: 'style', brush, params, fill, said } | { do: 'paint', which: 'fill' | 'stroke' | 'auto', value: hex | null, said } | { do: 'opacity', value } | { do: 'blend', value } | { do: 'brush', value } | { do: 'flag', key, value } | { do: 'rename', value } | null */
+/** { do: 'create', shape: 'circle' | 'rect', fill: hex | null, count?, dir?, said } | { do: 'line', from, to, said } | { do: 'code', request, said } | { do: 'transform', scale?, move?, said } | { do: 'recolor', pairs: [{ target, hex }], said } | { do: 'style', brush, params, fill, said } | { do: 'paint', which: 'fill' | 'stroke' | 'auto', value: hex | null, said } | { do: 'opacity', value } | { do: 'blend', value } | { do: 'brush', value } | { do: 'flag', key, value } | { do: 'rename', value } | null */
 export function parseIntent(text, { colorOf = toHex, hasSelection = false } = {}) {
   const raw = String(text || '').trim().replace(/^\/+\s*/, '').replace(/^(?:please|can you|could you|just)\s+/i, '').replace(/[\s.!]+$/, '').replace(/\s+please$/i, '');
   const s = raw.toLowerCase().replace(/\s+/g, ' ');
@@ -38,6 +38,17 @@ export function parseIntent(text, { colorOf = toHex, hasSelection = false } = {}
   let m;
   // Asking for a program: "write code for a grid of dots", "code a spiral of points", "write a program that scatters 500 dots".
   if ((m = raw.match(/^(?:(?:please )?(?:write|generate|make|create)(?: me)?(?: (?:some|an?|the))? (?:studio |board )?(?:code|program|script)(?: (?:for|that|to|which|of))?|code(?: up)?|program) (.+)$/i)) && m[1].split(/\s+/).length >= 2) return { do: 'code', request: m[1].trim(), said: m[1].trim().slice(0, 60) };
+  // A line between two places: "a line from the top left to the bottom right", "a diagonal stroke across the page, upper left to lower right", "a horizontal line".
+  if ((m = s.match(/^(?:(?:create|draw|add|make|put)\s+)?(?:me\s+)?(?:(?:an?|the)\s+)?(?:(diagonal|horizontal|vertical|straight|long|thin|thick)\s+)?(line|stroke|diagonal)\b(.*)$/))) {
+    const XY = { left: 100, right: 900, centre: 500, center: 500, middle: 500 }, TB = { top: 100, upper: 100, bottom: 900, lower: 900 };
+    const found = [...(m[3] || '').matchAll(/\b(?:(top|upper|bottom|lower)[ -])?(left|right)\b|\b(top|upper|bottom|lower|centre|center|middle)\b/g)].map(x => (x[2] ? [XY[x[2]], x[1] ? TB[x[1]] : 500] : TB[x[3]] != null ? [500, TB[x[3]]] : [500, 500]));
+    let from = null, to = null;
+    if (found.length >= 2) [from, to] = found;
+    else if (m[1] === 'diagonal' || m[2] === 'diagonal') { from = [100, 100]; to = [900, 900]; }
+    else if (m[1] === 'horizontal') { from = [100, 500]; to = [900, 500]; }
+    else if (m[1] === 'vertical') { from = [500, 100]; to = [500, 900]; }
+    if (from && to && (from[0] !== to[0] || from[1] !== to[1])) return { do: 'line', from, to, said: 'a line' };
+  }
   // Several of a thing: three circles in a row, draw 4 red squares, five dots down the page.
   const NUM = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
   if ((m = s.match(/^(?:(?:create|draw|add|make|put)(?: me)?(?: (?:a )?(?:row|column|line) of)? )?(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)(?: (.+?))? (circles?|round(?: shapes?| things?)?|dots?|squares?|rect(?:angle)?s?|boxes|shapes?)(?: (in a row|side by side|in a line|across the page|next to each other|in a column|in a stack|down the page|in a grid))?$/)) && !(m[4] === undefined && NUM[m[1]] === 1 && !/^(?:create|draw|add|make|put)/.test(s))) {
@@ -118,6 +129,7 @@ export function intentCommand(app, text) {
   if (!intent) return null;
   const category = ids.length ? 'Selection' : 'New marks';
   const cmd = (name, run, extra = {}) => ({ id: `intent:${intent.do}`, category, name, hint: '', keys: '', run, ...extra });
+  if (intent.do === 'line') return cmd(`Draw: ${intent.said}`, () => window.ams.callTool('ams_add', { role: 'line', points: [intent.from, intent.to] }, { quiet: true }));
   if (intent.do === 'code') return cmd(`Write code: ${intent.said}`, () => window.ams.callTool('ams_write_code', { request: intent.request }, { quiet: true }));
   if (intent.do === 'recolor') return cmd(`Colors: ${intent.said}`, async () => { for (const q of intent.pairs) await window.ams.callTool('ams_update', { id: q.target, patch: { fill: q.hex } }, { quiet: true }); });
   if (intent.do === 'create') {

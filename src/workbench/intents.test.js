@@ -76,4 +76,13 @@ describe('instant phrases', () => {
     expect(say('code', false)).toBe(null);
     expect(say('write code', false)).toBe(null);
   });
+  it('a line between two places', () => {
+    for (const t of ['draw a line from the top left to the bottom right', 'a diagonal stroke across the page, upper left to lower right', 'add a diagonal line', 'a diagonal'])
+      expect(say(t, false), t).toMatchObject({ do: 'line', from: [100, 100], to: [900, 900] });
+    expect(say('draw a horizontal line', false)).toMatchObject({ do: 'line', from: [100, 500], to: [900, 500] });
+    expect(say('a vertical line', false)).toMatchObject({ do: 'line', from: [500, 100], to: [500, 900] });
+    expect(say('a line from the left to the right', false)).toMatchObject({ do: 'line', from: [100, 500], to: [900, 500] });
+    expect(say('draw a line from the bottom left to the top right', false)).toMatchObject({ do: 'line', from: [100, 900], to: [900, 100] });
+    for (const t of ['a line', 'draw a line', 'line it up']) expect(say(t, false), t).toBe(null);
+  });
 });
