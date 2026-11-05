@@ -7,7 +7,7 @@ import { EXERCISES } from '../process/exercises.js';
 import { createDocument } from '../process/document.js';
 import { findBoard, MAIN } from '../process/boards.js';
 import { intentCommand } from './intents.js';
-import { attachMic } from './voice.js';
+import { attachMic, looksReady } from './voice.js';
 
 export function buildCommands(app) {
   const cmd = (category, name, run, keys = '', hint = '') => ({ id: `${category}:${name}`, category, name, run, keys, hint });
@@ -196,7 +196,8 @@ export function openPalette(app, { compact = false } = {}) {
   const input = h('input', { class: 'wb-palette-input', placeholder: 'Command, panel, exercise, doc… or ask', spellcheck: 'false' });
   const results = h('div', { class: 'wb-palette-results', role: 'listbox' });
   const bar = h('div', { class: 'wb-palette-bar' }, input);
-  const mic = attachMic(input, { host: bar });
+  let submit = () => {};
+  const mic = attachMic(input, { host: bar, onDone: text => { if (looksReady(text)) submit(); } });
   const card = h('div', { class: 'wb-palette-card' }, bar, results);
   const overlay = h('div', { class: `wb-palette-overlay${compact ? ' compact' : ''}`, onpointerdown: e => { if (e.target === overlay) close(); } }, card);
   // The compact bar: just the field, at the pointer, acting on what is selected (or under the pointer).
@@ -265,10 +266,11 @@ export function openPalette(app, { compact = false } = {}) {
     else if (e.key === 'ArrowUp') { e.preventDefault(); index = index <= 0 ? list.length - 1 : index - 1; mark(); results.children[index]?.scrollIntoView({ block: 'nearest' }); }
     else if (e.key === 'Enter' && mic.active) { e.preventDefault(); mic.stop(); }   // (first Enter ends the dictation; the next one runs it)
     else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && input.value.trim()) { e.preventDefault(); close(); toAssistant(input.value.trim()); }
-    else if (e.key === 'Enter') { e.preventDefault(); if (list[index]) runIt(list[index]); else if (compact) close(); }
+    else if (e.key === 'Enter') { e.preventDefault(); submit(); }
     else if (e.key === 'Escape') { e.preventDefault(); close(); }
     else if (e.key === 'm' && e.altKey) { e.preventDefault(); mic.toggle(); }
   });
+  submit = () => { if (list[index]) runIt(list[index]); else if (compact) close(); };
   document.body.append(overlay);
   const box = card.getBoundingClientRect();
   spot = { x: box.left, y: box.top };

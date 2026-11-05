@@ -94,3 +94,7 @@ What the gaps were and how each was bridged (more prompt examples were the *wors
 | compositions ("a house") | open: needs a bigger model, or a decomposition tool |
 
 `.claude/skills/ams/SKILL.md` is the same knowledge as a skill for capable agents.
+
+## Pause detection (mic)
+
+`voice.js`: dictation stops by itself after a pause and, when what was said looks like a whole request, sends it (the `/` bar runs its top result; the chat sends). `watchPause` listens to the shared level meter: it learns the room's noise in the first 400 ms, notes when speech starts, and ends the dictation after a silence that depends on the words so far: 1.0 s after a full sentence, 1.6 s by default, 3.2 s after a dangling word ("and", "the", "to"…), and gives up after 9 s of no speech. `looksReady` holds back a request that ends mid-thought or is a single word. Only a real speech-then-pause sends; giving up on silence never does (a background voice in the room is transcribed but not run). Right-click the mic: *Stop and send when I pause* turns it off.
