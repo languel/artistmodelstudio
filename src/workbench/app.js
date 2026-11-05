@@ -1554,9 +1554,9 @@ export class Workbench {
     reg('generate', 'Generate', 'sparkles', 'right', mountGenerate);
     reg('assistant', 'Assistant', 'chat', 'right', mountAssistant);
     reg('decide', 'Decide', 'exercise', 'right', mountDecide);
-    reg('docs', 'Docs', 'book', 'right', mountDocs);
     reg('settings', 'Settings', 'gear', 'right', mountSettings);
     reg('shortcuts', 'Shortcuts', 'keyboard', 'right', mountShortcuts);
+    reg('docs', 'Docs', 'help', 'right', mountDocs);   // (a question mark, last in the row)
     reg('timeline', 'Timeline', 'film', 'bottom', mountTimeline);
     reg('mixer', 'Mixer', 'mixer', 'bottom', mountMixer);
     reg('history', 'History', 'history', 'bottom', mountHistory);

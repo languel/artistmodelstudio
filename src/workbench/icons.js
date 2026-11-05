@@ -90,6 +90,7 @@ export const ICONS = {
   mixer: svg('<path d="M6 4v16M12 4v16M18 4v16" opacity=".5"/><rect x="4" y="13" width="4" height="3" rx=".8" fill="currentColor"/><rect x="10" y="7" width="4" height="3" rx=".8" fill="currentColor"/><rect x="16" y="11" width="4" height="3" rx=".8" fill="currentColor"/>'),
   film: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M3 15h18M8 5v4M16 5v4M8 15v4M16 15v4"/>'),
   brush: svg('<path d="M14 4l6 6-7.5 7.5-6-6z"/><path d="M6.5 11.5C4 12 3 14 3 16.5 3 18 2.5 19.5 1.5 20.5c3 0 6.5-.5 8-2 1.3-1.3 1.5-3 1-4.5"/>'),
+  help: svg('<circle cx="12" cy="12" r="9"/><path d="M9.4 9.6a2.6 2.6 0 015.1.6c0 1.8-2.5 2.2-2.5 4"/><circle cx="12" cy="17.4" r="0.7" fill="currentColor" stroke="none"/>'),
   keyboard: svg('<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h1M10 10h1M14 10h1M18 10h0M6 14h1M9 14h6M18 14h0"/>'),
   book: svg('<path d="M4 5.5C4 4.7 4.7 4 5.5 4H11v15H5.5C4.7 19 4 18.3 4 17.5zM20 5.5c0-.8-.7-1.5-1.5-1.5H13v15h5.5c.8 0 1.5-.7 1.5-1.5z"/>'),
   chat: svg('<path d="M4 5h16v11H9l-5 4z"/>'),
