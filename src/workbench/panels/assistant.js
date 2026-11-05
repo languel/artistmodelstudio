@@ -265,7 +265,7 @@ export function mountAssistant(root, app) {
 
   app.assistantAsk = (text, opts) => { input.value = text; return send(opts); };
   /** flow: from the quick command field: act without asking, no guide cursor, undone as one step. Returns { say } or { error }. */
-  const send = async ({ flow = false } = {}) => {
+  const send = async ({ flow = false, visible = false } = {}) => {   // visible: a quick-field request that is acted out (the guide cursor, captions) instead of done quietly
     const text = input.value.trim();
     if (busy && flow) { input.value = ''; return { error: 'Still working on the last request.' }; }
     if (!text || busy) return;
@@ -290,7 +290,7 @@ export function mountAssistant(root, app) {
     let lastSig = '';
     let transcript = flow ? `USER: ${text}` : history.slice(-cfg.history).map(m => `${m.who === 'you' ? 'USER' : m.who === 'bot' ? 'ASSISTANT' : 'RESULTS'}: ${m.text}`).join('\n');
     try {
-      if (flow && artist.chat && localStorage.getItem('ams_native_tools') !== '0') {
+      if (flow && artist.chat && localStorage.getItem('ams_native_tools') === '1') {   // (off unless asked for: LFM3's own tool calling was less reliable than JSON with the brackets repaired; see docs)
         // A model with native tool calling does not write JSON: it calls the tools, and the results go back to it.
         const pending = add('sys', 'Working…', 'pending');
         let res;
@@ -321,7 +321,7 @@ export function mountAssistant(root, app) {
         const results = [];
         for (const a of r.actions.slice(0, 8)) {
           try {
-            const out = await window.ams.callTool(a.tool, a.args || {}, { quiet: flow });
+            const out = await window.ams.callTool(a.tool, visible && r.say && !a.args?.narrate && a === r.actions[0] ? { ...(a.args || {}), narrate: r.say } : (a.args || {}), { quiet: flow && !visible });
             rqCalls.push({ tool: a.tool, args: a.args || {} });
             const brief = JSON.stringify(out ?? null).replace(/"data:image[^"]+"/g, '"<image>"').slice(0, 600);
             results.push(`${a.tool} → ${brief}`);

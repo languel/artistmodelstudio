@@ -109,6 +109,8 @@ export function slashCommands(app) {
 
 function slashAll(app) {
   return [
+    { name: 'agent', args: '<what to do>', doc: 'Have the assistant do it where you can watch: the cursor travels to each control, captions say what and why, and it is kept as an agent run you can replay (⋯ › How did you do that?). Pace: the Guide card (Instant to Slow). Without /agent the / field acts quietly. Also: /show', run: arg => { if (!arg) { app.log('/agent <what to do>, for example: /agent describe the scene'); return; } const at = app.pointerAt || [window.innerWidth / 2, window.innerHeight / 3]; return askInFlow(app, arg, { x: at[0], y: at[1] }, { visible: true }); } },
+    { name: 'show', args: '<what to do>', doc: 'The same as /agent: do it where you can watch', run: arg => slashAll(app).find(s => s.name === 'agent').run(arg) },
     { name: 'background', args: '<color | transparent | default>', doc: 'The workspace behind the boards: a color (#1b1c1f, a name), transparent (for a see-through window over the desktop), or the theme’s own', run: arg => app.setBackground(arg || 'default') },
     { name: 'transparent', args: '', doc: 'See-through workspace (toggle): only the boards, marks and interface show over what is behind the window', run: () => app.setBackground(app.background === 'transparent' ? 'default' : 'transparent') },
     { name: 'ui', args: '<on | off>', doc: 'Show or hide all of the interface', run: arg => app.setUI({ all: arg ? !/^(off|hide|no|0)$/i.test(arg) : !(app.ui?.tools !== false) }) },
@@ -181,13 +183,13 @@ export function rank(app, all, text, ctx = contextOf(app)) {
 }
 
 /** A request to the assistant without leaving the drawing: a chip where the field was, then what it said. Click it for the conversation. */
-async function askInFlow(app, text, { x, y }) {
+async function askInFlow(app, text, { x, y }, { visible = false } = {}) {
   const chip = h('button', { class: 'wb-flow-chip', style: { left: `${x}px`, top: `${y}px` }, title: 'Open the Assistant', onclick: () => { chip.remove(); app.docks.open('assistant'); } }, '…');
   document.body.append(chip);
   // The panel builds itself the first time it is shown: build it without showing it.
   const panel = app.docks.panels.get('assistant');
   if (panel) app.docks.mountBody(panel);
-  const r = app.assistantAsk ? await app.assistantAsk(text, { flow: true }).catch(err => ({ error: err.message })) : { error: 'There is no assistant here.' };
+  const r = app.assistantAsk ? await app.assistantAsk(text, { flow: true, visible }).catch(err => ({ error: err.message })) : { error: 'There is no assistant here.' };
   chip.textContent = r?.error || r?.say || '✓';
   chip.classList.toggle('error', Boolean(r?.error));
   setTimeout(() => chip.remove(), r?.error ? 8000 : r?.say ? 4000 : 1000);

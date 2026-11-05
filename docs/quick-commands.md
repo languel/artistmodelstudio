@@ -133,3 +133,9 @@ The Assistant shows what you said (the context line and attachments travel with 
 ## LFM3 in the browser, tuned (5 Nov 2026)
 
 Reading the reply was the first problem: the model gets the content of its JSON right and the closing brackets wrong (one missing, one too many). `repairJson` (assistant.js) closes what is open, drops what is stray, and ignores text after the object. Evals on LFM3-Omni in the browser, model only: **10/16 → 14/16** (original wording) and **6/16 → 9/16** (held-out wording).
+
+## Watching the assistant work: `/agent` and the Guide
+
+Every tool call goes through `callTool` (mcp.js). **Quiet** calls (the `/` field, flow mode) just act. Others are *shown*: the Guide (`guide.js`) moves a cursor to the control the tool uses, rings the click, and a caption card says what and why (a tool call's `narrate` argument is the caption; without one the studio writes one); the call is logged as `Agent → …`, and the session recorder and the Recorder keep it (an *Agent run* take; ⋯ › *How did you do that?* replays it with the Guide). Pace: the Guide card's menu (Instant, Fast, Normal, Slow).
+
+`/agent <what to do>` (also `/show`) asks the assistant for something and acts it out that way: the same request as the `/` field, but not quiet, with the model's own sentence as the first caption. For tutorials: `/agent` for a live demonstration, an authored walkthrough (`walkthroughs.js`) or script (`script.js`: cues with `say`, `drag`, `click`) for a fixed tour, `ams_sessions replay` to show again what an agent did. The chat's normal mode (not the `/` field) is not quiet either, so its tools are also shown.
