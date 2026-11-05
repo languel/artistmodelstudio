@@ -12,7 +12,7 @@ const MOUSE = '<svg viewBox="0 0 24 32" width="22" height="30" aria-hidden="true
 export class ScriptOverlay {
   constructor() {
     this.sub = h('div', { class: 'wb-sc-sub' });
-    this.keys = h('div', { class: 'wb-sc-keys' });
+    this.keys = h('div', { class: 'wb-ov-keys' });
     this.mouse = h('div', { class: 'wb-sc-mouse', html: MOUSE });
     document.body.append(this.sub, this.keys, this.mouse);
     this.keyTimers = new Set();
@@ -28,7 +28,7 @@ export class ScriptOverlay {
   /** A chord such as "Alt+K" or "Cmd+Shift+S", as keycaps that fade. */
   key(chord, ms = 1400) {
     const parts = String(chord).split('+').map(s => s.trim()).filter(Boolean);
-    const row = h('div', { class: 'wb-sc-key' }, ...parts.map(p => h('kbd', {}, keyLabel(p))));
+    const row = h('div', { class: 'wb-ov-key' }, ...parts.map(p => h('kbd', {}, keyLabel(p))));
     this.keys.append(row);
     while (this.keys.children.length > 4) this.keys.firstChild.remove();
     requestAnimationFrame(() => row.classList.add('on'));

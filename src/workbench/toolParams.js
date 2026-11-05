@@ -6,11 +6,12 @@
 import { h } from './ui.js';
 import { colorField } from './colorPicker.js';
 import { boardsOf } from '../process/boards.js';
+import { openPropertiesPopup } from './propsPopup.js';
 import { icon } from './icons.js';
 import { rangeInput } from './rangeInput.js';
 import { SCULPTS, sculptParams } from '../process/sculpt.js';
 import { BRUSHES, resolveParams, brushesForRole } from '../process/brushes.js';
-import { BLENDS } from '../process/document.js';
+import { BLENDS, ensureFill } from '../process/document.js';
 import { NOTE_FONTS, NOTE_STYLES, noteProps } from '../process/notes.js';
 import { brushIcon } from './icons.js';
 
@@ -28,90 +29,8 @@ function slider({ label, min, max, step, value, doc, onInput }) {
 
 const stepOf = p => p.step || Math.abs(p.max - p.min) / 100 || 0.01;
 
-export function openToolParams(app, x, y) {
-  open?.close();
-  const pop = h('div', { class: 'wb-cp-pop wb-tp' });
-  const rows = [];
-  let title = '', code = null;
-  const sel = app.selectedElements().filter(e => BRUSHES[e.realize?.brush]);
-  const notes = app.selectedElements().filter(e => e.role === 'note');
-
-  if (app.tool === 'sculpt') {
-    const s = app.sculpt, t = SCULPTS[s.tool];
-    const vals = sculptParams(s.tool, s.params[s.tool]);
-    title = `Sculpt · ${t.label}`;
-    code = () => app.openCode?.('sculpt', s.tool);
-    const pick = h('select', { class: 'wb-select', title: 'The sculpt tool' }, ...Object.entries(SCULPTS).map(([id, st]) => h('option', { value: id, selected: id === s.tool }, st.label)));
-    pick.addEventListener('change', () => { app.setSculpt({ tool: pick.value }); openToolParams(app, x, y); });
-    pick.addEventListener('keydown', e => e.stopPropagation());
-    rows.push(
-      h('label', { class: 'wb-tp-row wb-tp-row2' }, h('span', { class: 'wb-tp-label' }, 'Tool'), pick),
-      slider({ label: 'Radius', min: 4, max: 400, step: 1, value: Math.round(s.radius), doc: 'Brush radius in screen pixels ([ and ])', onInput: v => app.setSculpt({ radius: v }) }),
-      slider({ label: 'Strength', min: 0.02, max: 1, step: 0.01, value: s.strength, doc: 'Shift+[ and Shift+]', onInput: v => app.setSculpt({ strength: v }) }),
-      ...t.params.map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => app.setSculpt({ params: { [p.key]: v } }) })));
-  } else if (notes.length || app.tool === 'note') {
-    // Notes: the lettering, size and style, for the selected notes (or for the next one).
-    const ids = notes.map(e => e.id);
-    const p = noteProps(notes[0] || { note: app.defaults('note').note, color: app.defaults('note').color, points: [] });
-    title = notes.length ? `Note${notes.length > 1 ? `s · ${notes.length}` : ''}` : 'New note';
-    const apply = patch => {
-      if (!ids.length) { app.setDefaults('note', { note: { ...(app.defaults('note').note || {}), ...patch } }); return; }
-      const before = JSON.stringify(app.store.doc);
-      for (const e of app.store.doc.elements) if (ids.includes(e.id)) e.note = { ...(e.note || {}), ...patch };
-      app.canvas.invalidate();
-      app.store.commitFrom(before, 'note style');
-      app.setDefaults('note', { note: { ...(app.store.doc.elements.find(e => e.id === ids[0])?.note || {}) } });
-    };
-    const pickOf = (options, value, onPick) => { const s = h('select', { class: 'wb-select' }, ...options.map(([k, l]) => h('option', { value: k, selected: k === value }, l))); s.addEventListener('change', () => onPick(s.value)); s.addEventListener('keydown', e => e.stopPropagation()); return s; };
-    rows.push(
-      h('label', { class: 'wb-tp-row wb-tp-row2' }, h('span', { class: 'wb-tp-label' }, 'Font'), pickOf(Object.entries(NOTE_FONTS).map(([k, [l]]) => [k, l]), p.font, v => apply({ font: v }))),
-      slider({ label: 'Size', min: 6, max: 120, step: 1, value: Math.round(p.size), doc: 'Letter size in artboard units', onInput: v => apply({ size: v }) }),
-      h('label', { class: 'wb-tp-row wb-tp-row2' }, h('span', { class: 'wb-tp-label' }, 'Style'), pickOf(Object.entries(NOTE_STYLES).map(([k, v]) => [k, v.split(':')[0]]), p.style, v => apply({ style: v, bg: undefined, font: undefined, size: undefined }))));
-  } else if (sel.length) {
-    const id = sel[0].realize.brush, b = BRUSHES[id];
-    const ids = sel.filter(e => e.realize.brush === id).map(e => e.id);
-    const vals = resolveParams(id, sel[0].realize.params);
-    title = `${b.label} · ${ids.length} mark${ids.length === 1 ? '' : 's'}`;
-    code = () => app.openCode?.('brush', id);
-    let before = null, timer = 0;
-    rows.push(...b.params.map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => {
-      before ??= JSON.stringify(app.store.doc);
-      for (const e of app.store.doc.elements) if (ids.includes(e.id)) e.realize.params = { ...(e.realize.params || {}), [p.key]: v };
-      app.canvas.invalidate();
-      clearTimeout(timer);
-      timer = setTimeout(() => { const bf = before; before = null; app.store.commitFrom(bf, 'brush param'); }, 350);
-    } })));
-  } else if (app.defaults && ['point', 'line', 'plane', 'circle', 'rect', 'gesture', 'guide', 'brush'].includes(app.tool)) {
-    const role = app.toolRole();   // circle and rectangle make planes: they draw with the plane's looks
-    const d = app.defaults(role), id = d.realize.brush, b = BRUSHES[id];
-    const vals = resolveParams(id, d.realize.params);
-    title = app.tool === 'brush' ? `Brush · ${b?.label || id}` : `New ${app.tool} · ${b?.label || id}`;
-    code = () => app.openCode?.('brush', id);
-    rows.push(...(b?.params || []).map(p => slider({ label: p.label, min: p.min, max: p.max, step: stepOf(p), value: vals[p.key], doc: p.doc, onInput: v => app.setDefaults(role, { realize: { params: { [p.key]: v } } }) })));
-  }
-  // Drawing tools: the lazy pen (an editor setting; it changes how strokes are drawn, not the marks).
-  if (['line', 'plane', 'gesture', 'brush'].includes(app.tool) && app.lazy) {
-    rows.push(h('div', { class: 'wb-tp-sub' }, 'Drawing'),
-      slider({ label: 'Lazy', min: 0, max: 120, step: 1, value: app.lazy.radius, doc: 'The pen trails the cursor on a string this long (screen px); 0 = off', onInput: v => app.setLazy({ radius: v }) }),
-      slider({ label: 'Smoothing', min: 0, max: 0.95, step: 0.01, value: app.lazy.smoothing, doc: 'Eases the pen further (0 = off)', onInput: v => app.setLazy({ smoothing: v }) }),
-      slider({ label: 'Simplify', min: 0, max: 40, step: 0.5, value: app.lazy.simplify || 0, doc: 'On release, points the line does not need are dropped: how far (screen px) the shape may move. 0 = off', onInput: v => app.setLazy({ simplify: v }) }));
-  }
-  if (!rows.length) rows.push(h('div', { class: 'wb-muted wb-small' }, 'No parameters for this tool: select marks, or pick a drawing or sculpt tool.'));
-
-  pop.append(
-    h('div', { class: 'wb-tp-head' }, h('span', {}, title || 'Parameters'), code ? h('button', { class: 'wb-icon-btn', title: 'The same params in code', html: icon('script'), onclick: () => { close(); code(); } }) : null),
-    ...rows);
-  document.body.append(pop);
-  const r = pop.getBoundingClientRect();
-  pop.style.left = `${Math.max(8, Math.min(x, window.innerWidth - r.width - 8))}px`;
-  pop.style.top = `${Math.max(8, Math.min(y, window.innerHeight - r.height - 8))}px`;
-
-  const outside = e => { if (!pop.contains(e.target)) close(); };
-  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
-  const close = () => { pop.remove(); window.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', esc, true); open = null; };
-  setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
-  open = { close };
-}
+/** Properties at the pointer (see propsPopup.js): the marks, the board, or the tool's own settings (sculpt, brush, pen). */
+export function openToolParams(app, x, y) { return openPropertiesPopup(app, x, y); }
 
 /** The grid button's right-click: the grid (and whether marks show their points). Canvas settings are their own popup. */
 export const openGridParams = (app, x, y) => canvasPopup(app, x, y, 'grid');
@@ -237,37 +156,5 @@ export function openToolDefaults(app, tool, x, y, shape = null) {
   open = { close };
 }
 
-/**
- * Opt+right-click a board (its title or corner, or bare paper): its switches and paper, where the pointer is.
- * Title and border off make a board purely structural: nothing visible, only where its marks live.
- */
-export function openBoardParams(app, id, x, y) {
-  open?.close();
-  const b = boardsOf(app.store.doc).find(t => t.id === id);
-  if (!b) return;
-  const pop = h('div', { class: 'wb-cp-pop wb-tp' });
-  const row = (label, control, doc) => h('label', { class: 'wb-tp-row wb-tp-row2', title: doc || '' }, h('span', { class: 'wb-tp-label' }, label), control);
-  // A switch: on = shown. (Locked, hidden, mask and perf read the other way round: on = the flag is set.)
-  const flag = (key, label, doc, { shown = false } = {}) => {
-    const box = h('input', { type: 'checkbox', checked: shown ? !b[key] : Boolean(b[key]), onchange: e => app.setBoardFlag(id, key, shown ? !e.target.checked : e.target.checked) });
-    return row(label, box, doc);
-  };
-  pop.append(
-    h('div', { class: 'wb-tp-head' }, h('span', {}, b.title || 'Board')),
-    flag('hideLabel', 'Title', 'The title above the board (selected, it always shows, so the board can be moved)', { shown: true }),
-    flag('hideBorder', 'Border', 'The shadow and frame line. With title and border off a board is only structure', { shown: true }),
-    row('Paper', colorField(b.ground, v => app.store.updateBoard(id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app })),
-    flag('hidden', 'Hidden', 'Not drawn and not run (a dashed outline marks where it is)', { shown: true }),
-    flag('locked', 'Locked', 'Its marks cannot be selected or changed, and it cannot be moved or resized'),
-    flag('mask', 'Mask', 'Its marks are cropped to the board'),
-    flag('perf', 'Performance', 'A performance line under the board'));
-  document.body.append(pop);
-  const r = pop.getBoundingClientRect();
-  pop.style.left = `${Math.max(8, Math.min(x, window.innerWidth - r.width - 8))}px`;
-  pop.style.top = `${Math.max(8, Math.min(y, window.innerHeight - r.height - 8))}px`;
-  const outside = e => { if (!pop.contains(e.target) && !e.target.closest?.('.wb-cp-pop')) close(); };
-  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
-  const close = () => { pop.remove(); window.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', esc, true); open = null; };
-  setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
-  open = { close };
-}
+/** A board's settings at the pointer: the board's Properties. */
+export function openBoardParams(app, id, x, y) { app.canvas.selectBoard(id); return openPropertiesPopup(app, x, y); }

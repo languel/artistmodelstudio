@@ -20,6 +20,8 @@ import { describeRegion } from '../perception/analyze.js';
 import { download } from './ui.js';
 import { BRUSHES as BR, brushSource, compileBrush, saveLibraryBrush, deleteLibraryBrush, isBuiltin, registerBrush } from '../process/brushes.js';
 import { allPalettes, savePalette, deletePalette, paletteFromImage, toHex, nameOf } from './palettes.js';
+import { buildCommands, slashCommands, rank, contextOf } from './palette.js';
+import { intentCommand } from './intents.js';
 import { SHOW, revealScore, SessionRecorder, summarize, READ_ONLY } from './showActions.js';
 
 const S = (properties = {}, required = []) => ({ type: 'object', properties, required });
@@ -68,7 +70,7 @@ export function workbenchTools(app) {
       return f === 'svg' ? { svg: toSVG(one) } : f === 'excalidraw' ? toExcalidraw(one) : f === 'p5' ? { sketch: toP5(one) } : a.board ? one : doc();
     } },
     { name: 'ams_set', description: 'Replace the process document (JSON).', inputSchema: S({ doc: { type: 'object' } }, ['doc']), run: (a) => { app.loadDocument(a.doc, 'agent set'); return { ok: true }; } },
-    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color, why, text (notes), path (smooth: a curve through the points; straight: segments). Or a shape instead of points: shape circle | rect with box [x0, y0, x1, y1] (a plane mark; a circle has sides points, 3–64, default 12, round when smooth and a polygon when path is straight; a rectangle has round 0–1, 1 a pill, and is always straight). With board (id or title), points are relative to that board\'s top-left and the mark joins it; without, points are world units and the mark joins the board it lands on (the blackboard outside boards).', inputSchema: S({ role: str('Role'), board: str('Board id or title'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), path: str('smooth | straight'), shape: str('circle | rect'), box: { type: 'array' }, sides: num('Circle sides (default 12)'), round: num('Rectangle roundness 0–1 (default 0)'), by: { type: 'object' } }, ['role']), run: (a) => {
+    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color (stroke), fill, why, text (notes), path (smooth: a curve through the points; straight: segments). Or a shape instead of points: shape circle | rect with box [x0, y0, x1, y1] (a plane mark; a circle has sides points, 3–64, default 12, round when smooth and a polygon when path is straight; a rectangle has round 0–1, 1 a pill, and is always straight). With board (id or title), points are relative to that board\'s top-left and the mark joins it; without, points are world units and the mark joins the board it lands on (the blackboard outside boards).', inputSchema: S({ role: str('Role'), board: str('Board id or title'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), path: str('smooth | straight'), shape: str('circle | rect'), box: { type: 'array' }, sides: num('Circle sides (default 12)'), round: num('Rectangle roundness 0–1 (default 0)'), by: { type: 'object' } }, ['role']), run: (a) => {
       const st = doc().stages.find(s => s.id === a.stage || s.name === a.stage) || app.activeStage;
       if (a.shape) {
         if (!['circle', 'rect'].includes(a.shape)) throw new Error('shape is circle or rect');
@@ -82,10 +84,10 @@ export function workbenchTools(app) {
       const bd = a.board ? findBoard(doc(), a.board) : null;
       if (a.board && !bd) throw new Error(`No board “${a.board}” (ams_board lists them)`);
       const ox = bd?.x || 0, oy = bd?.y || 0;
-      const el = app.store.addElement({ role: a.role, stage: st.id, ...(bd ? { board: bd.main ? undefined : bd.id } : {}), points: a.points.map((p, i) => [p[0] + ox, p[1] + oy, p[2] ?? i * 16, p[3] ?? 0.5]), realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, why: a.why, text: a.text, ...(a.path === 'straight' ? { path: 'straight' } : {}), by: a.by || { kind: 'model', name: 'agent' } }, { by: 'agent' });
+      const el = app.store.addElement({ role: a.role, stage: st.id, ...(bd ? { board: bd.main ? undefined : bd.id } : {}), points: a.points.map((p, i) => [p[0] + ox, p[1] + oy, p[2] ?? i * 16, p[3] ?? 0.5]), realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, ...(a.fill ? { fill: a.fill } : {}), why: a.why, text: a.text, ...(a.path === 'straight' ? { path: 'straight' } : {}), by: a.by || { kind: 'model', name: 'agent' } }, { by: 'agent' });
       return { id: el.id, stage: st.name };
     } },
-    { name: 'ams_update', description: 'Change an element: any of stage, role, color, why, text, path (straight, or null for smooth), realize {brush, params}, points.', inputSchema: S({ id: str('Element id'), patch: { type: 'object' } }, ['id', 'patch']), run: (a) => ({ ok: Boolean(app.store.updateElement(a.id, a.patch, 'agent edit', { by: 'agent' })) }) },
+    { name: 'ams_update', description: 'Change an element: any of stage, role, color (its stroke), fill, strokeWidth (the outline of a plane), opacity (0..1), blend, label, hidden, locked, why, text, path (straight, or null for smooth), realize {brush, params}, points.', inputSchema: S({ id: str('Element id'), patch: { type: 'object' } }, ['id', 'patch']), run: (a) => ({ ok: Boolean(app.store.updateElement(a.id, a.patch, 'agent edit', { by: 'agent' })) }) },
     { name: 'ams_delete', description: 'Delete elements.', inputSchema: S({ ids: { type: 'array', items: { type: 'string' } } }, ['ids']), run: (a) => { app.store.removeElements(a.ids, { by: 'agent' }); return { ok: true }; } },
     { name: 'ams_output', description: 'Outputs: send a board somewhere, live. pin {board}: a window-like overlay that stays on the screen while the canvas moves (again: unpin). window {board, borderless?}: a window of its own (for another display or a projector; the pop-up needs a click in the studio; click the window for full screen, which hides the title and address bars; borderless: a picture-in-picture window, Chrome, no address bar). stop {board?}: end its outputs (all when no board). list. An output does not change the play state of a board: a board that is not playing is set to play once (like its play button), a paused one stays paused; a playing board keeps running off screen. A board is a layer too: ams_board update {id, patch: {opacity, blend}}; later boards are above earlier ones.', inputSchema: S({ action: { type: 'string', enum: ['list', 'pin', 'window', 'stop'] }, board: str('Board id or title'), borderless: { type: 'boolean', description: 'window: a picture-in-picture window (Chrome), no address bar' } }, ['action']), run: async a => {
       const O = app.outputs;
@@ -422,6 +424,20 @@ export function workbenchTools(app) {
       }
       throw new Error('Unknown action');
     } },
+    // Everything the keys and the command palette (Cmd+K, and / at the pointer) can do, by name: one registry, so nothing in the interface is out of reach here.
+    { name: 'ams_commands', description: 'List the studio commands (everything the shortcuts and the command palette do: frame the selection, fit the board, group, tools, panels, exports, …) with their ids and keys; query ranks them the way the palette does, with the current selection as context. Run one with ams_command.', inputSchema: S({ query: str('Words to search for, e.g. "fit" or "group"') }), run: (a) => {
+      const all = buildCommands(app), ctx = contextOf(app);
+      const list = a.query ? rank(app, all, String(a.query), ctx) : all;
+      return { context: { selected: ctx.sel, hovered: ctx.hover }, commands: list.slice(0, 60).map(c => ({ id: c.id, name: c.name, category: c.category, keys: c.keys || undefined, hint: c.hint || undefined })), slash: slashCommands(app).map(c => ({ id: `/${c.name}`, args: c.args, doc: c.doc })) };
+    } },
+    { name: 'ams_command', description: 'Run a studio command by id or exact name (from ams_commands), a slash command ("/grid off"), or a plain phrase about the selection ("change the fill to red", "opacity 50", "ink brush", "hide it"). It acts on the current selection like the user\'s own key would.', inputSchema: S({ id: str('A command id (e.g. view.frameSelection), its name, or /name'), arg: str('Argument, for a slash command') }, ['id']), run: async (a) => {
+      const id = String(a.id);
+      if (id.startsWith('/')) { const [n, ...rest] = id.slice(1).split(/\s+/); const s = slashCommands(app).find(x => x.name === n); if (!s) throw new Error(`No slash command ${id}`); await s.run(a.arg ?? rest.join(' ')); return { ok: true, ran: `/${n}` }; }
+      const c = buildCommands(app).find(x => x.id === id || x.name === id) || intentCommand(app, id);
+      if (!c) throw new Error(`No command “${id}” (ams_commands lists them)`);
+      await c.run();
+      return { ok: true, ran: c.name };
+    } },
     { name: 'ams_undo', description: 'Undo (or redo with redo:true).', inputSchema: S({ redo: { type: 'boolean' } }), run: (a) => ({ ok: a.redo ? app.store.redo() : app.store.undo() }) }
   ];
 }
@@ -467,26 +483,28 @@ export function initWorkbenchMCP(app) {
   const listTools = () => tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema: { ...inputSchema, properties: { ...(inputSchema.properties || {}), narrate: { type: 'string', description: 'Optional: one sentence shown to the user while this action plays' } } } }));
   app.sessions = app.sessions || new SessionRecorder(app);
   /** Run a tool the way a user would see it: guide cursor, narration, then the action. */
-  const callTool = async (name, args = {}, { replay = false } = {}) => {
+  const callTool = async (name, args = {}, { replay = false, quiet = false } = {}) => {   // quiet: no guide cursor, no pauses (the quick command field)
     const t = byName[name];
     if (!t) throw new Error(`Unknown tool ${name}`);
     const { narrate, ...rest } = args || {};
     const g = app.guide;
-    app.emit('tool-call', name, rest, { replay, summary: summarize(name, rest) });
+    app.emit('tool-call', name, rest, { replay, quiet, summary: summarize(name, rest) });
     const visible = !READ_ONLY.test(name) || rest.open;
     const tabsBefore = { ...app.docks.state.active };
     if (visible) {
       const brief = JSON.stringify(rest, (k, v) => (typeof v === 'string' && v.length > 60 ? v.slice(0, 57) + '…' : Array.isArray(v) && v.length > 4 ? `[${v.length}]` : v));
       app.log(`Agent → ${name.replace(/^ams_/, '')} ${brief === '{}' ? '' : brief}`, 'agent');
       if (!replay) app.sessions.record(name, args);
-      app.sayAuto = !narrate;   // automatic lines label the action; only real narration becomes a caption
-      g?.say(narrate || summarize(name, rest), replay ? 'Replay' : 'Agent');
-      app.sayAuto = false;
-      try { await SHOW[name]?.(g, rest, app); } catch { /* showing is best effort */ }
+      if (!quiet) {
+        app.sayAuto = !narrate;   // automatic lines label the action; only real narration becomes a caption
+        g?.say(narrate || summarize(name, rest), replay ? 'Replay' : 'Agent');
+        app.sayAuto = false;
+        try { await SHOW[name]?.(g, rest, app); } catch { /* showing is best effort */ }
+      }
     }
     try {
       const out = await t.run(rest);
-      if (visible && (name === 'ams_run_score' || (name === 'ams_exercise' && rest.load)) && !out?.error) await revealScore(g, app);
+      if (visible && !quiet && (name === 'ams_run_score' || (name === 'ams_exercise' && rest.load)) && !out?.error) await revealScore(g, app);
       return out;
     } catch (err) { app.log(`Agent ${name} failed: ${err.message}`, 'error'); throw err; }
     finally {

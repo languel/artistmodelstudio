@@ -6,6 +6,7 @@ import { h } from './ui.js';
 import { EXERCISES } from '../process/exercises.js';
 import { createDocument } from '../process/document.js';
 import { findBoard, MAIN } from '../process/boards.js';
+import { intentCommand } from './intents.js';
 
 export function buildCommands(app) {
   const cmd = (category, name, run, keys = '', hint = '') => ({ id: `${category}:${name}`, category, name, run, keys, hint });
@@ -72,6 +73,14 @@ export function buildCommands(app) {
     const id = K[c.id] || (c.category === 'Tool' ? `tool.${(app.toolList || []).find(t => t[1] === c.name)?.[0]}` : null);
     if (id && app.shortcuts) c.keys = app.shortcuts.label(id);
   }
+  // Every keyboard command is a palette command too (one registry: nothing the keys can do is missing here).
+  // Skip what is already listed by hand above (same shortcut id) and the tools the toolbar list covers.
+  const listed = new Set([...Object.values(K), ...(app.toolList || []).map(t => `tool.${t[0]}`)]);
+  for (const c of app.shortcuts?.commands || []) {
+    if (listed.has(c.id)) continue;
+    out.push({ id: c.id, category: c.category, name: c.label, run: c.run, keys: app.shortcuts.label(c.id), hint: '', sc: c.id });
+  }
+  for (const c of out) { if (!c.sc) { const id = K[c.id]; if (id) c.sc = id; } if (!c.sc && c.category === 'Tool') c.sc = `tool.${(app.toolList || []).find(t => t[1] === c.name)?.[0]}`; }
   // The lean embedded editor is a drawing tool: no scenes, assets, recording, lessons or assistant to offer.
   if (app.embed && !app.embed.full) {
     const gone = /^(Record|Exercise|Walkthrough|Docs|Decide|Agent)$/, names = /^(New drawing|Open file|Save to Assets|Classic studio|Toggle reference|p5\.js sketch|Process sheet)/;
@@ -116,27 +125,102 @@ function slashAll(app) {
   ];
 }
 
-const score = (c, terms) => {
-  const hay = `${c.name} ${c.category} ${c.hint}`.toLowerCase();
-  if (!terms.every(t => hay.includes(t))) return -1;
-  const name = c.name.toLowerCase();
-  return (name.startsWith(terms[0]) ? 3 : 0) + (name.includes(terms.join(' ')) ? 2 : 0) + (c.category.toLowerCase().startsWith(terms[0]) ? 1 : 0);
+// What a command is about, besides its name: the words people type for it.
+const ALIAS = {
+  'view.frameSelection': 'fit zoom focus frame selected selection', 'view.fit': 'fit zoom board', 'view.frameBoard': 'fit zoom board',
+  'edit.delete': 'remove erase clear trash', 'edit.duplicate': 'copy clone', 'edit.group': 'combine', 'edit.ungroup': 'split',
+  'edit.deselect': 'clear select none', 'edit.selectAll': 'everything', 'view.zoomIn': 'bigger magnify', 'view.zoomOut': 'smaller',
+  'panel.code': 'edit source', 'transport.toggle': 'play pause', 'transport.rewind': 'start beginning'
 };
+// Commands that act on the selection: they rise when something is selected and sink when nothing is.
+// Said to nobody in particular; they do not narrow a search (“frame it”, “fit this”).
+const FILLER = new Set(['the', 'a', 'an', 'it', 'this', 'that', 'them', 'these', 'those', 'please', 'my']);
+const NEEDS = new Set(['view.frameSelection', 'edit.delete', 'edit.duplicate', 'edit.group', 'edit.ungroup', 'panel.code', 'score.solo']);
 
-export function openPalette(app) {
+/** What a command would act on: the selection, or the mark under the pointer. */
+export function contextOf(app) {
+  const sel = [...(app.canvas?.selected || [])], hover = app.canvas?.hovered || null;
+  const els = app.store.doc.elements;
+  const name = id => { const e = els.find(x => x.id === id); return e ? (e.label || e.role) : id; };
+  const ids = sel.length ? sel : hover ? [hover] : [];
+  return { sel, hover, ids, has: ids.length > 0, names: ids.slice(0, 6).map(name) };
+}
+
+/** Commands matching what was typed, best first. A slash command's name may lead (“background transparent”). */
+export function rank(app, all, text, ctx = contextOf(app)) {
+  const q = text.trim().replace(/^\/+/, '').toLowerCase();
+  if (!q) return all;
+  const words = q.split(/\s+/).filter(Boolean), found = [];
+  const terms = words.filter(w => !FILLER.has(w)).length ? words.filter(w => !FILLER.has(w)) : words;
+  const lead = words[0], arg = text.trim().replace(/^\/+\s*/, '').split(/\s+/).slice(1).join(' ');
+  for (const s of slashCommands(app)) {
+    if (!s.name.startsWith(lead)) continue;
+    found.push([{ id: `/${s.name}`, category: 'Command', name: `/${s.name}${arg ? ` ${arg}` : s.args ? ` ${s.args}` : ''}`, hint: s.doc, keys: '', run: () => s.run(arg) }, s.name === lead ? 10 : 5]);
+  }
+  for (const c of all) {
+    const hay = `${c.name} ${c.category} ${c.hint} ${ALIAS[c.sc] || ''}`.toLowerCase();
+    if (!terms.every(t => hay.includes(t))) continue;
+    const name = c.name.toLowerCase(), alias = (ALIAS[c.sc] || '').split(' ');
+    let sc = (name.startsWith(terms[0]) ? 3 : 0) + (name.includes(terms.join(' ')) ? 2 : 0) + (c.category.toLowerCase().startsWith(terms[0]) ? 1 : 0)
+      + (alias.some(w => w.startsWith(terms[0])) ? 3 : 0);
+    if (NEEDS.has(c.sc)) sc += ctx.has ? 6 : -3;
+    found.push([c, sc]);
+  }
+  const said = intentCommand(app, text);   // a phrase it understands outright comes first
+  return [...(said ? [said] : []), ...found.sort((a, b) => b[1] - a[1]).map(([c]) => c)];
+}
+
+/** A request to the assistant without leaving the drawing: a chip where the field was, then what it said. Click it for the conversation. */
+async function askInFlow(app, text, { x, y }) {
+  const chip = h('button', { class: 'wb-flow-chip', style: { left: `${x}px`, top: `${y}px` }, title: 'Open the Assistant', onclick: () => { chip.remove(); app.docks.open('assistant'); } }, '…');
+  document.body.append(chip);
+  // The panel builds itself the first time it is shown: build it without showing it.
+  const panel = app.docks.panels.get('assistant');
+  if (panel) app.docks.mountBody(panel);
+  const r = app.assistantAsk ? await app.assistantAsk(text, { flow: true }).catch(err => ({ error: err.message })) : { error: 'There is no assistant here.' };
+  chip.textContent = r?.error || r?.say || '✓';
+  chip.classList.toggle('error', Boolean(r?.error));
+  setTimeout(() => chip.remove(), r?.error ? 8000 : r?.say ? 4000 : 1000);
+}
+
+export function openPalette(app, { compact = false } = {}) {
   document.querySelector('.wb-palette-overlay')?.remove();
   const all = buildCommands(app);
-  let list = all, index = 0;
+  let list = all, index = 0, spot = null;
   const input = h('input', { class: 'wb-palette-input', placeholder: 'Command, panel, exercise, doc… or ask', spellcheck: 'false' });
   const results = h('div', { class: 'wb-palette-results', role: 'listbox' });
-  const overlay = h('div', { class: 'wb-palette-overlay', onpointerdown: e => { if (e.target === overlay) close(); } },
-    h('div', { class: 'wb-palette-card' }, input, results));
+  const card = h('div', { class: 'wb-palette-card' }, input, results);
+  const overlay = h('div', { class: `wb-palette-overlay${compact ? ' compact' : ''}`, onpointerdown: e => { if (e.target === overlay) close(); } }, card);
+  // The compact bar: just the field, at the pointer, acting on what is selected (or under the pointer).
+  if (compact) {
+    const c0 = contextOf(app);
+    if (!c0.sel.length && c0.hover) app.canvas.select([c0.hover]);
+    const [px, py] = app.pointerAt || [window.innerWidth / 2, window.innerHeight / 3];
+    card.style.left = `${Math.max(8, Math.min(window.innerWidth - 328, px - 20))}px`;
+    card.style.top = `${Math.max(8, Math.min(window.innerHeight - 220, py + 14))}px`;
+    const now = contextOf(app), what = now.names.length > 2 ? `${now.ids.length} marks` : now.names.join(', ');
+    input.placeholder = `${what ? `${what}: ` : ''}do…  (⌘↵ asks the assistant)`;
+  }
   const close = () => overlay.remove();
-  const ask = q => ({ id: 'ask', category: 'Assistant', name: `Ask: ${q}`, hint: '', keys: '↵', run: () => { app.docks.open('assistant'); setTimeout(() => app.assistantAsk?.(q), 50); } });
+  // To the assistant, with what is selected (or under the pointer) as context.
+  const toAssistant = q => {
+    const c = contextOf(app);
+    const text = c.has ? `[Context: ${c.sel.length ? 'selected' : 'under the pointer'}: ${c.names.join(', ')} (ids ${c.ids.slice(0, 6).join(', ')}${c.ids.length > 6 ? ', …' : ''}); board ${app.activeBoard || 'main'}]\n${q}` : q;
+    askInFlow(app, text, spot);
+  };
+  const ask = q => ({ id: 'ask', category: 'Assistant', name: `Ask: ${q}`, hint: '', keys: '⌘↵', run: () => toAssistant(q) });
+  // With nothing typed the bar offers only what fits what is selected, and Enter runs nothing.
+  const suggestions = () => {
+    const n = app.canvas.selected.size;
+    if (!n) return [];
+    const grouped = [...app.canvas.selected].some(id => app.store.doc.elements.find(e => e.id === id)?.group);
+    const ids = ['view.frameSelection', 'paint.pick', 'edit.duplicate', ...(n > 1 ? ['edit.group'] : []), ...(grouped ? ['edit.ungroup'] : []), 'panel.code'];
+    return ids.map(id => all.find(c => c.sc === id)).filter(Boolean);
+  };
   const render = () => {
     const q = input.value.trim().toLowerCase();
-    // Slash commands: /name arguments (e.g. /background transparent).
-    if (q.startsWith('/')) {
+    // Slash commands: /name arguments (e.g. /background transparent). (The compact bar ranks them with everything else.)
+    if (q.startsWith('/') && !compact) {
       const [name, ...rest] = input.value.trim().slice(1).split(/\s+/);
       const arg = rest.join(' ');
       list = slashCommands(app).filter(s => s.name.startsWith(name.toLowerCase())).map(s => ({
@@ -148,27 +232,31 @@ export function openPalette(app) {
       if (!list.length) results.append(h('div', { class: 'wb-palette-empty' }, 'No such command (try /background, /transparent)'));
       return;
     }
-    const terms = q.split(/\s+/).filter(Boolean);
-    list = terms.length ? all.map(c => [c, score(c, terms)]).filter(([, s]) => s >= 0).sort((a, b) => b[1] - a[1]).map(([c]) => c) : all;
-    if (q) list = [...list.slice(0, 40), ask(input.value.trim())];
+    list = compact && !q ? suggestions() : rank(app, all, input.value);
+    if (compact && !q) index = -1;
+    if (q) list = [...list.slice(0, compact ? 4 : 40), ask(input.value.trim())];
     index = Math.min(index, list.length - 1);
-    results.replaceChildren(...list.slice(0, 60).map((c, i) => h('div', {
+    results.replaceChildren(...list.slice(0, compact ? 5 : 60).map((c, i) => h('div', {
       class: `wb-palette-item${i === index ? ' active' : ''}`, title: c.hint || '',
       onpointerenter: () => { index = i; mark(); }, onclick: () => runIt(c)
-    }, h('span', { class: 'wb-palette-name' }, c.name), h('span', { class: 'wb-palette-cat' }, c.category), c.keys ? h('kbd', {}, c.keys) : null)));
-    if (!list.length) results.append(h('div', { class: 'wb-palette-empty' }, 'Nothing matches'));
+    }, c.swatch ? h('span', { class: 'wb-palette-swatch', style: { background: c.swatch } }) : null, h('span', { class: 'wb-palette-name' }, c.name), h('span', { class: 'wb-palette-cat' }, c.category), c.keys ? h('kbd', {}, c.keys) : null)));
+    if (!list.length && !compact) results.append(h('div', { class: 'wb-palette-empty' }, 'Nothing matches'));
   };
   const mark = () => results.querySelectorAll('.wb-palette-item').forEach((el, i) => el.classList.toggle('active', i === index));
   const runIt = c => { close(); try { const r = c.run(); r?.catch?.(e => app.log(e.message, 'error')); } catch (e) { app.log(e.message, 'error'); } };
   input.addEventListener('input', () => { index = 0; render(); });
   input.addEventListener('keydown', e => {
     e.stopPropagation();
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !list.length) { e.preventDefault(); return; }
     if (e.key === 'ArrowDown') { e.preventDefault(); index = (index + 1) % list.length; mark(); results.children[index]?.scrollIntoView({ block: 'nearest' }); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); index = (index - 1 + list.length) % list.length; mark(); results.children[index]?.scrollIntoView({ block: 'nearest' }); }
-    else if (e.key === 'Enter') { e.preventDefault(); if (list[index]) runIt(list[index]); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); index = index <= 0 ? list.length - 1 : index - 1; mark(); results.children[index]?.scrollIntoView({ block: 'nearest' }); }
+    else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && input.value.trim()) { e.preventDefault(); close(); toAssistant(input.value.trim()); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (list[index]) runIt(list[index]); else if (compact) close(); }
     else if (e.key === 'Escape') { e.preventDefault(); close(); }
   });
   document.body.append(overlay);
+  const box = card.getBoundingClientRect();
+  spot = { x: box.left, y: box.top };
   render();
   input.focus();
 }

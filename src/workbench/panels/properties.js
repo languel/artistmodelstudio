@@ -7,8 +7,10 @@ import { h, row, numberField, selectField, section, esc } from '../ui.js';
 import { icon } from '../icons.js';
 import { rangeInput, paintRange } from '../rangeInput.js';
 import { colorField } from '../colorPicker.js';
+import { glyphSelect } from '../glyphSelect.js';
+import { brushIcon } from '../icons.js';
 import { BRUSHES, brushesForRole, resolveParams } from '../../process/brushes.js';
-import { ROLES, BLENDS } from '../../process/document.js';
+import { ROLES, BLENDS, ensureFill } from '../../process/document.js';
 import { boardById, boardsOf, marksOf, trainBoard, rateOf, opacityOf, blendOf, BOARD_BLENDS } from '../../process/boards.js';
 import { fxEditor } from './fxEditor.js';
 import { SCULPTS, sculptParams } from '../../process/sculpt.js';
@@ -16,8 +18,24 @@ import { NOTE_STYLES, NOTE_FONTS, noteProps } from '../../process/notes.js';
 import { playSection, nameRow } from './playSection.js';
 import { physicsSection, physicsMultiSection } from '../../physics/properties.js';
 
-export function mountProperties(el, app) {
+// Compact: the small Properties at the pointer. Choices are glyphs alone there, glyph and name in the side panel.
+let COMPACT = false;
+const BLEND_GLYPH = new Set(['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'exclusion', 'add']);
+const blendGlyph = id => (BLEND_GLYPH.has(id) ? icon(`blend_${id}`) : '');
+const ROLE_GLYPH = { point: 'point', line: 'line', plane: 'plane', guide: 'guide', gesture: 'gesture', note: 'note', image: 'picture' };
+const cap = s => s[0].toUpperCase() + s.slice(1);
+/** The blend choice, as glyphs. */
+const blendField = (value, onChange, doc, list = BLENDS) => glyphSelect(list.map(b => (Array.isArray(b) ? b : [b, cap(b)])), value || 'normal', onChange, { title: 'Blend', glyph: blendGlyph, compact: COMPACT });
+const pathField = (value, onChange) => glyphSelect([['smooth', 'Smooth'], ['straight', 'Straight']], value, onChange, { title: 'Path', glyph: v => icon(v === 'straight' ? 'lineStraight' : 'line'), compact: COMPACT });
+
+/** Properties in a container; returns a function that stops it following the document (for the popup). */
+export function mountProperties(el, app, { compact = false } = {}) {
+  const offs = [];
+  let alive = true;
+  const on = (name, fn) => { app.on(name, fn); offs.push(() => app.off(name, fn)); };
   const render = () => {
+    if (!alive) return;
+    COMPACT = compact;
     el.innerHTML = '';
     if (app.selectedClip && app.player?.take?.clips.includes(app.selectedClip)) return renderClip(app.selectedClip);
     const sel = app.selectedElements();
@@ -31,21 +49,24 @@ export function mountProperties(el, app) {
       for (const s of sel) {
         const target = app.store.doc.elements.find(x => x.id === s.id);
         if (!target) continue;
+        const was = target.realize?.brush;
         if (patch.realize) target.realize = { ...target.realize, ...patch.realize, params: { ...target.realize.params, ...(patch.realize.params || {}) } };
         for (const [k, v] of Object.entries(patch)) if (k !== 'realize') target[k] = v;
+        if (patch.realize?.brush && patch.realize.brush !== was) ensureFill(target);
       }
       app.store.commitFrom(before, label);
     };
     el.append(h('div', { class: 'wb-panel-title' }, multi ? `${sel.length} elements` : `${e.role}`, h('span', { class: 'wb-muted' }, multi ? '' : ` · ${e.points.length} pts${e.points.length > 1 ? ` · ${Math.round(e.points[e.points.length - 1][2])} ms` : ''}`)));
 
     el.append(section('Element', true,
-      row('Role', selectField(Object.keys(ROLES).map(r => [r, r]), e.role, v => {
+      row('Role', glyphSelect(Object.keys(ROLES).map(r => [r, cap(r)]), e.role, v => {
         const brush = BRUSHES[e.realize.brush]?.roles.includes(v) ? e.realize.brush : brushesForRole(v, app.store.doc)[0]?.id || 'ink';
         patchAll({ role: v, realize: { brush, params: {} }, closed: v === 'plane' ? true : e.closed }, 'role');
-      }), ROLES[e.role]),
+      }, { title: 'Role', glyph: r => icon(ROLE_GLYPH[r] || ''), compact }), ROLES[e.role]),
       multi ? null : nameRow(app, e),
       row('Stage', selectField(app.store.doc.stages.map(s => [s.id, s.name]), e.stage, v => patchAll({ stage: v }, 'stage'))),
-      row('Color', colorField(e.color, v => { patchAll({ color: v }, 'color'); if (e.role === 'note') app.setDefaults('note', { color: v }); }, { app })),
+      e.role === 'plane' ? null : row('Color', colorField(e.color, v => { patchAll({ color: v }, 'color'); if (e.role === 'note') app.setDefaults('note', { color: v }); }, { app })),
+      e.role !== 'plane' && e.closed ? row('Fill', colorField(e.fill, v => patchAll({ fill: v }, 'fill'), { app, allowNone: true, title: 'Fill: the inside of this closed mark', fallback: e.color && e.color !== 'none' ? e.color : '#8a8175' })) : null,
       e.role === 'note' ? row('Text', noteText(e, v => patchAll({ text: v }, 'note'))) : null
     ));
     if (e.role === 'note') el.append(noteSection(noteProps(e), patch => {
@@ -56,6 +77,16 @@ export function mountProperties(el, app) {
       const t = app.store.doc.elements.find(x => x.id === e.id);
       if (t) app.setDefaults('note', { note: { ...(t.note || {}) }, color: t.color });
     }, app));
+    else if (e.role === 'plane') {
+      // A plane is a stroke, a fill, and a way of painting that fill (its brush).
+      el.append(section('Stroke', true,
+        row('Color', colorField(e.color, v => patchAll({ color: v }, 'stroke'), { app, allowNone: true, noneValue: 'none', noneLabel: !e.color && !e.fill ? 'default' : 'none', title: 'The outline' })),
+        row('Width', numberField({ value: e.strokeWidth ?? 2, min: 0.25, max: 60, step: 0.25, def: 2, title: 'How wide the outline is', onChange: (v, { final }) => { if (final) patchAll({ strokeWidth: v }, 'stroke width'); } }))));
+      el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'fill style'), app.store.doc, {
+        title: 'Fill', label: 'Style', showParams: Boolean(e.fill),
+        before: [row('Color', colorField(e.fill, v => patchAll({ fill: v }, 'fill'), { app, allowNone: true, title: 'The inside. None: the plane is its outline alone', fallback: e.color && e.color !== 'none' ? e.color : '#8a8175' }))]
+      }));
+    }
     else el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc));
     el.append(lookSection(e, patch => patchAll(patch, 'look')));
     if (e.role !== 'note' && e.role !== 'image') {
@@ -67,7 +98,7 @@ export function mountProperties(el, app) {
       el.append(sec);
     }
     { const ps = multi ? physicsMultiSection(app, sel) : physicsSection(app, e); if (ps) el.append(ps); }   // (on a board with physics on)
-    el.append(section('Reason', true,
+    el.append(section('Reason', !compact,
       whyField(multi && new Set(sel.map(s => app.store.doc.elements.find(x => x.id === s.id)?.why || '')).size > 1 ? '' : e.why, v => patchAll({ why: v }, 'why'), multi && new Set(sel.map(s => app.store.doc.elements.find(x => x.id === s.id)?.why || '')).size > 1 ? 'Mixed: type to give them all one reason' : 'Why is this here?'),
       h('div', { class: 'wb-muted wb-small' }, multi ? '' : `By ${esc(e.by?.name || 'unknown')} (${esc(e.by?.kind || '')}) · seed ${e.seed}`)
     ));
@@ -133,7 +164,7 @@ export function mountProperties(el, app) {
         row('Loop', selectField([['', 'as is'], ['1', 'loop'], ['0', 'stop at the end']], defaults.loop == null ? '' : defaults.loop ? '1' : '0', v => d('loop')(v === '' ? '' : v === '1'))),
         row('Volume', numberField({ value: defaults.volume ?? 0, min: 0, max: 1, step: 0.05, def: 0, title: 'Muted (0) unless raised', onChange: (v, { final }) => { if (final) d('volume')(v > 0 ? v : ''); } })),
         row('Opacity', numberField({ value: defaults.opacity ?? 1, min: 0, max: 1, step: 0.05, def: 1, title: 'How much of it shows under its board', onChange: (v, { final }) => { if (final) d('opacity')(v < 1 ? v : ''); } })),
-        row('Blend', selectField(BLENDS.map(x => [x, x]), defaults.blend || 'normal', v => d('blend')(v === 'normal' ? '' : v), 'How it mixes with the paper')),
+        row('Blend', blendField(defaults.blend, v => d('blend')(v === 'normal' ? '' : v))),
         row('Fit', selectField([['cover', 'Cover'], ['contain', 'Contain']], defaults.fit === 'contain' ? 'contain' : 'cover', v => d('fit')(v === 'cover' ? '' : v)))));
     }
   };
@@ -173,7 +204,7 @@ export function mountProperties(el, app) {
       row('Redraw', numberField({ value: rateOf(b), min: 0, max: 60, step: 1, def: 0, title: 'Runs a second for a board that follows a source (each with fresh randomness); 0: once per new frame of the source', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { rate: Math.round(v) }); } })),
       row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app })),
       row('Opacity', numberField({ value: opacityOf(b), min: 0, max: 1, step: 0.05, def: 1, title: 'How much of the board shows over what is under it (boards are layers: later ones are above)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { opacity: v }); } })),
-      row('Blend', selectField(BOARD_BLENDS, blendOf(b), v => app.store.updateBoard(b.id, { blend: v }), 'How the board mixes with what is under it')),
+      row('Blend', blendField(blendOf(b), v => app.store.updateBoard(b.id, { blend: v }), '', BOARD_BLENDS)),
       h('div', { class: 'wb-muted wb-small' }, `${marksOf(app.store.doc, b.id).length} marks${!app.embed && trainBoard(app.store.doc) === b.id ? ' · models learn from this board' : ''}`)));
     // Media: the same controls as the player board (play / pause, frame steps, the timeline, speed),
     // for the source this board shows or plays. The values follow the source while this is showing.
@@ -182,7 +213,7 @@ export function mountProperties(el, app) {
     // The source under a board (any): how it shows (opacity, blend, fit).
     const look = b.source && b.kind !== 'player' ? [
       row('Opacity', numberField({ value: b.sourceOpacity ?? 0.5, min: 0, max: 1, step: 0.05, def: 0.5, title: 'How much of the source shows under the board’s marks', onChange: v => app.setBoardSourceLook(b.id, { opacity: v }) })),
-      row('Blend', selectField(BLENDS.map(x => [x, x]), b.sourceBlend || 'normal', v => app.setBoardSourceLook(b.id, { blend: v }), 'How the source mixes with the paper')),
+      row('Blend', blendField(b.sourceBlend, v => app.setBoardSourceLook(b.id, { blend: v }))),
       row('Fit', selectField([['cover', 'Cover'], ['contain', 'Contain']], b.sourceFit === 'contain' ? 'contain' : 'cover', v => app.setBoardSourceLook(b.id, { fit: v }), 'Cover fills the board (cropped); contain shows all of it'))
     ] : [];
     if (b.source && !mediaName && look.length) el.append(section(`Source · ${b.source}`, true, ...look));
@@ -252,14 +283,22 @@ export function mountProperties(el, app) {
     }
     const d = app.defaults(tool);
     el.append(h('div', { class: 'wb-panel-title' }, tool === 'brush' ? 'Brush' : `New ${tool}`, h('span', { class: 'wb-muted' }, tool === 'brush' ? ' · active' : ' · defaults')));
-    el.append(section('Element', true,
-      row('Color', colorField(d.color, v => app.setDefaults(tool, { color: v }), { app }))
-    ));
+    const shape = ['circle', 'rect'].includes(app.tool) ? app.tool : null;
+    const paintRows = tool === 'note' || tool === 'brush' ? [row('Color', colorField(d.color, v => app.setDefaults(tool, { color: v }), { app }))] : [
+      row(tool === 'plane' ? 'Stroke' : 'Color', colorField(d.color, v => app.setPaint('stroke', v), tool === 'plane' ? { app, allowNone: true, noneValue: 'none' } : { app })),
+      tool === 'plane' ? row('Fill', colorField(d.fill, v => app.setPaint('fill', v), { app, allowNone: true, title: 'The inside of new planes', fallback: '#8a8175' })) : null];
+    el.append(section('Element', true, ...paintRows));
+    if (shape === 'circle') el.append(section('Circle', true, row('Sides', numberField({ value: app.shapes.circle.sides, min: 3, max: 48, step: 1, def: 12, title: 'Points on the circle. Straight, a polygon with this many sides; smooth, round', onChange: v => app.setShape('circle', { sides: Math.round(v) }) }))));
+    if (shape === 'rect') el.append(section('Rectangle', true, row('Rounded', numberField({ value: app.shapes.rect.round, min: 0, max: 1, step: 0.01, def: 0, title: 'Corner roundness: 0 square, 1 a pill', onChange: v => app.setShape('rect', { round: v }) }))));
+    if (['line', 'plane', 'gesture', 'brush'].includes(app.tool) && app.lazy) el.append(section('Pen', true,
+      row('Lazy', numberField({ value: app.lazy.radius, min: 0, max: 120, step: 1, def: 0, title: 'The pen trails the cursor on a string this long (screen px); 0 is off', onChange: v => app.setLazy({ radius: Math.round(v) }) })),
+      row('Smoothing', numberField({ value: app.lazy.smoothing, min: 0, max: 0.95, step: 0.01, def: 0, title: 'Eases the pen further (0 is off)', onChange: v => app.setLazy({ smoothing: v }) })),
+      row('Simplify', numberField({ value: app.lazy.simplify || 0, min: 0, max: 40, step: 0.5, def: 0, title: 'On release, points the line does not need are dropped: how far (screen px) the shape may move', onChange: v => app.setLazy({ simplify: v }) }))));
     if (tool === 'note') el.append(noteSection(noteProps({ note: d.note, color: d.color, points: [] }), patch => app.setDefaults(tool, { note: patch }), app));
     else el.append(brushSection(d.role || tool, d.realize, realize => app.setDefaults(tool, { realize }), app.store.doc));
     // (A tool's smooth path is stored as 'smooth', not as nothing: a guide's default, with nothing stored, is straight.)
     el.append(lookSection(d, patch => app.setDefaults(tool, 'path' in patch ? { ...patch, path: patch.path || 'smooth' } : patch)));
-    el.append(section('Reason', true, whyField(d.why || '', v => app.setDefaults(tool, { why: v }), 'Why the next marks are made (kept on each one)')));
+    el.append(section('Reason', !compact, whyField(d.why || '', v => app.setDefaults(tool, { why: v }), 'Why the next marks are made (kept on each one)')));
   };
 
   /** A timeline clip: when it plays, how long, and what it says or does. */
@@ -292,23 +331,25 @@ export function mountProperties(el, app) {
 
   // The media controls follow the source (a new frame, or a change of speed) while they show.
   let media = null;
-  app.sources.on(name => { if (media && (!name || name === media.name)) media.update(); });
-  app.store.subscribe(render);
-  app.on('clip-select', render);
-  app.on('selection', () => { if (app.canvas?.selected.size) app.selectedClip = null; render(); });
-  app.on('tool', render);
-  app.on('board', render);
-  app.on('brush', () => { if (app.tool === 'brush' && !app.selectedElements().length) render(); });
-  app.on('sculpt', () => { if (app.tool === 'sculpt' && !app.selectedElements().length) render(); });
+  app.sources.on(name => { if (alive && media && (!name || name === media.name)) media.update(); });
+  offs.push(app.store.subscribe(render));
+  on('clip-select', render);
+  on('selection', () => { if (app.canvas?.selected.size) app.selectedClip = null; render(); });
+  on('tool', render);
+  on('board', render);
+  on('brush', () => { if (app.tool === 'brush' && !app.selectedElements().length) render(); });
+  on('sculpt', () => { if (app.tool === 'sculpt' && !app.selectedElements().length) render(); });
+  on('lazy', () => { if (!app.selectedElements().length) render(); });
   render();
+  return () => { alive = false; for (const f of offs) f(); };
 }
 
 /** Opacity and blend mode: every element has them, on top of its brush. */
 function lookSection(e, onChange) {
   return section('Look', true,
     row('Opacity', numberField({ value: e.opacity ?? 1, min: 0, max: 1, step: 0.05, def: 1, title: 'The whole element’s opacity (on top of the brush’s own)', onChange: v => onChange({ opacity: v }) })),
-    row('Blend', selectField(BLENDS.map(b => [b, b]), e.blend || 'normal', v => onChange({ blend: v }), 'How the element mixes with what is under it')),
-    row('Path', selectField([['smooth', 'Smooth'], ['straight', 'Straight']], e.path === 'straight' ? 'straight' : 'smooth', v => onChange({ path: v === 'straight' ? 'straight' : undefined }), 'Smooth: a curve through the points. Straight: straight segments between them')));
+    row('Blend', blendField(e.blend, v => onChange({ blend: v }), 'How the element mixes with what is under it')),
+    row('Path', pathField(e.path === 'straight' ? 'straight' : 'smooth', v => onChange({ path: v === 'straight' ? 'straight' : undefined })), 'Smooth: a curve through the points. Straight: straight segments between them'));
 }
 
 /** Notes: style, lettering, size, wrap width, background. The text color is the element's color. */
@@ -324,15 +365,16 @@ function noteSection(p, onChange, noteApp = null) {
       h('label', { class: 'wb-row', title: 'No background: writing straight on the page' }, h('input', { type: 'checkbox', checked: !p.bg, onchange: ev => onChange({ bg: ev.target.checked ? null : bgValue }) }), h('span', {}, 'none')))));
 }
 
-function brushSection(role, realize, onChange, doc) {
+function brushSection(role, realize, onChange, doc, { title = 'Brush', label = 'Brush', before = [], showParams = true } = {}) {
   const brushes = brushesForRole(role, doc);
   const brushId = realize?.brush || brushes[0]?.id;
   const b = BRUSHES[brushId];
   const params = resolveParams(brushId, realize?.params);
-  const box = section('Brush', true,
-    row('Brush', selectField(brushes.map(x => [x.id, x.label]), brushId, v => onChange({ brush: v, params: {} })), b?.doc)
+  const box = section(title, true, ...before,
+    row(label, glyphSelect(brushes.map(x => [x.id, x.label]), brushId, v => onChange({ brush: v, params: {} }), { title: label, glyph: id => brushIcon(id), compact: COMPACT }), b?.doc)
   );
-  for (const s of b?.params || []) {
+  for (const s of showParams ? b?.params || [] : []) {
+    if (s.key === 'edge' && role === 'plane' && !params.edge) continue;   // (the plane has a Stroke; an old edge still shows, to take off)
     box.append(row(s.label, numberField({
       value: params[s.key], min: s.min, max: s.max, step: s.step, def: s.default, title: s.doc,
       onChange: (v, { final }) => { if (final) onChange({ brush: brushId, params: { [s.key]: v } }); }

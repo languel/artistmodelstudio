@@ -58,6 +58,7 @@ import { ScorePlayer } from './scorePlayer.js';
 import { ScoreOverlay } from './scoreOverlay.js';
 import { PlayTool, PLAY_KINDS } from './playTool.js';
 import { openPlayPopover } from './playPopover.js';
+import { openPropertiesPopup } from './propsPopup.js';
 import * as Rel from '../score/relations.js';
 import { nearestPath } from '../score/geometry.js';
 import { realizeAfter } from '../process/playparts.js';
@@ -208,6 +209,7 @@ export class Workbench {
 
   // ---- events ------------------------------------------------------------------
   on(name, fn) { (this.handlers.get(name) || this.handlers.set(name, new Set()).get(name)).add(fn); }
+  off(name, fn) { this.handlers.get(name)?.delete(fn); }
   emit(name, ...a) { for (const fn of this.handlers.get(name) || []) { try { fn(...a); } catch (err) { console.error(`${name} listener failed:`, err); } } }
   log(text, kind = 'info') { this.logLines.push({ t: Date.now(), text, kind }); if (this.logLines.length > 400) this.logLines.shift(); this.emit('log'); }
 
@@ -1385,10 +1387,10 @@ export class Workbench {
     try { const bg = localStorage.getItem('ams_workspace_bg'); if (bg && bg !== 'default') { const log = this.log; this.log = () => {}; this.setBackground(bg); this.log = log; } } catch { /* ignore */ }
     this.canvas.onContext = (e, hit, at) => {
       if (!e.altKey) return showMenu(this.contextItems(hit, at), e.clientX, e.clientY);
-      if (hit && (hit.play || this.tool === 'play')) return openPlayPopover(this, e.clientX, e.clientY, hit.id);   // Opt+right-click a mark that plays: its Play controls
-      // Opt+right-click: a mark's or tool's parameters; on bare paper, the board's.
+      // Opt+right-click: Properties at the pointer, for the marks (their Play too), else the board under it, else the tool.
       const b = !hit && !this.canvas.selected.size && this.boardAtClient(e.clientX, e.clientY);
-      return b ? openBoardParams(this, b.id, e.clientX, e.clientY) : openToolParams(this, e.clientX, e.clientY);
+      if (b) this.canvas.selectBoard(b.id);
+      return openPropertiesPopup(this, e.clientX, e.clientY);
     };
     this.activeBoard = MAIN;
     this.canvas.onBoardSelect = id => { this.activeBoard = id; this.selectedAsset = null; this.emit('board'); };
@@ -1407,7 +1409,7 @@ export class Workbench {
     window.addEventListener('pointermove', e => { this.pointerAt = [e.clientX, e.clientY]; }, { capture: true, passive: true });   // where the radial menu opens
     this.canvas.onBoardRename = id => this.renameBoard(id);
     this.canvas.onBoardContext = (id, e) => this.boardMenu(id, e.clientX, e.clientY);
-    this.canvas.onBoardParams = (id, e) => openBoardParams(this, id, e.clientX, e.clientY);   // Opt+right-click on a board's title or corner
+    this.canvas.onBoardParams = (id, e) => { this.canvas.selectBoard(id); openPropertiesPopup(this, e.clientX, e.clientY); };   // Opt+right-click on a board's title or corner
     this.canvas.onDropAsset = (id, at) => this.placeAsset(id, at).catch(err => this.log(err.message, 'error'));
     this.canvas.onDropSource = (name, at) => this.placeSource(name, at);
     this.canvas.onDropFiles = (files, at) => this.placeFiles(files, at).catch(err => this.log(err.message, 'error'));

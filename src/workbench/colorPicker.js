@@ -56,17 +56,19 @@ function hsvHex({ h: hh, s, v }) {
 
 // ---- the field -----------------------------------------------------------------------
 /** A swatch that opens the picker. onChange receives '#rrggbb' or '#rrggbbaa'. */
-export function colorField(value, onChange, { title = 'Color', fallback = '#1d1b19', app = null } = {}) {
-  let { hex, alpha } = parseColor(value, fallback);
+export function colorField(value, onChange, { title = 'Color', fallback = '#1d1b19', app = null, allowNone = false, noneValue = null, noneLabel = 'none' } = {}) {
+  let none = allowNone && (!value || value === 'none');
+  let { hex, alpha } = parseColor(none ? fallback : value, fallback);
   const chip = h('span', { class: 'wb-cp-chip' });
   const label = h('span', { class: 'wb-cp-label' });
   const btn = h('button', { class: 'wb-cp-swatch', title, type: 'button' }, h('span', { class: 'wb-cp-checker' }, chip), label);
-  const paint = () => { chip.style.background = formatColor(hex, alpha); label.textContent = `${hex.slice(1)}${alpha < 0.999 ? ` · ${Math.round(alpha * 100)}%` : ''}`; };
+  const paint = () => { chip.style.background = none ? 'transparent' : formatColor(hex, alpha); label.textContent = none ? noneLabel : `${hex.slice(1)}${alpha < 0.999 ? ` · ${Math.round(alpha * 100)}%` : ''}`; };
   paint();
-  btn.addEventListener('click', () => openPicker(btn, { hex, alpha }, (c, final) => {
-    hex = c.hex; alpha = c.alpha; paint();
+  btn.addEventListener('click', () => openPicker(btn, { hex, alpha, none }, (c, final) => {
+    if (!c) { none = true; paint(); if (final) onChange(noneValue); return; }
+    none = false; hex = c.hex; alpha = c.alpha; paint();
     if (final) onChange(formatColor(hex, alpha));
-  }, app));
+  }, app, { allowNone }));
   return btn;
 }
 

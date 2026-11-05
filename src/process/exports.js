@@ -90,7 +90,7 @@ export function toSVG(doc, { mode = 'process' } = {}) {
             else if (closedFill) fillPath();
           } else if (!construction && e.fill && e.role === 'plane') {
             BRUSHES[id].draw(ctx, { ...e, color: e.fill }, p, env);
-            if (e.color) { ctx.strokeStyle = e.color; ctx.lineWidth = 2; KIT.tracePath(ctx, KIT.smoothPath(e.points, true), true); ctx.stroke(); }
+            if (e.color) { ctx.strokeStyle = e.color; ctx.lineWidth = e.strokeWidth ?? 2; KIT.tracePath(ctx, KIT.smoothPath(e.points, true), true); ctx.stroke(); }
           } else {
             if (closedFill) fillPath();
             BRUSHES[id].draw(ctx, e, p, env);

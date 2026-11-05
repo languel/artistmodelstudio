@@ -120,6 +120,16 @@ function patchFx(b, patch) {
   for (const k of ['fx', 'sourceFx']) if (k in patch) { const l = patch[k]; if (Array.isArray(l) && l.length) b[k] = JSON.parse(JSON.stringify(l)); else delete b[k]; }
 }
 
+/**
+ * A plane: `color` is its stroke, `fill` its fill, and its brush is how that fill is painted (flat, hatch, stipple).
+ * A plane with no fill is its outline alone, so choosing a way to paint the fill has to give it one.
+ */
+export const FILL_STYLES = Object.freeze(['flat', 'hatch', 'stipple']);
+export function ensureFill(e) {
+  if (e.role === 'plane' && !e.fill && FILL_STYLES.includes(e.realize?.brush)) e.fill = e.color && e.color !== 'none' ? e.color : '#8a8175';
+  return e;
+}
+
 export function normalizeElement(e, stage) {
   const role = ROLES[e.role] ? e.role : 'line';
   return {
@@ -131,6 +141,7 @@ export function normalizeElement(e, stage) {
     realize: { ...(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), ...(e.realize || {}), params: { ...(e.realize?.params || {}) } },
     color: e.color || null,
     ...(e.fill ? { fill: e.fill } : {}),
+    ...(Number(e.strokeWidth) > 0 ? { strokeWidth: Number(e.strokeWidth) } : {}),   // a plane's outline (a line's width is its brush's)
     text: role === 'note' ? String(e.text || '') : e.text,
     why: e.why || '',
     by: e.by || { kind: 'user', name: 'you' },
@@ -195,7 +206,17 @@ export class ProcessStore {
   trimPast(maxSteps = 200, maxChars = 150e6) {
     let total = 0;
     for (const x of this.past) total += x.length;
-    while (this.past.length > 1 && (this.past.length > maxSteps || total > maxChars)) total -= this.past.shift().length;
+    while (this.past.length > 1 && (this.past.length > maxSteps || total > maxChars)) { total -= this.past.shift().length; this.trimmed = (this.trimmed || 0) + 1; }
+  }
+
+  /** Everything between beginStep and endStep undoes as one step (one request to the assistant, however many tools it takes). */
+  beginStep() { this.stepFrom = { before: JSON.stringify(this.doc), at: this.past.length, trimmed: this.trimmed || 0 }; }
+  endStep() {
+    const s = this.stepFrom; this.stepFrom = null;
+    if (!s || s.before === JSON.stringify(this.doc)) return;
+    this.past.length = Math.min(this.past.length, Math.max(0, s.at - ((this.trimmed || 0) - s.trimmed)));
+    this.past.push(s.before);
+    this.future = [];
   }
 
   subscribe(fn, { live = false } = {}) { fn.live = live; this.listeners.add(fn); return () => this.listeners.delete(fn); }
@@ -264,8 +285,12 @@ export class ProcessStore {
     return this.change(label, d => {
       const e = d.elements.find(x => x.id === id);
       if (!e) return null;
+      const was = e.realize?.brush;
       Object.assign(e, patch);
-      if (patch.realize) e.realize = { ...e.realize, ...patch.realize, params: { ...e.realize.params, ...(patch.realize.params || {}) } };
+      if (patch.realize) {
+        e.realize = { ...e.realize, ...patch.realize, params: { ...e.realize?.params, ...(patch.realize.params || {}) } };
+        if (patch.realize.brush && patch.realize.brush !== was) ensureFill(e);
+      }
       return e;
     }, opts);
   }

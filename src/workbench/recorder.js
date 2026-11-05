@@ -170,8 +170,9 @@ export class Recorder {
     this.push({ track: 'say', start: this.now(), dur: readingTime(text), text, meta });
   }
 
-  onTool(name, args, { replay = false, summary = '' } = {}) {
-    if (!this.take && this.settings.autoAgents && !replay && !/^ams_(record|timeline|wb_state|vocabulary|get|snapshot|candidates|pending|sessions|show|decision_pending|decision_labels|layout|score)$/.test(name)) {
+  onTool(name, args, { replay = false, summary = '', quiet = false } = {}) {
+    // (quiet: the quick command field. An edit you asked for in passing is not an agent's run to keep: no take of its own.)
+    if (!this.take && this.settings.autoAgents && !replay && !quiet && !/^ams_(record|timeline|wb_state|vocabulary|get|snapshot|candidates|pending|sessions|show|decision_pending|decision_labels|layout|score)$/.test(name)) {
       this.start({ title: `Agent run ${new Date().toLocaleString()}`, source: 'agent' });
     }
     if (!this.take) return;

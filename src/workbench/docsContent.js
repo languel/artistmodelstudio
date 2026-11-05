@@ -84,6 +84,7 @@ Every key can be changed in **Shortcuts** (menu, or Shift+Cmd+/): search, click 
 | Key | Action |
 |---|---|
 | Cmd+K | Command palette: every command, panel, exercise, walkthrough and doc by name; or ask the Assistant |
+| / | Quick command: a small field at the pointer, about the selection (or the mark under the pointer). Enter runs the top match; Cmd+Enter asks the Assistant. Plain phrases work at once, with no model: *change the fill to red*, *red fill*, *make it red*, *no stroke*, *change fill to hatch*, *cross hatch it*, *opacity 50*, *multiply blend*, *ink brush*, *hide it*, *call it horizon*. Anything else goes to the Assistant, which acts without asking and undoes as one step |
 | V H | Select, pan |
 | O P A | Point, line, plane |
 | E G T | Gesture, guide, note |

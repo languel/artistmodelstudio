@@ -20,6 +20,29 @@ const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke
 const STOP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 const TALK_ONLY = 'You are the assistant inside Artist Model Studio, a workbench for drawing by process (Klee, Kandinsky, the algorists). Studio tools are switched off: answer in plain text, briefly, and say what you would draw rather than drawing it.';
 
+/**
+ * From the quick command field: the person is drawing and does not want a conversation. A small prompt on purpose:
+ * only what is selected and the few tools that change it, no chat history. With the whole tool list and the history a
+ * small local model took 10 seconds and could not be read; with this it answers in a fraction of a second.
+ */
+export function flowPrompt(app) {
+  const doc = app.store.doc, sel = [...app.canvas.selected];
+  const marks = doc.elements.filter(e => sel.includes(e.id)).slice(0, 12)
+    .map(e => `- ${e.id}: ${e.role}${e.label ? ` "${e.label}"` : ''}, fill ${e.fill || 'none'}, stroke ${e.color || 'default'}, opacity ${e.opacity ?? 1}, brush ${e.realize?.brush}`).join('\n');
+  return `You change a drawing in a drawing app, at once. Never ask a question or offer options: when something is unclear, choose the most sensible reading and do it. Undo is one key away.
+${marks ? `Selected marks ("it" and "this" mean these):\n${marks}` : 'Nothing is selected.'}
+Reply with ONE JSON object: {"say":"at most one short sentence","actions":[{"tool":"...","args":{...}}],"done":true}
+Tools:
+- ams_update {"id","patch"}: change a mark, one action per mark. patch fields: fill, color (the stroke or outline), strokeWidth, opacity (0 to 1), blend, label, hidden, locked, realize (how a plane's fill is painted: {"brush":"flat"} or {"brush":"stipple"} or {"brush":"hatch","params":{"spacing":10,"angle":45,"cross":0}}; cross 1 is crosshatch). Change ONLY what was asked for. Colors are always #rrggbb, chosen by you, never words.
+- ams_command {"id"}: view.frameSelection, edit.duplicate, edit.group, edit.ungroup, edit.delete, edit.selectAll, view.fit.
+- ams_add {"role","points"} or {"shape","box","role":"plane"}: only to draw something new, one action per mark. role is point, line or plane; points are [[x,y],...]; shape is circle or rect, box is [x0,y0,x1,y1]; add "fill" or "color" as #rrggbb. The page is 1000 by 1000.
+Examples, for a mark el_x with fill #b05a3c:
+"make it darker" -> {"say":"Darker.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"fill":"#6e3824"}}}],"done":true}
+"give it a green outline" -> {"say":"Green outline.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"color":"#2e8b57"}}}],"done":true}
+"cross hatch it" -> {"say":"Crosshatched.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"realize":{"brush":"hatch","params":{"cross":1}}}}}],"done":true}
+"a bit see-through" -> {"say":"Set to 60%.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"opacity":0.6}}}],"done":true}`;
+}
+
 function systemPrompt(app) {
   const tools = window.ams.listTools()
     .filter(t => !['ams_set', 'ams_answer', 'ams_pending'].includes(t.name))
@@ -133,9 +156,11 @@ export function mountAssistant(root, app) {
     h('button', { class: 'wb-compose-icon', title: 'Attach', html: icon('plus'), onclick: attachMenu }), pill, toolsBtn, h('span', { style: { flex: 1 } }), moreBtn, sendBtn), fileIn);
   paintTools();
 
-  app.assistantAsk = text => { input.value = text; send(); };
-  const send = async () => {
+  app.assistantAsk = (text, opts) => { input.value = text; return send(opts); };
+  /** flow: from the quick command field: act without asking, no guide cursor, undone as one step. Returns { say } or { error }. */
+  const send = async ({ flow = false } = {}) => {
     const text = input.value.trim();
+    if (busy && flow) { input.value = ''; return { error: 'Still working on the last request.' }; }
     if (!text || busy) return;
     input.value = ''; grow();
     if (text.startsWith('!')) { await runCommand(text); return; }
@@ -145,22 +170,27 @@ export function mountAssistant(root, app) {
     history.push({ who: 'you', text: full }); persist();
     const cfg = assistantSettings(), engine = currentEngine();
     const artist = app.artists.get(engine);
-    if (!artist?.complete || engine === 'agent') { add('sys', 'Pick a model engine (Ollama, WebGPU, OpenRouter or OpenAI-compatible) from the model button. An external agent drives the tools directly over MCP.', 'error'); return; }
+    if (!artist?.complete || engine === 'agent') { add('sys', 'Pick a model engine (Ollama, WebGPU, OpenRouter or OpenAI-compatible) from the model button. An external agent drives the tools directly over MCP.', 'error'); return { error: 'Pick a model engine: click here for the Assistant.' }; }
     busy = new AbortController();
+    if (flow) app.store.beginStep();
+    let nudged = false, said = '', failed = '';
     sendBtn.innerHTML = STOP; sendBtn.title = 'Stop';
     let lastSig = '';
-    let transcript = history.slice(-cfg.history).map(m => `${m.who === 'you' ? 'USER' : m.who === 'bot' ? 'ASSISTANT' : 'RESULTS'}: ${m.text}`).join('\n');
+    let transcript = flow ? `USER: ${text}` : history.slice(-cfg.history).map(m => `${m.who === 'you' ? 'USER' : m.who === 'bot' ? 'ASSISTANT' : 'RESULTS'}: ${m.text}`).join('\n');
     try {
-      if (!cfg.tools) {
+      if (!cfg.tools && !flow) {
         const pending = add('sys', 'Working…', 'pending');
         const raw = await artist.complete({ system: TALK_ONLY, user: transcript, temperature: cfg.temperature, signal: busy.signal });
         pending.remove(); const say = String(raw || '').trim(); add('bot', say); history.push({ who: 'bot', text: say });
       } else for (let round = 0; round < cfg.rounds && !busy.signal.aborted; round++) {
         const pending = add('sys', round ? 'Reading the results…' : 'Working…', 'pending');
-        const raw = await artist.complete({ system: systemPrompt(app), user: transcript, temperature: cfg.temperature, signal: busy.signal });
+        const raw = await artist.complete({ system: flow ? flowPrompt(app) : systemPrompt(app), user: transcript, temperature: flow ? 0.3 : cfg.temperature, signal: busy.signal, json: true, ...(flow ? { maxTokens: 600 } : {}) });   // (json: an engine that can force valid JSON does; small models otherwise drop a brace)
         pending.remove();
         const r = parseReply(raw);
-        if (r.say) { add('bot', r.say); history.push({ who: 'bot', text: r.say }); }
+        // It asked anyway: once, tell it to assume and act.
+        if (flow && !nudged && !r.actions.length && /\?\s*$/.test(r.say || '')) { nudged = true; transcript += `\nASSISTANT: ${JSON.stringify(r)}\nUSER: Do not ask. Make your best assumption and do it now.`; continue; }
+        if (flow && !r.actions.length && /^\s*[{[]/.test(r.say || '')) { failed = 'The model’s reply could not be read. Nothing was changed.'; add('sys', failed, 'error'); break; }
+        if (r.say) { said = r.say; add('bot', r.say); history.push({ who: 'bot', text: r.say }); }
         if (!r.actions.length) break;
         const sig = JSON.stringify(r.actions);
         if (sig === lastSig) { add('sys', 'Stopped: the model repeated the same actions.', 'error'); break; }
@@ -168,13 +198,14 @@ export function mountAssistant(root, app) {
         const results = [];
         for (const a of r.actions.slice(0, 8)) {
           try {
-            const out = await window.ams.callTool(a.tool, a.args || {});
+            const out = await window.ams.callTool(a.tool, a.args || {}, { quiet: flow });
             const brief = JSON.stringify(out ?? null).replace(/"data:image[^"]+"/g, '"<image>"').slice(0, 600);
             results.push(`${a.tool} → ${brief}`);
             add('act', `${a.tool.replace(/^ams_/, '')} ✓`);
           } catch (err) {
             results.push(`${a.tool} failed: ${err.message}`);
             add('act', `${a.tool.replace(/^ams_/, '')} failed: ${err.message}`, 'error');
+            failed = err.message;
           }
         }
         history.push({ who: 'results', text: results.join('\n') });
@@ -184,11 +215,14 @@ export function mountAssistant(root, app) {
     } catch (err) {
       log.querySelector('.pending')?.remove();
       add('sys', busy?.signal.aborted ? 'Stopped.' : `Error: ${err.message}`, busy?.signal.aborted ? '' : 'error');
+      if (!busy?.signal.aborted) failed = err.message;
     } finally {
+      if (flow) app.store.endStep();
       persist();
       busy = null;
       sendBtn.innerHTML = SEND; sendBtn.title = 'Send (Enter)';
     }
+    return failed ? { error: failed } : { say: said };
   };
 
   input.addEventListener('keydown', e => {

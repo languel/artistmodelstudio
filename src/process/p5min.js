@@ -32,7 +32,7 @@ export function toP5Min(doc, { title = doc.title || 'drawing', version = '2' } =
     const stroke = plane ? (e.fill && e.color && e.color !== 'none' ? e.color : null) : e.color === 'none' ? null : color;
     // Hand-drawn marks carry many points: keep only those that shape the line (within 1 unit).
     const kept = e.points.length > 12 ? rdp(e.points, 1) : e.points;
-    return { kind: plane ? 'plane' : 'line', comment, fill, stroke, weight: stroke ? (plane ? 2 : w) : 0, smooth: !(e.path === 'straight' || kept.length < 3), closed, pts: kept.map(([x, y]) => [r1(x), r1(y)]) };
+    return { kind: plane ? 'plane' : 'line', comment, fill, stroke, weight: stroke ? (plane ? r1(e.strokeWidth ?? 2) : w) : 0, smooth: !(e.path === 'straight' || kept.length < 3), closed, pts: kept.map(([x, y]) => [r1(x), r1(y)]) };
   });
 
   const out = [], data = [], helpers = new Set();

@@ -253,7 +253,7 @@ function fillShape(ctx, e) {
 
 function strokeShape(ctx, e) {
   ctx.save();
-  ctx.strokeStyle = e.color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.strokeStyle = e.color; ctx.lineWidth = e.strokeWidth ?? 2; ctx.lineJoin = 'round';
   KIT.tracePath(ctx, e.path === 'straight' ? e.points : KIT.smoothPath(e.points, true), true);
   ctx.stroke();
   ctx.restore();

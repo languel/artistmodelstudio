@@ -98,6 +98,7 @@ export function defaultCommands(app) {
     cmd('dock.right', 'Panels', 'Toggle right dock', ['mod+alt+b'], () => app.docks.toggleDock('right')),
     cmd('dock.bottom', 'Panels', 'Toggle bottom dock', ['mod+shift+b'], () => app.docks.toggleDock('bottom')),
     cmd('app.palette', 'App', 'Command palette', ['mod+k'], () => import('./palette.js').then(m => m.openPalette(app)), { global: true }),
+    cmd('app.slashbar', 'App', 'Quick command: a small field at the pointer, for the selection (Enter runs the top match, ⌘Enter asks the assistant)', ['/'], () => import('./palette.js').then(m => m.openPalette(app, { compact: true }))),
     cmd('app.settings', 'App', 'Settings', ['mod+,'], () => app.docks.open('settings'), { global: true }),
     cmd('app.shortcuts', 'App', 'Shortcuts', ['mod+shift+/'], () => app.docks.open('shortcuts'), { global: true }),
     cmd('app.docs', 'App', 'Docs', ['?'], () => app.openDocs()),

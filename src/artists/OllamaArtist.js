@@ -171,10 +171,11 @@ export class OllamaArtist extends Artist {
   }
 
   /** One chat completion: { system, user, image?, temperature?, signal } → text. */
-  async complete({ system, user, image = null, temperature = 0.7, signal } = {}) {
+  // json: force valid JSON, with a token cap (in JSON mode a small model can pad with whitespace for ever).
+  async complete({ system, user, image = null, temperature = 0.7, signal, json = false, maxTokens = 2000 } = {}) {
     const res = await fetch(`${this.endpoint}/api/chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
-      body: JSON.stringify({ model: this.model, stream: false, think: false, options: { temperature }, messages: [...(system ? [{ role: 'system', content: system }] : []), ollamaMessage(user, image)] })
+      body: JSON.stringify({ model: this.model, stream: false, think: false, ...(json ? { format: 'json' } : {}), options: { temperature, ...(json ? { num_predict: maxTokens } : {}) }, messages: [...(system ? [{ role: 'system', content: system }] : []), ollamaMessage(user, image)] })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
