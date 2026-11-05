@@ -307,6 +307,41 @@ export class Workbench {
     this.canvas.flash(`Solo: ${ids.length} mark${ids.length === 1 ? '' : 's'}`);
   }
 
+  /**
+   * Right-click on a line: a new traveler or event on it, where the pointer is. It is made like the
+   * last traveler (or event) in the drawing (its shape, brush, colour and play settings, not its
+   * path), else as the Play tool makes one; the line becomes a path. One undo step.
+   */
+  attachNewAt(kind, lineId, wx, wy) {
+    const doc = this.store.doc, line = doc.elements.find(e => e.id === lineId);
+    if (!line || (line.points?.length || 0) < 2 || ['point', 'note', 'image'].includes(line.role)) return null;
+    const hit = nearestPath([line], wx, wy, Infinity)?.hit;
+    if (!hit) return null;
+    const isT = kind === 'traveler', part = isT ? 'travel' : 'trigger';
+    const last = [...doc.elements].reverse().find(e => e.id !== lineId && e.play?.[part]);
+    let tpl;
+    if (last) {
+      const { id, label, group, play, points, board, ...rest } = structuredClone(last);
+      const [cx, cy] = Rel.centerPoint(last);
+      // Its settings, not where it was: no path, place, cue or start.
+      const { on, at, cue, path, start, ...keep } = play[part];
+      tpl = { ...rest, by: { kind: 'user', name: 'you' }, points: points.map(p => [p[0] - cx + hit.x, p[1] - cy + hit.y, ...p.slice(2)]), play: { [part]: isT ? { ...keep, on: '' } : keep } };
+    } else {
+      const play = isT ? { travel: { on: '' } } : { trigger: { emit: soundCode(SOUND_DEFAULTS.height) } };
+      tpl = { role: 'point', stage: this.canvas.getStage().id, points: [[hit.x, hit.y, 0, 0.5]], by: { kind: 'user', name: 'you' }, ...this.canvas.playExtraFor('point', play) };
+    }
+    let made = null;
+    this.store.change(isT ? 'attach a traveler' : 'attach an event', d => {
+      const e = normalizeElement(tpl, tpl.stage || line.stage || d.stages[0].id);
+      if (line.board) e.board = line.board;
+      d.elements.push(e); made = e.id;
+      if (isT) Rel.attachTraveler(d, e.id, lineId, hit.u, (this.player?.position() || 0) / 1000, this.player?.settings);
+      else Rel.attachEvent(d, e.id, lineId, hit.u);
+    });
+    if (made) { this.canvas.select([made]); this.canvas.flash(`${isT ? 'A traveler' : 'An event'} on ${line.label || 'the path'}${last ? ', like the last one' : ''}`); }
+    return made;
+  }
+
   /** The Play submenu of the selection's right-click menu: make marks play, attach and link them. */
   playMenuItems(ids) {
     const doc = this.store.doc, els = doc.elements.filter(e => ids.includes(e.id));
@@ -2442,8 +2477,16 @@ export class Workbench {
     const brushes = one && !['note', 'image'].includes(one.role) ? brushesForRole(one.role, this.store.doc) : [];
     const z = this.canvas.cam.z;
     const simplify = tol => { const r = this.store.simplify(ids, tol / z); this.log(`Simplified: ${r.before} → ${r.after} points.`); };
+    // A line under the pointer (or the one selected): a traveler or an event can be put on it there.
+    const isLine = el => el && (el.points?.length || 0) >= 2 && ['line', 'gesture', 'guide'].includes(el.role) && !el.play?.trigger;
+    // (a traveler or an attached event: the line it is on)
+    const lineOf = el => { const ref = el?.play?.travel?.on || el?.play?.trigger?.path; return ref ? this.store.doc.elements.find(x => x.id === ref || x.label === ref) : null; };
+    const onLine = isLine(hit) ? hit : els.find(isLine) || (isLine(lineOf(hit)) ? lineOf(hit) : null);
     return [
       { label: one ? (one.label || one.role) : `${n} elements` },
+      onLine ? { label: 'Attach a traveler here', hint: 'The line becomes a path, and a traveler like the last one made goes on it where you clicked (it runs from there)', run: () => this.attachNewAt('traveler', onLine.id, wx, wy) } : null,
+      onLine ? { label: 'Attach an event here', hint: 'The line becomes a path, and an event like the last one made sits on it where you clicked (it sounds when a traveler reaches it)', run: () => this.attachNewAt('event', onLine.id, wx, wy) } : null,
+      onLine ? '-' : null,
       { label: 'Arrange', items: [
         { label: 'Bring to front', run: () => this.store.arrange(ids, 'front') },
         { label: 'Bring forward', run: () => this.store.arrange(ids, 'forward') },
