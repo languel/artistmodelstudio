@@ -8,7 +8,7 @@
 import { h } from '../workbench/ui.js';
 import { showMenu } from '../workbench/menu.js';
 import { MAIN } from '../process/boards.js';
-import { BODY_TYPES, physicsOf } from './model.js';
+import { BODY_TYPES, physicsOf, candidatesAt, canBePhysical } from './model.js';
 
 const KEY = 'ams_physics_toolbar';
 const svg = (d, extra = '') => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"${extra}>${d}</svg>`;
@@ -28,7 +28,7 @@ export const PHYS_ICONS = {
   debug: svg('<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="2.5 2.5"/><circle cx="12" cy="12" r="2"/>'),
   world: svg('<path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 20h14"/>')
 };
-const TYPE_NAMES = { auto: 'As drawn (closed falls, open is ground)', dynamic: 'Falls and collides (dynamic)', static: 'Ground: fixed (static)', kinematic: 'Moves only as told (kinematic)', sensor: 'A sensor: felt, not solid', none: 'Not physical' };
+const TYPE_NAMES = { auto: 'Physical, automatic (closed falls, open is ground, a point is a ball)', dynamic: 'Falls and collides (dynamic)', static: 'Ground: fixed (static)', kinematic: 'Moves only as told (kinematic)', sensor: 'A sensor: felt, not solid', none: 'Not physical (the default)' };
 
 export function mountPhysicsToolbar(app) {
   const island = h('div', { class: 'wb-island wb-phys', 'data-guide': 'physics' });
@@ -48,6 +48,9 @@ export function mountPhysicsToolbar(app) {
   const place = (kind, extra = {}) => {
     const cv = app.canvas;
     const make = (pts, play, role = 'point') => {
+      // What is under it becomes physical (as drawn) if it is not yet: a hinge over a wheel is a wheel in the world.
+      const board = app.activeBoard || MAIN, under = [...new Set(pts.flatMap(([x, y]) => candidatesAt(app.store.doc, board, x, y).slice(0, 2)))];
+      if (under.length) app.store.change('make physical', d => { for (const e of d.elements) if (under.includes(e.id)) e.play = { ...(e.play || {}), phys: { ...(e.play?.phys || {}), type: 'auto' } }; });
       const el = cv.commitNew(role, pts.map(([x, y]) => [x, y, 0, 0.5]), { play, realize: role === 'point' ? { brush: 'dot', params: { size: 9 } } : { brush: 'ink', params: { width: 2 } } });
       app.log(`${kind[0].toUpperCase()}${kind.slice(1)} placed${play.hinge?.motor ? ' (with a motor)' : ''}: it holds what is under it.`);
       return el;
@@ -70,7 +73,8 @@ export function mountPhysicsToolbar(app) {
       for (const e of d.elements) {
         if (!ids.includes(e.id)) continue;
         const play = { ...(e.play || {}) };
-        if (type === 'auto') { const ph = { ...(play.phys || {}) }; delete ph.type; if (Object.keys(ph).length) play.phys = ph; else delete play.phys; }
+        if (!canBePhysical(e)) continue;
+        if (type === 'none') { const ph = { ...(play.phys || {}) }; delete ph.type; if (Object.keys(ph).length) play.phys = ph; else delete play.phys; }
         else play.phys = { ...(play.phys || {}), type };
         if (Object.keys(play).length) e.play = play; else delete e.play;
       }

@@ -1,23 +1,28 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import R from '@dimforge/rapier2d-deterministic-compat';
-import { physicsScene, roleOf, shapesOf, convexHull, roundness, bodyContains, placeAt } from './model.js';
+import { physicsScene, candidatesAt, roleOf, shapesOf, convexHull, roundness, bodyContains, placeAt } from './model.js';
 import { createCore } from './core.js';
 import { createPhysicsHost } from './host.js';
 
 beforeAll(async () => { await R.init({}); });
 
 const circle = (cx, cy, r, n = 24) => Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * r, 0, 0.5]);
-const doc = (elements, physics = { on: true }) => ({ artboard: { width: 1000, height: 800, physics }, stages: [{ id: 's' }], elements });
+// (marks are physical only once authored: here, as drawn, unless a test says otherwise)
+const doc = (elements, physics = { on: true }) => ({ artboard: { width: 1000, height: 800, physics }, stages: [{ id: 's' }], elements: elements.map(e => (e.play?.hinge || e.play?.weld || e.play?.spring || e.play?.phys ? e : { ...e, play: { ...(e.play || {}), phys: { type: 'auto' } } })) });
 
 describe('physics: what the drawing is', () => {
   it('infers roles: closed falls, open is ground, points are balls, notes and paths are not physical', () => {
-    expect(roleOf({ role: 'plane', points: circle(0, 0, 10) })).toEqual({ type: 'dynamic', shape: 'auto' });
-    expect(roleOf({ role: 'line', points: [[0, 0], [100, 0]] })).toEqual({ type: 'static', shape: 'chain' });
-    expect(roleOf({ role: 'point', points: [[0, 0]] })).toEqual({ type: 'dynamic', shape: 'circle' });
-    expect(roleOf({ role: 'note', points: [[0, 0]] })).toBe(null);
-    expect(roleOf({ role: 'line', points: [[0, 0], [9, 9]], play: { path: true } })).toBe(null);
+    const auto = { play: { phys: { type: 'auto' } } };
+    expect(roleOf({ role: 'plane', points: circle(0, 0, 10) })).toBe(null);          // (nothing is physical until authored)
+    expect(roleOf({ role: 'point', points: [[0, 0]] })).toBe(null);
+    expect(roleOf({ role: 'plane', points: circle(0, 0, 10), ...auto })).toEqual({ type: 'dynamic', shape: 'auto' });
+    expect(roleOf({ role: 'line', points: [[0, 0], [100, 0]], ...auto })).toEqual({ type: 'static', shape: 'chain' });
+    expect(roleOf({ role: 'point', points: [[0, 0]], ...auto })).toEqual({ type: 'dynamic', shape: 'circle' });
+    expect(roleOf({ role: 'note', points: [[0, 0]], ...auto })).toBe(null);
+    expect(roleOf({ role: 'line', points: [[0, 0], [9, 9]], play: { path: true, phys: { type: 'auto' } } })).toBe(null);
     expect(roleOf({ role: 'line', points: [[0, 0], [9, 9]], play: { phys: { type: 'dynamic' } } })).toEqual({ type: 'dynamic', shape: 'auto' });
     expect(roleOf({ role: 'plane', points: circle(0, 0, 10), play: { phys: { type: 'none' } } })).toBe(null);
+    expect(candidatesAt({ elements: [{ id: 'a', role: 'plane', points: circle(50, 50, 20) }, { id: 'b', role: 'plane', points: circle(50, 50, 20), ...auto }, { id: 'n', role: 'note', points: [[50, 50]] }] }, 'main', 50, 50)).toEqual(['a']);
   });
 
   it('finds circles, hulls and chains', () => {

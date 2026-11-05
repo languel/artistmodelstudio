@@ -14,7 +14,7 @@ import { fxEditor } from './fxEditor.js';
 import { SCULPTS, sculptParams } from '../../process/sculpt.js';
 import { NOTE_STYLES, NOTE_FONTS, noteProps } from '../../process/notes.js';
 import { playSection, nameRow } from './playSection.js';
-import { physicsSection } from '../../physics/properties.js';
+import { physicsSection, physicsMultiSection } from '../../physics/properties.js';
 
 export function mountProperties(el, app) {
   const render = () => {
@@ -59,7 +59,7 @@ export function mountProperties(el, app) {
     else el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc));
     el.append(lookSection(e, patch => patchAll(patch, 'look')));
     if (!multi && e.role !== 'note' && e.role !== 'image') el.append(playSection(app, e));
-    if (!multi) { const ps = physicsSection(app, e); if (ps) el.append(ps); }   // (on a board with physics on)
+    { const ps = multi ? physicsMultiSection(app, sel) : physicsSection(app, e); if (ps) el.append(ps); }   // (on a board with physics on)
     el.append(section('Reason', true,
       whyField(e.why, v => patchAll({ why: v }, 'why')),
       h('div', { class: 'wb-muted wb-small' }, multi ? '' : `By ${esc(e.by?.name || 'unknown')} (${esc(e.by?.kind || '')}) · seed ${e.seed}`)

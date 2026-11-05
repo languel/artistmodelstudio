@@ -1,8 +1,9 @@
 /**
  * Physics from the drawing (pure: no engine here). A board with physics on (`board.physics = { on: true, … }`)
- * makes its marks physical, as in Algodoo: what is drawn closed (a plane, a circle, a closed line) falls and
- * collides; what is drawn open (a line, a gesture) is ground, walls and ramps; points are small balls. A mark
- * says otherwise with `play.phys` ({ type: 'dynamic' | 'static' | 'kinematic' | 'sensor' | 'none', shape, … }).
+ * has a world; a mark is in it only once it is made physical (`play.phys`, as authored: nothing is physical by
+ * default). 'auto' is as drawn: closed (a plane, a circle, a closed line) falls and collides, open (a line, a
+ * gesture) is ground, walls and ramps, points are small balls; or say { type: 'dynamic' | 'static' | 'kinematic' |
+ * 'sensor', shape, … }.
  * Joints are marks too: `play.hinge` (a point: it pins what is under it to the world, or two things together;
  * a motor and limits), `play.weld` (a point: what is under it is glued), `play.spring` (a line between what is
  * under its two ends).
@@ -34,23 +35,39 @@ export const jointKind = e => (e.play?.hinge ? 'hinge' : e.play?.weld ? 'weld' :
 const width = e => Number(e.realize?.params?.width) || Number(e.realize?.params?.size) / 3 || 2;
 const closedOf = e => Boolean(e.closed) || e.role === 'plane';
 
+/** Could this mark be a body at all (a note, picture, guide, joint, or a score's path, traveler, gas or node cannot)? */
+export function canBePhysical(e) {
+  if (jointKind(e) || !e.points?.length) return false;
+  if (['note', 'image', 'guide'].includes(e.role) || e.board === 'blackboard') return false;
+  if (e.play?.body || e.play?.path || e.play?.node) return false;
+  return true;
+}
+
 /**
- * What a mark is in a physical board: { type, shape } or null (not physical). Explicit `play.phys` wins;
- * else: notes, pictures, guides, scores' paths, travelers, gas bodies and joints are not bodies; closed
- * marks are dynamic; open lines are static (ground); points are small dynamic balls.
+ * What a mark is in a physical board: { type, shape } or null (not physical). Marks are NOT physical until
+ * authored: `play.phys.type` says what they are ('dynamic', 'static', 'kinematic', 'sensor'), or 'auto' for
+ * physical as drawn (closed marks fall, open lines are ground, points are small balls). A traveler made
+ * physical is kinematic: it follows its path and pushes.
  */
 export function roleOf(e) {
   const ph = e.play?.phys;
-  if (ph?.type === 'none') return null;
-  if (jointKind(e)) return null;
-  if (ph?.type && e.play?.travel) return { type: 'kinematic', shape: 'circle' };   // (a traveler made physical pushes things along its path)
-  if (ph?.type) return { type: ph.type, shape: ph.shape || 'auto' };
-  if (['note', 'image', 'guide'].includes(e.role) || e.board === 'blackboard') return null;
-  if (e.play?.travel || e.play?.body || e.play?.path || e.play?.node) return null;
-  if (!e.points?.length) return null;
+  if (!ph?.type || ph.type === 'none' || !canBePhysical(e)) return null;
+  if (e.play?.travel) return { type: 'kinematic', shape: 'circle' };
+  if (ph.type !== 'auto') return { type: ph.type, shape: ph.shape || 'auto' };
   if (e.role === 'point' || e.points.length === 1) return { type: 'dynamic', shape: 'circle' };
-  if (closedOf(e)) return { type: 'dynamic', shape: ph?.shape || 'auto' };
+  if (closedOf(e)) return { type: 'dynamic', shape: ph.shape || 'auto' };
   return { type: 'static', shape: 'chain' };
+}
+
+/** The marks under a point that could be bodies but are not yet physical (topmost first): what a joint placed there makes physical. */
+export function candidatesAt(doc, boardId, x, y) {
+  const out = [];
+  for (const e of doc.elements || []) {
+    if ((e.board || MAIN) !== boardId || !canBePhysical(e) || e.play?.phys?.type) continue;
+    const { c, shapes } = shapesOf(e, e.role === 'point' ? 'circle' : 'auto');
+    if (shapes.length && bodyContains({ c, shapes }, x, y)) out.push(e.id);
+  }
+  return out.reverse();
 }
 
 // ---- geometry -------------------------------------------------------------------------------------
