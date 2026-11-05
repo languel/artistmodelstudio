@@ -139,3 +139,18 @@ Reading the reply was the first problem: the model gets the content of its JSON 
 Every tool call goes through `callTool` (mcp.js). **Quiet** calls (the `/` field, flow mode) just act. Others are *shown*: the Guide (`guide.js`) moves a cursor to the control the tool uses, rings the click, and a caption card says what and why (a tool call's `narrate` argument is the caption; without one the studio writes one); the call is logged as `Agent → …`, and the session recorder and the Recorder keep it (an *Agent run* take; ⋯ › *How did you do that?* replays it with the Guide). Pace: the Guide card's menu (Instant, Fast, Normal, Slow).
 
 `/agent <what to do>` (also `/show`) asks the assistant for something and acts it out that way: the same request as the `/` field, but not quiet, with the model's own sentence as the first caption. For tutorials: `/agent` for a live demonstration, an authored walkthrough (`walkthroughs.js`) or script (`script.js`: cues with `say`, `drag`, `click`) for a fixed tour, `ams_sessions replay` to show again what an agent did. The chat's normal mode (not the `/` field) is not quiet either, so its tools are also shown.
+
+## Reproducing the lessons (5 Nov 2026)
+
+`lessonEval.js`: give a model a teacher's description of one of the sampling lesson's boards (a grid of dots colored from a painting; the same with the size from the darkness; scattered dots; a pointillist walk) plus three boards that are not in the lessons (rings, a sun, stripes), with the studio's language reference (`SCRIPT_REFERENCE` plus the rules on units and light/dark). It writes code; the studio runs it on a blank board; the result is compared with the lesson's own board (does it run, does it read the right source, how many marks, how alike is the picture). Each task has two wordings (the teacher's, and a rephrased one). A broken program is sent back to the model with the studio's real error and line, twice at most. `fixCode` (codeFix.js) repairs two mistakes mechanically before running: a variable named like a function it calls (`const rect = rect(…)`) and a comma ending a declaration.
+
+| Model | teacher's wording | rephrased | total |
+|---|---|---|---|
+| Qwen 3.8 9B coder (Ollama) | 7/7 | 7/7 | **14/14** (exact mark counts: 2700 of 2700, 721 of 721) |
+| LFM3-Omni 2B in the browser | 4/7 | 5/7 | 9/14 |
+| LFM3-Omni 2B on Ollama | 3/7 | 4/7 | 7/14 |
+
+- The browser runtime is not the limit: the same weights on Ollama score the same, within noise. **The size of the model is.** The 2B model writes plausible code that is wrong in the same few ways (an inverted "lighter than", the row count made up from the picture, `const plane = rect(…)`, stray commas); the 9B coder does not.
+- **Worked-example retrieval hurt** (`codeExamples.js`: the two most similar lesson boards in the prompt, the target left out): 6/14 against 8/14 without. The small model copies them. It is kept as an option (`examples: 2`), off by default.
+- The repair loop rarely rescued a 2B failure (it cannot fix what it does not understand); the mechanical `fixCode` did rescue some.
+- The quick field and chat tasks (move, recolor, a row of circles) are another thing: LFM3 in the browser does those (14/16, and 15/16 through the instant phrases and commands), so a reasonable split is **LFM3 for conversation, commands and drawing, a coder model for writing board code**.
