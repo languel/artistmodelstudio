@@ -73,7 +73,7 @@ export function travel(d, moverId, pathId) {
     delete pl.travel.cue; delete pl.travel.at;
     if (pl.travel.width > 0) pl.travel.angle = barAngle(line, 0);
   });
-  if (el.role === 'point') { const q = pointAt(outlineOf(line), 0); el.points = [[q[0], q[1], el.points[0]?.[2] ?? 0, el.points[0]?.[3] ?? 0.5]]; }
+  if (el.role === 'point') { const q = pointAt(outlineOf(line), 0); el.points = [[q[0], q[1], el.points[0]?.[2] ?? 0, el.points[0]?.[3] ?? 0.5]]; el.play.travel.from = 0; }
   return true;
 }
 
@@ -172,10 +172,26 @@ export function detach(d, id) {
   return true;
 }
 
-/** Attached events follow their lines: each is moved so its middle is at its place on the line. In place; returns how many moved. */
+/**
+ * Attached events and travelers follow their lines: an event is moved so its middle is at its place on the line, a
+ * traveler's ring (where it begins) to its place (`travel.from`, 0..1 along the line; a traveler that has none yet
+ * gets it from where its ring is). In place; returns how many moved.
+ */
 export function syncAttached(d) {
   let moved = 0;
   for (const e of d.elements) {
+    const tv = e.play?.travel;
+    if (tv?.on && e.role === 'point' && e.points?.length) {
+      const line = d.elements.find(x => x.id === tv.on || x.label === tv.on);
+      if (!line || !isLine(line)) continue;
+      const o = outlineOf(line);
+      if (typeof tv.from !== 'number') tv.from = Math.round(nearestOn(o, e.points[0][0], e.points[0][1]).u * 10000) / 10000;
+      const q = pointAt(o, tv.from), p0 = e.points[0];
+      if (Math.abs(q[0] - p0[0]) < 1e-6 && Math.abs(q[1] - p0[1]) < 1e-6) continue;
+      e.points = [[q[0], q[1], p0[2] ?? 0, p0[3] ?? 0.5]];
+      moved++;
+      continue;
+    }
     const t = e.play?.trigger;
     if (!t?.path) continue;
     const line = d.elements.find(x => x.id === t.path || x.label === t.path);
@@ -200,7 +216,7 @@ export function offset(d, travelerId, u, phase = u) {
   const ph = loops ? ((phase % 1) + 1) % 1 : phase;
   withPlay(el, pl => { if (Math.abs(ph) > 0.0005 && (!loops || ph < 0.9995)) pl.travel.at = Math.round(ph * 1000) / 1000; else delete pl.travel.at; });
   const q = pointAt(outlineOf(line), at);
-  if (el.role === 'point') el.points = [[q[0], q[1], el.points[0]?.[2] ?? 0, el.points[0]?.[3] ?? 0.5]];
+  if (el.role === 'point') { el.points = [[q[0], q[1], el.points[0]?.[2] ?? 0, el.points[0]?.[3] ?? 0.5]]; el.play.travel.from = Math.round(at * 10000) / 10000; }
   return true;
 }
 

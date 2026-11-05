@@ -245,13 +245,25 @@ describe('events on lines', () => {
     R.slideEvent(d, 'e', 0.8);
     expect(e().points[0][0]).toBeCloseTo(80, 3);
     d.elements.find(x => x.id === 'L').points = [[0, 10], [200, 10]];
-    expect(R.syncAttached(d)).toBe(1);
+    expect(R.syncAttached(d)).toBe(2);   // the event, and the traveler on L (its ring where it begins)
     expect(e().points[0].slice(0, 2).map(Math.round)).toEqual([160, 10]);
+    expect(d.elements.find(x => x.id === 't').points[0].slice(0, 2)).toEqual([0, 10]);
     expect(R.syncAttached(d)).toBe(0);
     R.detach(d, 'e');
     expect(e().play.trigger.path).toBeUndefined();
     d.elements.find(x => x.id === 'L').points = [[0, 99], [200, 99]];
-    expect(R.syncAttached(d)).toBe(0);   // free now: it stays
+    expect(R.syncAttached(d)).toBe(1);   // the event is free now: it stays (the traveler follows)
+    expect(e().points[0].slice(0, 2).map(Math.round)).toEqual([160, 10]);
+  });
+  it('a traveler\'s ring (where it begins) follows its line, at its place along it', () => {
+    const d = mk();
+    R.offset(d, 't', 0.25);
+    const t = () => d.elements.find(x => x.id === 't');
+    expect(t().points[0].slice(0, 2)).toEqual([25, 0]);
+    expect(t().play.travel.from).toBe(0.25);
+    d.elements.find(x => x.id === 'L').points = [[100, 40], [300, 40]];   // moved and stretched
+    R.syncAttached(d);
+    expect(t().points[0].slice(0, 2)).toEqual([150, 40]);
   });
   it('placing an event on a line attaches it; a traveler dropped on another line goes there and carries on from the drop', () => {
     const d = mk();
