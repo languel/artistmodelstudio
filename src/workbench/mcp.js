@@ -29,6 +29,7 @@ const str = d => ({ type: 'string', description: d });
 const num = d => ({ type: 'number', description: d });
 const PRINCIPLES = `You are drawing in Artist Model Studio. The picture is a process: name your stages (analysis → concept → construction → structure → value → marks → notes), record decisions with decide(), and give every mark a short reason (why). The harness does not paint for you: brushes only realize your paths. Keep construction (guides, gestures) separate from marks. Coordinates are artboard units (origin top-left).`;
 
+const ADD_ROLES = ['point', 'line', 'plane', 'guide', 'gesture', 'note'];
 export function workbenchTools(app) {
   const doc = () => app.store.doc;
   /** Each drawing tool's path (smooth or straight): the state ` and ~ set. */
@@ -70,25 +71,74 @@ export function workbenchTools(app) {
       return f === 'svg' ? { svg: toSVG(one) } : f === 'excalidraw' ? toExcalidraw(one) : f === 'p5' ? { sketch: toP5(one) } : a.board ? one : doc();
     } },
     { name: 'ams_set', description: 'Replace the process document (JSON).', inputSchema: S({ doc: { type: 'object' } }, ['doc']), run: (a) => { app.loadDocument(a.doc, 'agent set'); return { ok: true }; } },
-    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color (stroke), fill, why, text (notes), path (smooth: a curve through the points; straight: segments). Or a shape instead of points: shape circle | rect with box [x0, y0, x1, y1] (a plane mark; a circle has sides points, 3–64, default 12, round when smooth and a polygon when path is straight; a rectangle has round 0–1, 1 a pill, and is always straight). With board (id or title), points are relative to that board\'s top-left and the mark joins it; without, points are world units and the mark joins the board it lands on (the blackboard outside boards).', inputSchema: S({ role: str('Role'), board: str('Board id or title'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), path: str('smooth | straight'), shape: str('circle | rect'), box: { type: 'array' }, sides: num('Circle sides (default 12)'), round: num('Rectangle roundness 0–1 (default 0)'), by: { type: 'object' } }, ['role']), run: (a) => {
+    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color (stroke), fill, why, text (notes), path (smooth: a curve through the points; straight: segments). Or a shape instead of points: shape circle | rect with box [x0, y0, x1, y1] (a plane mark; a circle has sides points, 3–64, default 12, round when smooth and a polygon when path is straight; a rectangle has round 0–1, 1 a pill, and is always straight). With board (id or title), points are relative to that board\'s top-left and the mark joins it; without, points are world units and the mark joins the board it lands on (the blackboard outside boards).', inputSchema: S({ role: str('Role'), board: str('Board id or title'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), path: str('smooth | straight'), shape: str('circle | rect'), box: { type: 'array' }, repeat: { type: 'object', description: '{count, dx, dy}: add count copies, each moved by dx, dy from the last (a row: dx 300; a column: dy 300)' }, sides: num('Circle sides (default 12)'), round: num('Rectangle roundness 0–1 (default 0)'), by: { type: 'object' } }, []), run: (a) => {
       const st = doc().stages.find(s => s.id === a.stage || s.name === a.stage) || app.activeStage;
+      // Good assumptions beat refusals: a model that says "shape" or leaves the geometry out gets a sensible one (and is told what was assumed).
+      let assumed = '';
+      if (a.shape) a.shape = ({ box: 'rect', square: 'rect', rectangle: 'rect', oval: 'circle', ellipse: 'circle', round: 'circle', dot: 'circle' })[String(a.shape).toLowerCase()] || a.shape;
+      const ROLE = { shape: 'rect', rectangle: 'rect', square: 'rect', box: 'rect', circle: 'circle', ellipse: 'circle', oval: 'circle', plane: null, dot: 'point', polyline: 'line', path: 'line', stroke: 'line', curve: 'line' };
+      if (a.role && !ADD_ROLES.includes(a.role) && a.role in ROLE) { const r = ROLE[a.role]; if (r === 'circle' || r === 'rect') { a.shape ||= r; a.role = 'plane'; } else a.role = r || 'plane'; }
+      if (!a.points && (a.point || a.at || a.position)) a.points = [a.point || a.at || a.position];
+      if (!a.shape && !Array.isArray(a.points) && (!a.role || a.role === 'plane')) { a.shape = 'rect'; a.role = 'plane'; if (!Array.isArray(a.box)) { a.box = [400, 400, 600, 600]; assumed = 'a 200×200 rectangle in the middle (give shape and box to choose)'; } }
+      if (a.role === 'point' && !Array.isArray(a.points)) { a.points = [[500, 500]]; assumed = 'a point in the middle'; }
+      if (a.shape && !Array.isArray(a.box)) { a.box = [400, 400, 600, 600]; assumed = `a 200×200 ${a.shape} in the middle (give box to place it)`; }
+      if (a.shape && !['circle', 'rect'].includes(a.shape) && Array.isArray(a.points)) delete a.shape;   // ("shape: line" with points: it is just points)
+      for (const k of ['color', 'fill']) if (/^#?r{1,2}g{1,2}b{1,2}$/i.test(String(a[k] || ''))) delete a[k];   // (a placeholder copied from a prompt)
       if (a.shape) {
         if (!['circle', 'rect'].includes(a.shape)) throw new Error('shape is circle or rect');
         if (!Array.isArray(a.box) || a.box.length !== 4 || a.box.some(v => !Number.isFinite(+v))) throw new Error('A shape needs box [x0, y0, x1, y1]');
         const [bx0, by0, bx1, by1] = a.box.map(Number);
+        if (a.role && a.role !== 'plane') throw new Error(`A ${a.shape} is a plane: leave role out or use "plane" (you gave "${a.role}")`);
         a.role = 'plane';
         a.points = shapePoints(a.shape, Math.min(bx0, bx1), Math.min(by0, by1), Math.max(bx0, bx1), Math.max(by0, by1), { sides: a.sides, round: a.round }).map(([x, y]) => [x, y]);
         if (a.shape === 'rect') a.path = 'straight';
-      } else if (!Array.isArray(a.points)) throw new Error('ams_add needs points [[x, y], ...] (or a shape with a box)');
+      } else if (!Array.isArray(a.points)) throw new Error('ams_add needs points [[x, y], ...], or a shape (circle | rect) with a box [x0, y0, x1, y1]. For a circle: {shape: "circle", box: [x0, y0, x1, y1]}');
+      if (!ADD_ROLES.includes(a.role)) throw new Error(`role must be one of ${ADD_ROLES.join(', ')}${a.role ? ` (you gave "${a.role}")` : ''}. For a circle or rectangle use shape + box`);
       a.points = normalizePoints(a.points);
+      // Marks that cannot be seen are refused with the way out, rather than added invisibly.
+      const need = { point: 1, line: 2, plane: 3 }[a.role] || 1;
+      if (a.points.length < need) throw new Error(`A ${a.role} needs at least ${need} point${need > 1 ? 's' : ''} (you gave ${a.points.length})${a.role === 'line' && a.points.length === 1 ? '. For a single dot use role "point"; for a circle use {shape: "circle", box: [x0, y0, x1, y1]}' : ''}`);
+      if (a.points.some(p => !p.slice(0, 2).every(Number.isFinite))) throw new Error('Every point is [x, y] with numbers');
+      for (const k of ['color', 'fill']) if (a[k] != null && a[k] !== '') { const hex = toHex(String(a[k])); if (!hex) throw new Error(`${k}: “${a[k]}” is not a color. Use #rrggbb or a name like red, tan, dark blue`); a[k] = hex; }
+      const known = new Set(['role', 'board', 'points', 'stage', 'brush', 'params', 'color', 'why', 'text', 'path', 'shape', 'box', 'sides', 'round', 'by', 'fill', 'narrate', 'repeat', 'point', 'at', 'position']);
+      const ignored = Object.keys(a).filter(k => !known.has(k));
       const bd = a.board ? findBoard(doc(), a.board) : null;
       if (a.board && !bd) throw new Error(`No board “${a.board}” (ams_board lists them)`);
       const ox = bd?.x || 0, oy = bd?.y || 0;
       const el = app.store.addElement({ role: a.role, stage: st.id, ...(bd ? { board: bd.main ? undefined : bd.id } : {}), points: a.points.map((p, i) => [p[0] + ox, p[1] + oy, p[2] ?? i * 16, p[3] ?? 0.5]), realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, ...(a.fill ? { fill: a.fill } : {}), why: a.why, text: a.text, ...(a.path === 'straight' ? { path: 'straight' } : {}), by: a.by || { kind: 'model', name: 'agent' } }, { by: 'agent' });
-      return { id: el.id, stage: st.name };
+      const ids = [el.id];
+      const rep = a.repeat && Number(a.repeat.count) > 1 ? a.repeat : null;
+      if (rep) {
+        const n = Math.min(24, Math.floor(Number(rep.count))), dx = Number(rep.dx) || 0, dy = Number(rep.dy) || 0;
+        for (let i = 1; i < n; i++) {
+          const c = app.store.addElement({ role: el.role, stage: el.stage, ...(el.board ? { board: el.board } : {}), points: el.points.map(([x, y, ...r]) => [x + dx * i, y + dy * i, ...r]), realize: el.realize, color: el.color, ...(el.fill ? { fill: el.fill } : {}), why: el.why, text: el.text, ...(el.path ? { path: el.path } : {}), by: el.by }, { by: 'agent' });
+          ids.push(c.id);
+        }
+      }
+      const xs = el.points.map(p => p[0]), ys = el.points.map(p => p[1]);
+      return { id: el.id, ...(ids.length > 1 ? { ids } : {}), stage: st.name, role: el.role, points: el.points.length, box: [Math.round(Math.min(...xs)), Math.round(Math.min(...ys)), Math.round(Math.max(...xs)), Math.round(Math.max(...ys))], fill: el.fill ?? null, color: el.color ?? null, ...(ignored.length ? { ignored: `not used: ${ignored.join(', ')}` } : {}), ...(assumed ? { assumed } : {}) };
     } },
-    { name: 'ams_update', description: 'Change an element: any of stage, role, color (its stroke), fill, strokeWidth (the outline of a plane), opacity (0..1), blend, label, hidden, locked, why, text, path (straight, or null for smooth), realize {brush, params}, points.', inputSchema: S({ id: str('Element id'), patch: { type: 'object' } }, ['id', 'patch']), run: (a) => ({ ok: Boolean(app.store.updateElement(a.id, a.patch, 'agent edit', { by: 'agent' })) }) },
-    { name: 'ams_delete', description: 'Delete elements.', inputSchema: S({ ids: { type: 'array', items: { type: 'string' } } }, ['ids']), run: (a) => { app.store.removeElements(a.ids, { by: 'agent' }); return { ok: true }; } },
+    { name: 'ams_update', description: 'Change an element: any of stage, role, color (its stroke), fill, strokeWidth (the outline of a plane), opacity (0..1), blend, label, hidden, locked, why, text, path (straight, or null for smooth), realize {brush, params}, points.', inputSchema: S({ id: str('Element id'), ids: { type: 'array', items: { type: 'string' } }, patch: { type: 'object' } }, ['patch']), run: (a) => { const want = a.ids || [a.id]; const ids = want[0] ? resolveMarks(app, want) : []; if (!want[0] || !a.patch) throw new Error('ams_update needs id (or ids) and patch {fill, color, opacity, …}');
+      const missing = ids.length ? [] : want.map(String);
+      if (missing.length) { const have = doc().elements.slice(-12).map(e => e.id); throw new Error(`No mark matches ${missing.join(', ')}. Say an id, or selected, all, circle, square, line, point, a color, a label. Marks here: ${have.length ? have.join(', ') : 'none yet (ams_add makes one)'}`); } return { ok: ids.every(id => Boolean(app.store.updateElement(id, a.patch, 'agent edit', { by: 'agent' }))), marks: ids.length }; } },
+    { name: 'ams_transform', description: 'Move, scale or rotate marks: ids (or id; with neither, the selection), move [dx, dy] in page units (x right, y down; the page is 1000 by 1000), scale (a number, or [sx, sy]: 1 is the same size, 1.5 half again bigger, 2 double, 0.5 half the size) and rotate (degrees) about the middle of the marks. Gives the new box. Use this instead of rewriting points.', inputSchema: S({ ids: { type: 'array', items: { type: 'string' } }, id: str('One element'), move: { type: 'array', items: { type: 'number' } }, scale: { description: 'A number, or [sx, sy]' }, rotate: num('Degrees, clockwise') }, []), run: (a) => {
+      const ids = (a.ids || a.id) ? resolveMarks(app, a.ids || a.id) : [...app.canvas.selected];
+      const mv = a.move ? a.move.map(Number) : [Number(a.dx || 0), Number(a.dy || 0)];
+      const sc = Array.isArray(a.scale) ? a.scale.map(Number) : a.scale != null ? [Number(a.scale), Number(a.scale)] : [1, 1];
+      const rot = (Number(a.rotate) || 0) * Math.PI / 180;
+      if (!ids.length) throw new Error('Nothing to transform: give ids or select something');
+      if (![...mv, ...sc, rot].every(Number.isFinite)) throw new Error('move is [dx, dy], scale is a number or [sx, sy], rotate is degrees');
+      const hit = doc().elements.filter(e => ids.includes(e.id));
+      if (!hit.length) throw new Error(`No such marks: ${ids.join(', ')}`);
+      const all = hit.flatMap(e => e.points), cx = (Math.min(...all.map(p => p[0])) + Math.max(...all.map(p => p[0]))) / 2, cy = (Math.min(...all.map(p => p[1])) + Math.max(...all.map(p => p[1]))) / 2;
+      const cos = Math.cos(rot), sin = Math.sin(rot);
+      app.store.change('transform', d => {
+        for (const e of d.elements) if (ids.includes(e.id)) e.points = e.points.map(([x, y, ...rest]) => { const px = (x - cx) * sc[0], py = (y - cy) * sc[1]; return [cx + px * cos - py * sin + mv[0], cy + px * sin + py * cos + mv[1], ...rest].map((v, i) => (i < 2 ? Math.round(v * 100) / 100 : v)); });
+      });
+      const now = doc().elements.filter(e => ids.includes(e.id)).flatMap(e => e.points);
+      return { ok: true, marks: hit.length, box: [Math.round(Math.min(...now.map(p => p[0]))), Math.round(Math.min(...now.map(p => p[1]))), Math.round(Math.max(...now.map(p => p[0]))), Math.round(Math.max(...now.map(p => p[1])))] };
+    } },
+    { name: 'ams_delete', description: 'Delete elements.', inputSchema: S({ ids: { type: 'array', items: { type: 'string' } }, id: str('One element (or ids); with neither, the selection') }, []), run: (a) => { const ids = (a.ids || a.id) ? resolveMarks(app, a.ids || a.id) : [...app.canvas.selected]; if (!ids.length) throw new Error('ams_delete needs ids ["el_…"] (or select something)'); app.store.removeElements(ids, { by: 'agent' }); return { ok: true, deleted: ids.length }; } },
     { name: 'ams_output', description: 'Outputs: send a board somewhere, live. pin {board}: a window-like overlay that stays on the screen while the canvas moves (again: unpin). window {board, borderless?}: a window of its own (for another display or a projector; the pop-up needs a click in the studio; click the window for full screen, which hides the title and address bars; borderless: a picture-in-picture window, Chrome, no address bar). stop {board?}: end its outputs (all when no board). list. An output does not change the play state of a board: a board that is not playing is set to play once (like its play button), a paused one stays paused; a playing board keeps running off screen. A board is a layer too: ams_board update {id, patch: {opacity, blend}}; later boards are above earlier ones.', inputSchema: S({ action: { type: 'string', enum: ['list', 'pin', 'window', 'stop'] }, board: str('Board id or title'), borderless: { type: 'boolean', description: 'window: a picture-in-picture window (Chrome), no address bar' } }, ['action']), run: async a => {
       const O = app.outputs;
       if (a.action === 'list') return { outputs: O.list() };
@@ -438,6 +488,15 @@ export function workbenchTools(app) {
       await c.run();
       return { ok: true, ran: c.name };
     } },
+    { name: 'ams_requests', description: 'The request log of the quick field: each phrase, which layer answered (phrase = instant grammar, command, model), the tool calls the model made, whether it failed, and whether it was undone within 30 s (a sign it was wrong). list {limit?, layer?, problems?: only failed or undone}; summary; clear. Use it to see where the assistant needs help.', inputSchema: S({ action: { type: 'string', enum: ['list', 'summary', 'clear'] }, limit: num('How many (latest first, default 20)'), layer: str('phrase | command | model'), problems: { type: 'boolean' } }), run: (a) => {
+      const R = app.requests;
+      if (a.action === 'clear') { R.clear(); return { ok: true }; }
+      if (a.action === 'summary') return R.summary();
+      let l = [...R.list].reverse();
+      if (a.layer) l = l.filter(r => r.layer === a.layer);
+      if (a.problems) l = l.filter(r => r.ok === false || r.undone);
+      return { summary: R.summary(), requests: l.slice(0, a.limit || 20) };
+    } },
     { name: 'ams_undo', description: 'Undo (or redo with redo:true).', inputSchema: S({ redo: { type: 'boolean' } }), run: (a) => ({ ok: a.redo ? app.store.redo() : app.store.undo() }) }
   ];
 }
@@ -455,7 +514,35 @@ function pendingView(app) {
 }
 
 /** Accept [[x,y],...], a single [x,y], or a flat [x,y,x,y,...] list; reject anything else clearly. */
+/** Marks named the way people name them: an id, "selected"/"it", "all", a shape ("circle", "square"), a role ("line", "point"), a color ("red"), a label, "last". */
+function resolveMarks(app, spec) {
+  const els = app.store.doc.elements, list = (Array.isArray(spec) ? spec : [spec]).filter(v => v != null && v !== '').map(String);
+  const out = new Set();
+  const hue = hex => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return null; const n = parseInt(m[1], 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b); if (mx - mn < 25) return mx > 200 ? 'white' : mx < 60 ? 'black' : 'grey'; const d = mx - mn, hh = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; const deg = hh * 60; return deg < 15 || deg >= 340 ? 'red' : deg < 45 ? 'orange' : deg < 70 ? 'yellow' : deg < 165 ? 'green' : deg < 200 ? 'cyan' : deg < 260 ? 'blue' : deg < 340 ? 'purple' : null; };
+  for (const raw of list) {
+    const w = raw.toLowerCase().replace(/^(?:the|a|an|that|this|my)\s+/, '').replace(/\s+(?:one|shape|mark)s?$/, '').trim();
+    const byId = els.find(e => e.id === raw);
+    if (byId) { out.add(byId.id); continue; }
+    let hit = [];
+    if (/^(?:selected|selection|it|this|them|these|those)$/.test(w)) hit = els.filter(e => app.canvas.selected.has(e.id));
+    else if (w === 'all' || w === 'everything') hit = els;
+    else if (w === 'last' || w === 'newest') hit = els.slice(-1);
+    else if (/^(?:circles?|rounds?|ellipses?|ovals?|discs?|disks?)$/.test(w)) hit = els.filter(e => e.role === 'plane' && e.points.length > 6);
+    else if (/^(?:squares?|rect(?:angle)?s?|boxes|box)$/.test(w)) hit = els.filter(e => e.role === 'plane' && e.points.length >= 3 && e.points.length <= 6);
+    else if (/^(?:lines?|strokes?|curves?)$/.test(w)) hit = els.filter(e => e.role === 'line');
+    else if (/^(?:points?|dots?)$/.test(w)) hit = els.filter(e => e.role === 'point');
+    else if (/^(?:planes?|fills?)$/.test(w)) hit = els.filter(e => e.role === 'plane');
+    else { const cw = w.split(' ').find(x => ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'white', 'black', 'grey', 'gray'].includes(x)); hit = cw ? els.filter(e => hue(e.fill || e.color) === (cw === 'gray' ? 'grey' : cw)) : els.filter(e => e.label && e.label.toLowerCase() === w); }
+    // (a shape word plus a color: "the red circle")
+    const cw2 = w.split(' ').find(x => ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'white', 'black', 'grey', 'gray'].includes(x));
+    if (!hit.length && cw2) { const rest = w.split(' ').filter(x => x !== cw2).join(' '); hit = resolveMarks(app, rest).map(id => els.find(e => e.id === id)).filter(e => hue(e.fill || e.color) === (cw2 === 'gray' ? 'grey' : cw2)); }
+    for (const e of hit) out.add(e.id);
+  }
+  return [...out];
+}
+
 function normalizePoints(pts) {
+  if (Array.isArray(pts) && pts.length && pts.every(p => p && typeof p === 'object' && !Array.isArray(p) && 'x' in p && 'y' in p)) pts = pts.map(p => [Number(p.x), Number(p.y)]);   // ({x, y} objects)
   if (!Array.isArray(pts) || !pts.length) throw new Error('points must be a list like [[x, y], [x, y]]');
   if (pts.every(p => Array.isArray(p) && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))) return pts.map(p => p.map(Number));
   if (pts.every(v => Number.isFinite(Number(v))) && pts.length % 2 === 0) { const out = []; for (let i = 0; i < pts.length; i += 2) out.push([Number(pts[i]), Number(pts[i + 1])]); return out; }
@@ -484,8 +571,13 @@ export function initWorkbenchMCP(app) {
   app.sessions = app.sessions || new SessionRecorder(app);
   /** Run a tool the way a user would see it: guide cursor, narration, then the action. */
   const callTool = async (name, args = {}, { replay = false, quiet = false } = {}) => {   // quiet: no guide cursor, no pauses (the quick command field)
+    // Names a model is likely to guess, mapped to the real tool (and what they are called with kept as is).
+    const COMMANDS = { ams_duplicate: 'edit.duplicate', ams_group: 'edit.group', ams_ungroup: 'edit.ungroup', ams_select_all: 'edit.selectAll', ams_frame: 'view.frameSelection', ams_fit: 'view.fit' };
+    const ALIAS = { ams_edit: 'ams_update', ams_modify: 'ams_update', ams_change: 'ams_update', ams_set: 'ams_update', ams_remove: 'ams_delete', ams_create: 'ams_add', ams_draw: 'ams_add', ams_move: 'ams_transform', ams_scale: 'ams_transform', ams_resize: 'ams_transform', ams_rotate: 'ams_transform' };
+    if (!byName[name] && COMMANDS[name]) { args = { id: COMMANDS[name] }; name = 'ams_command'; }
+    else if (!byName[name] && ALIAS[name]) name = ALIAS[name];
     const t = byName[name];
-    if (!t) throw new Error(`Unknown tool ${name}`);
+    if (!t) { const near = Object.keys(byName).filter(n => n.split('_').some(w => w.length > 2 && name.includes(w))).slice(0, 6); throw new Error(`Unknown tool ${name}.${near.length ? ` Did you mean: ${near.join(', ')}?` : ''} ams_add draws, ams_update changes, ams_transform moves or scales, ams_delete removes, ams_command runs things like edit.duplicate`); }
     const { narrate, ...rest } = args || {};
     const g = app.guide;
     app.emit('tool-call', name, rest, { replay, quiet, summary: summarize(name, rest) });

@@ -72,3 +72,25 @@ The default is the browser's when it has one. Devices come from `inputs.js` (sha
 ## The microphone as a source
 
 Sources panel › the mic button (or `ams_source add {kind: 'mic'}`). `micSource.js` makes the microphone a source like the camera: its picture is the spectrum now (low pitches left, loud at the top, the wave drawn over it), so `source('mic').value(x, y)`, `.color(x, y)`, a board showing it, and the Sources preview all work. Sound-only extras on the sampler: `.level` (0..1) and `.bands(n)` (n loudness values, low to high). It shares the stream with dictation and lecture recording (`inputs.js`). It is not in exported sketches. The built-in browser pane of the Claude app blocks microphones: test in Chrome.
+
+## Making the assistant reliable (5 Nov 2026)
+
+**The request log** (`requestLog.js`, `app.requests`, MCP `ams_requests`): each phrase typed into the `/` bar, the layer that answered (`phrase`, `command`, `model`), the model's tool calls, whether it failed and whether it was undone within 30 s (a sign it was wrong). Kept in the browser (300). `ams_requests {action: "list", problems: true}`.
+
+**The evals** (`assistEval.js`): 16 tasks (make a circle, square, dot, line, a row; recolor, darker, see-through, hatch; bigger, move; delete, duplicate, name; two recolors; a house), each with a checker on the resulting drawing, plus a second, differently worded phrase for each (`alt`, held out so the prompt cannot just have memorised them). `run(app, { mode, use })`: `mode` `reference` (the tools alone, written by hand: 14/14, so the tools can do it), `model` (the model only), `quick` (the whole path). Method: do the task yourself with the tools, then let the small model do it, compare, and bridge each gap in the cheapest layer.
+
+Results with lfm3-omni (Ollama), model only: 9/16 at the start → 13/16 → 12/16 on held-out wording. The whole path: **15/16** on both wordings (only "draw a house" fails).
+
+What the gaps were and how each was bridged (more prompt examples were the *worst* lever: the small model copied them literally, `<id1>` and all):
+
+| Gap | Bridge |
+|---|---|
+| no move/scale tool; the model made up `ams_edit {x}` | `ams_transform {ids, move, scale, rotate}`, and the phrases "bigger", "scale it up by half", "move it right" in the grammar |
+| invented names and arguments (`ams_duplicate`, `ams_delete {id}`, `shape: "line"`, point objects, `#rrggbb` placeholders, `role: "shape"`) | tool aliases, forgiving arguments, and unknown-tool errors that list the real tools |
+| "create a red shape" with no geometry (a user's screenshot: three identical failures) | `ams_add` assumes (a 200×200 rectangle in the middle) and says what it assumed; and the flow mode retries once after a failed call, and once after an unreadable reply |
+| opaque ids | `id` may be `selected`, `circle`, `square`, `red`, a label (`resolveMarks`) |
+| it could not see the page | with nothing selected the prompt lists the marks on the page ("round", "rectangle", fill) |
+| layout and multi-step (a row, two recolors) | phrases in the grammar ("three circles in a row", "make the circle blue and the square red") and `ams_add {repeat}` |
+| compositions ("a house") | open: needs a bigger model, or a decomposition tool |
+
+`.claude/skills/ams/SKILL.md` is the same knowledge as a skill for capable agents.

@@ -251,7 +251,12 @@ export function openPalette(app, { compact = false } = {}) {
     if (!list.length && !compact) results.append(h('div', { class: 'wb-palette-empty' }, 'Nothing matches'));
   };
   const mark = () => results.querySelectorAll('.wb-palette-item').forEach((el, i) => el.classList.toggle('active', i === index));
-  const runIt = c => { close(); try { const r = c.run(); r?.catch?.(e => app.log(e.message, 'error')); } catch (e) { app.log(e.message, 'error'); } };
+  const runIt = c => {
+    const typed = input.value.trim(), log = typed && c.id !== 'ask' ? app.requests?.start(typed, String(c.id).startsWith('intent:') ? 'phrase' : 'command', { command: c.name }) : null;
+    close();
+    try { const r = c.run(); if (r?.then) r.then(() => log && app.requests.done(log), e => { log && app.requests.done(log, { error: e.message }); app.log(e.message, 'error'); }); else log && app.requests.done(log); }
+    catch (e) { log && app.requests.done(log, { error: e.message }); app.log(e.message, 'error'); }
+  };
   input.addEventListener('input', () => { index = 0; render(); });
   input.addEventListener('keydown', e => {
     e.stopPropagation();

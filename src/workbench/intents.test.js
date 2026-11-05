@@ -42,12 +42,31 @@ describe('instant phrases', () => {
     expect(say('change fill to hatch', false)).toMatchObject({ do: 'style' });   // (intentCommand then finds no plane to change)
   });
   it('leaves everything else to the commands and the assistant', () => {
-    for (const t of ['', 'fit', 'make it bigger', 'change the fill to something warm', 'draw a house', 'fill', 'group these', 'frame it']) expect(say(t), t).toBe(null);
+    for (const t of ['', 'fit', 'change the fill to something warm', 'draw a house', 'fill', 'group these', 'frame it']) expect(say(t), t).toBe(null);
   });
   it('makes new things', () => {
     for (const t of ['create a red circle', 'draw a red circle', 'add a red circle', 'red circle', 'make a red circle', 'new red circle', 'a circle in red']) expect(say(t, false), t).toMatchObject({ do: 'create', shape: 'circle', fill: '#ff0000' });
     for (const t of ['draw a blue square', 'add a blue rectangle', 'create a blue box']) expect(say(t, false), t).toMatchObject({ do: 'create', shape: 'rect', fill: '#0000ff' });
     expect(say('create a circle', false)).toMatchObject({ do: 'create', shape: 'circle', fill: null });
     expect(say('create a plaid circle', false)).toBe(null);
+  });
+  it('several things, and several recolors', () => {
+    expect(say('draw three circles in a row', false)).toMatchObject({ do: 'create', shape: 'circle', count: 3, dir: 'row' });
+    expect(say('three red squares down the page', false)).toMatchObject({ do: 'create', shape: 'rect', count: 3, dir: 'column', fill: '#ff0000' });
+    expect(say('add 4 circles', false)).toMatchObject({ do: 'create', count: 4 });
+    expect(say('a red circle', false)).not.toHaveProperty('count');
+    expect(say('make the circle blue and the square red', false)).toMatchObject({ do: 'recolor', pairs: [{ target: 'circle', hex: '#0000ff' }, { target: 'square', hex: '#ff0000' }] });
+    expect(say('the square should be red and the circle blue', false)).toMatchObject({ do: 'recolor', pairs: [{ target: 'square', hex: '#ff0000' }, { target: 'circle', hex: '#0000ff' }] });
+    expect(say('red and blue', false)).toBe(null);
+  });
+  it('size and place', () => {
+    for (const [txt, k] of [['bigger', 1.25], ['make it bigger', 1.25], ['smaller', 0.75], ['50% bigger', 1.5], ['scale it up by half', 1.5], ['double', 2], ['twice as big', 2], ['half the size', 0.5], ['scale it 2x', 2]]) expect(say(txt), txt).toMatchObject({ do: 'transform', scale: k });
+    expect(say('move it right')).toMatchObject({ do: 'transform', move: [100, 0] });
+    expect(say('move it 200 to the left')).toMatchObject({ do: 'transform', move: [-200, 0] });
+    expect(say('shift it up a bit')).toMatchObject({ do: 'transform', move: [0, -40] });
+  });
+  it('a dot is a point, round things are circles', () => {
+    expect(say('add a red dot', false)).toMatchObject({ do: 'create', shape: 'point' });
+    expect(say('three round shapes side by side', false)).toMatchObject({ do: 'create', shape: 'circle', count: 3 });
   });
 });

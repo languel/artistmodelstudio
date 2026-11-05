@@ -30,18 +30,27 @@ export function flowPrompt(app) {
   const doc = app.store.doc, sel = [...app.canvas.selected];
   const marks = doc.elements.filter(e => sel.includes(e.id)).slice(0, 12)
     .map(e => `- ${e.id}: ${e.role}${e.label ? ` "${e.label}"` : ''}, fill ${e.fill || 'none'}, stroke ${e.color || 'default'}, opacity ${e.opacity ?? 1}, brush ${e.realize?.brush}`).join('\n');
+  const page = !marks ? doc.elements.slice(-12).map(e => `- ${e.id}: ${e.role}${e.points.length > 4 && e.role === 'plane' ? ' (round)' : e.role === 'plane' && e.points.length === 4 ? ' (rectangle)' : ''}${e.label ? ` "${e.label}"` : ''}, fill ${e.fill || 'none'}, at ${Math.round(e.points.reduce((a, p) => a + p[0], 0) / e.points.length)},${Math.round(e.points.reduce((a, p) => a + p[1], 0) / e.points.length)}`).join('\n') : '';
   return `You change a drawing in a drawing app, at once. Never ask a question or offer options: when something is unclear, choose the most sensible reading and do it. Undo is one key away.
-${marks ? `Selected marks ("it" and "this" mean these):\n${marks}` : 'Nothing is selected.'}
+${marks ? `Selected marks ("it" and "this" mean these):\n${marks}` : `Nothing is selected.${page ? ` Marks on the page:\n${page}` : ' The page is empty.'}`}
 Reply with ONE JSON object: {"say":"at most one short sentence","actions":[{"tool":"...","args":{...}}],"done":true}
 Tools:
-- ams_update {"id","patch"}: change a mark, one action per mark. patch fields: fill, color (the stroke or outline), strokeWidth, opacity (0 to 1), blend, label, hidden, locked, realize (how a plane's fill is painted: {"brush":"flat"} or {"brush":"stipple"} or {"brush":"hatch","params":{"spacing":10,"angle":45,"cross":0}}; cross 1 is crosshatch). Change ONLY what was asked for. Colors are always #rrggbb, chosen by you, never words.
+- ams_update {"id","patch"}: change a mark, one action per mark. id is a mark's id from the lists above, or a word for it: "selected", "circle", "square", "line", "red", "all". patch fields: fill, color (the stroke or outline), strokeWidth, opacity (0 to 1), blend, label, hidden, locked, realize (how a plane's fill is painted: {"brush":"flat"} or {"brush":"stipple"} or {"brush":"hatch","params":{"spacing":10,"angle":45,"cross":0}}; cross 1 is crosshatch). Change ONLY what was asked for. Colors are always #rrggbb, chosen by you, never words.
+- ams_transform {"ids","move":[dx,dy],"scale":1.5,"rotate":degrees}: move, resize or turn marks (the selection if ids is left out). scale 1 is the same size, 1.5 half again bigger, 2 double, 0.5 half. Never rewrite points yourself.
+- ams_delete {"ids"}: remove marks.
 - ams_command {"id"}: view.frameSelection, edit.duplicate, edit.group, edit.ungroup, edit.delete, edit.selectAll, view.fit.
-- ams_add {"role","points"} or {"shape","box","role":"plane"}: only to draw something new, one action per mark. role is point, line or plane; points are [[x,y],...]; shape is circle or rect, box is [x0,y0,x1,y1]; add "fill" or "color" as #rrggbb. The page is 1000 by 1000.
+- ams_add {"role","points"} or {"shape","box","role":"plane"}: only to draw something new, one action per mark. role is point, line or plane; points are [[x,y],...]; shape is circle or rect, box is [x0,y0,x1,y1]; add "fill" or "color" as #rrggbb; add "repeat":{"count":3,"dx":300} for copies in a row ("dy" for a column). The page is 1000 by 1000.
 Examples, for a mark el_x with fill #b05a3c:
 "make it darker" -> {"say":"Darker.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"fill":"#6e3824"}}}],"done":true}
 "give it a green outline" -> {"say":"Green outline.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"color":"#2e8b57"}}}],"done":true}
 "cross hatch it" -> {"say":"Crosshatched.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"realize":{"brush":"hatch","params":{"cross":1}}}}}],"done":true}
 "draw a green circle" -> {"say":"A green circle.","actions":[{"tool":"ams_add","args":{"role":"plane","shape":"circle","box":[410,410,590,590],"fill":"#2e8b57"}}],"done":true}
+"draw a line from the top left to the bottom right" -> {"say":"A line.","actions":[{"tool":"ams_add","args":{"role":"line","points":[[100,100],[900,900]]}}],"done":true}
+"a row of four squares" -> {"say":"Four squares.","actions":[{"tool":"ams_add","args":{"shape":"rect","box":[60,420,240,600],"fill":"#8a6f4e","repeat":{"count":4,"dx":240}}}],"done":true}
+"make it bigger" -> {"say":"Bigger.","actions":[{"tool":"ams_transform","args":{"ids":["el_x"],"scale":1.5}}],"done":true}
+"move it to the right" -> {"say":"Moved.","actions":[{"tool":"ams_transform","args":{"ids":["el_x"],"move":[200,0]}}],"done":true}
+"duplicate it" -> {"say":"Duplicated.","actions":[{"tool":"ams_command","args":{"id":"edit.duplicate"}}],"done":true}
+"call it horizon" -> {"say":"Named.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"label":"horizon"}}}],"done":true}
 "a bit see-through" -> {"say":"Set to 60%.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"opacity":0.6}}}],"done":true}`;
 }
 
@@ -177,7 +186,8 @@ export function mountAssistant(root, app) {
     if (!artist?.complete || engine === 'agent') { add('sys', 'Pick a model engine (Ollama, WebGPU, OpenRouter or OpenAI-compatible) from the model button. An external agent drives the tools directly over MCP.', 'error'); return { error: 'Pick a model engine: click here for the Assistant.' }; }
     busy = new AbortController();
     if (flow) app.store.beginStep();
-    let nudged = false, said = '', failed = '';
+    const rq = flow ? app.requests?.start(text.replace(/^\[Context:[^\]]*\]\n/, ''), 'model', { model: `${engine}:${artist.model || ''}` }) : null, rqCalls = [];
+    let nudged = false, retried = false, said = '', failed = '';
     sendBtn.innerHTML = STOP; sendBtn.title = 'Stop';
     let lastSig = '';
     let transcript = flow ? `USER: ${text}` : history.slice(-cfg.history).map(m => `${m.who === 'you' ? 'USER' : m.who === 'bot' ? 'ASSISTANT' : 'RESULTS'}: ${m.text}`).join('\n');
@@ -193,6 +203,7 @@ export function mountAssistant(root, app) {
         const r = parseReply(raw);
         // It asked anyway: once, tell it to assume and act.
         if (flow && !nudged && !r.actions.length && /\?\s*$/.test(r.say || '')) { nudged = true; transcript += `\nASSISTANT: ${JSON.stringify(r)}\nUSER: Do not ask. Make your best assumption and do it now.`; continue; }
+        if (flow && !retried && !r.actions.length && /^\s*[{[]/.test(r.say || '')) { retried = true; transcript += '\nUSER: Reply with only one valid JSON object, nothing else.'; continue; }
         if (flow && !r.actions.length && /^\s*[{[]/.test(r.say || '')) { failed = 'The model’s reply could not be read. Nothing was changed.'; add('sys', failed, 'error'); break; }
         if (r.say) { said = r.say; add('bot', r.say); history.push({ who: 'bot', text: r.say }); }
         if (!r.actions.length) break;
@@ -203,10 +214,12 @@ export function mountAssistant(root, app) {
         for (const a of r.actions.slice(0, 8)) {
           try {
             const out = await window.ams.callTool(a.tool, a.args || {}, { quiet: flow });
+            rqCalls.push({ tool: a.tool, args: a.args || {} });
             const brief = JSON.stringify(out ?? null).replace(/"data:image[^"]+"/g, '"<image>"').slice(0, 600);
             results.push(`${a.tool} → ${brief}`);
             add('act', `${a.tool.replace(/^ams_/, '')} ✓`);
           } catch (err) {
+            rqCalls.push({ tool: a.tool, args: a.args || {}, error: err.message });
             results.push(`${a.tool} failed: ${err.message}`);
             add('act', `${a.tool.replace(/^ams_/, '')} failed: ${err.message}`, 'error');
             failed = err.message;
@@ -214,6 +227,8 @@ export function mountAssistant(root, app) {
         }
         history.push({ who: 'results', text: results.join('\n') });
         transcript += `\nASSISTANT: ${JSON.stringify(r)}\nRESULTS: ${results.join('\n')}`;
+        // In flow mode a failed call gets one more try, with the error in front of the model (and the reminder to change what it sent).
+        if (flow && !retried && results.some(x => / failed: /.test(x))) { retried = true; failed = ''; transcript += '\nUSER: That failed. Fix the arguments as the error says and do it again, with different arguments than before.'; continue; }
         if (r.done) break;
       }
     } catch (err) {
@@ -222,6 +237,7 @@ export function mountAssistant(root, app) {
       if (!busy?.signal.aborted) failed = err.message;
     } finally {
       if (flow) app.store.endStep();
+      if (rq) app.requests.done(rq, { calls: rqCalls, error: failed, said });
       persist();
       busy = null;
       sendBtn.innerHTML = SEND; sendBtn.title = 'Send (Enter)';
