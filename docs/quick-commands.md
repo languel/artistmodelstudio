@@ -189,8 +189,12 @@ Generation, 160 tokens, temperature 0, **with the GPU to itself**: LFM3-Omni 2B 
 | **Qwen3 4B Instruct 2507** | **browser** (transformers.js) | 2.1 GB | **12** | |
 | Qwen3.5 4B | browser | 2.6 GB | 11 | slow: it thinks aloud |
 | Phi-3.5 mini 3.8B | browser | 2.3 GB | 10 | |
+| **Qwen2.5-Coder 1.5B** | **browser** (transformers.js) | ~1 GB | **10** | |
 | LFM3-Omni 2B | browser (Liquid runtime) | 1.6 GB | 9 | |
 | LFM3-Omni 2B | Ollama | 2.4 GB | 7 | 254 tok/s |
+| Qwen3.5 2B | browser | 1.3 GB | 6 | |
 | LFM3-VL 2B | browser | 1 GB | 2 | |
 
 Reading it: **code writing tracks size and code training, not recency**. At about 4B the ternary Bonsai (1.6 GB on Ollama; about 1.15 GB as the browser file) equals the best browser model that runs today (Qwen3 4B Instruct 2507, 2.1 GB), at half the download, and the 9B ternary (12/14) is no better than the 4B. Only the 9B coder and the two big MoE models (Qwen3-Coder 30B and Flint) are perfect. The one task small models keep missing is the pointillist walk ("lighter than 0.3").
+
+The small tier for weak laptops: **Qwen2.5-Coder 1.5B (about 1 GB) scores 10/14**, as well as Phi-3.5 mini at more than twice the size, and better than LFM3-Omni 2B. A model trained for code beats a larger general one at this size; Qwen3.5 2B (6/14) shows that newer is not the same as better here, since it spends its tokens thinking aloud.
