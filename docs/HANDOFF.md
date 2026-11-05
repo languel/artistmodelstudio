@@ -289,3 +289,7 @@ project (shared: Assets, brush & sculpt libraries, settings)
 5. The to-do list above (Guide pointer glow, agent card options) and the chat-mode prompt that copies its own placeholders.
 
 **Gotchas:** an edit under `src/` reloads the page and kills a running eval; the dev server ignores `node_modules` (restart it after a dependency change); `ams_board code` returns `{error, line}` instead of throwing; the built-in Claude browser pane blocks the microphone (use Chrome or ego lite).
+
+## Later: a very small model made for AMS (idea, 5 Nov 2026)
+
+Train or fine-tune a custom model **under 1B parameters** (maybe from the LFM family) specifically for AMS: the quick field's commands and drawing, and possibly short board code. The data to start from is already being collected: the request log (`ams_requests`: each phrase, the layer that answered, the tool calls, whether it was undone), the 16 chat/command evals (`assistEval.js`), the lesson boards and their descriptions (`lessonEval.js`), and the measured failure modes (flipped "lighter than", made-up row counts, miscounted brackets). Open questions: how many examples it takes, whether to distil from a bigger coder (the 9B Qwen coder gets the lessons 14/14), and whether sub-1B can run in the browser for students at a few hundred MB. See `docs/TRAINING.md` for the existing training notes.
