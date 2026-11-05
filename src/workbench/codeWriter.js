@@ -14,7 +14,7 @@ import { fixCode } from './codeFix.js';
 import { codeTarget, currentEngine } from './modelStore.js';
 
 export const CODE_SYSTEM = `You write short programs in a drawing studio's own language (JavaScript). Reply with ONE fenced js code block and nothing else.
-Only the things listed here exist; do not invent others (no brush(), stage(), walk(), defineLine(), classes, imports, or assigning to a call).
+Only the things listed here exist; do not invent others (no brush(), stage(), walk(), defineLine(), classes, imports, or assigning to a call). The program already runs on its own board: never call board(), artboard() or stage().
 - The board: x and y are fractions from 0 to 1 (x to the right, y down). width and height are its size in units.
 - Marks: point(x, y, { size, color }). line(points, { color, width }) with points like [[x, y], [x, y]]. plane(points, { color }) a closed shape; rect(x, y, w, h) and circle(cx, cy, r) give points for plane or line. note(x, y, text).
 - Loops: for (const i of range(n)) { ... }. random() is 0 to 1; random(a, b). Math, sin, cos, PI, TAU work.
