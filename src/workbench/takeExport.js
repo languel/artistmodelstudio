@@ -16,7 +16,7 @@ import renderSrc from '../process/render.js?raw';
 import takeSrc from '../process/take.js?raw';
 import takeRenderSrc from '../process/takeRender.js?raw';
 import { renderFrame } from '../process/takeRender.js';
-import { duration, touch, on } from '../process/take.js';
+import { duration, touch, flatClips } from '../process/take.js';
 import { download } from './ui.js';
 import { createZip } from '../export/zip.js';
 
@@ -38,13 +38,13 @@ const PLAYER_UI = String.raw`
 (function () {
   const take = window.AMS_TAKE;
   touch(take);
-  for (const c of take.clips) if (c.diff) installLines({ brushes: c.diff.brushes || {}, lines: c.diff.lines || {} });
+  for (const c of flatClips(take)) if (c.diff) installLines({ brushes: c.diff.brushes || {}, lines: c.diff.lines || {} });
   installLines(take.baseline);
   const cv = document.getElementById('stage'), ctx = cv.getContext('2d');
   const bar = document.getElementById('bar'), range = document.getElementById('scrub'), time = document.getElementById('time'), playBtn = document.getElementById('play');
   const D = duration(take);
   let t = 0, playing = false, rate = 1, mode = 'process', captions = true, last = 0;
-  const audios = take.clips.filter(c => c.track === 'audio' && c.src && on(take, c)).map(c => ({ c, el: Object.assign(new Audio(c.src), { preload: 'auto' }) }));
+  const audios = flatClips(take).filter(c => c.track === 'audio' && c.src && !c.muted).map(c => ({ c, el: Object.assign(new Audio(c.src), { preload: 'auto' }) }));
   const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return m + ':' + (s - m * 60).toFixed(1).padStart(4, '0'); };
   function size() { const dpr = window.devicePixelRatio || 1; cv.width = Math.round(innerWidth * dpr); cv.height = Math.round((innerHeight - bar.offsetHeight) * dpr); cv.style.width = innerWidth + 'px'; cv.style.height = (innerHeight - bar.offsetHeight) + 'px'; draw(); }
   function draw() { renderFrame(ctx, take, t, { width: cv.width, height: cv.height, mode, captions }); range.value = D ? t / D * 1000 : 0; time.textContent = fmt(t) + ' / ' + fmt(D); }
@@ -146,7 +146,7 @@ export async function videoBlob(take, { rate = 1, width = 1280, fps = 30, mode =
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const ctx = c.getContext('2d');
   // Sound clips (unmuted tracks) are mixed in: scheduled on an audio graph recorded with the frames.
-  const sounds = take.clips.filter(cl => cl.track === 'audio' && cl.src && on(take, cl));
+  const sounds = flatClips(take).filter(cl => cl.track === 'audio' && cl.src && !cl.muted);
   const types = sounds.length
     ? ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
     : ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];

@@ -82,9 +82,11 @@ export class Recorder {
     } else if (adds.length > 1) dur = Math.min(6000, Math.max(600, adds.length * 140));
     // Begun before the loop came round: it starts with the loop (drawn on a little faster).
     if (wrap && start < wrap[0]) { start = wrap[0]; dur = Math.max(200, now - wrap[0]); }
-    // On the first Drawing track free at that time; gestures that overlap (another pass) get a track of their own.
+    // Polyphonic (the default): on the first Drawing track, overlapping what is there (shown as voices).
+    // A track per pass: on the first Drawing track free at that time, else a new one.
     const take = p.take, s0 = Math.max(0, Math.round(start)), e0 = s0 + Math.round(dur);
-    const free = tracksOf(take).filter(t => t.kind === 'draw').find(tr => !take.clips.some(c => laneOf(c) === tr.id && c.start < e0 && c.start + c.dur > s0));
+    const draws = tracksOf(take).filter(t => t.kind === 'draw');
+    const free = this.settings.overdubLanes === 'tracks' ? draws.find(tr => !take.clips.some(c => laneOf(c) === tr.id && c.start < e0 && c.start + c.dur > s0)) : draws[0];
     const lane = (free || addTrack(take, 'draw')).id;
     take.clips.push({ id: clipId(), track: 'draw', lane, start: s0, dur: Math.round(dur), diff, label: String(reason || 'change'), by, fx: {} });
     this.od.added++;

@@ -31,7 +31,14 @@ describe('recording onto the transport (overdub)', () => {
     expect(player.take.clips[0].start).toBe(0);
   });
 
-  it('overlapping passes go on tracks of their own; ones that do not overlap share', () => {
+  it('polyphonic (the default): overlapping gestures share the drawing track', () => {
+    now = 2500; app.store.change('add line', d => { d.elements.push(stroke('a', 1000)); });
+    now = 2200; app.store.change('add line', d => { d.elements.push(stroke('b', 1000)); });
+    expect(new Set(player.take.clips.map(c => c.lane)).size).toBe(1);
+  });
+
+  it('a track per pass: overlapping gestures go on tracks of their own; ones that do not overlap share', () => {
+    R.settings.overdubLanes = 'tracks';
     now = 2500; app.store.change('add line', d => { d.elements.push(stroke('a', 1000)); });   // 1.5–2.5 s
     now = 2200; app.store.change('add line', d => { d.elements.push(stroke('b', 1000)); });   // 1.2–2.2 s: overlaps
     now = 3900; app.store.change('add line', d => { d.elements.push(stroke('c', 500)); });    // 3.4–3.9 s: free on the first

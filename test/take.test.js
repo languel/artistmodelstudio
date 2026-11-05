@@ -81,11 +81,12 @@ describe('takes', () => {
     expect(tracksOf(empty).map(t => t.kind)).toEqual(['audio']);
     // Saved before: all six tracks, untouched; only the ones with clips stay.
     const old = createTake({ title: 'o', baseline: base, clips: [{ id: 'c', track: 'camera', start: 0, dur: 0, z: 1 }] });
-    old.tracks = TRACKS.map(k => ({ id: k, kind: k, name: TRACK_NAMES[k] }));
+    const SIX = ['title', 'say', 'draw', 'action', 'camera', 'audio'];
+    old.tracks = SIX.map(k => ({ id: k, kind: k, name: TRACK_NAMES[k] }));
     expect(tracksOf(old).map(t => t.id)).toEqual(['camera']);
     // …but tracks someone named or muted are theirs.
     const kept = createTake({ title: 'k', baseline: base });
-    kept.tracks = TRACKS.map(k => ({ id: k, kind: k, name: k === 'say' ? 'Voice' : TRACK_NAMES[k] }));
+    kept.tracks = SIX.map(k => ({ id: k, kind: k, name: k === 'say' ? 'Voice' : TRACK_NAMES[k] }));
     expect(tracksOf(kept)).toHaveLength(6);
   });
 
@@ -94,5 +95,44 @@ describe('takes', () => {
     expect(cameraAt(take, 500).z).toBe(1);
     expect(cameraAt(take, 1500).z).toBeCloseTo(1.5, 1);
     expect(cameraAt(take, 3000).z).toBe(2);
+  });
+
+  it('compositions: grouped clips play at the same times; a stretched one plays them faster; it shows only what fits', async () => {
+    const { precompose, decompose, flatClips } = await import('../src/process/take.js');
+    const add = (id, start, dur) => ({ id, track: 'draw', start, dur, diff: { add: [{ ...base.elements[0], id: `e${id}` }] }, fx: {} });
+    const take = createTake({ baseline: { ...base, elements: [] }, clips: [add('a', 1000, 500), add('b', 2000, 500), add('c', 5000, 500)] });
+    const before = docAt(take, 2200).elements.map(e => e.id);
+    const comp = precompose(take, ['a', 'b'], { title: 'Phrase' });
+    expect(comp).toMatchObject({ track: 'comp', start: 1000, dur: 1500, label: 'Phrase' });
+    expect(comp.comp.clips.map(c => c.start)).toEqual([0, 1000]);
+    expect(take.clips.map(c => c.id).sort()).toEqual(['c', comp.id].sort());
+    touch(take);
+    expect(flatClips(take).filter(c => c.track === 'draw').map(c => c.start).sort((x, y) => x - y)).toEqual([1000, 2000, 5000]);
+    expect(docAt(take, 2200).elements.map(e => e.id)).toEqual(before);
+    // Stretched to half its length: it plays twice as fast.
+    comp.dur = 750; comp.rate = 2; touch(take);
+    const inner = flatClips(take).filter(c => c.id === 'a' || c.id === 'b');
+    expect(inner.map(c => [c.start, c.dur])).toEqual([[1000, 250], [1500, 250]]);
+    // Trimmed: what starts past its end does not play.
+    comp.rate = 1; comp.dur = 900; touch(take);
+    expect(flatClips(take).map(c => c.id).sort()).toEqual(['a', 'c']);
+    // Nested: a composition in a composition.
+    comp.dur = 1500; touch(take);
+    const outer = precompose(take, [comp.id, 'c'], { title: 'Outer' });
+    touch(take);
+    expect(flatClips(take).map(c => c.start).sort((x, y) => x - y)).toEqual([1000, 2000, 5000]);
+    // Ungrouped, everything is back where it was.
+    decompose(take, outer);
+    decompose(take, take.clips.find(c => c.track === 'comp'));
+    touch(take);
+    expect(take.clips.map(c => [c.id, c.start]).sort()).toEqual([['a', 1000], ['b', 2000], ['c', 5000]]);
+  });
+
+  it('compositions: muting a track inside one silences what is on it', async () => {
+    const { precompose, flatClips } = await import('../src/process/take.js');
+    const take = createTake({ baseline: base, clips: [{ id: 's1', track: 'say', start: 0, dur: 1000, text: 'a', fx: {} }] });
+    const comp = precompose(take, ['s1']);
+    comp.comp.tracks[0].muted = true; touch(take);
+    expect(flatClips(take)[0].muted).toBe(true);
   });
 });

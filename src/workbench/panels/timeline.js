@@ -6,18 +6,18 @@
 import { askConfirm, askText } from '../dialog.js';
 import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
-import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf } from '../../process/take.js';
+import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
 import { showMenu } from '../menu.js';
 import { TimelineUndo } from '../timelineUndo.js';
 import { formatMusicalPosition, secondsToFrame } from '../../time/transport.js';
 import { RULERS, FPS_CHOICES, QUANT_CHOICES, SNAP_CHOICES, snapStep, timeContext } from '../../time/sceneTransport.js';
 import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, rulerTicks, autoGrid, gridLayer, timeLabel, editPoints, nextEdit, MAX_CONTENT_PX } from '../../time/timelineView.js';
 
-const TRACK_LABEL = { title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
+const TRACK_LABEL = { comp: 'Composition', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
 const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`; };
 const RULER_NAMES = { time: 'Minutes and seconds', beats: 'Bars, beats and sixteenths', frames: 'Frames' };
 /** The clips' colours in the navigator (as the lanes have them). */
-const NAV_COLORS = { title: '#c9c1b4', say: '#e7d8a8', draw: '#b9c6b0', action: '#9b9a97', camera: '#b3bfd0', audio: '#d0b3c4' };
+const NAV_COLORS = { comp: '#c4b5de', title: '#c9c1b4', say: '#e7d8a8', draw: '#b9c6b0', action: '#9b9a97', camera: '#b3bfd0', audio: '#d0b3c4' };
 const ZOOM_IN = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5M10.5 8v5"/></svg>';
 const ZOOM_OUT = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5"/></svg>';
 const ZOOM_STEP = 1.5;
@@ -73,28 +73,103 @@ export function mountTimeline(root, app) {
   root.append(tl);
 
   // Selecting only moves the highlight (rebuilding the lanes would replace a clip mid-drag).
-  const select = c => {
-    selected = c; app.selectedClip = c;
-    for (const el of lanes.querySelectorAll('.wb-tl-clip')) el.classList.toggle('sel', Boolean(c) && el.dataset.id === c.id);
-    app.emit('clip-select', c);
+  // Several clips can be picked (Ctrl/⌘-click); `selected` is the one Properties shows.
+  let picked = new Set();
+  const select = (c, { toggle = false } = {}) => {
+    if (toggle && c) {
+      if (picked.has(c.id)) picked.delete(c.id); else picked.add(c.id);
+      selected = picked.has(c.id) ? c : (P().take?.clips.find(x => picked.has(x.id)) || null);
+    } else { picked = new Set(c ? [c.id] : []); selected = c; }
+    app.selectedClip = selected;
+    for (const el of lanes.querySelectorAll('.wb-tl-clip')) el.classList.toggle('sel', picked.has(el.dataset.id));
+    app.emit('clip-select', selected);
   };
+  const pickedClips = () => (P().take?.clips || []).filter(c => picked.has(c.id));
   app.selectClip = select;
   const edited = () => { P().changed(); drawLanes(); app.emit('clip-select', selected); commit('edit'); };
 
+  // ---- compositions: open one (its own timeline), and back out ----
+  // Inside a composition the Timeline shows a take made of its clips and tracks (the same lists), from
+  // the drawing as it is where the composition starts; leaving writes them back.
+  let compStack = [];   // [{ holder, clip, t }]: the takes (or compositions) opened from, outermost first
+  const writeBack = () => {
+    let child = P().take;
+    for (let i = compStack.length - 1; i >= 0; i--) {
+      const L = compStack[i], c = L.clip, rate = c.rate > 0 ? c.rate : 1;
+      c.comp.clips = child.clips; c.comp.tracks = child.tracks;
+      const len = compLength(c.comp) / rate;
+      if (len > c.dur) c.dur = Math.round(len);   // (it grows to show what was added at its end)
+      touch(L.holder); child = L.holder;
+    }
+    return child;
+  };
+  /** The take itself (with what was edited inside compositions written back). */
+  const rootTake = () => (compStack.length ? writeBack() : P().take);
+  app.timelineRoot = rootTake;
+  const enterComp = c => {
+    const p = P(), holder = p.take;
+    if (!holder || !c?.comp) return;
+    if (holder.clips !== undefined && !holder.clips.includes(c)) return;
+    compStack.push({ holder, clip: c, t: p.t });
+    const view = { type: 'ams-take', version: 1, title: c.label || 'Composition', baseline: docAt(holder, c.start), clips: c.comp.clips, tracks: c.comp.tracks || [], inComp: true };
+    const local = Math.max(0, (p.t - c.start) * (c.rate > 0 ? c.rate : 1));
+    p.load(view); p.seek(local);
+    select(null); fitZoom(); drawBar(); drawLanes();
+  };
+  const exitComp = (all = false) => {
+    if (!compStack.length) return;
+    writeBack();
+    const p = P(), tIn = p.t;
+    let L = compStack.pop();
+    while (all && compStack.length) L = compStack.pop();
+    p.load(L.holder);
+    p.seek(all ? L.t : L.clip.start + tIn / (L.clip.rate > 0 ? L.clip.rate : 1));
+    select(all ? null : L.clip); fitZoom(); drawBar(); drawLanes();
+  };
+  /** Out of any composition (before opening, closing or summarizing another take). */
+  const leaveComps = () => { if (compStack.length) exitComp(true); };
+  const group = () => {
+    const holder = P().take, ids = [...picked].filter(id => holder?.clips.some(c => c.id === id));
+    if (!ids.length) { app.log('Pick clips to group (Ctrl/⌘-click picks several), then ⌘G.'); return; }
+    const n = holder.clips.filter(c => c.track === 'comp').length + 1;
+    const comp = precompose(holder, ids, { title: `Comp ${n}` });
+    picked = new Set([comp.id]); selected = comp;
+    edited(); select(comp);
+    app.log(`“${comp.label}”: ${ids.length} clip${ids.length === 1 ? '' : 's'} in a composition (double-click it to open; ⇧⌘G ungroups).`);
+  };
+  const ungroup = c => {
+    if (c?.track !== 'comp') return;
+    const out = decompose(P().take, c);
+    edited();
+    picked = new Set(out.map(x => x.id)); selected = out[0] || null; select(selected); for (const x of out) picked.add(x.id);
+    for (const el of lanes.querySelectorAll('.wb-tl-clip')) el.classList.toggle('sel', picked.has(el.dataset.id));
+  };
+  /** A clip's length set to `ms`: a composition is stretched (its rate changes, so it shows the same), others retimed. */
+  const setLength = (c, ms, start = c.start) => {
+    ms = Math.max(50, Math.round(ms));
+    if (c.track === 'comp') { const shown = c.dur * (c.rate > 0 ? c.rate : 1); c.rate = shown / ms; }
+    c.start = Math.max(0, Math.round(start)); c.dur = ms;
+  };
+  const beatMs = () => { const st = S(); return (60 / st.tempo) * (4 / st.signature.denominator) * 1000; };
+  const barMs = () => beatMs() * S().signature.numerator;
+
   // ---- undo: the take's clips and tracks, and In, Out and the loop region (⌘Z / ⇧⌘Z over the Timeline) ----
-  const undo = new TimelineUndo({ key: s => JSON.stringify([s.clips.map(({ diff, src, peaks, ...c }) => c), s.tracks, s.range, s.loop]) });
+  const HEAVY = new Set(['diff', 'src', 'peaks', 'baseline']);
+  const undo = new TimelineUndo({ key: s => JSON.stringify([s.clips, s.tracks, s.range, s.loop], (k, v) => (HEAVY.has(k) ? undefined : v)) });
+  // (a clip copied for undo: a composition's own clips and tracks copied too, at any depth)
+  const copyClip = c => ({ ...c, fx: { ...(c.fx || {}) }, ...(c.comp ? { comp: { ...c.comp, tracks: (c.comp.tracks || []).map(x => ({ ...x })), clips: (c.comp.clips || []).map(copyClip) } } : {}) });
   let restoring = false;
   const snap = () => {
     const p = P(), t = p?.take; if (!t) return null;
     // (shallow: a clip's diff, sound and waveform are never edited in place, so they are shared)
-    return { clips: t.clips.map(c => ({ ...c, fx: { ...(c.fx || {}) } })), tracks: (t.tracks || []).map(x => ({ ...x })), range: { ...p.settings.range }, loop: { ...p.settings.loop } };
+    return { clips: t.clips.map(copyClip), tracks: (t.tracks || []).map(x => ({ ...x })), range: { ...p.settings.range }, loop: { ...p.settings.loop } };
   };
   const commit = kind => { if (!restoring) undo.push(snap(), kind); };
   const restoreState = st => {
     const p = P(), t = p.take; if (!t || !st) return;
     restoring = true;
     try {
-      t.clips = st.clips.map(c => ({ ...c, fx: { ...c.fx } }));
+      t.clips = st.clips.map(copyClip);
       t.tracks = st.tracks.map(x => ({ ...x }));
       const cur = p.settings;
       if (cur.range.start !== st.range.start || cur.range.end !== st.range.end || cur.loop.start !== st.loop.start || cur.loop.end !== st.loop.end) p.setSettings({ range: st.range, loop: st.loop });
@@ -111,7 +186,7 @@ export function mountTimeline(root, app) {
   const drawBar = () => {
     const p = P(), take = p?.take, rec = R()?.recording, od = R()?.overdubbing;
     const sel = h('select', { class: 'wb-select wb-tl-take', title: 'Takes (recordings in Assets)' },
-      h('option', { value: '' }, take ? `${take.title}${take.assetId ? '' : ' (unsaved)'}` : 'Takes…'),
+      h('option', { value: '' }, (t0 => (t0 ? `${t0.title}${t0.assetId ? '' : ' (unsaved)'}` : 'Takes…'))(compStack.length ? compStack[0].holder : take)),
       ...takes.map(a => h('option', { value: a.id }, `${a.title} · ${fmt(a.meta?.duration || 0)}`)));
     sel.addEventListener('change', async () => { const a = takes.find(x => x.id === sel.value); if (a) openTake(a); sel.blur(); });
     const st = S();
@@ -135,7 +210,7 @@ export function mountTimeline(root, app) {
     const rate = h('select', { class: 'wb-select', title: 'Playback rate' }, ...[0.5, 1, 2, 4, 8].map(r => h('option', { value: r, selected: r === (p?.rate || 1) }, `${r}×`)));
     rate.addEventListener('change', () => { p.rate = Number(rate.value); rate.blur(); });
     bar.replaceChildren(...[
-      h('button', { class: `wb-icon-btn wb-tl-rec${rec || od ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : od ? 'Stop recording (Space too; the take is saved)' : `Record onto the Timeline: the transport plays (${p.loop ? 'round the loop: each pass adds to the last' : p.inOut ? 'from In to Out' : 'from the playhead'}) and each gesture you draw goes on the drawing track where the playhead is`, html: rec || od ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="5.5" fill="currentColor"/></svg>', onclick: () => (rec ? R().stop() : od ? R().stopOverdub() : R().startOverdub()) }),
+      h('button', { class: `wb-icon-btn wb-tl-rec${rec || od ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : od ? 'Stop recording (Space too; the take is saved)' : `Record onto the Timeline: the transport plays (${p.loop ? 'round the loop: each pass adds to the last' : p.inOut ? 'from In to Out' : 'from the playhead'}) and each gesture you draw goes on the drawing track where the playhead is`, html: rec || od ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="5.5" fill="currentColor"/></svg>', onclick: () => (rec ? R().stop() : od ? R().stopOverdub() : R().startOverdub()), oncontextmenu: ev => { ev.preventDefault(); const poly = R().settings.overdubLanes !== 'tracks'; showMenu([{ label: 'Overlapping gestures' }, { label: 'On one track, as voices (polyphonic)', active: poly, run: () => R().setSettings({ overdubLanes: 'poly' }) }, { label: 'On a track of their own (a track per pass)', active: !poly, run: () => R().setSettings({ overdubLanes: 'tracks' }) }], ev.clientX, ev.clientY); } }),
       h('button', { class: 'wb-icon-btn', title: 'Play / pause (Space in the timeline)', html: p?.playing ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : icon('play'), onclick: () => p.toggle() }),
       h('span', { class: 'wb-tl-time' }, rec && !take ? `● ${fmt(R().now())}` : stampOf(p.t, p.duration)),
       ruler,
@@ -145,6 +220,7 @@ export function mountTimeline(root, app) {
       rate,
       h('button', { class: `wb-icon-btn${p?.loop ? ' on' : ''}`, title: `Loop: ${p.loopRange ? 'round the loop region' : p.inOut ? 'from In to Out (no loop region marked)' : 'the whole take'}. Shift-drag the ruler to mark a loop region; I and O mark In and Out`, html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a6 6 0 016-6h8l-3-3M20 12a6 6 0 01-6 6H6l3 3"/></svg>', onclick: () => { p.loop = !p.loop; drawBar(); drawLanes(); } }),
       sel,
+      compStack.length ? h('button', { class: 'wb-btn wb-tl-crumb', title: 'Inside a composition: back out one level (Esc over the Timeline)', onclick: () => exitComp() }, `‹ ${[compStack[0].holder.title, ...compStack.map(L => L.clip.label || 'Composition')].join(' › ')}`) : null,
       h('button', { class: 'wb-icon-btn', title: 'New take: an empty one, starting from the drawing as it is', disabled: Boolean(rec), onclick: newTake, html: NEW_TAKE_SVG }),
       h('button', { class: 'wb-icon-btn', title: 'Insert at the playhead: a title card, a line of narration, a camera keyframe, a hold, a sound (a take is started if there is none)', disabled: Boolean(rec), onclick: e => showMenu(addItems(), e.clientX, e.clientY), html: INSERT }),
       h('button', { class: 'wb-icon-btn', title: 'Add a track', disabled: Boolean(rec), onclick: e => showMenu(trackItems(), e.clientX, e.clientY), html: ADD_TRACK }),
@@ -154,21 +230,22 @@ export function mountTimeline(root, app) {
       h('button', { class: 'wb-icon-btn', title: 'Walkthrough: a live walkthrough from this take (steps from narration; the drawing replayed with the guide)', disabled: !take, onclick: () => app.walkthroughs.fromTake(p.take).then(w => app.log(`Walkthrough “${w.title}” is in Docs → Walkthroughs and the palette.`)), html: WALKTHROUGH }),
       h('button', { class: 'wb-icon-btn', title: 'Export', disabled: !take, onclick: e => showMenu(exportItems(), e.clientX, e.clientY), html: icon('export') }),
       h('button', { class: 'wb-icon-btn', title: 'Save the edited take to Assets', disabled: !take, onclick: saveTake, html: icon('save') }),
-      take ? h('button', { class: 'wb-icon-btn', title: 'Close the take (back to your drawing)', html: icon('close'), onclick: () => { p.close(); select(null); drawBar(); drawLanes(); } }) : null].filter(Boolean));
+      take ? h('button', { class: 'wb-icon-btn', title: 'Close the take (back to your drawing)', html: icon('close'), onclick: () => { leaveComps(); P().close(); select(null); drawBar(); drawLanes(); } }) : null].filter(Boolean));
   };
 
   const newTake = async () => {
+    leaveComps();
     const p = P(), cur = p.take;
     if (cur && !cur.assetId && cur.clips.length && !(await askConfirm('Start a new take? This one is not saved (the save button keeps it).'))) return;
     p.load(createTake({ title: `Take ${takes.length + 1}`, baseline: JSON.parse(JSON.stringify(app.store.doc)) }));
     select(null); fitZoom(); drawBar(); drawLanes();
     app.log('A new, empty take: drag changes in from History, insert at the playhead, or record.');
   };
-  const openTake = a => { const take = JSON.parse(JSON.stringify(a.program)); take.assetId = a.id; P().load(take); select(null); fitZoom(); drawBar(); drawLanes(); };
+  const openTake = a => { leaveComps(); compStack = []; const take = JSON.parse(JSON.stringify(a.program)); take.assetId = a.id; P().load(take); select(null); fitZoom(); drawBar(); drawLanes(); };
   app.openTake = async id => { const a = await app.assetStore.get(id); if (!a?.program) throw new Error('No such take'); app.docks.open('timeline'); openTake(a); return a; };
 
   const saveTake = async () => {
-    const take = P().take;
+    const take = rootTake();
     delete take.original;
     take.duration = duration(take);
     if (take.assetId) await app.assetStore.update(take.assetId, { program: JSON.parse(JSON.stringify(take)), title: take.title, meta: { clips: take.clips.length, duration: take.duration } });
@@ -178,6 +255,7 @@ export function mountTimeline(root, app) {
   };
   // A summary opens unsaved: Save keeps it, Close (or Original) goes back. Summaries are not summarized again.
   const makeSummary = async () => {
+    leaveComps();
     const src = P().take;
     const s = summarize(touch(src));
     s.duration = duration(s);
@@ -223,12 +301,12 @@ export function mountTimeline(root, app) {
     input.click();
   };
   const exportItems = () => [
-    { label: 'Playable HTML (one file)', hint: 'A standalone player: open it anywhere; window.amsPlayer.seek(ms) drives it frame by frame', run: () => import('../takeExport.js').then(m => m.downloadHTML(P().take)) },
-    { label: 'Project (zip)', hint: 'index.html, player.js and take.json, to edit or render elsewhere', run: () => import('../takeExport.js').then(m => m.downloadProject(P().take)) },
+    { label: 'Playable HTML (one file)', hint: 'A standalone player: open it anywhere; window.amsPlayer.seek(ms) drives it frame by frame', run: () => import('../takeExport.js').then(m => m.downloadHTML(rootTake())) },
+    { label: 'Project (zip)', hint: 'index.html, player.js and take.json, to edit or render elsewhere', run: () => import('../takeExport.js').then(m => m.downloadProject(rootTake())) },
     '-',
-    { label: 'Video', hint: 'Records in real time at the chosen rate (MP4 where supported, else WebM)', items: [1, 2, 4].map(r => ({ label: `${r}× speed`, run: () => import('../takeExport.js').then(m => m.downloadVideo(P().take, { rate: r, app })) })) },
+    { label: 'Video', hint: 'Records in real time at the chosen rate (MP4 where supported, else WebM)', items: [1, 2, 4].map(r => ({ label: `${r}× speed`, run: () => import('../takeExport.js').then(m => m.downloadVideo(rootTake(), { rate: r, app })) })) },
     '-',
-    { label: 'Take (JSON)', run: () => import('../takeExport.js').then(m => m.downloadJSON(P().take)) }
+    { label: 'Take (JSON)', run: () => import('../takeExport.js').then(m => m.downloadJSON(rootTake())) }
   ];
 
   // ---- lanes ---------------------------------------------------------------------------------
@@ -425,7 +503,22 @@ export function mountTimeline(root, app) {
     ruler.addEventListener('dblclick', () => fitAll());
     const rows = tracks.map(tr => {
       const row = h('div', { class: `wb-tl-row${tr.muted ? ' muted' : ''}`, 'data-track': tr.id, 'data-kind': tr.kind, style: { width: `${W}px` } });
-      for (const c of (take?.clips || []).filter(c => laneOf(c) === tr.id)) row.append(clipEl(c, Boolean(rec)));
+      // Clips that overlap on a track (gestures played at once) share it as voices, one above another.
+      const on = (take?.clips || []).filter(c => laneOf(c) === tr.id).sort((a, b) => a.start - b.start), ends = [], voice = new Map();
+      for (const c of on) { let v = ends.findIndex(e => e <= c.start); if (v < 0) { v = ends.length; ends.push(0); } ends[v] = c.start + Math.max(c.dur || 0, 1); voice.set(c, v); }
+      const n = Math.max(1, ends.length);
+      // (only clips that overlap another are split; the rest keep the full height)
+      const overlaps = new Set();
+      for (let i = 0, maxEnd = -Infinity; i < on.length; i++) {
+        const c = on[i], end = c.start + Math.max(c.dur || 0, 1);
+        if (maxEnd > c.start || (on[i + 1] && on[i + 1].start < end)) overlaps.add(c);
+        maxEnd = Math.max(maxEnd, end);
+      }
+      for (const c of on) {
+        const el = clipEl(c, Boolean(rec));
+        if (n > 1 && overlaps.has(c)) { const hh = 18 / n; el.style.top = `${3 + voice.get(c) * hh}px`; el.style.height = `${Math.max(3, hh - 1)}px`; el.classList.add('voice'); if (hh < 12) el.classList.add('thin'); }
+        row.append(el);
+      }
       return row;
     });
     playhead.classList.toggle('live', Boolean(rec));
@@ -548,9 +641,17 @@ export function mountTimeline(root, app) {
 
   const clipEl = (c, readOnly = false) => {
     const w = Math.max(6, x(c.dur || 0));
-    const text = c.track === 'say' || c.track === 'title' ? c.text : c.track === 'draw' ? drawLabel(c) : c.track === 'camera' ? `${Math.round((c.z || 1) * 100)}%` : c.label || c.name || '';
-    const el = h('div', { class: `wb-tl-clip t-${c.track}${selected?.id === c.id ? ' sel' : ''}`, 'data-id': c.id, style: { left: `${x(c.start)}px`, width: `${w}px` }, title: `${TRACK_LABEL[c.track]} · ${fmt(c.start)} · ${(c.dur / 1000).toFixed(1)} s\n${text}` },
-      h('span', { class: 'wb-tl-cliptext' }, text), h('span', { class: 'wb-tl-grip', title: 'Drag to retime' }));
+    const rate = c.rate > 0 ? c.rate : 1;
+    const text = c.track === 'say' || c.track === 'title' ? c.text : c.track === 'draw' ? drawLabel(c) : c.track === 'camera' ? `${Math.round((c.z || 1) * 100)}%` : c.track === 'comp' ? `${c.label || 'Composition'}${Math.abs(rate - 1) > 0.001 ? ` ×${+rate.toFixed(2)}` : ''}` : c.label || c.name || '';
+    const el = h('div', { class: `wb-tl-clip t-${c.track}${picked.has(c.id) ? ' sel' : ''}`, 'data-id': c.id, style: { left: `${x(c.start)}px`, width: `${w}px` }, title: `${TRACK_LABEL[c.track]} · ${fmt(c.start)} · ${(c.dur / 1000).toFixed(1)} s\n${text}${c.track === 'comp' ? '\nDouble-click to open; drag the right edge to stretch it (Alt: trim)' : ''}` },
+      h('span', { class: 'wb-tl-cliptext' }, text), h('span', { class: 'wb-tl-grip', title: c.track === 'comp' ? 'Drag to stretch (Alt: trim)' : 'Drag to retime' }));
+    // A composition shows its clips small inside it, at its rate.
+    if (c.track === 'comp' && c.comp?.clips?.length) {
+      for (const k of c.comp.clips.slice(0, 300)) {
+        if (k.start >= c.dur * rate) continue;
+        el.append(h('span', { class: `wb-tl-compbit t-${k.track}`, style: { left: `${x(k.start / rate)}px`, width: `${Math.max(2, x((k.dur || 0) / rate))}px` } }));
+      }
+    }
     if (c.track === 'audio' && c.peaks?.length) {
       const cv = h('canvas', { class: 'wb-tl-wave', width: Math.max(8, Math.round(w)), height: 15 });
       const g = cv.getContext('2d'); g.fillStyle = 'rgba(40,30,36,0.45)';
@@ -561,15 +662,25 @@ export function mountTimeline(root, app) {
     if (readOnly) return el;
     el.addEventListener('pointerdown', ev => {
       if (ev.button !== 0) return;
-      ev.stopPropagation(); select(c);
+      ev.stopPropagation();
+      // Ctrl/⌘-click picks several (no drag); a picked clip drags the others with it.
+      if (ev.metaKey || ev.ctrlKey) { select(c, { toggle: true }); return; }
+      if (!picked.has(c.id)) select(c); else { selected = c; app.selectedClip = c; app.emit('clip-select', c); }
       const grip = ev.target.classList.contains('wb-tl-grip');
-      const x0 = ev.clientX, sl0 = lanes.scrollLeft, s0 = c.start, d0 = c.dur;
+      const x0 = ev.clientX, sl0 = lanes.scrollLeft, s0 = c.start, d0 = c.dur, r0 = c.rate > 0 ? c.rate : 1;
+      const others = grip ? [] : pickedClips().filter(o => o !== c).map(o => ({ o, s: o.start, el: lanes.querySelector(`.wb-tl-clip[data-id="${CSS.escape(o.id)}"]`) }));
       const place = e2 => {
         const dt = ((e2.clientX - x0 + lanes.scrollLeft - sl0) / pps) * 1000;
-        // On the grid (Alt or Shift: free): the start, or the end when the right edge is dragged.
-        const free = e2.altKey || e2.shiftKey, q = free ? 0 : gridStep(S(), pps) * 1000;
+        // On the grid (Alt or Shift: free; for a composition's edge only Shift, Alt trims): the start, or the end when the right edge is dragged.
+        const comp = c.track === 'comp', free = e2.shiftKey || (!comp && e2.altKey), q = free ? 0 : gridStep(S(), pps) * 1000;
         const on = v => (q ? Math.round(v / q) * q : v);
-        if (grip) c.dur = Math.max(q || 100, Math.round(on(s0 + d0 + dt) - s0)); else c.start = Math.max(0, Math.round(on(s0 + dt)));
+        if (grip) {
+          c.dur = Math.max(q || 100, Math.round(on(s0 + d0 + dt) - s0));
+          if (comp && !e2.altKey) c.rate = (d0 * r0) / c.dur;   // stretched: it shows the same, faster or slower
+          else if (comp) c.rate = r0;
+        } else c.start = Math.max(0, Math.round(on(s0 + dt)));
+        const moved = c.start - s0;
+        for (const k of others) { k.o.start = Math.max(0, Math.round(k.s + moved)); if (k.el) k.el.style.left = `${x(k.o.start)}px`; }
         el.style.left = `${x(c.start)}px`; el.style.width = `${Math.max(6, x(c.dur))}px`;
       };
       const edge = edgeScroll(place), mv = e2 => { place(e2); edge.move(e2); };
@@ -584,26 +695,39 @@ export function mountTimeline(root, app) {
       const up = () => {
         edge.stop(); window.removeEventListener('pointermove', mv); window.removeEventListener('pointermove', mvLane); window.removeEventListener('pointerup', up);
         if (lane !== lane0) c.lane = lane;
-        if (c.start !== s0 || c.dur !== d0 || lane !== lane0) edited();
+        if (c.start !== s0 || c.dur !== d0 || lane !== lane0) { edited(); if (c.track === 'comp' && grip) drawLanes(); }
       };
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
     });
-    el.addEventListener('dblclick', async () => { if (c.track === 'say' || c.track === 'title') { const v = await askText(c.track === 'say' ? 'Narration' : 'Title', c.text); if (v !== null) { c.text = v; edited(); } } else P().seek(c.start); });
-    el.addEventListener('contextmenu', ev => { ev.preventDefault(); select(c); showMenu(clipMenu(c), ev.clientX, ev.clientY); });
+    el.addEventListener('dblclick', async () => { if (c.track === 'comp') { enterComp(c); return; } if (c.track === 'say' || c.track === 'title') { const v = await askText(c.track === 'say' ? 'Narration' : 'Title', c.text); if (v !== null) { c.text = v; edited(); } } else P().seek(c.start); });
+    el.addEventListener('contextmenu', ev => { ev.preventDefault(); if (!picked.has(c.id)) select(c); showMenu(clipMenu(c), ev.clientX, ev.clientY); });
     return el;
   };
   const drawLabel = c => { const d = c.diff || {}; const n = (d.add || []).length, u = (d.update || []).length, r = (d.remove || []).length; return `${c.label || 'change'}${n ? ` +${n}` : ''}${u ? ` ~${u}` : ''}${r ? ` −${r}` : ''}`; };
   const clipMenu = c => [
+    c.track === 'comp' ? { label: 'Open the composition', hint: 'Its own timeline (double-click it too; Esc comes back)', run: () => enterComp(c) } : null,
+    { label: picked.size > 1 ? `Group ${picked.size} clips into a composition` : 'Group into a composition', keys: '⌘G', run: group },
+    c.track === 'comp' ? { label: 'Ungroup', hint: 'Its clips back on the tracks here, at its rate', keys: '⇧⌘G', run: () => ungroup(c) } : null,
+    '-',
+    { label: c.track === 'comp' ? 'Stretch' : 'Length', items: [
+      { label: 'To In and Out', disabled: !P().inOut, run: () => { const io = P().inOut; setLength(c, io[1] - io[0], io[0]); edited(); } },
+      { label: 'To the loop region', disabled: !P().loopRange, run: () => { const r = P().loopRange; setLength(c, r[1] - r[0], r[0]); edited(); } },
+      '-',
+      ...[0.5, 1, 2, 4, 8].map(n => ({ label: n === 0.5 ? 'Half a bar' : `${n} bar${n === 1 ? '' : 's'}`, run: () => { setLength(c, n * barMs()); edited(); } })),
+      ...[1, 2].map(n => ({ label: `${n} beat${n === 1 ? '' : 's'}`, run: () => { setLength(c, n * beatMs()); edited(); } }))
+    ] },
+    '-',
     { label: 'Go to start', run: () => seekShow(c.start) },
     { label: 'Zoom to the clip', keys: 'F', run: () => fitClip(c) },
     { label: 'Show code', hint: 'This clip as clip({ … }): edit and apply', run: () => app.openCode?.('clip', c) },
     c.track === 'draw' ? { label: c.fx?.drawOn === false ? 'Reveal gradually' : 'Show at once', run: () => { c.fx = { ...(c.fx || {}), drawOn: c.fx?.drawOn === false }; edited(); } } : null,
-    { label: 'Speed', items: [0.25, 0.5, 2, 4].map(k => ({ label: k < 1 ? `${1 / k}× slower` : `${k}× faster`, run: () => { c.dur = Math.max(100, Math.round(c.dur / k)); edited(); } })) },
-    { label: 'Duplicate', run: () => { P().take.clips.push({ ...structuredClone(c), id: clipId(), start: c.start + c.dur }); edited(); } },
+    { label: 'Speed', items: [0.25, 0.5, 2, 4].map(k => ({ label: k < 1 ? `${1 / k}× slower` : `${k}× faster`, run: () => { setLength(c, c.dur / k); edited(); } })) },
+    { label: 'Duplicate', run: () => { const d = { ...structuredClone(c), id: clipId(), start: c.start + c.dur }; P().take.clips.push(d); edited(); select(d); } },
     '-',
-    { label: 'Delete', run: () => deleteClip(c) }
-  ];
-  const deleteClip = c => { const t = P().take; t.clips = t.clips.filter(x2 => x2 !== c); if (selected === c) select(null); edited(); };
+    { label: picked.size > 1 ? `Delete ${picked.size} clips` : 'Delete', run: () => deleteClips(picked.size > 1 ? pickedClips() : [c]) }
+  ].filter(Boolean);
+  const deleteClips = list => { const t = P().take, gone = new Set(list); t.clips = t.clips.filter(x2 => !gone.has(x2)); select(null); edited(); };
+  const deleteClip = c => deleteClips([c]);
   app.timelineEdited = edited;
 
   // Drop from Assets: sound → an audio clip, text → narration, a drawing → a drawing clip that reveals it.
@@ -775,7 +899,9 @@ export function mountTimeline(root, app) {
     if (document.querySelector('.wb-menu, .wb-dialog')?.isConnected && !tl.contains(ev.target)) return;   // (a menu or dialog has the keys)
     const take = () => { ev.preventDefault(); ev.stopPropagation(); };
     if (ev.key === ' ' && !(ev.shiftKey || ev.altKey || ev.metaKey || ev.ctrlKey)) { take(); P().toggle(); return; }
-    if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !R()?.recording) { take(); deleteClip(selected); return; }
+    if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !R()?.recording) { take(); deleteClips(pickedClips().length ? pickedClips() : [selected]); return; }
+    if (ev.key === 'Escape' && compStack.length && !(ev.metaKey || ev.ctrlKey || ev.altKey)) { take(); exitComp(); return; }
+    if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && /^[gG]$/.test(ev.key) && P().take && !R()?.recording) { take(); if (ev.shiftKey) ungroup(selected); else group(); return; }
     // ⌘Z / ⇧⌘Z (and Ctrl+Y) undo the Timeline while it has a take; without one they go on to the drawing's undo.
     if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && /^[zZyY]$/.test(ev.key) && P().take && !R()?.recording) { take(); undoTimeline(ev.shiftKey || /^[yY]$/.test(ev.key)); return; }
     const run = !(ev.metaKey || ev.ctrlKey || ev.altKey) && KEYS[ev.key];

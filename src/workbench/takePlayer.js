@@ -5,7 +5,7 @@
  * Tempo, meter, fps, ruler and loop range are the scene's (`doc.transport`, src/time/sceneTransport.js);
  * `loop` (on or off) is this session's. Anything that plays in time (a score) listens to `t`.
  */
-import { docAt, duration, touch, on } from '../process/take.js';
+import { docAt, duration, touch, flatClips } from '../process/take.js';
 import { advanceTransportPlaybackTime } from '../time/transport.js';
 import { normalizeTransport, loopRange, inOutRange } from '../time/sceneTransport.js';
 
@@ -78,18 +78,19 @@ export class TakePlayer {
   /** Sound clips follow the playhead (started, seeked, paused with it). */
   syncAudio() {
     this.audios ||= new Map();
-    for (const c of this.take?.clips || []) {
+    const flat = this.take ? flatClips(this.take) : [];   // (sounds inside compositions too)
+    for (const c of flat) {
       if (c.track !== 'audio' || !c.src) continue;
       let a = this.audios.get(c.id);
       if (!a || a.srcKey !== c.src) { a?.pause(); a = new Audio(c.src); a.srcKey = c.src; a.preload = 'auto'; this.audios.set(c.id, a); }
-      const inside = on(this.take, c) && this.t >= c.start && this.t < c.start + c.dur;
+      const inside = !c.muted && this.t >= c.start && this.t < c.start + c.dur;
       if (this.playing && inside) {
         const want = (this.t - c.start) / 1000 + (c.offset || 0) / 1000;
         a.playbackRate = Math.min(4, this.rate);
         if (a.paused) { a.currentTime = want; a.play().catch(() => {}); } else if (Math.abs(a.currentTime - want) > 0.3) a.currentTime = want;
       } else if (!a.paused) a.pause();
     }
-    for (const [id, a] of this.audios) if (!this.take?.clips.some(c => c.id === id)) { a.pause(); this.audios.delete(id); }
+    for (const [id, a] of this.audios) if (!flat.some(c => c.id === id)) { a.pause(); this.audios.delete(id); }
   }
 
   close() {
@@ -165,7 +166,7 @@ export class TakePlayer {
     const doc = docAt(this.take, this.t);
     cv.previewDoc = doc;
     // Follow the take's camera keyframes, if it has any.
-    if (this.followCamera && this.take.clips.some(c => c.track === 'camera')) {
+    if (this.followCamera && flatClips(this.take).some(c => c.track === 'camera')) {
       const tf = frameTransform(this.take, this.t, cv.w, cv.h, doc);
       cv.cam = { x: tf.x, y: tf.y, z: tf.scale };
     }

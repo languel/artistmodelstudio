@@ -8,7 +8,11 @@
  *   action   a tool call (label only; the effect is in the draw clips)
  *   camera   a view keyframe: { cx, cy, z } (artboard center and zoom; z = 1 shows the artboard)
  *   audio    a sound (src), later
+ *   comp     a composition (as in After Effects): clips grouped into one, with a timeline of their own
+ *            { comp: { tracks, clips }, rate } — its clips' times are its own (from 0); `rate` plays it
+ *            faster (2) or slower (0.5); it shows what of its clips falls in its length. Compositions nest.
  * Every clip: { id, track, start, dur (ms), fx: { speed, drawOn, fade } }.
+ * Playing reads flatClips(take): the compositions opened out into clips at the take's own times.
  *
  * The same code gives the document at any time t, for the app, the standalone player and video.
  */
@@ -86,8 +90,74 @@ export function createTake({ title = 'Take', baseline, clips = [] } = {}) {
 }
 
 export const duration = take => Math.max(0, ...take.clips.map(c => c.start + c.dur));
-export const TRACKS = ['title', 'say', 'draw', 'action', 'camera', 'audio'];
-export const TRACK_NAMES = { title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
+export const TRACKS = ['comp', 'title', 'say', 'draw', 'action', 'camera', 'audio'];
+export const TRACK_NAMES = { comp: 'Comps', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
+const OLD_TRACKS = ['title', 'say', 'draw', 'action', 'camera', 'audio'];   // (the six every take had before tracks started empty)
+
+/**
+ * Every clip at the take's own time: compositions opened out (recursively), each clip placed and
+ * timed by the compositions around it, and `muted` when a track it is on (at any depth) is muted.
+ * A composition shows only the clips that start within its length. Cached per revision.
+ */
+export function flatClips(take) {
+  // (a track muted or unmuted changes it as much as an edit does)
+  const key = `${take.rev || 0}|${(take.tracks || []).filter(t => t.muted).map(t => t.id).join(',')}`;
+  if (take._flat && take._flat.key === key) return take._flat.clips;
+  const out = [];
+  const walk = (clips, tracks, offset, scale, muted, end, depth) => {
+    const mutedLanes = new Set((tracks || []).filter(t => t.muted).map(t => t.id));
+    for (const c of clips || []) {
+      if (end != null && c.start >= end) continue;   // (past the composition's end)
+      const m = muted || mutedLanes.has(laneOf(c));
+      if (c.track === 'comp' && c.comp) {
+        if (depth > 16) continue;
+        const rate = c.rate > 0 ? c.rate : 1;
+        walk(c.comp.clips, c.comp.tracks, offset + c.start * scale, scale / rate, m, (c.dur || 0) * rate, depth + 1);
+        continue;
+      }
+      out.push({ ...c, start: offset + c.start * scale, dur: (c.dur || 0) * scale, muted: m });
+    }
+  };
+  walk(take.clips, take.tracks, 0, 1, false, null, 0);
+  Object.defineProperty(take, '_flat', { value: { key, clips: out }, enumerable: false, configurable: true, writable: true });
+  return out;
+}
+
+/** The length of a composition's contents (ms, in its own time). */
+export const compLength = comp => Math.max(0, ...(comp?.clips || []).map(c => c.start + (c.dur || 0)));
+
+/**
+ * Group clips into a composition: they leave the take's tracks (or a composition's) and go inside a
+ * new composition clip that starts where the first did and lasts until the last ends. Their tracks go
+ * with them (and stay outside too, if other clips are on them). Returns the composition clip.
+ */
+export function precompose(holder, ids, { title = 'Composition', id = clipId() } = {}) {
+  const chosen = holder.clips.filter(c => ids.includes(c.id));
+  if (!chosen.length) return null;
+  const t0 = Math.min(...chosen.map(c => c.start)), t1 = Math.max(...chosen.map(c => c.start + (c.dur || 0)));
+  const lanes = new Set(chosen.map(laneOf));
+  const tracks = tracksOf(holder).filter(t => lanes.has(t.id)).map(t => ({ ...t }));
+  const comp = { tracks, clips: chosen.map(c => ({ ...c, start: c.start - t0 })) };
+  holder.clips = holder.clips.filter(c => !ids.includes(c.id));
+  // Tracks left with nothing on them go (they moved inside).
+  holder.tracks = tracksOf(holder).filter(t => !lanes.has(t.id) || holder.clips.some(c => laneOf(c) === t.id));
+  const clip = { id, track: 'comp', start: t0, dur: Math.max(1, t1 - t0), rate: 1, comp, label: title, fx: {} };
+  holder.clips.push(clip);
+  return clip;
+}
+
+/** Open a composition back out: its clips go onto the holder's tracks at the holder's times (its rate applied). */
+export function decompose(holder, compClip) {
+  const c = compClip, rate = c.rate > 0 ? c.rate : 1, end = (c.dur || 0) * rate;
+  const inner = (c.comp?.clips || []).filter(x => x.start < end);
+  holder.clips = holder.clips.filter(x => x !== c);
+  const have = new Set(tracksOf(holder).map(t => t.id));
+  for (const t of c.comp?.tracks || []) if (!have.has(t.id)) { holder.tracks.push({ ...t }); have.add(t.id); }
+  const out = inner.map(x => ({ ...x, start: c.start + x.start / rate, dur: (x.dur || 0) / rate }));
+  holder.clips.push(...out);
+  tracksOf(holder);   // (a kind with no track gets one)
+  return out;
+}
 
 /**
  * Tracks (as in an editor): any number of each kind, in order, each with a name and mute.
@@ -98,7 +168,7 @@ export const TRACK_NAMES = { title: 'Titles', say: 'Narration', draw: 'Drawing',
 export function tracksOf(take) {
   if (!Array.isArray(take.tracks)) take.tracks = [];
   // Takes saved before tracks started empty have all six, untouched: keep only those with clips.
-  if (take.tracks.length === TRACKS.length && take.tracks.every((t, i) => t.id === TRACKS[i] && t.kind === TRACKS[i] && t.name === TRACK_NAMES[t.kind] && !t.muted)) {
+  if (take.tracks.length === OLD_TRACKS.length && take.tracks.every((t, i) => t.id === OLD_TRACKS[i] && t.kind === OLD_TRACKS[i] && t.name === TRACK_NAMES[t.kind] && !t.muted)) {
     take.tracks = take.tracks.filter(t => (take.clips || []).some(c => laneOf(c) === t.id));
   }
   const ids = new Set(take.tracks.map(t => t.id));
@@ -139,9 +209,9 @@ export const readingTime = text => Math.max(1600, String(text || '').split(/\s+/
 
 /** Draw clips in time order, with the document before each (cached per take revision). */
 function drawIndex(take) {
-  const key = take.rev || 0;
+  const key = `${take.rev || 0}|${(take.tracks || []).filter(t => t.muted).map(t => t.id).join(',')}`;
   if (take._index && take._index.key === key) return take._index;
-  const draws = take.clips.filter(c => c.track === 'draw' && c.diff && on(take, c)).sort((a, b) => a.start - b.start || (a.seq ?? 0) - (b.seq ?? 0));
+  const draws = flatClips(take).filter(c => c.track === 'draw' && c.diff && !c.muted).sort((a, b) => a.start - b.start || (a.seq ?? 0) - (b.seq ?? 0));
   const before = [];
   let doc = take.baseline;
   for (const c of draws) { before.push(doc); doc = applyDiff(doc, c.diff); }
@@ -179,11 +249,11 @@ export function docAt(take, t) {
 }
 
 /** Clips on a track that are showing at time t. */
-export const activeAt = (take, track, t) => take.clips.filter(c => c.track === track && on(take, c) && t >= c.start && t < c.start + Math.max(c.dur, 1));
+export const activeAt = (take, track, t) => flatClips(take).filter(c => c.track === track && !c.muted && t >= c.start && t < c.start + Math.max(c.dur, 1));
 
 /** Camera at t: holds each keyframe, then eases to the next during that keyframe's dur (null without keyframes). */
 export function cameraAt(take, t) {
-  const keys = take.clips.filter(c => c.track === 'camera' && on(take, c)).sort((a, b) => a.start - b.start);
+  const keys = flatClips(take).filter(c => c.track === 'camera' && !c.muted).sort((a, b) => a.start - b.start);
   if (!keys.length) return null;
   let cur = { cx: keys[0].cx, cy: keys[0].cy, z: keys[0].z };
   for (const k of keys) {
@@ -203,7 +273,8 @@ export function cameraAt(take, t) {
 export function summarize(take, { maxGap = 350, drawMax = 2200, analysisSpeed = 4, hold = 2500, keepActions = false } = {}) {
   const analysisStages = new Set((take.baseline.stages || []).filter(s => ['analysis', 'construction'].includes(s.kind)).map(s => s.id));
   const isAnalysis = c => c.track === 'draw' && (c.diff?.add || []).length > 0 && c.diff.add.every(e => ['guide', 'gesture'].includes(e.role) || analysisStages.has(e.stage));
-  const src = take.clips.filter(c => keepActions || c.track !== 'action').slice().sort((a, b) => a.start - b.start);
+  // (compositions opened out: a summary is one flat cut)
+  const src = flatClips(take).filter(c => !c.muted && (keepActions || c.track !== 'action')).map(({ muted, ...c }) => c).sort((a, b) => a.start - b.start);
   const out = [];
   let t = 0, prevStart = null, prevEnd = 0;
   for (const c of src) {
