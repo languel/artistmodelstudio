@@ -172,3 +172,25 @@ Results so far are in *Reproducing the lessons* above (Qwen 3.8 9B coder 14/14; 
 Generation, 160 tokens, temperature 0, **with the GPU to itself**: LFM3-Omni 2B **254 tok/s**, Flint (40B MoE, about 2.5B active) 153, Bonsai 2 4B 146, Qwen3-Coder 30B (MoE) 133, Bonsai 2 9B 101, Qwen 3.8 9B coder 76, Bonsai 2 27B **41.5**. So a 300-token program takes about 1 to 2 s on the small models and about 4 s on the 9B coder, and about 7 s on the 27B.
 
 *Correction:* an earlier version of this section gave 31, 22, 11 and 5.3 tok/s for LFM3, Qwen3-Coder, the 9B coder and Bonsai 27B. Those were measured while a browser model was using the same GPU, and are 5 to 8 times too low. Measure with nothing else running. The browser demo for Bonsai uses its own WebGPU kernels, so its speed has to be timed there (not yet done; a 5.9 GB download).
+
+
+## Lesson test, all models measured so far (5 Nov 2026)
+
+`lessonEval.js`: 7 tasks (4 lesson boards, 3 held-out) in the teacher's wording and a rephrased one, so 14 in all. Speed is generation with the GPU to itself. Raw results: `scripts/eval/results/`.
+
+| Model | Where | Size | Score /14 | Speed |
+|---|---|---|---|---|
+| **Qwen3-Coder 30B** (MoE) | Ollama | 18 GB | **14** | 133 tok/s |
+| **Flint** (40B MoE, 2.5B active) | Ollama | 22 GB | **14** | 153 tok/s |
+| **Qwen 3.8 9B coder** | Ollama | 6.7 GB | **14** | 76 tok/s |
+| Bonsai 2 27B (ternary) | Ollama | 8.3 GB | 13 | 41.5 tok/s |
+| Bonsai 2 9B (ternary) | Ollama | 3.2 GB | 12 | 101 tok/s |
+| **Bonsai 2 4B (ternary)** | Ollama | 1.6 GB | **12** | 146 tok/s |
+| **Qwen3 4B Instruct 2507** | **browser** (transformers.js) | 2.1 GB | **12** | |
+| Qwen3.5 4B | browser | 2.6 GB | 11 | slow: it thinks aloud |
+| Phi-3.5 mini 3.8B | browser | 2.3 GB | 10 | |
+| LFM3-Omni 2B | browser (Liquid runtime) | 1.6 GB | 9 | |
+| LFM3-Omni 2B | Ollama | 2.4 GB | 7 | 254 tok/s |
+| LFM3-VL 2B | browser | 1 GB | 2 | |
+
+Reading it: **code writing tracks size and code training, not recency**. At about 4B the ternary Bonsai (1.6 GB on Ollama; about 1.15 GB as the browser file) equals the best browser model that runs today (Qwen3 4B Instruct 2507, 2.1 GB), at half the download, and the 9B ternary (12/14) is no better than the 4B. Only the 9B coder and the two big MoE models (Qwen3-Coder 30B and Flint) are perfect. The one task small models keep missing is the pointillist walk ("lighter than 0.3").

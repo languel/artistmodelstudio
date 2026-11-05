@@ -1,0 +1,703 @@
+{
+ "done": true,
+ "savedAt": "2026-11-05T22:03:25.909Z",
+ "note": "lesson test (lessonEval.js) on Ollama models, model's own sampling, 1400 max tokens, GPU otherwise idle",
+ "models": {
+  "bonsai-2:9b": {
+   "secs": 57,
+   "ask": {
+    "passed": 7,
+    "of": 7
+   },
+   "alt": {
+    "passed": 5,
+    "of": 7
+   },
+   "tasks": [
+    {
+     "use": "ask",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "light-walk",
+     "pass": true,
+     "marks": 721,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 3,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 3600,
+     "wanted": 2700,
+     "tries": 2,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 2558,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "rings",
+     "pass": false,
+     "marks": 0,
+     "wanted": 8,
+     "tries": 3,
+     "error": "plane() needs a list of points like [[x, y], [x, y], ...] (got an array whose items are object). walk(), circle() and rect() return such lists. (line 8)"
+    },
+    {
+     "use": "alt",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    }
+   ]
+  },
+  "bonsai-2:27b": {
+   "secs": 259,
+   "ask": {
+    "passed": 6,
+    "of": 7
+   },
+   "alt": {
+    "passed": 7,
+    "of": 7
+   },
+   "tasks": [
+    {
+     "use": "ask",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 11153,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "light-walk",
+     "pass": true,
+     "marks": 813,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    }
+   ]
+  },
+  "bonsai-2:4b": {
+   "secs": 111,
+   "ask": {
+    "passed": 6,
+    "of": 7
+   },
+   "alt": {
+    "passed": 6,
+    "of": 7
+   },
+   "tasks": [
+    {
+     "use": "ask",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 4800,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 11234,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 2,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 3600,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 2592,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    }
+   ]
+  },
+  "qwen3-coder:30b": {
+   "secs": 48,
+   "ask": {
+    "passed": 7,
+    "of": 7
+   },
+   "alt": {
+    "passed": 7,
+    "of": 7
+   },
+   "tasks": [
+    {
+     "use": "ask",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "light-walk",
+     "pass": true,
+     "marks": 813,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "light-walk",
+     "pass": true,
+     "marks": 822,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    }
+   ]
+  },
+  "flint:latest": {
+   "secs": 78,
+   "ask": {
+    "passed": 7,
+    "of": 7
+   },
+   "alt": {
+    "passed": 7,
+    "of": 7
+   },
+   "tasks": [
+    {
+     "use": "ask",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "light-walk",
+     "pass": true,
+     "marks": 936,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 3,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 3600,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "light-walk",
+     "pass": true,
+     "marks": 643,
+     "wanted": 721,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    }
+   ]
+  }
+ }
+}
+
