@@ -185,10 +185,10 @@ export class OllamaArtist extends Artist {
     return this._rec.get(model);
   }
 
-  async complete({ system, user, image = null, temperature = null, signal, json = false, maxTokens = 2000 } = {}) {
+  async complete({ system, user, image = null, temperature = null, signal, json = false, maxTokens = 2000, model = this.model } = {}) {
     const res = await fetch(`${this.endpoint}/api/chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
-      body: JSON.stringify({ model: this.model, stream: false, think: false, ...(json ? { format: 'json' } : {}), options: { ...(temperature != null ? { temperature } : {}), ...(json ? { num_predict: maxTokens } : {}) }, messages: [...(system ? [{ role: 'system', content: system }] : []), ollamaMessage(user, image)] })
+      body: JSON.stringify({ model, stream: false, think: false, ...(json ? { format: 'json' } : {}), options: { ...(temperature != null ? { temperature } : {}), ...(json ? { num_predict: maxTokens } : {}) }, messages: [...(system ? [{ role: 'system', content: system }] : []), ollamaMessage(user, image)] })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);

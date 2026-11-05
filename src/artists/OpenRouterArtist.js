@@ -468,13 +468,13 @@ export class OpenRouterArtist extends Artist {
    * One chat completion: { system, user, image?, temperature?, signal } → text.
    * Used by the workbench, where models write scores rather than drawing programs.
    */
-  async complete({ system, user, image = null, temperature = 0.7, maxTokens = 4000, signal } = {}) {
+  async complete({ system, user, image = null, temperature = 0.7, maxTokens = 4000, signal, model } = {}) {
     const apiKey = getStorage('ams_openrouter_key') || this.apiKey;
     if (!apiKey) throw new Error('OpenRouter API key missing (Generate panel → Keys)');
     const res = await fetchWithRetry(this.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, 'X-Title': 'Artist Model Studio' },
-      body: JSON.stringify({ model: getStorage('ams_openrouter_model') || this.model, messages: [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: openAIContent(user, image) }], temperature, max_tokens: maxTokens }),
+      body: JSON.stringify({ model: model || getStorage('ams_openrouter_model') || this.model, messages: [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: openAIContent(user, image) }], temperature, max_tokens: maxTokens }),
       signal: AbortSignal.any ? AbortSignal.any([signal, AbortSignal.timeout(300000)].filter(Boolean)) : signal
     });
     const data = await res.json();

@@ -64,6 +64,15 @@ export function allFavorites(app) {
   return Object.keys(ENGINE_NAMES).flatMap(engine => favorites(engine, app.artists.get(engine)).map(id => ({ engine, id })));
 }
 
+// ---- the model that writes board code ------------------------------------------------------------------------------
+// Conversation, commands and drawing want a quick small model; writing a program wants a bigger one (measured: docs/quick-commands.md).
+// Unset (engine ''), code is written by the assistant's own model.
+const CODE_KEY = 'ams_code_model';
+export function codeTarget() {
+  try { const v = JSON.parse(get(CODE_KEY, '{}')) || {}; return v.engine && v.model ? { engine: v.engine, model: v.model } : null; } catch { return null; }
+}
+export function setCodeTarget(engine, model) { set(CODE_KEY, JSON.stringify(engine && model ? { engine, model } : {})); changed(); }
+
 // ---- how the assistant asks ---------------------------------------------------------------------------------------
 export const ASSISTANT_DEFAULTS = { temperature: null, rounds: 6, tools: true, history: 12, flowTemperature: null, traces: false }   // (null: the model's own recommendation, else 0.4 for the chat and 0.1 for the quick field)
 export const FALLBACK_TEMPERATURE = { chat: 0.4, flow: 0.1 };;

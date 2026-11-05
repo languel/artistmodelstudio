@@ -325,9 +325,9 @@ export class WebGPUTransformersArtist extends Artist {
   }
 
   /** One completion with the in-browser model: { system, user, image?, temperature } → text. */
-  async complete({ system, user, image = null, temperature = 0.7, maxTokens = 1500 } = {}) {
-    const preset = WEBGPU_MODEL_PRESETS.find(p => p.id === this.modelId);
-    const pipe = await this.initPipeline(this.modelId, this.onProgress);
+  async complete({ system, user, image = null, temperature = 0.7, maxTokens = 1500, model = this.modelId } = {}) {
+    const preset = WEBGPU_MODEL_PRESETS.find(p => p.id === model);
+    const pipe = await this.initPipeline(model, this.onProgress);
     const userMsg = image && preset?.isVL ? { role: 'user', content: [{ type: 'image', image }, { type: 'text', text: user }] } : { role: 'user', content: user };
     const out = await pipe([...(system ? [{ role: 'system', content: system }] : []), userMsg], { max_new_tokens: maxTokens, temperature, do_sample: temperature > 0 });
     const gen = out[0]?.generated_text;
