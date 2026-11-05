@@ -1531,6 +1531,20 @@ export class CanvasView {
       if (!this.selected.has(hit.id) || (e.metaKey || e.ctrlKey)) this.select(ids, e.shiftKey);
       const before = JSON.stringify(this.store.doc);
       let moved = false;
+      // Alt-drag: drag copies (the originals stay where they are). One undo step; a click without a drag makes none.
+      let copies = null;
+      const originals = [...this.selected], newGroups = [];
+      if (e.altKey) {
+        const doc = this.store.doc, groupMap = {};
+        copies = doc.elements.filter(el => this.selected.has(el.id)).map(el => {
+          const c = structuredClone(el);
+          c.id = `${el.role || 'el'}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+          if (el.group) { if (!groupMap[el.group]) { groupMap[el.group] = `group_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`; newGroups.push(groupMap[el.group]); } c.group = groupMap[el.group]; doc.groups = doc.groups || {}; doc.groups[c.group] = { name: `${doc.groups[el.group]?.name || 'Group'} copy` }; }
+          return c;
+        });
+        doc.elements.push(...copies);
+        this.select(copies.map(c => c.id));
+      }
       this.pointer = true;
       const orig = new Map(this.store.doc.elements.filter(el => this.selected.has(el.id)).map(el => [el.id, el.points.map(p => p.slice())]));
       const b0 = this.selectionBounds();
@@ -1557,7 +1571,8 @@ export class CanvasView {
       const up = () => {
         window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
         this.pointer = false;
-        if (moved) { this.rehome(orig.keys()); this.store.commitFrom(before, 'move'); }
+        if (moved) { this.rehome(orig.keys()); this.store.commitFrom(before, copies ? 'duplicate' : 'move'); }
+        else if (copies) { const gone = new Set(copies.map(c => c.id)); this.store.doc.elements = this.store.doc.elements.filter(x => !gone.has(x.id)); for (const g of newGroups) delete this.store.doc.groups?.[g]; this.select(originals); this.invalidate(); }
       };
       window.addEventListener('pointermove', mv);
       window.addEventListener('pointerup', up);

@@ -567,6 +567,8 @@ A **take** is the starting drawing, then clips on tracks. It starts with none: a
 
 **Reviewing and editing.** Open a take from the Timeline's list (or double-click it in Assets): the canvas shows the drawing at the playhead, the pen at work and the captions. Clips are rectangles: drag to move, drag the right edge to retime (Shift for fine steps), double-click narration or titles to edit, right-click for speed, reveal and delete. The selected clip's timing, text, reveal and fades are in Properties. The **insert** glyph (a playhead with a plus) puts a title, a line of narration, a camera keyframe (the current view), a hold or an audio file at the playhead, starting a take if there is none; the playhead can sit past the end. **Summary** is the glyph of arrows pressing inward, **Walkthrough** the dotted route. Space plays.
 
+**Picking.** Shift/Ctrl/⌘-click picks several clips, a box dragged over the tracks picks what it touches; Alt-drag drags copies, ⇧D duplicates (on the canvas too). The playhead moves from the ruler.
+
 **Compositions.** Ctrl/⌘-click picks several clips; **⌘G** groups them into a composition (its own timeline, on the Comps track); double-click opens it, Esc comes back; drag its edge to stretch it (Alt trims); right-click → Stretch fits it to In and Out, the loop, or bars; ⇧⌘G ungroups. They nest.
 
 **In and Out, and the loop region.** I and O set In and Out at the playhead (drag their brackets on the ruler): the time outside is dimmed, play stops at Out, Home goes to In. The loop region is the strip along the top of the ruler (Shift-drag for a new one, drag to move it): coloured while Loop is on, an outline when off; with Loop on, playback goes round it, else In to Out. The **new take** glyph starts an empty take.

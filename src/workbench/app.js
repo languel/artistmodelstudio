@@ -2507,7 +2507,7 @@ export class Workbench {
         { label: 'Lightly', run: () => simplify(1.5) }, { label: 'Moderately', run: () => simplify(4) }, { label: 'Strongly', run: () => simplify(10) }
       ] } : null,
       '-',
-      { label: 'Duplicate', run: () => { const out = this.store.duplicate(ids, 20 / z, 20 / z); this.canvas.select(out); } },
+      { label: 'Duplicate', keys: sc('edit.duplicate'), hint: 'Alt-drag drags a copy', run: () => { const out = this.store.duplicate(ids, 20 / z, 20 / z); this.canvas.select(out); } },
       { label: 'Create board from selection', hint: 'A board around the selected marks, which move into it', run: () => this.boardFromSelection(ids) },
       { label: 'Make mask', hint: 'The selected marks become the mask of the board they are on: they move to a board of their own (a mask board), and the board shows only where they are', run: () => this.makeMask(ids) },
       { label: 'Snap', hint: 'To the grid (its finest lines); one undo step', items: (() => {

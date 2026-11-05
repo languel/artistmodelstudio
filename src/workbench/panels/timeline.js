@@ -498,7 +498,7 @@ export function mountTimeline(root, app) {
     const st = S();
     // (the ticks in a layer of their own: drawRuler redraws them as the view moves, the ranges' marks stay)
     rulerEl = h('div', { class: 'wb-tl-ticks' });
-    const ruler = h('div', { class: 'wb-tl-ruler', style: { width: `${W}px` }, title: 'Press or drag to scrub; Shift-drag marks a loop region; I and O mark In and Out; double-click fits all; right-click for more' });
+    const ruler = h('div', { class: 'wb-tl-ruler', style: { width: `${W}px` }, title: 'Press or drag to move the playhead; Shift-drag marks a loop region; I and O mark In and Out; double-click fits all; right-click for more' });
     ruler.append(rulerEl);
     ruler.addEventListener('dblclick', () => fitAll());
     const rows = tracks.map(tr => {
@@ -594,9 +594,14 @@ export function mountTimeline(root, app) {
         { label: 'Clear the loop region', disabled: !lr2, run: () => { p.setSettings({ loop: { start: 0, end: 0 } }); drawBar(); } }
       ], ev.clientX, ev.clientY);
     });
-    for (const el of [ruler, ...rows, fill]) el.addEventListener('pointerdown', ev => {
-      if (ev.target.closest('.wb-tl-clip')) return;
-      select(null);
+    // The tracks: drag a box to pick clips (Shift, Ctrl or ⌘: add to what is picked); a click on nothing picks nothing.
+    for (const el of [...rows, fill]) el.addEventListener('pointerdown', ev => {
+      if (ev.button !== 0 || ev.target.closest('.wb-tl-clip')) return;
+      startBox(ev);
+    });
+    // The ruler: press or drag to move the playhead; Shift-drag marks a loop region.
+    ruler.addEventListener('pointerdown', ev => {
+      if (ev.button !== 0) return;
       if (ev.shiftKey) {
         // Mark a loop region: drag from where you press.
         const a = snapped(ev);
@@ -619,6 +624,51 @@ export function mountTimeline(root, app) {
       const up = () => { edge.stop(); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); };
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
     });
+  };
+
+  /** A box dragged over the tracks picks the clips it touches. */
+  const startBox = ev => {
+    const add = ev.shiftKey || ev.metaKey || ev.ctrlKey, base = add ? new Set(picked) : new Set();
+    const pos = e2 => { const r = lanes.getBoundingClientRect(); return [e2.clientX - r.left + lanes.scrollLeft, e2.clientY - r.top + lanes.scrollTop]; };
+    const [ax, ay] = pos(ev);
+    const box = h('div', { class: 'wb-tl-marquee' });
+    lanes.append(box);
+    let moved = false;
+    const update = e2 => {
+      const [bx, by] = pos(e2);
+      if (Math.abs(bx - ax) + Math.abs(by - ay) > 3) moved = true;
+      const x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by);
+      Object.assign(box.style, { left: `${x0}px`, top: `${y0}px`, width: `${x1 - x0}px`, height: `${y1 - y0}px`, display: moved ? '' : 'none' });
+      if (!moved) return;
+      const r = lanes.getBoundingClientRect(), now = new Set(base);
+      for (const cel of lanes.querySelectorAll('.wb-tl-clip')) {
+        const cr = cel.getBoundingClientRect(), cx = cr.left - r.left + lanes.scrollLeft, cy = cr.top - r.top + lanes.scrollTop;
+        if (cx < x1 && cx + cr.width > x0 && cy < y1 && cy + cr.height > y0) now.add(cel.dataset.id);
+      }
+      picked = now;
+      for (const cel of lanes.querySelectorAll('.wb-tl-clip')) cel.classList.toggle('sel', picked.has(cel.dataset.id));
+    };
+    update(ev);
+    const edge = edgeScroll(update), mv = e2 => { update(e2); edge.move(e2); };
+    const up = () => {
+      edge.stop(); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); box.remove();
+      if (!moved) { if (!add) select(null); return; }
+      selected = (P().take?.clips || []).find(c => picked.has(c.id)) || null; app.selectedClip = selected; app.emit('clip-select', selected);
+    };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  };
+  /** Copies of clips (new ids; a composition's contents copied too). */
+  const cloneClip = c => ({ ...structuredClone(c), id: clipId() });
+  /** Shift+D: the picked clips again, just after them. */
+  const duplicatePicked = () => {
+    const take = P().take, list = pickedClips().length ? pickedClips() : selected ? [selected] : [];
+    if (!take || !list.length) return;
+    const t0 = Math.min(...list.map(c => c.start)), t1 = Math.max(...list.map(c => c.start + (c.dur || 0)));
+    const copies = list.map(c => ({ ...cloneClip(c), start: c.start + (t1 - t0) }));
+    take.clips.push(...copies);
+    edited();
+    picked = new Set(copies.map(c => c.id)); selected = copies[0]; select(copies[0]); for (const c of copies) picked.add(c.id);
+    for (const cel of lanes.querySelectorAll('.wb-tl-clip')) cel.classList.toggle('sel', picked.has(cel.dataset.id));
   };
 
   const trackLabel = (tr, take, readOnly) => {
@@ -663,16 +713,23 @@ export function mountTimeline(root, app) {
     el.addEventListener('pointerdown', ev => {
       if (ev.button !== 0) return;
       ev.stopPropagation();
-      // Ctrl/⌘-click picks several (no drag); a picked clip drags the others with it.
-      if (ev.metaKey || ev.ctrlKey) { select(c, { toggle: true }); return; }
+      // Shift, Ctrl or ⌘-click picks several (no drag); a picked clip drags the others with it.
+      if (ev.metaKey || ev.ctrlKey || ev.shiftKey) { select(c, { toggle: true }); return; }
       if (!picked.has(c.id)) select(c); else { selected = c; app.selectedClip = c; app.emit('clip-select', c); }
       const grip = ev.target.classList.contains('wb-tl-grip');
+      // Alt-drag: copies stay where the clips were, and the clips move (a click without a drag copies nothing).
+      const dup = ev.altKey && !grip ? pickedClips().map(o => {
+        const k = cloneClip(o), oel = lanes.querySelector(`.wb-tl-clip[data-id="${CSS.escape(o.id)}"]`);
+        P().take.clips.push(k);
+        if (oel) { const kel = clipEl(k); kel.classList.remove('sel'); kel.style.top = oel.style.top; kel.style.height = oel.style.height; oel.parentElement.insertBefore(kel, oel); }
+        return k;
+      }) : null;
       const x0 = ev.clientX, sl0 = lanes.scrollLeft, s0 = c.start, d0 = c.dur, r0 = c.rate > 0 ? c.rate : 1;
       const others = grip ? [] : pickedClips().filter(o => o !== c).map(o => ({ o, s: o.start, el: lanes.querySelector(`.wb-tl-clip[data-id="${CSS.escape(o.id)}"]`) }));
       const place = e2 => {
         const dt = ((e2.clientX - x0 + lanes.scrollLeft - sl0) / pps) * 1000;
         // On the grid (Alt or Shift: free; for a composition's edge only Shift, Alt trims): the start, or the end when the right edge is dragged.
-        const comp = c.track === 'comp', free = e2.shiftKey || (!comp && e2.altKey), q = free ? 0 : gridStep(S(), pps) * 1000;
+        const comp = c.track === 'comp', free = e2.shiftKey || (!comp && !dup && e2.altKey), q = free ? 0 : gridStep(S(), pps) * 1000;
         const on = v => (q ? Math.round(v / q) * q : v);
         if (grip) {
           c.dur = Math.max(q || 100, Math.round(on(s0 + d0 + dt) - s0));
@@ -695,7 +752,10 @@ export function mountTimeline(root, app) {
       const up = () => {
         edge.stop(); window.removeEventListener('pointermove', mv); window.removeEventListener('pointermove', mvLane); window.removeEventListener('pointerup', up);
         if (lane !== lane0) c.lane = lane;
-        if (c.start !== s0 || c.dur !== d0 || lane !== lane0) { edited(); if (c.track === 'comp' && grip) drawLanes(); }
+        const changed = c.start !== s0 || c.dur !== d0 || lane !== lane0;
+        if (dup && !changed) { const gone = new Set(dup); P().take.clips = P().take.clips.filter(k => !gone.has(k)); drawLanes(); return; }
+        if (!changed && !grip && picked.size > 1) { select(c); return; }   // (a click on one of several picked: just that one)
+        if (changed) { edited(); if (c.track === 'comp' && grip) drawLanes(); }
       };
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
     });
@@ -722,7 +782,7 @@ export function mountTimeline(root, app) {
     { label: 'Show code', hint: 'This clip as clip({ … }): edit and apply', run: () => app.openCode?.('clip', c) },
     c.track === 'draw' ? { label: c.fx?.drawOn === false ? 'Reveal gradually' : 'Show at once', run: () => { c.fx = { ...(c.fx || {}), drawOn: c.fx?.drawOn === false }; edited(); } } : null,
     { label: 'Speed', items: [0.25, 0.5, 2, 4].map(k => ({ label: k < 1 ? `${1 / k}× slower` : `${k}× faster`, run: () => { setLength(c, c.dur / k); edited(); } })) },
-    { label: 'Duplicate', run: () => { const d = { ...structuredClone(c), id: clipId(), start: c.start + c.dur }; P().take.clips.push(d); edited(); select(d); } },
+    { label: picked.size > 1 ? `Duplicate ${picked.size} clips` : 'Duplicate', keys: '⇧D', hint: 'Just after; Alt-drag drags a copy', run: () => { if (!picked.has(c.id)) select(c); duplicatePicked(); } },
     '-',
     { label: picked.size > 1 ? `Delete ${picked.size} clips` : 'Delete', run: () => deleteClips(picked.size > 1 ? pickedClips() : [c]) }
   ].filter(Boolean);
@@ -881,7 +941,7 @@ export function mountTimeline(root, app) {
     '=': () => zoomBy(ZOOM_STEP), '+': () => zoomBy(ZOOM_STEP), '-': () => zoomBy(1 / ZOOM_STEP), _: () => zoomBy(1 / ZOOM_STEP),
     '\\': () => fitAll(), '|': () => fitAll(),
     f: fitSelection, F: () => fitAll(), z: fitSelection, l: fitLoop, L: fitLoop, x: back, X: back, '.': centreHead,
-    i: markIn, I: markIn, o: markOut, O: markOut
+    i: markIn, I: markIn, o: markOut, O: markOut, D: duplicatePicked
   };
   const SEEKS = /^(Arrow\w+|[iIoO])$/;   // (not while recording: the recording keeps its own time)
   // The Timeline's keys work while the pointer is over it, or while something in it has focus (as in

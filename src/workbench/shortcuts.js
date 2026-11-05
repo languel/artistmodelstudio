@@ -52,6 +52,7 @@ export function defaultCommands(app) {
     cmd('edit.redo', 'Edit', 'Redo', ['mod+shift+z'], () => app.store.redo()),
     cmd('edit.selectAll', 'Edit', 'Select all', ['mod+a'], () => app.canvas.select(app.store.doc.elements.filter(el => app.canvas.editable(el)).map(el => el.id))),
     cmd('edit.delete', 'Edit', 'Delete selection', ['delete', 'backspace'], () => { if (sel().length) app.store.removeElements(sel()); }),
+    cmd('edit.duplicate', 'Edit', 'Duplicate the selection (a little to the side; Alt-drag drags a copy). Over the Timeline: the picked clips', ['shift+d'], () => { if (!sel().length) return; const z = app.canvas.cam.z; app.canvas.select(app.store.duplicate(sel(), 20 / z, 20 / z)); }),
     cmd('edit.deselect', 'Edit', 'Deselect and select tool (also leaves a take being reviewed)', ['escape'], () => { app.canvas.select([]); app.setTool('select'); }),
     cmd('edit.group', 'Edit', 'Group', ['mod+g'], () => app.groupSelection()),
     cmd('edit.ungroup', 'Edit', 'Ungroup', ['mod+shift+g'], () => app.ungroupSelection()),

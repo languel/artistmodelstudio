@@ -1155,3 +1155,5 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 /* Overlapping clips on one track: voices, stacked (their text only when there is room). */
 .wb-tl-clip.voice { line-height: 1; font-size: 9px; padding-top: 0; padding-bottom: 0; }
 .wb-tl-clip.voice.thin .wb-tl-cliptext { display: none; }
+/* Box select over the tracks. */
+.wb-tl-marquee { position: absolute; z-index: 5; pointer-events: none; border: 1px solid var(--wb-select, #3b82f6); background: color-mix(in srgb, var(--wb-select, #3b82f6) 12%, transparent); }
