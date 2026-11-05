@@ -8,6 +8,7 @@
 import { h, row, selectField, numberField, section } from '../ui.js';
 import { icon } from '../icons.js';
 import { ENGINES, loadModels } from '../modelPicker.js';
+import { voiceSettings, setVoice, LANGUAGES, GENDERS } from '../voiceOut.js';
 import { ENGINE_FIELDS, ENGINE_NAMES, currentEngine, setEngine, useModel, favorites, isFavorite, toggleFavorite, filterModels, assistantSettings, setAssistantSettings, FALLBACK_TEMPERATURE } from '../modelStore.js';
 
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return v; };
@@ -102,7 +103,7 @@ export function modelSection(app) {
         hear.disabled = true; note.className = 'wb-small wb-muted wb-lfm-note'; note.textContent = 'Speaking…';
         const t0 = performance.now();
         try {
-          const { samples, rate } = await artist.speak('Hello, this is the studio. I can talk now.');
+          const v = voiceSettings(), { samples, rate } = await artist.speak('Hello, this is the studio. I can talk now.', { language: v.language, gender: v.gender });
           const ctx = new (window.AudioContext || window.webkitAudioContext)(), buf = ctx.createBuffer(1, samples.length, rate); buf.copyToChannel(samples, 0);
           const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.start();
           note.textContent = `✓ ${(samples.length / rate).toFixed(1)} s of speech made in ${Math.round(performance.now() - t0)} ms`;
@@ -140,6 +141,11 @@ export function modelSection(app) {
       row('Steps', numberField({ value: a.rounds, min: 1, max: 12, step: 1, def: 6, title: 'How many times it may act, look at the results and act again for one message', onChange: v => setAssistantSettings({ rounds: Math.round(v) }) })),
       row('Remember', numberField({ value: a.history, min: 2, max: 40, step: 1, def: 12, title: 'How many earlier messages go back to the model each time', onChange: v => setAssistantSettings({ history: Math.round(v) }) })),
       row('Quick field', tempField('flowTemperature', 'flow', 'Temperature for the / field, which acts at once, never asks, and answers in a few words. Lower is steadier')),
+      h('div', { class: 'wb-sub', title: 'What the studio sounds like when it speaks: its replies, and narration made with LFM3. Spoken by LFM3-Omni in this browser' }, 'Voice'),
+      row('Speak replies', (() => { const c = h('input', { type: 'checkbox', checked: voiceSettings().speak, title: 'Say each Assistant reply aloud as well as writing it (the model has to be loaded once: Model › LFM3-Omni › Download)' }); c.addEventListener('change', () => { setVoice({ speak: c.checked }); if (!c.checked) app.speaker.stop(); }); return c; })()),
+      row('Language', selectField(LANGUAGES.map(l => [l, l]), voiceSettings().language, v => setVoice({ language: v }), 'The language it speaks in (19, each with a female and a male voice)')),
+      row('Voice', selectField(GENDERS, voiceSettings().gender, v => setVoice({ gender: v }), 'Female or male')),
+      row('', h('button', { class: 'wb-btn', type: 'button', title: 'Hear the voice as set', onclick: () => app.speaker.say('Hello, this is the studio. This is how I sound.') }, 'Hear it')),
       row('Tool details', (() => { const c = h('input', { type: 'checkbox', checked: a.traces, title: 'For debugging: show each tool call and its result under every reply in the Assistant. Off, replies show only the words (the calls are always in the request log)' }); c.addEventListener('change', () => { setAssistantSettings({ traces: c.checked }); }); return c; })()),
       row('Studio tools', (() => { const c = h('input', { type: 'checkbox', checked: a.tools, title: 'Let it draw and change the studio through its tools. Off: it only talks' }); c.addEventListener('change', () => setAssistantSettings({ tools: c.checked })); return c; })())
     );

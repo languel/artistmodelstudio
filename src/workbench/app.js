@@ -3,6 +3,7 @@
  * and the process document at the center. Everything the user can do is also a
  * command (see mcp.js), so agents drive the same surface.
  */
+import { Speaker } from './voiceOut.js';
 import { RequestLog } from './requestLog.js';
 import { Lecture } from './lecture.js';
 import { openToolParams, openGridParams, openCanvasParams, openToolDefaults, openBoardParams } from './toolParams.js';
@@ -1493,6 +1494,7 @@ export class Workbench {
     this.recorder = new Recorder(this);
     this.lecture = new Lecture(this);
     this.requests = new RequestLog(this);
+    this.speaker = new Speaker(this);
     this.player = new TakePlayer(this);
     this.score = new ScorePlayer(this);   // plays marks with `play` on the transport
     try { this.scoreView = { ...SCORE_LOOK, names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { ...SCORE_LOOK, names: false }; }

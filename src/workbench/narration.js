@@ -1,3 +1,4 @@
+import { voiceSettings, setVoice } from './voiceOut.js';
 /**
  * Narration: a line of text spoken by a voice that runs in the browser (Kokoro, in a worker), kept as an audio Asset so it is made once.
  * A script prepares all its lines before it plays, so each cue knows how long it is. The audio goes to the speakers and to a stream
@@ -57,8 +58,8 @@ export class Narrator {
   get engine() { return get('ams_narration_engine', 'kokoro') === 'lfm3' ? 'lfm3' : 'kokoro'; }
   set engine(v) { set('ams_narration_engine', v === 'lfm3' ? 'lfm3' : 'kokoro'); }
   /** The LFM3 voice: a language name and a gender, as its prompt asks for them ("American English / female"). */
-  get lfmVoice() { return get('ams_narration_lfm_voice', 'American English / female'); }
-  set lfmVoice(v) { set('ams_narration_lfm_voice', v); }
+  get lfmVoice() { const v = voiceSettings(); return `${v.language} / ${v.gender}`; }   // (the same voice the Assistant speaks with: Settings › Model › Voice)
+  set lfmVoice(v) { const [language, gender] = String(v).split('/').map(x => x.trim()); setVoice({ language, gender: (gender || '').toLowerCase() }); }
   get voice() { return get(KEY.voice, DEFAULT_VOICE); }
   set voice(v) { set(KEY.voice, v); }
   get speed() { return Math.min(1.5, Math.max(0.6, Number(get(KEY.speed, '1')) || 1)); }

@@ -164,6 +164,7 @@ export function attachMic(field, { host, onState = () => {}, onDone = null, titl
   async function toggle() {
     if (state === 'working') return;
     if (state === 'listening') { await stop?.(); field.focus(); return; }
+    window.dispatchEvent(new Event('ams-speak-stop'));   // (do not talk over the person)
     try { paint('working', 'Opening the microphone…'); await (engine() === 'browser' ? startBrowser() : startLocal()); }
     catch (err) { fail(err); }
   }

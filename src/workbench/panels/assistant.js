@@ -15,6 +15,7 @@ import { modelPill } from '../modelPill.js';
 import { attachMic, looksReady } from '../voice.js';
 import { ENGINE_NAMES, currentEngine, setEngine, useModel, allFavorites, favorites, isFavorite, toggleFavorite, assistantSettings, setAssistantSettings, FALLBACK_TEMPERATURE } from '../modelStore.js';
 import { parseCommand, brief, help } from '../console.js';
+import { voiceSettings, setVoice } from '../voiceOut.js';
 
 const ATTACH_MAX = 40000;   // characters of an attached file that go to the model
 const SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg>';
@@ -74,6 +75,34 @@ Reply with ONE JSON object and nothing else:
 Set "done": false only if you need to see the results of your actions before continuing.`;
 }
 
+/**
+ * Small models get the content of a JSON reply right and the closing brackets wrong (one missing, one too many, a ] where a } belongs).
+ * Walk the text keeping the stack of what is open; a closer that is not the next one closes what is open above its match first,
+ * a closer with nothing open to match is dropped, and what is still open at the end is closed.
+ */
+export function repairJson(text) {
+  const t = String(text || ''), start = t.indexOf('{');
+  if (start < 0) return null;
+  const stack = []; let out = '', str = false;
+  for (let i = start; i < t.length; i++) {
+    const c = t[i];
+    if (str) { out += c; if (c === '\\') { out += t[++i] ?? ''; } else if (c === '"') str = false; continue; }
+    if (c === '"') { str = true; out += c; continue; }
+    if (c === '{' || c === '[') { stack.push(c === '{' ? '}' : ']'); out += c; continue; }
+    if (c === '}' || c === ']') {
+      if (!stack.includes(c)) continue;                 // (a stray closer: nothing open for it)
+      while (stack.length && stack[stack.length - 1] !== c) out += stack.pop();   // (close what the model forgot to)
+      stack.pop(); out += c;
+      if (!stack.length) return out;                    // (the object is whole: whatever follows is not part of it)
+      continue;
+    }
+    out += c;
+  }
+  if (str) out += '"';
+  while (stack.length) out += stack.pop();
+  return out;
+}
+
 /** Every top-level {...} in a text (string-aware brace matching), in order. */
 function objectsIn(text) {
   const out = [];
@@ -103,6 +132,9 @@ export function parseReply(text) {
       if (j && typeof j === 'object' && ('say' in j || 'actions' in j)) return { say: String(j.say || ''), actions: Array.isArray(j.actions) ? j.actions : [], done: j.done !== false };
     } catch { /* not JSON: the next one */ }
   }
+  // Brackets miscounted: close what is open and drop what is stray, then read it.
+  const fixed = repairJson(t);
+  if (fixed) { try { const j = JSON.parse(fixed); if (j && typeof j === 'object' && ('say' in j || 'actions' in j)) return { say: String(j.say || ''), actions: Array.isArray(j.actions) ? j.actions : [], done: j.done !== false, repaired: true }; } catch { /* no */ } }
   return { say: t, actions: [], done: true };
 }
 
@@ -135,11 +167,14 @@ export function mountAssistant(root, app) {
     hint.remove();
     let shown = text, extra = {};
     if (who === 'you' && kind !== 'cmd') { const m = /^(\[Context:[^\]]*\])\n/.exec(text); if (m) { extra.title = m[1]; shown = text.slice(m[0].length); } shown = shown.replace(/\n\nAttached [\s\S]*$/, ''); }
-    const el = h('div', { class: `wb-msg ${who} ${kind}`, ...extra }, ...(kind === 'pending' ? [h('span', { class: 'wb-spin' }, SPIN[0]), h('span', { class: 'wb-pending-text' }, ` ${shown}`)] : [shown]));
+    const el = h('div', { class: `wb-msg ${who} ${kind}`, ...extra }, ...(who === 'bot' && !kind ? [h('span', {}, shown), h('button', { class: 'wb-say-btn', type: 'button', title: 'Read aloud', html: '🔊', onclick: () => (app.speaker.speaking ? app.speaker.stop() : app.speaker.say(shown)) })] : kind === 'pending' ? [h('span', { class: 'wb-spin' }, SPIN[0]), h('span', { class: 'wb-pending-text' }, ` ${shown}`)] : [shown]));
     if (kind === 'pending') keepSpinning();
     if (who === 'you') trace = null;
     log.append(el); log.scrollTop = log.scrollHeight; return el;
   };
+
+  // Say the reply as well as writing it, when that is switched on (⋯ › Speak replies, or Settings › Model › Voice).
+  const autoSpeak = text => { if (voiceSettings().speak) app.speaker.say(text); };
 
   // The tool calls of a reply: one quiet line, "✓ changed 2", that opens to the calls and what came back. While it works it spins.
   let trace = null;
@@ -208,6 +243,7 @@ export function mountAssistant(root, app) {
   toolsBtn.onclick = () => { setAssistantSettings({ tools: !assistantSettings().tools }); paintTools(); };
   const moreBtn = h('button', { class: 'wb-compose-icon', title: 'More', html: '⋯', onclick: e => { const r = e.currentTarget.getBoundingClientRect(); showMenu([
     { label: 'How did you do that?', hint: 'Replay the latest agent or assistant session with the guide', run: () => window.ams.callTool('ams_sessions', { action: 'replay' }).catch(err => app.log(err.message, 'error')) },
+    { label: `${voiceSettings().speak ? '✓ ' : ''}Speak replies`, hint: 'Say each reply aloud as well as writing it (the voice and language: Settings › Model › Voice)', run: () => { const on = !voiceSettings().speak; setVoice({ speak: on }); if (!on) app.speaker.stop(); } },
     { label: `${assistantSettings().traces ? '✓ ' : ''}Show tool details`, hint: 'For debugging: each tool call and what came back, under every reply (always in the request log: ams_requests)', run: () => { setAssistantSettings({ traces: !assistantSettings().traces }); paintTraces(); } },
     { label: 'Clear the conversation', run: () => { history.length = 0; log.replaceChildren(hint); persist(); } }
   ], r.left, r.top - 6, { up: true }); } });
@@ -250,7 +286,7 @@ export function mountAssistant(root, app) {
       if (!cfg.tools && !flow) {
         const pending = add('sys', 'Working…', 'pending');
         const raw = await artist.complete({ system: TALK_ONLY, user: transcript, temperature: askTemp(cfg.temperature, 'chat'), signal: busy.signal });
-        pending.remove(); const say = String(raw || '').trim(); add('bot', say); history.push({ who: 'bot', text: say });
+        pending.remove(); const say = String(raw || '').trim(); add('bot', say); history.push({ who: 'bot', text: say }); autoSpeak(say);
       } else for (let round = 0; round < cfg.rounds && !busy.signal.aborted; round++) {
         const pending = add('sys', round ? 'Reading the results…' : 'Working…', 'pending');
         const raw = await artist.complete({ system: flow ? flowPrompt(app) : systemPrompt(app), user: transcript, temperature: askTemp(flow ? cfg.flowTemperature : cfg.temperature, flow ? 'flow' : 'chat'), signal: busy.signal, json: true, ...(flow ? { maxTokens: 600 } : {}) });   // (json: an engine that can force valid JSON does; small models otherwise drop a brace)
@@ -260,7 +296,7 @@ export function mountAssistant(root, app) {
         if (flow && !nudged && !r.actions.length && /\?\s*$/.test(r.say || '')) { nudged = true; transcript += `\nASSISTANT: ${JSON.stringify(r)}\nUSER: Do not ask. Make your best assumption and do it now.`; continue; }
         if (flow && !retried && !r.actions.length && /^\s*[{[]/.test(r.say || '')) { retried = true; transcript += '\nUSER: Reply with only one valid JSON object, nothing else.'; continue; }
         if (flow && !r.actions.length && /^\s*[{[]/.test(r.say || '')) { failed = 'The model’s reply could not be read. Nothing was changed.'; add('sys', failed, 'error'); break; }
-        if (r.say) { said = r.say; add('bot', r.say); history.push({ who: 'bot', text: r.say }); }
+        if (r.say) { said = r.say; add('bot', r.say); history.push({ who: 'bot', text: r.say }); autoSpeak(r.say); }
         if (!r.actions.length) break;
         const sig = JSON.stringify(r.actions);
         if (sig === lastSig) { add('sys', 'Stopped: the model repeated the same actions.', 'error'); break; }

@@ -125,3 +125,11 @@ What the gaps were and how each was bridged (more prompt examples were the *wors
 ## Chat that reads like a conversation
 
 The Assistant shows what you said (the context line and attachments travel with the message but stay out of the bubble; hover for them) and what it said. Its tool calls are not shown: a spinner line (`⠋ working`) while it works, then nothing (a failed call leaves one line, "✗ 1 did not work"). For debugging, ⋯ › *Show tool details* (or Settings › Model › Tool details) shows each call and result under every reply; they are always in the request log (`ams_requests`).
+
+## Speaking replies and the voice
+
+`voiceOut.js` (`app.speaker`): the Assistant can say its reply as well as write it. ⋯ › *Speak replies* (or Settings › Model › Voice › Speak replies); each reply also has a 🔊 on hover to read it aloud (again to stop). The voice is LFM3-Omni's, in this browser, whatever engine wrote the text (Ollama writes, LFM3 speaks). Voice options (Settings › Model › Voice): **language** (the model's 19 speech languages: American and British English, Arabic, Chinese, Danish, Dutch, Finnish, French, German, Greek, Hebrew, Italian, Japanese, Korean, Polish, Portuguese, Spanish, Swedish, Turkish) and **voice** (female or male). American English / female is the default. Narration made with LFM3 uses the same voice. What is spoken is the words only (`speakable`: no code, ids, links or markup; the first sentences of a long reply), starting dictation stops the voice, and nothing is downloaded behind your back: if the model has not been loaded here, it tells you where to load it.
+
+## LFM3 in the browser, tuned (5 Nov 2026)
+
+Reading the reply was the first problem: the model gets the content of its JSON right and the closing brackets wrong (one missing, one too many). `repairJson` (assistant.js) closes what is open, drops what is stray, and ignores text after the object. Evals on LFM3-Omni in the browser, model only: **10/16 → 14/16** (original wording) and **6/16 → 9/16** (held-out wording).
