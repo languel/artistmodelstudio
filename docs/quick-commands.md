@@ -98,3 +98,10 @@ What the gaps were and how each was bridged (more prompt examples were the *wors
 ## Pause detection (mic)
 
 `voice.js`: dictation stops by itself after a pause and, when what was said looks like a whole request, sends it (the `/` bar runs its top result; the chat sends). `watchPause` listens to the shared level meter: it learns the room's noise in the first 400 ms, notes when speech starts, and ends the dictation after a silence that depends on the words so far: 1.0 s after a full sentence, 1.6 s by default, 3.2 s after a dangling word ("and", "the", "to"…), and gives up after 9 s of no speech. `looksReady` holds back a request that ends mid-thought or is a single word. Only a real speech-then-pause sends; giving up on silence never does (a background voice in the room is transcribed but not run). Right-click the mic: *Stop and send when I pause* turns it off.
+
+## Model settings: what applies where
+
+- **Assistant panel (chat):** Temperature (0.4), Steps, Remember, Studio tools. Defaults were a judgement, not measured.
+- **The `/` field:** its own temperature (`flowTemperature`, Settings › Model › Quick field). Measured on 5 Nov 2026 with lfm3-omni, model only, held-out wording, 16 tasks, two runs each: temperature 0 → 13, 13; 0.3 → 12, 13; 0.7 → 11, 13. Lower is steadier and never worse, so the default is 0.1 (a little variety so a retry is not the same wrong answer). It does not use Steps or Remember: it keeps no history, gets one retry after a failed call, and has its own token cap.
+- **Agent (MCP):** the Assistant panel does nothing (it says to drive the tools over MCP). The engine only serves the Generate panel (`ams_pending` → `ams_answer`). The Asking settings are dimmed and off for it.
+- **Favorites** are per engine, but the model menu shows all of them. *Remove a favorite* in that menu lists every one with ✕; an Ollama model that is no longer installed is marked.

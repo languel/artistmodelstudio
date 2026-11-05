@@ -86,7 +86,7 @@ export function modelSection(app) {
       row('Temperature', numberField({ value: a.temperature, min: 0, max: 2, step: 0.05, def: 0.4, title: 'Lower: steadier. Higher: more varied', onChange: v => setAssistantSettings({ temperature: v }) })),
       row('Steps', numberField({ value: a.rounds, min: 1, max: 12, step: 1, def: 6, title: 'How many times it may act, look at the results and act again for one message', onChange: v => setAssistantSettings({ rounds: Math.round(v) }) })),
       row('Remember', numberField({ value: a.history, min: 2, max: 40, step: 1, def: 12, title: 'How many earlier messages go back to the model each time', onChange: v => setAssistantSettings({ history: Math.round(v) }) })),
-      row('Quick field', numberField({ value: a.flowTemperature, min: 0, max: 2, step: 0.05, def: 0.3, title: 'Temperature for the / field, which acts at once, never asks, and answers in a few words. Lower is steadier', onChange: v => setAssistantSettings({ flowTemperature: v }) })),
+      row('Quick field', numberField({ value: a.flowTemperature, min: 0, max: 2, step: 0.05, def: 0.1, title: 'Temperature for the / field, which acts at once, never asks, and answers in a few words. Lower is steadier', onChange: v => setAssistantSettings({ flowTemperature: v }) })),
       row('Studio tools', (() => { const c = h('input', { type: 'checkbox', checked: a.tools, title: 'Let it draw and change the studio through its tools. Off: it only talks' }); c.addEventListener('change', () => setAssistantSettings({ tools: c.checked })); return c; })())
     );
     // With an external agent none of these apply (it asks for itself): dimmed, and the controls off.
