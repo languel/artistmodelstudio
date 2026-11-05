@@ -167,6 +167,8 @@ Results so far are in *Reproducing the lessons* above (Qwen 3.8 9B coder 14/14; 
 
 **Design:** a *Code model* setting (engine + model) so conversation, commands and drawing stay on a quick small model while code is written by a bigger one; and a browser-only default for students (LFM3-Omni for conversation, voice and drawing, plus the best in-browser coder that passes the lesson test).
 
-## Speed, measured (Ollama, this Mac, 5 Nov 2026; the browser sweep was using the GPU at the same time, so these are low)
+## Speed, measured (Ollama, this Mac, 5 Nov 2026)
 
-Generation, 160 tokens, temperature 0: LFM3-Omni 2B **31 tok/s**, LFM2.5 8B (MoE) 29, Qwen3-coder 30B (MoE) 22, Gemma 4 12B 17, Qwen 3.8 9B coder 11, Bonsai 2 27B **5.3**. So a 300-token program takes about 10 s (LFM3, LFM2.5), 14 s (Qwen3-coder 30B), 28 s (the 9B coder that scored 14/14), and about a minute on the 27B. A ternary 9B should be roughly 3 times faster than the 27B (it reads a third of the bytes per token). The browser demo for Bonsai uses its own WebGPU kernels, so its speed has to be timed there: not yet done (a 5.9 GB download).
+Generation, 160 tokens, temperature 0, **with the GPU to itself**: LFM3-Omni 2B **254 tok/s**, Flint (40B MoE, about 2.5B active) 153, Bonsai 2 4B 146, Qwen3-Coder 30B (MoE) 133, Bonsai 2 9B 101, Qwen 3.8 9B coder 76, Bonsai 2 27B **41.5**. So a 300-token program takes about 1 to 2 s on the small models and about 4 s on the 9B coder, and about 7 s on the 27B.
+
+*Correction:* an earlier version of this section gave 31, 22, 11 and 5.3 tok/s for LFM3, Qwen3-Coder, the 9B coder and Bonsai 27B. Those were measured while a browser model was using the same GPU, and are 5 to 8 times too low. Measure with nothing else running. The browser demo for Bonsai uses its own WebGPU kernels, so its speed has to be timed there (not yet done; a 5.9 GB download).

@@ -1,8 +1,7 @@
 {
- "now": "onnx-community/Qwen3.5-4B-ONNX-OPT",
- "done": false,
- "savedAt": "2026-11-05T20:54:17.599Z",
- "note": "lesson test (lessonEval.js), browser transformers.js models, temperature 0.1, 1400 max tokens, no retrieved examples",
+ "done": true,
+ "savedAt": "2026-11-05T21:33:53.027Z",
+ "note": "lesson test (lessonEval.js), in-browser transformers.js models, temperature 0.1, 1400 max tokens, no retrieved examples; LFM3-VL, Qwen3-4B-Instruct ran in an earlier session of the same page",
  "models": {
   "onnx-community/LFM3-VL-2B-ONNX": {
    "secs": 824,
@@ -281,7 +280,284 @@
      "error": null
     }
    ]
+  },
+  "onnx-community/Qwen3.5-4B-ONNX-OPT": {
+   "secs": 1043,
+   "ask": {
+    "passed": 6,
+    "of": 7
+   },
+   "alt": {
+    "passed": 5,
+    "of": 7
+   },
+   "tasks": [
+    {
+     "use": "ask",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "light-walk",
+     "pass": true,
+     "marks": 721,
+     "wanted": 721,
+     "tries": 2,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "sun",
+     "pass": false,
+     "marks": 0,
+     "wanted": 13,
+     "tries": 3,
+     "error": "Unexpected identifier 'Process' (line 6)"
+    },
+    {
+     "use": "ask",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 2,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 0,
+     "wanted": 721,
+     "tries": 3,
+     "error": "Unexpected identifier 'Process' (line 6)"
+    },
+    {
+     "use": "alt",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "sun",
+     "pass": false,
+     "marks": 0,
+     "wanted": 13,
+     "tries": 3,
+     "error": "Unexpected identifier 'Process' (line 6)"
+    },
+    {
+     "use": "alt",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    }
+   ]
+  },
+  "onnx-community/Phi-3.5-mini-instruct-onnx-web": {
+   "secs": 583,
+   "ask": {
+    "passed": 6,
+    "of": 7
+   },
+   "alt": {
+    "passed": 4,
+    "of": 7
+   },
+   "tasks": [
+    {
+     "use": "ask",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 10958,
+     "wanted": 721,
+     "tries": 2,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "rings",
+     "pass": true,
+     "marks": 8,
+     "wanted": 8,
+     "tries": 2,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "sun",
+     "pass": true,
+     "marks": 13,
+     "wanted": 13,
+     "tries": 3,
+     "error": null
+    },
+    {
+     "use": "ask",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 2,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "grid-dots",
+     "pass": true,
+     "marks": 24,
+     "wanted": 24,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "dots-size",
+     "pass": true,
+     "marks": 2700,
+     "wanted": 2700,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "scattered",
+     "pass": true,
+     "marks": 9000,
+     "wanted": 9000,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "light-walk",
+     "pass": false,
+     "marks": 2290,
+     "wanted": 721,
+     "tries": 2,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "rings",
+     "pass": false,
+     "marks": 64,
+     "wanted": 8,
+     "tries": 1,
+     "error": null
+    },
+    {
+     "use": "alt",
+     "id": "sun",
+     "pass": false,
+     "marks": 0,
+     "wanted": 13,
+     "tries": 3,
+     "error": "plane() needs a list of points like [[x, y], [x, y], ...] (got number). walk(), circle() and rect() return such lists. (line 8)"
+    },
+    {
+     "use": "alt",
+     "id": "stripes",
+     "pass": true,
+     "marks": 20,
+     "wanted": 20,
+     "tries": 1,
+     "error": null
+    }
+   ]
   }
  }
 }
-
