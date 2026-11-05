@@ -44,4 +44,10 @@ describe('instant phrases', () => {
   it('leaves everything else to the commands and the assistant', () => {
     for (const t of ['', 'fit', 'make it bigger', 'change the fill to something warm', 'draw a house', 'fill', 'group these', 'frame it']) expect(say(t), t).toBe(null);
   });
+  it('makes new things', () => {
+    for (const t of ['create a red circle', 'draw a red circle', 'add a red circle', 'red circle', 'make a red circle', 'new red circle', 'a circle in red']) expect(say(t, false), t).toMatchObject({ do: 'create', shape: 'circle', fill: '#ff0000' });
+    for (const t of ['draw a blue square', 'add a blue rectangle', 'create a blue box']) expect(say(t, false), t).toMatchObject({ do: 'create', shape: 'rect', fill: '#0000ff' });
+    expect(say('create a circle', false)).toMatchObject({ do: 'create', shape: 'circle', fill: null });
+    expect(say('create a plaid circle', false)).toBe(null);
+  });
 });

@@ -19,7 +19,7 @@ const STYLES = {
   flat: ['flat'], solid: ['flat']
 };
 
-/** { do: 'style', brush, params, fill, said } | { do: 'paint', which: 'fill' | 'stroke' | 'auto', value: hex | null, said } | { do: 'opacity', value } | { do: 'blend', value } | { do: 'brush', value } | { do: 'flag', key, value } | { do: 'rename', value } | null */
+/** { do: 'create', shape: 'circle' | 'rect', fill: hex | null, said } | { do: 'style', brush, params, fill, said } | { do: 'paint', which: 'fill' | 'stroke' | 'auto', value: hex | null, said } | { do: 'opacity', value } | { do: 'blend', value } | { do: 'brush', value } | { do: 'flag', key, value } | { do: 'rename', value } | null */
 export function parseIntent(text, { colorOf = toHex, hasSelection = false } = {}) {
   const raw = String(text || '').trim().replace(/^\/+\s*/, '').replace(/^(?:please|can you|could you|just)\s+/i, '').replace(/[\s.!]+$/, '').replace(/\s+please$/i, '');
   const s = raw.toLowerCase().replace(/\s+/g, ' ');
@@ -36,6 +36,13 @@ export function parseIntent(text, { colorOf = toHex, hasSelection = false } = {}
     return null;
   };
   let m;
+  // Making something: create a red circle, draw a square, add a blue rectangle, a green dot.
+  if ((m = s.match(/^(?:(?:create|draw|add|make|new|insert|put)(?: me)?(?: (?:an?|the|one))? ?)?(?:(.+?) )?(circle|ellipse|dot|disc|disk|square|rect|rectangle|box)(?: (?:in|with|filled with|colou?red) (.+?))?$/)) && (s !== m[2] || m[1] === undefined)) {
+    const lead = (m[1] || '').replace(/^(?:(?:an?|the|one|new|big|small|large|little)(?: |$))+/, '').trim();
+    const word = (lead || m[3] || '').replace(/^(?:(?:an?|the|one|new|big|small|large|little)(?: |$))+/, '').trim();
+    const hex = word ? colorOf(word) : null;
+    if (!word || hex) { if (s !== m[2] || /^(?:create|draw|add|new|insert|put|make)/.test(s)) return { do: 'create', shape: /^(?:circle|ellipse|dot|disc|disk)$/.test(m[2]) ? 'circle' : 'rect', fill: hex, said: `${word ? `${word} ` : ''}${m[2]}` }; }
+  }
   // Taking paint away: no fill, remove the stroke, clear the outline.
   if ((m = s.match(/^(?:no|remove(?: the)?|clear(?: the)?) (fill|stroke|outline)$/))) return { do: 'paint', which: PAINT[m[1]], value: null, said: 'none' };
   // Naming the paint: change the fill to red, set stroke blue, fill it with red, stroke #333.
@@ -72,6 +79,18 @@ export function intentCommand(app, text) {
   if (!intent) return null;
   const category = ids.length ? 'Selection' : 'New marks';
   const cmd = (name, run, extra = {}) => ({ id: `intent:${intent.do}`, category, name, hint: '', keys: '', run, ...extra });
+  if (intent.do === 'create') {
+    // At the pointer when it is over the canvas, else the middle of the page.
+    const at = () => {
+      const cv = app.canvas, r = cv?.canvas?.getBoundingClientRect?.(), [px, py] = app.pointerAt || [];
+      if (r && px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return cv.toWorld(px - r.left, py - r.top).map(Math.round);
+      return [500, 500];
+    };
+    return cmd(`Draw: ${intent.said}`, () => {
+      const [x, y] = at(), k = intent.shape === 'circle' ? 90 : 100;
+      return window.ams.callTool('ams_add', { role: 'plane', shape: intent.shape, box: [x - k, y - k, x + k, y + k], ...(intent.fill ? { fill: intent.fill } : {}) }, { quiet: true });
+    }, { swatch: intent.fill });
+  }
   if (intent.do === 'paint') {
     const word = { fill: 'Fill', stroke: 'Stroke', auto: 'Color' }[intent.which];
     if (intent.which !== 'auto') return cmd(`${word}: ${intent.said}`, () => app.setPaint(intent.which, intent.value ?? (intent.which === 'stroke' ? 'none' : null)), { swatch: intent.value });

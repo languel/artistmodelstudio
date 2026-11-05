@@ -41,6 +41,7 @@ Examples, for a mark el_x with fill #b05a3c:
 "make it darker" -> {"say":"Darker.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"fill":"#6e3824"}}}],"done":true}
 "give it a green outline" -> {"say":"Green outline.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"color":"#2e8b57"}}}],"done":true}
 "cross hatch it" -> {"say":"Crosshatched.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"realize":{"brush":"hatch","params":{"cross":1}}}}}],"done":true}
+"draw a green circle" -> {"say":"A green circle.","actions":[{"tool":"ams_add","args":{"role":"plane","shape":"circle","box":[410,410,590,590],"fill":"#2e8b57"}}],"done":true}
 "a bit see-through" -> {"say":"Set to 60%.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"opacity":0.6}}}],"done":true}`;
 }
 
