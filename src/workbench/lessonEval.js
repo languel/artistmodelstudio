@@ -75,6 +75,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 
 /** The code in a reply: the first fenced block, else the text itself. */
 export function codeOf(text) {
+  text = String(text || '').replace(/<think>[\s\S]*?(<\/think>|$)/gi, '');
+  const all = [...text.matchAll(/```(?:js|javascript|ts|typescript)?\s*\n([\s\S]*?)```/gi)];
+  if (all.length) return all.at(-1)[1].trim();   // (the last block: a model that thinks aloud may show drafts first)
   const m = /```(?:js|javascript|ts|typescript)?\s*\n([\s\S]*?)```/i.exec(text) || /```(?:js|javascript)?\s*\n([\s\S]*)$/i.exec(text);
   return (m ? m[1] : String(text || '')).trim();
 }
@@ -112,7 +115,7 @@ export async function runTask(app, task, { use = 'ask', maxTokens = 700, repairs
   const id = fresh.id || app.store.doc.boards.find(b => b.title === `eval · ${task.id}`)?.id;
   try {
     const system = await systemFor(task[use], task.lesson ? [`${task.lesson}/${task.boardId}`] : [], { k: examples });
-    let reply = await A.complete({ system, user: task[use], maxTokens });
+    let reply = await A.complete({ system, user: task[use], maxTokens: window.__evalMaxTokens ?? maxTokens, ...(window.__evalTemp != null ? { temperature: window.__evalTemp } : {}) });
     // Write, run, and when it fails show the model what the studio said and let it fix it (twice at most).
     for (out.tries = 1; ; out.tries++) {
       const fixed = fixCode(codeOf(reply)); out.code = fixed.code; out.fixes = fixed.fixes; out.error = null; out.ran = false;
@@ -124,7 +127,7 @@ export async function runTask(app, task, { use = 'ask', maxTokens = 700, repairs
         else out.ran = true;
       } catch (err) { out.error = err.message; }
       if (out.ran || out.tries > repairs) break;
-      reply = await A.complete({ system, user: `${task[use]}\n\nYour code:\n\`\`\`js\n${out.code}\n\`\`\`\nThe studio says: ${out.error}\nFix it, using only the functions listed. Reply with the corrected code block.`, maxTokens });
+      reply = await A.complete({ system, ...(window.__evalTemp != null ? { temperature: window.__evalTemp } : {}), user: `${task[use]}\n\nYour code:\n\`\`\`js\n${out.code}\n\`\`\`\nThe studio says: ${out.error}\nFix it, using only the functions listed. Reply with the corrected code block.`, maxTokens });
     }
     out.usesSource = task.source ? new RegExp(`source\\(\\s*['"\`]${task.source}['"\`]`).test(out.code) : true;
     await wait(300);
