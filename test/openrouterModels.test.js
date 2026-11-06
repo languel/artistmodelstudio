@@ -78,7 +78,7 @@ describe('OpenRouter Models, Search & Favorites', () => {
   });
 
   it('offers the paid frontier models only when they are switched on, and defaults to free ones', () => {
-    expect(artist.getModel()).toMatch(/:free$/);
+    expect(artist.getModel()).toMatch(/:free$|^openrouter\/free$/);
     expect(artist.getFavorites().every(id => /:free$|^openrouter\/free$/.test(id))).toBe(true);
     const store = {}; const prev = globalThis.localStorage;
     globalThis.localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };

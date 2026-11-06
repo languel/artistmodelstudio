@@ -41,14 +41,14 @@ export const OPENROUTER_FRONTIER_MODELS = [
 export const OPENROUTER_MODEL_PRESETS = OPENROUTER_FRONTIER_MODELS;
 
 export const DEFAULT_OPENROUTER_FAVORITES = [
+  'openrouter/free',
   'liquid/lfm-2.5-2.6b:free',
   'google/gemma-4-31b-it:free',
   'qwen/qwen3.8-27b:free',
-  'cohere/north-mini-code:free',
-  'openrouter/free'
+  'cohere/north-mini-code:free'
 ];   // (free only: paid models are opt-in, see paid.js)
 /** The default model: free. */
-export const DEFAULT_OPENROUTER_MODEL = 'google/gemma-4-31b-it:free';
+export const DEFAULT_OPENROUTER_MODEL = 'openrouter/free';   // (OpenRouter's own router: it picks a free model that is up; not one fixed model, so evals should name one)
 /** Paid models that earlier versions starred by default: dropped from a saved favorites list once. */
 const OLD_PAID_DEFAULTS = ['anthropic/claude-3.5-sonnet', 'google/gemini-2.5-flash'];
 
