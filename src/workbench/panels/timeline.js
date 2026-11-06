@@ -11,6 +11,7 @@ import { duration, summarize, touch, flatClips, clipId, TRACKS, TRACK_NAMES, rea
 import { showMenu } from '../menu.js';
 import { TimelineUndo } from '../timelineUndo.js';
 import { liveClock } from '../liveClock.js';
+import { markLive } from '../liveTake.js';
 import { rangeInput, paintRange } from '../rangeInput.js';
 import { formatMusicalPosition, secondsToFrame } from '../../time/transport.js';
 import { RULERS, FPS_CHOICES, QUANT_CHOICES, SNAP_CHOICES, snapStep, timeContext } from '../../time/sceneTransport.js';
@@ -44,13 +45,7 @@ export function mountTimeline(root, app) {
   const P = () => app.player, R = () => app.recorder;
   // A take made while interactions are being recorded takes what was recorded since the last take was made (or since recording began): record, act, then New take.
   // The next take starts after it, so nothing is carried from one take to the next.
-  const fresh = t => {
-    const I = app.interactions, now = Date.now();
-    const from = I?.capturing && I.startedAt ? Math.max(I.startedAt, I.claimed || 0) : now;
-    if (I) I.claimed = now;
-    Object.defineProperty(t, '_liveFrom', { value: from, writable: true, configurable: true, enumerable: false });
-    return t;
-  };
+  const fresh = t => markLive(app, t);
   const S = () => P().settings;   // the scene's transport: tempo, signature, fps, ruler, loop range
   /** A time (ms) as the ruler reads it. */
   const stamp = ms => {

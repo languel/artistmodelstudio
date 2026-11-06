@@ -10,6 +10,7 @@
  * was when it was drawn. Every pass plays what is there and adds to it (overdub). Stopping (the button,
  * Space, or the transport reaching Out) saves the take.
  */
+import { markLive } from './liveTake.js';
 import { createTake, diffDocs, readingTime, touch, clipId, duration, tracksOf, addTrack, laneOf } from '../process/take.js';
 import { canvasBlob } from './ui.js';
 import { renderToCanvas } from '../process/render.js';
@@ -36,7 +37,7 @@ export class Recorder {
   startOverdub() {
     if (this.take || this.od) return;
     const app = this.app, p = app.player;
-    if (!p.take) p.load(createTake({ title: `Recording ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, baseline: clone(app.store.doc) }));
+    if (!p.take) p.load(markLive(app, createTake({ title: `Recording ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, baseline: clone(app.store.doc) })));   // (it carries the live History and Interactions tracks too)
     // Not looping, with In and Out marked: start at In (from outside them), stop at Out.
     const io = p.inOut;
     if (!p.loop && io && (p.t < io[0] || p.t >= io[1])) p.seek(io[0]);
