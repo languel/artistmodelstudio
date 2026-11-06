@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMS session report, 5 Nov 2026</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1f1d1a;--mut:#6f6a62;--line:#dedad2;--card:#fff;--acc:#c0563f;--ok:#2f7d4f;--bar:#c0563f33}
+@media (prefers-color-scheme:dark){:root{--bg:#171615;--fg:#ece8e1;--mut:#a29c92;--line:#34312d;--card:#1f1d1b;--acc:#e0795f;--ok:#6fbf8b;--bar:#e0795f40}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 -apple-system,system-ui,Segoe UI,sans-serif}
+main{max-width:880px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.5rem;margin:.2em 0}h2{font-size:1.15rem;margin:1.8em 0 .5em;padding-top:.6em;border-top:1px solid var(--line)}
+.sub{color:var(--mut);margin:0 0 1em}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.tile b{display:block;font-size:1.5rem;color:var(--acc)}.tile span{color:var(--mut);font-size:.85rem}
+table{width:100%;border-collapse:collapse;font-size:.92rem;margin:.6em 0}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mut);font-weight:600;font-size:.8rem}
+td.bar{position:relative;min-width:110px}td.bar span{position:absolute;left:0;top:5px;bottom:5px;background:var(--bar);border-radius:4px;z-index:0}td.bar b{position:relative;z-index:1;padding-left:6px}
+tr.browser td:nth-child(2){color:var(--ok);font-weight:600}
+ul{padding-left:1.2em}li{margin:.25em 0}code{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:.88em}
+.note{background:var(--card);border-left:3px solid var(--acc);padding:8px 12px;border-radius:0 8px 8px 0;margin:.8em 0}
+.tbl{overflow-x:auto}
+</style></head><body><main>
+<h1>Artist Model Studio: session report</h1>
+<p class="sub">5 Nov 2026 &middot; the assistant, voice, and which model writes code &middot; everything is committed and pushed</p>
+
+<div class="tiles">
+<div class="tile"><b>15/16</b><span>chat and drawing tasks right, on a 2B model in the browser (with the instant phrases)</span></div>
+<div class="tile"><b>14/14</b><span>lesson reproduction: Qwen3-Coder 30B, Flint, Qwen 9B coder</span></div>
+<div class="tile"><b>12/14</b><span>best model that runs in the browser (Qwen3 4B Instruct, 2.1&nbsp;GB)</span></div>
+<div class="tile"><b>755</b><span>tests pass</span></div>
+</div>
+
+<h2>What you can do now</h2>
+<ul>
+<li><b>Say or type it.</b> The <code>/</code> field (at the pointer) takes plain requests: instant phrases (&ldquo;create a red circle&rdquo;, &ldquo;three circles in a row&rdquo;, &ldquo;make it bigger&rdquo;, &ldquo;a diagonal line&rdquo;), then commands, then a small model. The mic is on the <code>/</code> bar, the palette, the chat and Generate; it stops on a pause and sends when the request looks complete.</li>
+<li><b>Hear it.</b> The speaker button beside the mic makes replies spoken (LFM3-Omni's voice; 19 languages, female or male, in Settings &rsaquo; Model &rsaquo; Voice). Narration can use the same voice and turns Narration clips into audio tracks.</li>
+<li><b>Watch it.</b> <code>/agent &lt;what to do&gt;</code> acts a request out with the Guide cursor and captions.</li>
+<li><b>Write code with the right model.</b> Settings &rsaquo; <b>Code model</b> picks a bigger model for programs; <code>write code for a spiral of 200 points</code> uses it.</li>
+<li><b>No Ollama (students).</b> <code>/browser light</code> or <code>/browser standard</code> (or Settings &rsaquo; Browser only) runs everything in the page: LFM3-Omni for conversation and drawing, a small coder for code. Downloads once, then offline.</li>
+<li><b>One Assistant panel</b> with <b>Chat | Generate | Decide</b> modes (replaces three tabs). The Docs tab is a question mark after Shortcuts.</li>
+<li>Smaller: real waveforms on audio clips, lecture recording (stage + mic + camera bubble), the mic as a Source, a request log (<code>ams_requests</code>), the model menu with stars, Settings controls to load, test and hear LFM3, chat that hides tool traces (details on request).</li>
+</ul>
+
+<h2>Which model should write code?</h2>
+<p>The lesson test: describe a lesson board in plain words, let the model write the code, run it on a blank board, compare it with the lesson's own board. Seven tasks (four lesson boards, three new ones) in two wordings, so out of 14. Speeds are generation with the GPU to itself.</p>
+<div class="tbl"><table><tr><th>Model</th><th>Where</th><th>Size</th><th>Score /14</th><th>Speed</th></tr><tr class='ollama'><td>Qwen3-Coder 30B (MoE)</td><td>Ollama</td><td>18 GB</td><td class='bar'><span style='width:100%'></span><b>14</b></td><td>133 tok/s</td></tr><tr class='ollama'><td>Flint (40B MoE, 2.5B active)</td><td>Ollama</td><td>22 GB</td><td class='bar'><span style='width:100%'></span><b>14</b></td><td>153 tok/s</td></tr><tr class='ollama'><td>Qwen 3.8 9B coder</td><td>Ollama</td><td>6.7 GB</td><td class='bar'><span style='width:100%'></span><b>14</b></td><td>76 tok/s</td></tr><tr class='ollama'><td>Bonsai 2 27B (ternary)</td><td>Ollama</td><td>8.3 GB</td><td class='bar'><span style='width:93%'></span><b>13</b></td><td>41 tok/s</td></tr><tr class='ollama'><td>Bonsai 2 9B (ternary)</td><td>Ollama</td><td>3.2 GB</td><td class='bar'><span style='width:86%'></span><b>12</b></td><td>101 tok/s</td></tr><tr class='ollama'><td>Bonsai 2 4B (ternary)</td><td>Ollama</td><td>1.6 GB</td><td class='bar'><span style='width:86%'></span><b>12</b></td><td>146 tok/s</td></tr><tr class='browser'><td>Qwen3 4B Instruct 2507</td><td>Browser</td><td>2.1 GB</td><td class='bar'><span style='width:86%'></span><b>12</b></td><td></td></tr><tr class='browser'><td>Qwen3.5 4B</td><td>Browser</td><td>2.6 GB</td><td class='bar'><span style='width:79%'></span><b>11</b></td><td>slow (thinks aloud)</td></tr><tr class='browser'><td>Qwen2.5-Coder 1.5B</td><td>Browser</td><td>~1 GB</td><td class='bar'><span style='width:71%'></span><b>10</b></td><td></td></tr><tr class='browser'><td>Phi-3.5 mini 3.8B</td><td>Browser</td><td>2.3 GB</td><td class='bar'><span style='width:71%'></span><b>10</b></td><td></td></tr><tr class='browser'><td>LFM3-Omni 2B</td><td>Browser</td><td>1.6 GB</td><td class='bar'><span style='width:64%'></span><b>9</b></td><td></td></tr><tr class='ollama'><td>LFM3-Omni 2B</td><td>Ollama</td><td>2.4 GB</td><td class='bar'><span style='width:50%'></span><b>7</b></td><td>254 tok/s</td></tr><tr class='browser'><td>Qwen3.5 2B</td><td>Browser</td><td>1.3 GB</td><td class='bar'><span style='width:43%'></span><b>6</b></td><td></td></tr><tr class='browser'><td>LFM3-VL 2B</td><td>Browser</td><td>1 GB</td><td class='bar'><span style='width:14%'></span><b>2</b></td><td></td></tr></table></div>
+<div class="note"><b>Reading it.</b> Code writing follows size and code training, not recency. Qwen3.5 is newer than Qwen3 and does worse here (it spends its tokens thinking aloud). At about 4B the ternary Bonsai ties the best browser model at half the download, but its browser runtime is bundled inside a demo page and is not a library yet.</div>
+<p><b>Recommendations.</b> Ollama or LM Studio users: Qwen3-Coder 30B or Flint (fast and perfect), or the 9B coder if memory is tight. Students in the browser: Qwen3 4B Instruct 2507 (2.1&nbsp;GB), or Qwen2.5-Coder 1.5B (about 1&nbsp;GB) on a light laptop; LFM3-Omni for conversation and voice either way.</p>
+
+<h2>The shipped path, checked</h2>
+<p>The same task set through the real <code>ams_write_code</code> (prompt, mechanical repairs, run, up to two retries), teacher's wording only:</p>
+<div class="tbl"><table><tr><th>Code model</th><th>Score</th><th>Tasks</th></tr><tr><td>Ollama: Qwen 3.8 9B coder</td><td><b>6/7</b></td><td>✓grid-dots ✓dots-size(3 tries) ✓scattered ✓light-walk ✓rings ✗sun ✓stripes</td></tr><tr><td>Browser: Qwen3 4B Instruct (Standard)</td><td><b>6/7</b></td><td>✓grid-dots ✓dots-size ✓scattered ✗light-walk ✓rings ✓sun ✓stripes</td></tr><tr><td>Browser: Qwen2.5-Coder 1.5B (Light)</td><td><b>5/7</b></td><td>✓grid-dots ✗dots-size(3 tries) ✓scattered ✗light-walk ✓rings ✓sun(2 tries) ✓stripes</td></tr></table></div>
+
+<h2>Things I got wrong, and fixed</h2>
+<ul>
+<li><b>Speeds.</b> I first measured while a browser model was using the same GPU: numbers were 5 to 8 times too low (the Bonsai 27B read as 5 tok/s; it is 41). The docs carry the correction.</li>
+<li><b>More examples hurt.</b> Putting similar lesson boards in the prompt made the small model copy them (6/14 against 8/14). It is an option, off by default.</li>
+<li><b>LFM3's own tool calling</b> was worse than JSON with the brackets repaired (it wrote tool names as text). Off by default.</li>
+<li><b>An unreadable reply</b> could show as raw JSON in the chat (your screenshot). It cannot now: the sentence is salvaged, else a plain notice.</li>
+<li>A model-menu bug (&ldquo;not installed&rdquo; on models you have), a settings bug (a saved 0.4 temperature that was only a default), and a stale-library bug in the dev server are fixed.</li>
+</ul>
+
+<h2>Needs a decision from you</h2>
+<ul>
+<li><b>Make the browser tier the default for students?</b> It is one click now (<code>/browser</code>); a first-run prompt when Ollama is missing is a small step.</li>
+<li><b>Bonsai in the browser.</b> 4B in 1.15&nbsp;GB at 12/14 is the best size for students. It needs either Prism ML to publish the runtime or us to port the kernels (the demo's licence is not stated).</li>
+<li><b>Which Code model to recommend in the docs</b> for Ollama users: the 30B MoE (fast, 18&nbsp;GB) or the 9B coder (6.7&nbsp;GB).</li>
+</ul>
+
+<h2>Still open (in order)</h2>
+<ol>
+<li><b>The phone version</b> (your idea): needs https to try (mic and WebGPU need a secure context), a viewport tag, a long press that opens the <code>/</code> field with voice, a one-pane layout, and the radial menu by touch. Notes in <code>docs/HANDOFF.md</code>.</li>
+<li>Bonsai in the browser (above); the Guide pointer in the accent colour and options for the Agent card; one shared composer across the three Assistant modes.</li>
+<li>Compositions (&ldquo;draw a house&rdquo;) are still the one chat task small models cannot do; the pointillist walk (&ldquo;lighter than 0.3&rdquo;) is the one code task they keep missing.</li>
+<li>The sub-1B model made for AMS (training data is accumulating from the request log and the evals).</li>
+</ol>
+
+<h2>Not checked, or limits</h2>
+<ul>
+<li>I cannot hear: voice quality and the spoken replies were produced and played, not judged.</li>
+<li>Dictation was tested end to end with the real microphone, but only on room noise (nobody spoke), so recognition of real speech is untested.</li>
+<li>Screen recording of a lecture (the share picker) needs a person; the camera bubble was checked with a stand-in stream.</li>
+<li>The Claude app's built-in browser pane blocks the microphone; use Chrome or ego lite.</li>
+<li>LFM3-VL 2B (2/14) is not a code writer; it may suit looking at pictures instead.</li>
+</ul>
+
+<h2>Where things are</h2>
+<ul>
+<li><code>docs/quick-commands.md</code>: the full account, all tables. <code>docs/HANDOFF.md</code>: state and next steps.</li>
+<li><code>scripts/eval/</code>: the runners and a README; raw results in <code>scripts/eval/results/</code>.</li>
+<li>Code: <code>codeWriter.js</code>, <code>browserSetup.js</code>, <code>panels/assist.js</code>, <code>lessonEval.js</code>, <code>assistEval.js</code>, <code>Lfm3WebGPUArtist.js</code>, <code>voiceOut.js</code>, <code>voice.js</code>.</li>
+</ul>
+</main></body></html>
