@@ -87,6 +87,9 @@ export const WEBGPU_MODEL_PRESETS = [
   { id: 'webbrain-one/Ternary-Bonsai-2-2B-ONNX-WebGPU-Vision', name: 'Ternary Bonsai 2 2B (2-bit, sees pictures, ~1.4GB)', group: 'Experimental', isVL: true, dtypeMap: { embed_tokens: 'q2f16', decoder_model_merged: 'q2f16', vision_encoder: 'fp16' }, size: '~1.4GB' },
   { id: 'flackzz/Ternary-Bonsai-2-9B-ONNX-WebGPU', name: 'Ternary Bonsai 2 9B (2-bit, sees pictures)', group: 'Experimental', isVL: true, dtypeMap: { embed_tokens: 'q2f16', decoder_model_merged: 'q2f16', vision_encoder: 'fp16' } },
   { id: 'Mike0021/Ternary-Bonsai-2-4B-text-ONNX', name: 'Ternary Bonsai 2 4B, text only (2-bit, ~1GB)', group: 'Experimental', size: '~1GB', recommendedDtype: 'q2f16' },
+  { id: 'onnx-community/LFM3-1.7B-ONNX', name: 'LFM3 1.7B (Liquid AI, ~1.1GB)', group: 'Experimental', isLiquid: true, size: '~1.1GB', recommendedDtype: 'q4f16' },
+  { id: 'danyalmalik/NVIDIA-Nemotron-3.5-Bolt-E4B-ONNX-WebGPU', name: 'Nemotron 3.5 Bolt E4B (NVIDIA, ~4.9GB)', group: 'Experimental', size: '~4.9GB', recommendedDtype: 'q4f16' },
+  { id: 'danyalmalik/Qwen3-8B-ONNX-WebGPU', name: 'Qwen3 8B (~6GB)', group: 'Experimental', size: '~6GB' },
   { id: 'LiquidAI/LFM2.5-2.6B-ONNX', name: 'LFM2.5 2.6B (Liquid AI, ~1.6GB)', group: 'Experimental', isLiquid: true, size: '~1.6GB', recommendedDtype: 'q4f16' },
   { id: 'LiquidAI/LFM2.5-8B-A1B-ONNX', name: 'LFM2.5 8B-A1B (Liquid AI, mixture of experts, 1B active)', group: 'Experimental', isLiquid: true, recommendedDtype: 'q4f16' },
   // Gemma 4 (WebGPU kernels)

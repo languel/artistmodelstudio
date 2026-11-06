@@ -1,0 +1,13 @@
+{
+ "now": "onnx-community/LFM3-1.7B-ONNX",
+ "done": true,
+ "models": {
+  "onnx-community/LFM3-1.7B-ONNX": {
+   "ask": "2/7",
+   "alt": "1/7",
+   "secs": 376,
+   "per": "grid-dots:y dots-size:n scattered:y light-walk:n! rings:n sun:n! stripes:n! grid-dots:n! dots-size:n scattered:y light-walk:n rings:n! sun:n stripes:n"
+  }
+ }
+}
+
