@@ -53,6 +53,7 @@ import { mountTimeline } from './panels/timeline.js';
 import { mountMixer } from './panels/mixer.js';
 import { Recorder } from './recorder.js';
 import { History } from './history.js';
+import { Interactions } from './interactions.js';
 import { mountHistory } from './panels/history.js';
 import { TakePlayer } from './takePlayer.js';
 import { ScorePlayer } from './scorePlayer.js';
@@ -1481,6 +1482,7 @@ export class Workbench {
     this.openCode ??= openCodeFirst;
     loadLibrary();
     this.history = new History(this);
+    this.interactions = new Interactions(this);   // (the controls you click, for walkthroughs; off until switched on in the Timeline)
     this.scenes = new Scenes(this);
     // The scene store may hold a newer (or larger) copy of the open scene than localStorage did.
     // (No time recorded yet, as before this was added: trust localStorage if it has a drawing.)

@@ -1293,3 +1293,5 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 
 .wb-tl-hist { opacity: 0.55; }
 .wb-tl-hist.on { opacity: 1; color: var(--wb-accent-2, #c0563f); }
+.wb-tl-ints { opacity: 0.55; }
+.wb-tl-ints.on { opacity: 1; color: var(--wb-accent-2, #c0563f); }

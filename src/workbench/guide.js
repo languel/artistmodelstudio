@@ -87,6 +87,13 @@ export class Guide {
     if (click) await this.click();
   }
 
+  /** A recorded interaction, shown: the cursor travels to the control (or where it was) and clicks it; nothing is redone. Quiet when the pace is Instant. */
+  async cue(ui, label = '') {
+    if (!this.active || !ui) return;
+    this.say(label, 'Interaction', { sticky: false });
+    await this.moveTo(ui.target && this.rect(ui.target) ? ui.target : { x: ui.x, y: ui.y });
+  }
+
   async click() {
     if (!this.active) return;
     this.halo.style.transform = `translate(${this.pos.x - 14}px, ${this.pos.y - 14}px)`;

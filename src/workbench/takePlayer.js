@@ -135,12 +135,13 @@ export class TakePlayer {
       if (!this.playing) return;
       const now = performance.now();
       if (now - last < 1) return;   // (the frame and the timer below both call this)
-      const r = this.wrapRange();
+      const r = this.wrapRange(), t0 = this.t;
       // Time is the wall clock's (not the frames'): a slow frame skips ahead, it does not slow the music.
       this.t = advanceTransportPlaybackTime(this.t / 1000, (now - last) / 1000, { rate: this.rate, loopEnabled: Boolean(r), loopStart: r ? r[0] / 1000 : 0, loopEnd: r ? r[1] / 1000 : 0 }) * 1000;
       last = now; this.at = now;
       if (!r && this.stopAt != null && this.t >= this.stopAt) { this.t = this.stopAt; this.playing = false; clearInterval(this.timer); }
       else if (this.take && !r && !this.recording && this.t >= this.duration) { this.t = this.duration; this.playing = false; clearInterval(this.timer); }
+      if (this.take && this.t > t0) this.fireCues(t0, this.t);
       this.render(); this.syncAudio(); this.emit();
     };
     // Every frame (a skipped tick must not end the chain: on a 120 Hz screen frames come every 8 ms).
@@ -151,6 +152,12 @@ export class TakePlayer {
     clearInterval(this.timer);
     this.timer = setInterval(() => { if (performance.now() - last > 60) tick(); }, 40);
     this.emit();
+  }
+
+  /** Recorded interactions that fall in [a, b) play on the Guide's cursor (unmuted clips only). */
+  fireCues(a, b) {
+    const g = this.app.guide; if (!g?.active || b - a > 2000) return;
+    for (const c of flatClips(this.take)) if (c.ui && !c.muted && c.start >= a && c.start < b) g.cue(c.ui, c.label);
   }
 
   /** Back to the start: In, if marked; else, while looping, the loop region's start; else 0. */
