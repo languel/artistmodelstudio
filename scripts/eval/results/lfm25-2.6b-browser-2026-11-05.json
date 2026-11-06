@@ -1,0 +1,13 @@
+{
+ "now": "LiquidAI/LFM2.5-2.6B-ONNX",
+ "done": true,
+ "models": {
+  "LiquidAI/LFM2.5-2.6B-ONNX": {
+   "ask": "4/7",
+   "alt": "4/7",
+   "secs": 387,
+   "per": "grid-dots:y dots-size:y scattered:y light-walk:n rings:n! sun:n! stripes:y grid-dots:n! dots-size:y scattered:y light-walk:n rings:n! sun:y stripes:y"
+  }
+ }
+}
+
