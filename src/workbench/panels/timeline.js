@@ -259,6 +259,7 @@ export function mountTimeline(root, app) {
       h('button', { class: 'wb-icon-btn', title: 'Walkthrough: a live walkthrough from this take (steps from narration; the drawing replayed with the guide)', disabled: !take, onclick: () => app.walkthroughs.fromTake(p.take).then(w => app.log(`Walkthrough “${w.title}” is in Docs → Walkthroughs and the palette.`)), html: WALKTHROUGH }),
       h('button', { class: 'wb-icon-btn', title: 'Export', disabled: !take, onclick: e => showMenu(exportItems(), e.clientX, e.clientY), html: icon('export') }),
       h('button', { class: 'wb-icon-btn', title: 'Save the edited take to Assets', disabled: !take, onclick: saveTake, html: icon('save') }),
+      take ? h('button', { class: 'wb-icon-btn', title: take.assetId ? 'Delete this take from Assets (the drawing is not touched)' : 'Throw this take away (it is not saved)', html: icon('trash'), onclick: deleteTake }) : null,
       take ? h('button', { class: 'wb-icon-btn', title: 'Close the take (back to your drawing)', html: icon('close'), onclick: () => { leaveComps(); P().close(); select(null); drawBar(); drawLanes(); } }) : null].filter(Boolean));
   };
 
@@ -269,6 +270,16 @@ export function mountTimeline(root, app) {
     take.title = v.trim();
     if (take.assetId) { try { await app.assetStore.update(take.assetId, { title: take.title }); } catch { /* the name stays on the open take */ } }
     loadTakes(); drawBar();
+  };
+  // Delete the open take: a saved one leaves Assets (its Recordings folder); an unsaved one is just dropped. The drawing is never touched.
+  const deleteTake = async () => {
+    const take = P()?.take; if (!take) return;
+    const saved = Boolean(take.assetId);
+    if (!(await askConfirm(saved ? `Delete the take “${take.title}” from Assets? The drawing is not touched.` : `Throw away the take “${take.title}”? It is not saved.`, { ok: saved ? 'Delete' : 'Throw away', danger: true }))) return;
+    leaveComps();
+    if (saved) { try { await app.assetStore.remove(take.assetId); } catch (err) { app.log(`Could not delete the take: ${err.message}`); } }
+    P().close(); select(null); await loadTakes(); drawBar(); drawLanes();
+    app.log(`${saved ? 'Deleted' : 'Threw away'} the take “${take.title}”.`);
   };
   const newTake = async () => {
     leaveComps();
