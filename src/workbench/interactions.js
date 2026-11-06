@@ -17,6 +17,7 @@ export class Interactions {
     this.listeners = new Set();
     this.seq = 0;
     this.startedAt = 0;   // (when recording was switched on: a take made after it starts from here)
+    try { app.on?.('selection', () => this.onSelect()); } catch { /* no emitter yet */ }
     try { this.capturing = localStorage.getItem(KEY) === '1'; } catch { this.capturing = false; }
     if (this.capturing) this.startedAt = Date.now();   // (recording stays on across a reload: it began when the page did)
   }
@@ -43,8 +44,19 @@ export class Interactions {
     this.emit();
   }
 
+  /** The selection changed while recording: remember which marks, so playback can show the selection frames. */
+  onSelect() {
+    if (!this.capturing) return;
+    const ids = [...(this.app.canvas?.selected || [])];
+    const last = [...this.entries].reverse().find(e => e.kind === 'selection');
+    if ((last?.ids || []).join() === ids.join()) return;
+    this.entries.push({ id: `i${++this.seq}`, t: Date.now(), kind: 'selection', input: 'Select', where: 'Canvas', target: null, name: '', tool: '', ids, effects: [], changes: [] });
+    this.emit();
+  }
+
   /** A step in words: "left drag on the canvas (Line) from 120,300 to 480,310 → add line". */
   describe(e) {
+    if (e.kind === 'selection') return e.ids.length ? `Select ${e.ids.length} mark${e.ids.length === 1 ? '' : 's'}` : 'Deselect';
     const on = e.target ? e.name || e.target : e.where === 'Canvas' ? `the canvas${e.tool ? ` (${e.tool})` : ''}` : e.name || e.where || '';
     const path = e.drag && e.world ? ` from ${e.world[0].join(',')} to ${e.world[1].join(',')}` : '';
     const did = e.effects.length ? e.effects.join(' · ') : e.changes.map(c => c.summary || c.label).join(' · ');
@@ -59,6 +71,7 @@ export class Interactions {
     // (on the shared clock, from when a press began to when it was released: a drag lasts as long as it did)
     return entries.filter(e => e.where !== 'Timeline').map(e => {   // (clicks on the Timeline itself, recorded before they were left out, are not clips)
       const start = clock.at(e.since ?? e.t), end = clock.at(e.t);
+      if (e.kind === 'selection') return { track: 'action', start: Math.round(end), dur: 400, name: 'ui', label: this.describe(e), ui: { kind: 'selection', select: e.ids }, fx: {} };
       return { track: 'action', start: Math.round(start), dur: Math.max(500, Math.round(end - start)), name: 'ui', label: this.describe(e), ui: { kind: e.kind, target: e.target, drag: e.drag, popup: e.popup, popupAt: e.popupAt, path: e.path, pathSpace: e.pathSpace, from: e.from, to: e.to, where: e.where, command: e.command, changes: e.changes.map(c => c.id) }, fx: {} };
     });
   }

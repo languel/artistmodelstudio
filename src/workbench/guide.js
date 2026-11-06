@@ -167,33 +167,40 @@ export class Guide {
     const toS = ([x, y]) => (space === 'world' ? [r.left + x * cv.cam.z + cv.cam.x, r.top + y * cv.cam.z + cv.cam.y] : [x, y]);
     const [x0, y0] = toS(path[0]);
     this.cursor.style.opacity = '1';
-    // a quick glide to where it starts (the drawing has begun already), then the path in its own time
-    const g0 = this.pos, gt0 = performance.now(), tk = this.token;
-    await new Promise(res => { const step = now => { if (this.token !== tk) { res(); return; } const k = Math.min(1, (now - gt0) / 110); this.place(g0.x + (x0 - g0.x) * k, g0.y + (y0 - g0.y) * k); if (k < 1) requestAnimationFrame(step); else res(); }; requestAnimationFrame(step); });
-    if (this.token !== tk) return;
+    // The path's own clock starts at the cue, with the drawing's (a glide first would put the pointer behind the stroke); the pointer eases onto the path in its first moments.
+    const g0 = { ...this.pos }, tk = this.token;
+    this.pulse();   // the press that starts the stroke (and the release that ends it, below)
     this.following = true;
-    const total = path.at(-1)[2] || 1, t0 = performance.now();
+    const total = path.at(-1)[2] || 1, t0 = performance.now(), BLEND = 90;
     await new Promise(res => {
       let i = 0;
       const step = now => {
         if (this.token !== tk) { res(); return; }
-        const el = Math.min(total, (now - t0) * rate);
+        const ms = (now - t0) * rate, el = Math.min(total, ms);
         while (i < path.length - 2 && path[i + 1][2] <= el) i++;
         const a = path[i], b = path[Math.min(i + 1, path.length - 1)], span = (b[2] - a[2]) || 1, k = Math.max(0, Math.min(1, (el - a[2]) / span));
         const [ax, ay] = toS(a), [bx, by] = toS(b);
-        this.place(ax + (bx - ax) * k, ay + (by - ay) * k);
-        if (el < total) requestAnimationFrame(step); else res();
+        let px = ax + (bx - ax) * k, py = ay + (by - ay) * k;
+        if (ms < BLEND) { const e = ms / BLEND; px = g0.x + (px - g0.x) * e; py = g0.y + (py - g0.y) * e; }
+        this.place(px, py);
+        if (ms < total) requestAnimationFrame(step); else res();
       };
       requestAnimationFrame(step);
     });
-    if (this.token === tk) this.following = false;
+    if (this.token === tk) { this.following = false; this.pulse(); }
   }
 
-  async click() {
+  /** The click ring, here and now (it grows where the pointer is; see below for why it is placed with left and top). */
+  pulse() {
     if (!this.active) return;
     // (placed with left and top, not a transform: the ring grows with the `scale` property, which is applied before `transform`, so a translate would have the ring fly in from the corner of the page through the click)
     this.halo.style.left = `${this.pos.x - 14}px`; this.halo.style.top = `${this.pos.y - 14}px`;
     this.halo.classList.remove('on'); void this.halo.offsetWidth; this.halo.classList.add('on');
+  }
+
+  async click() {
+    if (!this.active) return;
+    this.pulse();
     await this.wait(260);
   }
 

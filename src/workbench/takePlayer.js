@@ -30,6 +30,7 @@ export class TakePlayer {
       if (marker && !app.guide?.following) drawPen(ctx, app.canvas.previewDoc, tf);
       const dpr = app.canvas.dpr || 1;   // (drawCaptions works in device pixels, with no transform: on a sharp screen the view's CSS size is only a fraction of it)
       drawCaptions(ctx, this.take, this.t, Math.round(W * dpr), Math.round(H * dpr));
+      this.drawSelection(ctx, tf, app.canvas.previewDoc);
       // A quiet label: this is a recording, not the drawing (Esc or any tool goes back).
       ctx.save();
       ctx.font = '12px Inter, system-ui, sans-serif';
@@ -115,6 +116,24 @@ export class TakePlayer {
 
   // (past a take's end too: that is where the next thing goes; playing from there starts it over)
   seek(t) { this.t = Math.max(0, Number.isFinite(t) ? t : this.duration); this.at = performance.now(); this.render(); this.syncAudio(); if (!this.playing) this.scrubCursor(); this.emit(); }
+
+  /** The selection frames recorded with the interactions: the marks selected at this moment get a dashed frame, as they did when they were picked. */
+  drawSelection(ctx, tf, doc) {
+    if (!doc || !this.take) return;
+    const sel = flatClips(this.take).filter(c => c.ui?.select && !c.muted && c.start <= this.t).sort((a, b) => a.start - b.start).at(-1);
+    if (!sel?.ui.select.length) return;
+    const els = doc.elements.filter(e => sel.ui.select.includes(e.id) && e.points?.length);
+    if (!els.length) return;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const e of els) for (const p of e.points) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
+    const a = [tf.x + x0 * tf.scale - 6, tf.y + y0 * tf.scale - 6], b = [tf.x + x1 * tf.scale + 6, tf.y + y1 * tf.scale + 6];
+    ctx.save();
+    ctx.setLineDash([5, 4]); ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(245,245,240,0.9)';
+    ctx.strokeRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+    ctx.setLineDash([]); ctx.fillStyle = 'rgba(245,245,240,0.95)';
+    for (const [hx, hy] of [[a[0], a[1]], [b[0], a[1]], [a[0], b[1]], [b[0], b[1]]]) ctx.fillRect(hx - 2.5, hy - 2.5, 5, 5);
+    ctx.restore();
+  }
 
   /** Scrubbing or paused inside a recorded interaction: the agent pointer is where the pointer was at that moment (a stroke, a click on a control); outside one it is put away. */
   scrubCursor() {
