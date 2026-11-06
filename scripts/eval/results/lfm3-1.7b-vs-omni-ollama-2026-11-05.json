@@ -1,0 +1,19 @@
+{
+ "now": "lfm3-omni:latest",
+ "done": true,
+ "models": {
+  "lfm3:1.7b": {
+   "ask": "4/7",
+   "alt": "4/7",
+   "secs": 675,
+   "per": "grid-dots:y dots-size:y scattered:y light-walk:n rings:n! sun:n! stripes:y grid-dots:n! dots-size:n! scattered:y light-walk:n! rings:y sun:y stripes:y"
+  },
+  "lfm3-omni:latest": {
+   "ask": "3/7",
+   "alt": "4/7",
+   "secs": 34,
+   "per": "grid-dots:y dots-size:n! scattered:y light-walk:y rings:n! sun:n! stripes:n! grid-dots:y dots-size:n scattered:y light-walk:n rings:y sun:n! stripes:y"
+  }
+ }
+}
+

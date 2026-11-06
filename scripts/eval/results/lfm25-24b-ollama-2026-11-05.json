@@ -1,0 +1,13 @@
+{
+ "now": "dlasher/LFM2.5-24B-A2B-ENG:IQ4_NL",
+ "done": true,
+ "models": {
+  "dlasher/LFM2.5-24B-A2B-ENG:IQ4_NL": {
+   "ask": "6/7",
+   "alt": "7/7",
+   "secs": 789,
+   "per": "grid-dots:y dots-size:y scattered:y light-walk:n rings:y sun:y stripes:y grid-dots:y dots-size:y scattered:y light-walk:y rings:y sun:y stripes:y"
+  }
+ }
+}
+
