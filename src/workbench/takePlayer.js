@@ -26,7 +26,8 @@ export class TakePlayer {
     app.canvas.drawPreviewOverlay = (ctx, tf, W, H) => {
       if (!this.take) return;
       drawPen(ctx, app.canvas.previewDoc, tf);
-      drawCaptions(ctx, this.take, this.t, W, H);
+      const dpr = app.canvas.dpr || 1;   // (drawCaptions works in device pixels, with no transform: on a sharp screen the view's CSS size is only a fraction of it)
+      drawCaptions(ctx, this.take, this.t, Math.round(W * dpr), Math.round(H * dpr));
       // A quiet label: this is a recording, not the drawing (Esc or any tool goes back).
       ctx.save();
       ctx.font = '12px Inter, system-ui, sans-serif';
