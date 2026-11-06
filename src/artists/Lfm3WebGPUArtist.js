@@ -82,7 +82,7 @@ export class Lfm3WebGPUArtist extends Artist {
     const { session: model } = await this.ensureLoaded();
     return this.#run(async () => {
       const messages = [...(system ? [{ role: 'system', content: `${system}${json ? '\nReply with one JSON object and nothing else.' : ''}` }] : []), { role: 'user', content: typeof user === 'string' ? user : String(user ?? '') }];
-      const g = model.generate(messages, { signal, max_new_tokens: maxTokens, generation_mode: 'text', ...(temperature ? { do_sample: true, temperature } : {}) });
+      const g = model.generate(messages, { signal, max_new_tokens: maxTokens, generation_mode: 'text' });   // (always greedy: the runtime refuses do_sample, because the speech decoder shares the sampling settings; a temperature passed in is ignored)
       for await (const _ of g) { /* drained: the result carries it all */ }
       const res = await g.result;
       return textOf(res.message).replace(/^<think>\s*<\/think>\s*/, '').trim();
