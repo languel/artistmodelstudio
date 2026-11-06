@@ -198,3 +198,9 @@ Generation, 160 tokens, temperature 0, **with the GPU to itself**: LFM3-Omni 2B 
 Reading it: **code writing tracks size and code training, not recency**. At about 4B the ternary Bonsai (1.6 GB on Ollama; about 1.15 GB as the browser file) equals the best browser model that runs today (Qwen3 4B Instruct 2507, 2.1 GB), at half the download, and the 9B ternary (12/14) is no better than the 4B. Only the 9B coder and the two big MoE models (Qwen3-Coder 30B and Flint) are perfect. The one task small models keep missing is the pointillist walk ("lighter than 0.3").
 
 The small tier for weak laptops: **Qwen2.5-Coder 1.5B (about 1 GB) scores 10/14**, as well as Phi-3.5 mini at more than twice the size, and better than LFM3-Omni 2B. A model trained for code beats a larger general one at this size; Qwen3.5 2B (6/14) shows that newer is not the same as better here, since it spends its tokens thinking aloud.
+
+## The shipped Code model path, checked (5 Nov 2026)
+
+`ams_write_code` (codeWriter.js: the prompt, `fixCode`, run, up to two repairs) on the 7 lesson-test tasks in the teacher's wording (`scripts/eval/results/code-model-smoke-2026-11-05.json`): **Qwen 3.8 9B coder on Ollama 6/7** (the dot grid took three tries and passed; the sun failed), **browser Standard (Qwen3 4B Instruct) 6/7** (the pointillist walk fails, as everywhere), **browser Light (Qwen2.5-Coder 1.5B) 5/7** (the sun passed on its second try). That agrees with the eval (14/14, 12/14, 10/14 over both wordings) within the noise of one wording.
+
+Chat and command evals after all of today's changes (LFM3-Omni in the browser, the 16 tasks of `assistEval.js`): the whole path (instant phrases, then commands, then the model) **15/16 and 15/16** (only "draw a house" fails); the model alone 13/16 and 10/16.

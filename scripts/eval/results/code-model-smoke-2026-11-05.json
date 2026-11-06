@@ -1,0 +1,202 @@
+{
+ "savedAt": "2026-11-06T00:22:56.499Z",
+ "note": "the shipped ams_write_code (codeWriter.js: prompt, fixCode, run, up to two repairs) on the 7 lesson-test tasks, teacher's wording only",
+ "models": {
+  "Ollama: Qwen 3.8 9B coder": [
+   {
+    "id": "grid-dots",
+    "ok": true,
+    "marks": 24,
+    "wanted": 24,
+    "tries": 1,
+    "pass": true,
+    "ms": 3978
+   },
+   {
+    "id": "dots-size",
+    "ok": true,
+    "marks": 2700,
+    "wanted": 2700,
+    "tries": 3,
+    "pass": true,
+    "ms": 23209
+   },
+   {
+    "id": "scattered",
+    "ok": true,
+    "marks": 9000,
+    "wanted": 9000,
+    "tries": 1,
+    "pass": true,
+    "ms": 1138
+   },
+   {
+    "id": "light-walk",
+    "ok": true,
+    "marks": 1077,
+    "wanted": 721,
+    "tries": 1,
+    "pass": true,
+    "ms": 1708
+   },
+   {
+    "id": "rings",
+    "ok": true,
+    "marks": 8,
+    "wanted": 8,
+    "tries": 1,
+    "pass": true,
+    "ms": 1308
+   },
+   {
+    "id": "sun",
+    "ok": true,
+    "marks": 53,
+    "wanted": 13,
+    "tries": 1,
+    "pass": false,
+    "ms": 4481
+   },
+   {
+    "id": "stripes",
+    "ok": true,
+    "marks": 20,
+    "wanted": 20,
+    "tries": 1,
+    "pass": true,
+    "ms": 1686
+   }
+  ],
+  "Browser: Qwen3 4B Instruct (Standard)": [
+   {
+    "id": "grid-dots",
+    "ok": true,
+    "marks": 24,
+    "wanted": 24,
+    "tries": 1,
+    "pass": true,
+    "ms": 5566
+   },
+   {
+    "id": "dots-size",
+    "ok": true,
+    "marks": 2700,
+    "wanted": 2700,
+    "tries": 1,
+    "pass": true,
+    "ms": 4144
+   },
+   {
+    "id": "scattered",
+    "ok": true,
+    "marks": 9000,
+    "wanted": 9000,
+    "tries": 1,
+    "pass": true,
+    "ms": 2714
+   },
+   {
+    "id": "light-walk",
+    "ok": true,
+    "marks": 11093,
+    "wanted": 721,
+    "tries": 1,
+    "pass": false,
+    "ms": 3821
+   },
+   {
+    "id": "rings",
+    "ok": true,
+    "marks": 8,
+    "wanted": 8,
+    "tries": 1,
+    "pass": true,
+    "ms": 3058
+   },
+   {
+    "id": "sun",
+    "ok": true,
+    "marks": 13,
+    "wanted": 13,
+    "tries": 1,
+    "pass": true,
+    "ms": 5268
+   },
+   {
+    "id": "stripes",
+    "ok": true,
+    "marks": 20,
+    "wanted": 20,
+    "tries": 1,
+    "pass": true,
+    "ms": 3021
+   }
+  ],
+  "Browser: Qwen2.5-Coder 1.5B (Light)": [
+   {
+    "id": "grid-dots",
+    "ok": true,
+    "marks": 24,
+    "wanted": 24,
+    "tries": 1,
+    "pass": true,
+    "ms": 2999
+   },
+   {
+    "id": "dots-size",
+    "ok": false,
+    "marks": 0,
+    "wanted": 2700,
+    "tries": 3,
+    "pass": false,
+    "ms": 7639
+   },
+   {
+    "id": "scattered",
+    "ok": true,
+    "marks": 9000,
+    "wanted": 9000,
+    "tries": 1,
+    "pass": true,
+    "ms": 1888
+   },
+   {
+    "id": "light-walk",
+    "ok": true,
+    "marks": 11227,
+    "wanted": 721,
+    "tries": 1,
+    "pass": false,
+    "ms": 2675
+   },
+   {
+    "id": "rings",
+    "ok": true,
+    "marks": 8,
+    "wanted": 8,
+    "tries": 1,
+    "pass": true,
+    "ms": 2533
+   },
+   {
+    "id": "sun",
+    "ok": true,
+    "marks": 13,
+    "wanted": 13,
+    "tries": 2,
+    "pass": true,
+    "ms": 6956
+   },
+   {
+    "id": "stripes",
+    "ok": true,
+    "marks": 20,
+    "wanted": 20,
+    "tries": 1,
+    "pass": true,
+    "ms": 1785
+   }
+  ]
+ }
+}
+
