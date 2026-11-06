@@ -50,6 +50,7 @@ export class Guide {
     this.cursor.style.opacity = '0';
     this.dragCard();
     this.hideTimer = 0;
+    this.token = {};   // (the latest recorded interaction being shown: an older one stops moving the pointer the moment a newer one starts)
   }
 
   /**
@@ -99,9 +100,10 @@ export class Guide {
     const x0 = this.pos.x, y0 = this.pos.y;
     const dist = Math.hypot(x - x0, y - y0);
     const ms = Math.min(900, 250 + dist * 0.6) * this.pace;
-    const t0 = performance.now();
+    const t0 = performance.now(), tk = this.token;
     await new Promise(res => {
       const step = now => {
+        if (this.token !== tk) { res(); return; }   // (a newer interaction has taken over the pointer)
         const t = Math.min(1, (now - t0) / Math.max(1, ms));
         const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
         this.place(x0 + (x - x0) * e, y0 + (y - y0) * e);
@@ -109,7 +111,7 @@ export class Guide {
       };
       requestAnimationFrame(step);
     });
-    if (click) await this.click();
+    if (click && this.token === tk) await this.click();
   }
 
   /**
@@ -141,7 +143,9 @@ export class Guide {
 
   async cue(ui, label = '', { rate = 1 } = {}) {
     if (!this.active || !ui) return;
-    if (ui.where === 'Timeline') return;   // (clicks on the Timeline itself, recorded before they were left out: replaying them would send the pointer and its halo flying down to the Timeline)
+    if (ui.where === 'Timeline') return;
+    const my = (this.token = {});   // (one interaction moves the pointer at a time: starting this one stops the last)
+    this.following = false;   // (clicks on the Timeline itself, recorded before they were left out: replaying them would send the pointer and its halo flying down to the Timeline)
     this.popupFor(ui);
     this.say(label, 'Interaction', { sticky: false });
     if (ui.kind === 'key' || (!ui.target && !ui.from)) return;
@@ -150,7 +154,8 @@ export class Guide {
     const [x0, y0] = ui.from || [], [x1, y1] = ui.to || ui.from || [];
     if (x0 == null) return;
     await this.moveTo({ x: x0, y: y0 }, { click: false });
-    if (ui.drag) await this.moveTo({ x: x1, y: y1 }, { click: false }); else await this.click();
+    if (this.token !== my) return;
+    if (ui.drag) await this.moveTo({ x: x1, y: y1 }, { click: false }); else if (this.token === my) await this.click();
   }
 
   /**
@@ -163,13 +168,15 @@ export class Guide {
     const [x0, y0] = toS(path[0]);
     this.cursor.style.opacity = '1';
     // a quick glide to where it starts (the drawing has begun already), then the path in its own time
-    const g0 = this.pos, gt0 = performance.now();
-    await new Promise(res => { const step = now => { const k = Math.min(1, (now - gt0) / 110); this.place(g0.x + (x0 - g0.x) * k, g0.y + (y0 - g0.y) * k); if (k < 1) requestAnimationFrame(step); else res(); }; requestAnimationFrame(step); });
+    const g0 = this.pos, gt0 = performance.now(), tk = this.token;
+    await new Promise(res => { const step = now => { if (this.token !== tk) { res(); return; } const k = Math.min(1, (now - gt0) / 110); this.place(g0.x + (x0 - g0.x) * k, g0.y + (y0 - g0.y) * k); if (k < 1) requestAnimationFrame(step); else res(); }; requestAnimationFrame(step); });
+    if (this.token !== tk) return;
     this.following = true;
     const total = path.at(-1)[2] || 1, t0 = performance.now();
     await new Promise(res => {
       let i = 0;
       const step = now => {
+        if (this.token !== tk) { res(); return; }
         const el = Math.min(total, (now - t0) * rate);
         while (i < path.length - 2 && path[i + 1][2] <= el) i++;
         const a = path[i], b = path[Math.min(i + 1, path.length - 1)], span = (b[2] - a[2]) || 1, k = Math.max(0, Math.min(1, (el - a[2]) / span));
@@ -179,7 +186,7 @@ export class Guide {
       };
       requestAnimationFrame(step);
     });
-    this.following = false;
+    if (this.token === tk) this.following = false;
   }
 
   async click() {
