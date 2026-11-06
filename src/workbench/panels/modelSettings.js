@@ -34,7 +34,7 @@ export function modelSection(app) {
     const showCurrent = () => { input.value = current() ? nameOf(current()) : ''; };
 
     const paint = () => {
-      const cur = current(), favs = favorites(engine, artist), all = info.groups.flatMap(([, l]) => l);
+      const cur = current(), favs = favorites(engine, artist), all = [...new Map(info.groups.flatMap(([, l]) => l).map(m => [m.id, m])).values()];   // (a model that is in two groups, like OpenRouter's favorites and its full list, is one row)
       shown = filterModels(all, { query, favorites: favs, favoritesOnly: favOnly });
       if (engine === 'openrouter' && tag) shown = shown.filter(m => (tag === 'free' ? /:free$/.test(m.id) : /· image/.test(m.name)));
       shown = [...shown.filter(m => favs.includes(m.id)), ...shown.filter(m => !favs.includes(m.id))].slice(0, 300);
