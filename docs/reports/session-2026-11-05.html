@@ -71,6 +71,7 @@ ul{padding-left:1.2em}li{margin:.25em 0}code{background:var(--card);border:1px s
 <li>At about 2B, Qwen2.5-Coder 1.5B (10) is still the best code writer in the browser; the LFM models are not better at code. Keep LFM3-Omni for voice and tools, and route code writing through the Code model.</li>
 <li>Liquid's own LFM3-1.7B ONNX needs a newer transformers.js (<code>logits_to_keep</code>). The Omni and Audio ONNX builds need architectures that even 4.4.0-next.0 lacks; Omni runs through Liquid's own runtime.</li>
 <li>The danyalmalik builds (Qwen3-8B, Nemotron Bolt, DeepSeek R1 7B, Flint) use the Quick Inference layout and do not load in our engine; presets removed. They would need that runtime as a second engine.</li>
+<li><b>Update, later:</b> after upgrading to transformers.js 4.4.0-next.0 and adding two small fixes, Liquid&rsquo;s official <code>LFM3-1.7B-ONNX</code> scores <b>12/14</b> in the browser (1.4&nbsp;GB) and 15/16 on the chat/command eval: the best ~2B browser model, from the same family as Omni. The earlier 3/14 was it thinking aloud.</li>
 <li>Not done: Bonsai browser builds (the 4B Vision load error is undiagnosed) and the LFM3 tooling experiments.</li>
 </ul>
 
