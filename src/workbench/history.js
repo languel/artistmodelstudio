@@ -84,6 +84,23 @@ export class History {
 
   indexOf(id) { return this.entries.findIndex(e => e.id === id); }
 
+  /**
+   * Drawing clips on a shared clock (liveClock.js), at the real time each change was made: a single stroke ends when it was committed and lasted as long as
+   * it took to draw; anything else appears when it happened. `from` is the clock time of the composition's start (the clips are relative to it).
+   */
+  realClips(entries, clock, from = 0) {
+    const out = [];
+    for (const e of entries.filter(x => !x.muted)) {
+      const dur = Math.round(this.durationOf(e)), single = (e.diff.add || []).length === 1 && e.diff.add[0].points?.length > 1;
+      const start = single ? clock.at(e.t - dur) : clock.at(e.t);
+      out.push({ track: 'draw', start: Math.max(0, Math.round(start - from)), dur, diff: clone(e.diff), label: e.label, by: e.by, fx: {} });
+    }
+    return out;
+  }
+
+  /** The real moments these entries use (for the clock): when each began and when it was made. */
+  moments(entries) { return entries.flatMap(e => { const dur = this.durationOf(e); return [e.t, e.t - dur]; }); }
+
   /** Drawing clips from entries (in order, from time t): a single stroke keeps its drawing time. */
   clipsFrom(ids, t = 0, gap = 250) {
     const out = [];

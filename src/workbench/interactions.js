@@ -33,7 +33,7 @@ export class Interactions {
     const H = this.app.history, ui = c.ui || {};
     const changes = (H?.entries || []).filter(e => e.t >= c.t - 60 && e.t <= c.t + 700).map(e => ({ id: e.id, label: e.label, summary: e.summary }));
     const entry = { id: `i${++this.seq}`, t: c.t, kind: c.kind, input: c.input, button: c.button || '', where: c.where || '', target: ui.target || null, name: ui.name || '', tool: ui.tool || '', command: ui.command || null,
-      drag: Boolean(ui.drag), from: ui.from || null, to: ui.to || null, world: ui.world || null, effects: (c.effects || []).map(f => f.text), changes };
+      drag: Boolean(ui.drag), since: ui.since || c.t, from: ui.from || null, to: ui.to || null, world: ui.world || null, effects: (c.effects || []).map(f => f.text), changes };
     this.entries.push(entry);
     if (this.entries.length > MAX) this.entries.shift();
     this.emit();
@@ -50,15 +50,12 @@ export class Interactions {
   /** The sequence as steps for an agent or a handout: numbered, in words, with what changed. */
   steps() { return this.entries.map((e, i) => ({ n: i + 1, at: e.t, say: this.describe(e), input: e.input, on: e.target || e.where, tool: e.tool, from: e.world?.[0] || null, to: e.world?.[1] || null, command: e.command, effects: e.effects, changes: e.changes })); }
 
-  /** Clips for the Timeline's Actions kind: real spacing (gaps over 1.5 s shortened), each lasting long enough to read. */
-  clips(entries = this.entries, { gap = 1500, dur = 800 } = {}) {
-    const out = [];
-    let at = 0, prev = null;
-    for (const e of entries) {
-      if (prev) at += Math.min(gap, Math.max(300, e.t - prev.t));
-      out.push({ track: 'action', start: Math.round(at), dur, name: 'ui', label: this.describe(e), ui: { kind: e.kind, target: e.target, drag: e.drag, from: e.from, to: e.to, where: e.where, command: e.command, changes: e.changes.map(c => c.id) }, fx: {} });
-      prev = e;
-    }
-    return out;
+  /** Clips for the Timeline's Actions kind, placed on the shared clock (liveClock.js). */
+  clips(clock, entries = this.entries) {
+    // (on the shared clock, from when a press began to when it was released: a drag lasts as long as it did)
+    return entries.map(e => {
+      const start = clock.at(e.since ?? e.t), end = clock.at(e.t);
+      return { track: 'action', start: Math.round(start), dur: Math.max(500, Math.round(end - start)), name: 'ui', label: this.describe(e), ui: { kind: e.kind, target: e.target, drag: e.drag, from: e.from, to: e.to, where: e.where, command: e.command, changes: e.changes.map(c => c.id) }, fx: {} };
+    });
   }
 }

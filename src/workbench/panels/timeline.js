@@ -9,6 +9,7 @@ import { icon } from '../icons.js';
 import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
 import { showMenu } from '../menu.js';
 import { TimelineUndo } from '../timelineUndo.js';
+import { liveClock } from '../liveClock.js';
 import { formatMusicalPosition, secondsToFrame } from '../../time/transport.js';
 import { RULERS, FPS_CHOICES, QUANT_CHOICES, SNAP_CHOICES, snapStep, timeContext } from '../../time/sceneTransport.js';
 import { waveFor, fromPeaks, drawWave } from '../waveform.js';
@@ -513,18 +514,27 @@ export function mountTimeline(root, app) {
   // Every take carries the drawing's History as a composition on a muted track of its own: one clip, "History", that holds the changes made so far, one
   // clip each, at the pace they were made. Unmute the track to replay it; open the composition (double-click) to inspect, move or delete steps.
   // It is kept in step with History (rebuilt when History changes) and never saved with the take (see saveTake). Only on the take itself.
+  // (History and Interactions share one clock, built from both: a click, the stroke it drew and its History entry line up; idle gaps are shortened alike)
+  const liveClockNow = () => {
+    const H = app.history, I = app.interactions;
+    const hs = H ? H.entries.slice(-200) : [], is = I ? I.entries : [];
+    return { clock: liveClock([...(H ? H.moments(hs) : []), ...is.flatMap(e => [e.since ?? e.t, e.t])]), hs, is };
+  };
+  const liveKey = () => `${app.history?.seq}|${app.history?.entries.length}|${app.history?.entries.filter(e => e.muted).length}|${app.interactions?.seq}|${app.interactions?.entries.length}`;
   const syncHistory = () => {
     const take = P()?.take, H = app.history;
     if (!take || !H || compStack.length || take.noHistory || take.source === 'eval') return;   // (noHistory: its History track was deleted; the record-history button brings it back)
-    const key = `${H.seq}|${H.entries.length}|${H.entries.filter(e => e.muted).length}`;
+    const key = liveKey();
     if (take._histKey === key) return;
     Object.defineProperty(take, '_histKey', { value: key, writable: true, configurable: true, enumerable: false });
     let tr = tracksOf(take).find(t => t.live === 'history');
     if (!tr) { tr = addTrack(take, 'comp', 'History'); tr.live = 'history'; tr.muted = true; }
-    const inner = H.clipsFrom(H.entries.slice(-200).map(e => e.id)).map((c, i) => ({ ...c, id: `hist${H.seq}x${i}` }));
+    const { clock, hs } = liveClockNow();
+    const from = Math.max(0, Math.min(...hs.map(e => clock.at(e.t - (H.durationOf(e) || 0))), Infinity));
+    const inner = H.realClips(hs, clock, Number.isFinite(from) ? from : 0).map((c, i) => ({ ...c, id: `hist${H.seq}x${i}` }));
     const dur = Math.max(1, ...inner.map(c => c.start + c.dur));
     const old = take.clips.find(c => c.live === 'history');
-    const clip = { id: old?.id || clipId(), track: 'comp', lane: tr.id, live: 'history', start: old?.start ?? 0, dur, rate: 1, label: `History (${H.entries.length})`, fx: {}, comp: { tracks: [{ id: 'draw', kind: 'draw', name: 'Drawing' }], clips: inner } };
+    const clip = { id: old?.id || clipId(), track: 'comp', lane: tr.id, live: 'history', start: Number.isFinite(from) ? Math.round(from) : 0, dur, rate: 1, label: `History (${H.entries.length})`, fx: {}, comp: { tracks: [{ id: 'draw', kind: 'draw', name: 'Drawing' }], clips: inner } };
     take.clips = [...take.clips.filter(c => c.live !== 'history'), ...(inner.length ? [clip] : [])];
     touch(take);
   };
@@ -533,12 +543,13 @@ export function mountTimeline(root, app) {
   const syncInteractions = () => {
     const take = P()?.take, I = app.interactions;
     if (!take || !I || compStack.length || take.noInteractions || take.source === 'eval' || !I.entries.length) return;
-    const key = `${I.entries.length}|${I.entries.at(-1)?.id}`;
+    const key = liveKey();
     if (take._intKey === key) return;
     Object.defineProperty(take, '_intKey', { value: key, writable: true, configurable: true, enumerable: false });
     let tr = tracksOf(take).find(t => t.live === 'interactions');
     if (!tr) { tr = addTrack(take, 'action', 'Interactions'); tr.live = 'interactions'; tr.muted = true; }
-    take.clips = [...take.clips.filter(c => c.live !== 'interactions'), ...I.clips().map((c, i) => ({ ...c, id: `int${I.seq}x${i}`, lane: tr.id, live: 'interactions' }))];
+    const { clock } = liveClockNow();
+    take.clips = [...take.clips.filter(c => c.live !== 'interactions'), ...I.clips(clock).map((c, i) => ({ ...c, id: `int${I.seq}x${i}`, lane: tr.id, live: 'interactions' }))];
     touch(take);
   };
   let histQueued = false;
