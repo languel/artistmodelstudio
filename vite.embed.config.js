@@ -8,10 +8,11 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 const FULL = Boolean(process.env.AMS_EMBED_FULL);
+// Recorder and TakePlayer stay real: hosts use the take protocol without the Timeline panel.
 // Modules the lean build replaces with src/embed/stubs.js (repo-relative paths).
 const LEAN_STUBS = new Set([
   ...['scenes', 'assistant', 'generate', 'decide', 'docs', 'timeline', 'sources', 'gestures', 'script', 'process', 'stages', 'settings', 'shortcuts', 'code', 'history', 'log'].map(n => `src/workbench/panels/${n}.js`),
-  ...['scenes', 'recorder', 'takePlayer', 'walkthroughs', 'sources', 'gestures', 'playlists', 'boardFrames', 'diagnostics', 'sourceDemos'].map(n => `src/workbench/${n}.js`),
+  ...['scenes', 'walkthroughs', 'sources', 'gestures', 'playlists', 'boardFrames', 'diagnostics', 'sourceDemos'].map(n => `src/workbench/${n}.js`),
   'src/workbench/lessons.js', 'src/workbench/docsContent.js', 'src/workbench/streamSamples.js', 'src/workbench/takeExport.js',
   'src/artists/artistRegistry.js', 'src/process/markdown.js', 'src/process/page.js', 'src/ui/AssetPanel.js'
 ]);
