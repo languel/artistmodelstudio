@@ -42,9 +42,15 @@ const ADD_TRACK = svg('<rect x="3" y="7" width="12" height="10" rx="2"/><path d=
 
 export function mountTimeline(root, app) {
   const P = () => app.player, R = () => app.recorder;
-  /** A take made now starts its live History and Interactions tracks from now, or from when interaction recording began. Not saved. */
-  // (while recording interactions, a new take starts from when recording began: act first, then make the take from what you did)
-  const fresh = t => { Object.defineProperty(t, '_liveFrom', { value: app.interactions?.capturing && app.interactions.startedAt ? app.interactions.startedAt : Date.now(), writable: true, configurable: true, enumerable: false }); return t; };
+  // A take made while interactions are being recorded takes what was recorded since the last take was made (or since recording began): record, act, then New take.
+  // The next take starts after it, so nothing is carried from one take to the next.
+  const fresh = t => {
+    const I = app.interactions, now = Date.now();
+    const from = I?.capturing && I.startedAt ? Math.max(I.startedAt, I.claimed || 0) : now;
+    if (I) I.claimed = now;
+    Object.defineProperty(t, '_liveFrom', { value: from, writable: true, configurable: true, enumerable: false });
+    return t;
+  };
   const S = () => P().settings;   // the scene's transport: tempo, signature, fps, ruler, loop range
   /** A time (ms) as the ruler reads it. */
   const stamp = ms => {
