@@ -107,7 +107,7 @@ export class OpenRouterArtist extends Artist {
       const cached = localStorage.getItem('ams_openrouter_catalog_cache');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed) && parsed.length > 0 && 'inputModalities' in parsed[0]) {
           this.catalog = parsed;
         }
       }
@@ -151,7 +151,7 @@ export class OpenRouterArtist extends Artist {
         const timestamp = Number(localStorage.getItem('ams_openrouter_catalog_time') || 0);
         if (cached && (Date.now() - timestamp < 4 * 3600 * 1000)) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed) && parsed.length > 0 && 'inputModalities' in parsed[0]) {   // (a list cached before modalities were kept is fetched again)
             this.catalog = parsed;
             return this.catalog;
           }
@@ -181,6 +181,7 @@ export class OpenRouterArtist extends Artist {
             contextLength: m.context_length || 0,
             description: m.description || '',
             pricing: m.pricing || null,
+            inputModalities: m.architecture?.input_modalities || [],   // ('image' among them: the Image input filter)
             isFree
           };
         });
