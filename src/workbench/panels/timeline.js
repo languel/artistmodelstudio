@@ -281,16 +281,16 @@ export function mountTimeline(root, app) {
   app.openTake = async id => { const a = await app.assetStore.get(id); if (!a?.program) throw new Error('No such take'); app.docks.open('timeline'); openTake(a); return a; };
 
   const saveTake = async () => {
-    const take = rootTake();
-    take.clips = take.clips.filter(c => c.live !== 'history');   // (the live History track is rebuilt, not kept)
-    for (const c of take.clips) if (c.live === 'interactions') delete c.live;   // (interactions are kept: they are the recording)
-    for (const t of take.tracks || []) if (t.live === 'interactions') delete t.live;
-    take._intKey = null;
-    if (take._histKey) take._histKey = null;
+    const live = rootTake();
+    // What is saved is a copy: the open take keeps its live tracks. History's and the interactions are kept as they are, as plain clips and tracks (they are the recording:
+    // a saved demo plays its drawing from the History track, unmuted, and its cursor from the Interactions track).
+    const take = JSON.parse(JSON.stringify(live));
+    for (const c of take.clips) delete c.live;
+    for (const t of take.tracks) delete t.live;
     delete take.original;
     take.duration = duration(take);
-    if (take.assetId) await app.assetStore.update(take.assetId, { program: JSON.parse(JSON.stringify(take)), title: take.title, meta: { clips: take.clips.length, duration: take.duration } });
-    else await R().saveTake(take);
+    if (live.assetId) await app.assetStore.update(live.assetId, { program: take, title: take.title, meta: { clips: take.clips.length, duration: take.duration } });
+    else { await R().saveTake(take); live.assetId = take.assetId; }
     app.log(`Saved the take “${take.title}”.`);
     loadTakes();
   };

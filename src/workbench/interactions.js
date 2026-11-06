@@ -18,12 +18,13 @@ export class Interactions {
     this.seq = 0;
     this.startedAt = 0;   // (when recording was switched on: a take made after it starts from here)
     try { this.capturing = localStorage.getItem(KEY) === '1'; } catch { this.capturing = false; }
+    if (this.capturing) this.startedAt = Date.now();   // (recording stays on across a reload: it began when the page did)
   }
 
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit() { for (const f of this.listeners) { try { f(this); } catch (err) { console.error(err); } } }
   setCapturing(on) { if (on && !this.capturing) this.startedAt = Date.now(); this.capturing = Boolean(on); try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* ignore */ } this.emit(); }
-  clear() { this.entries = []; this.emit(); }
+  clear() { this.entries = []; if (this.capturing) this.startedAt = Date.now(); this.emit(); }
 
   /**
    * A finished cue from Show user actions (keys, clicks, drags, scrolls, with what each did): kept as a step.

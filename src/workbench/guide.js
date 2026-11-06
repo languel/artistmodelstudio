@@ -35,12 +35,25 @@ export class Guide {
       this.controls = h('div', { class: 'wb-guide-controls', hidden: true }));
     this.paceSel.addEventListener('change', () => { this.pace = Number(this.paceSel.value); try { localStorage.setItem(PACE_KEY, String(this.pace)); } catch { /* ignore */ } });
     this.layer = h('div', { class: 'wb-guide-layer' }, this.halo, this.cursor);
+    this.applyLook();
     document.body.append(this.layer, this.card);
     this.pos = { x: window.innerWidth / 2, y: window.innerHeight - 80 };
     this.place(this.pos.x, this.pos.y);
     this.cursor.style.opacity = '0';
     this.dragCard();
     this.hideTimer = 0;
+  }
+
+  /**
+   * How the pointer looks (Settings › Guide): an outline in the accent color or filled, how much it glows (0 to 1), and whether the glow pulses.
+   * Global, remembered in this browser.
+   */
+  applyLook() {
+    const get = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+    const style = get('ams_guide_style', 'outline'), glow = Math.max(0, Math.min(1, Number(get('ams_guide_glow', '0.7')))), pulse = get('ams_guide_pulse', '0') === '1';
+    this.cursor.dataset.style = style;
+    this.cursor.classList.toggle('pulse', pulse && glow > 0);
+    this.cursor.style.setProperty('--glow', String(glow));
   }
 
   get active() { return this.enabled && this.pace > 0; }

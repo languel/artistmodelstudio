@@ -261,7 +261,15 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 /* ---- guide (visible automation) ---- */
 :root { --wb-guide-fill: #ffffff; --wb-guide-stroke: #1c1c1c; --wb-guide-body: var(--wb-accent-2, #c8664f); --wb-guide-glow: color-mix(in srgb, var(--wb-accent-2, #c8664f) 85%, transparent); }   /* the agent's pointer is the accent color: it is not yours */
 .wb-guide-layer { position: fixed; inset: 0; pointer-events: none; z-index: 90; }
-.wb-guide-cursor { position: absolute; left: 0; top: 0; transition: opacity .3s; filter: drop-shadow(0 0 5px var(--wb-guide-glow)) drop-shadow(0 1px 1.5px rgba(0,0,0,.55)); }
+/* The pointer: an outline in the accent color (or filled), with a glow you can set and make pulse (Settings › Guide) */
+.wb-guide-cursor { --glow: 0.7; position: absolute; left: 0; top: 0; transition: opacity .3s; filter: drop-shadow(0 0 calc(9px * var(--glow)) color-mix(in srgb, var(--wb-accent-2, #c8664f) calc(100% * var(--glow)), transparent)) drop-shadow(0 1px 1.5px rgba(0,0,0,.45)); }
+.wb-guide-cursor svg path { fill: none; stroke: var(--wb-accent-2, #c8664f); stroke-width: 2; stroke-linejoin: round; }
+.wb-guide-cursor[data-style="filled"] svg path { fill: var(--wb-accent-2, #c8664f); stroke: #fff; stroke-width: 1.5; }
+.wb-guide-cursor.pulse { animation: wb-guide-pulse 1.5s ease-in-out infinite; }
+@keyframes wb-guide-pulse {
+  0%, 100% { filter: drop-shadow(0 0 calc(4px * var(--glow)) color-mix(in srgb, var(--wb-accent-2, #c8664f) calc(70% * var(--glow)), transparent)) drop-shadow(0 1px 1.5px rgba(0,0,0,.45)); }
+  50% { filter: drop-shadow(0 0 calc(14px * var(--glow)) color-mix(in srgb, var(--wb-accent-2, #c8664f) calc(100% * var(--glow)), transparent)) drop-shadow(0 1px 1.5px rgba(0,0,0,.45)); }
+}
 .wb-guide-halo { position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--wb-accent-2, #c8664f); opacity: 0; }
 .wb-guide-halo.on { animation: wb-halo .5s ease-out; }
 @keyframes wb-halo { from { opacity: .8; transform-origin: center; scale: .4; } to { opacity: 0; scale: 1.5; } }
