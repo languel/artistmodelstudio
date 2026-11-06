@@ -62,6 +62,26 @@ async function loadVisionLanguage(modelId, options) {
 }
 let currentModelId = null;
 
+/**
+ * Liquid's LFM3-1.7B ONNX graph takes an input named `logits_to_keep`, which transformers.js (4.4.0-next.0) only knows as `num_logits_to_keep`,
+ * so it stops with "Missing the following inputs: logits_to_keep". 1 keeps only the last position, which is all that generating needs.
+ * Wrap the session so the input is always given; harmless for graphs that do not ask for it.
+ */
+async function supplyLogitsToKeep(pipe) {
+  try {
+    const { Tensor } = await import('@huggingface/transformers');
+    for (const session of Object.values(pipe?.model?.sessions || {})) {
+      if (!session?.inputNames?.includes('logits_to_keep') || session.__logitsPatched) continue;
+      const run = session.run.bind(session);
+      // (transformers.js checks the inputs it knows against inputNames before running, so hide this one from the check and add it at the run)
+      const names = session.inputNames.filter(n => n !== 'logits_to_keep');
+      Object.defineProperty(session, 'inputNames', { value: names, configurable: true });
+      session.run = feeds => run({ ...feeds, logits_to_keep: new Tensor('int64', [1n], [1]).ort_tensor ?? new Tensor('int64', [1n], [1]) });
+      session.__logitsPatched = true;
+    }
+  } catch { /* not a graph that needs it */ }
+}
+
 export const WEBGPU_MODEL_PRESETS = [
   // Recommended in the browser (a model that runs here, no Ollama or server needed). Sizes are the download at the dtype given.
   { id: 'LiquidAI/LFM3-1.7B-ONNX', name: 'LFM3 1.7B (Liquid AI, newest, ~1.4GB; needs transformers.js 4.4)', group: 'Recommended', isLiquid: true, size: '~1.4GB', recommendedDtype: 'q4f16' },
@@ -87,7 +107,6 @@ export const WEBGPU_MODEL_PRESETS = [
   { id: 'webbrain-one/Ternary-Bonsai-2-2B-ONNX-WebGPU-Vision', name: 'Ternary Bonsai 2 2B (2-bit, sees pictures, ~1.4GB)', group: 'Experimental', isVL: true, dtypeMap: { embed_tokens: 'q2f16', decoder_model_merged: 'q2f16', vision_encoder: 'fp16' }, size: '~1.4GB' },
   { id: 'flackzz/Ternary-Bonsai-2-9B-ONNX-WebGPU', name: 'Ternary Bonsai 2 9B (2-bit, sees pictures)', group: 'Experimental', isVL: true, dtypeMap: { embed_tokens: 'q2f16', decoder_model_merged: 'q2f16', vision_encoder: 'fp16' } },
   { id: 'Mike0021/Ternary-Bonsai-2-4B-text-ONNX', name: 'Ternary Bonsai 2 4B, text only (2-bit, ~1GB)', group: 'Experimental', size: '~1GB', recommendedDtype: 'q2f16' },
-  { id: 'onnx-community/LFM3-1.7B-ONNX', name: 'LFM3 1.7B (Liquid AI, ~1.1GB)', group: 'Experimental', isLiquid: true, size: '~1.1GB', recommendedDtype: 'q4f16' },
   { id: 'LiquidAI/LFM2.5-2.6B-ONNX', name: 'LFM2.5 2.6B (Liquid AI, ~1.6GB)', group: 'Experimental', isLiquid: true, size: '~1.6GB', recommendedDtype: 'q4f16' },
   { id: 'LiquidAI/LFM2.5-8B-A1B-ONNX', name: 'LFM2.5 8B-A1B (Liquid AI, mixture of experts, 1B active)', group: 'Experimental', isLiquid: true, recommendedDtype: 'q4f16' },
   // Gemma 4 (WebGPU kernels)
@@ -199,6 +218,7 @@ export class WebGPUTransformersArtist extends Artist {
         }
       }
 
+      await supplyLogitsToKeep(pipelineInstance);
       currentModelId = modelId;
       this.isReady = true;
       return pipelineInstance;
@@ -215,10 +235,10 @@ export class WebGPUTransformersArtist extends Artist {
     const preset = WEBGPU_MODEL_PRESETS.find(p => p.id === model);
     const pipe = await this.initPipeline(model, this.onProgress);
     const userMsg = image && preset?.isVL ? { role: 'user', content: [{ type: 'image', image }, { type: 'text', text: user }] } : { role: 'user', content: user };
-    const out = await pipe([...(system ? [{ role: 'system', content: system }] : []), userMsg], { max_new_tokens: maxTokens, temperature, do_sample: temperature > 0 });
+    const out = await pipe([...(system ? [{ role: 'system', content: system }] : []), userMsg], { max_new_tokens: maxTokens, temperature, do_sample: temperature > 0, ...(/LFM3-1\.7B/.test(model) ? { tokenizer_encode_kwargs: { enable_thinking: false } } : {}) });   // (LFM3 1.7B thinks aloud unless its template is told not to)
     const gen = out[0]?.generated_text;
     const last = Array.isArray(gen) ? gen[gen.length - 1] : gen;
-    return String(typeof last === 'object' ? last.content : last || '');
+    return String(typeof last === 'object' ? (last.content ?? last.reasoning_content ?? '') : last || '');
   }
 
   /** Describe an image with a vision-language model (LFM2.5-VL). */
