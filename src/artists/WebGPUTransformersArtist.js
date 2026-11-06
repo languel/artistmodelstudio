@@ -24,7 +24,7 @@ async function loadVisionLanguage(modelId, options) {
   const model = await AutoModelForImageTextToText.from_pretrained(modelId, {
     device: options.device,
     // Recommended split: small fp16 embeddings and vision encoder, quantized decoder.
-    dtype: { embed_tokens: 'fp16', vision_encoder: 'fp16', decoder_model_merged: quant },
+    dtype: options.dtypeMap || { embed_tokens: 'fp16', vision_encoder: 'fp16', decoder_model_merged: quant },   // (a preset may name its own: the Bonsai builds are 2-bit)
     progress_callback: options.progress_callback
   });
   let blank = null;
@@ -82,6 +82,13 @@ export const WEBGPU_MODEL_PRESETS = [
   { id: 'onnx-community/LFM3-VL-2B-ONNX', name: 'LFM3-VL 2B (Liquid AI: pictures and video, ~1GB)', group: 'Sees pictures', isLiquid: true, isVL: true, size: '~1GB', recommendedDtype: 'q4f16' },
   { id: 'onnx-community/LFM2.5-VL-450M-ONNX', name: 'LFM2.5-VL 450M (sees pictures, ~450MB)', group: 'Sees pictures', isLiquid: true, isVL: true, size: '~450MB', recommendedDtype: 'q4f16' },
   { id: 'LiquidAI/LFM2.5-VL-3B-ONNX', name: 'LFM2.5-VL 3B (sees pictures, ~2.2GB)', group: 'Sees pictures', isLiquid: true, isVL: true, size: '~2.2GB', recommendedDtype: 'q4f16' },
+  // Experimental (being measured on the lesson test): ternary Bonsai 2 (Qwen3.5-based, 2-bit weights, takes images), and bigger LFMs
+  { id: 'webbrain-one/Ternary-Bonsai-2-4B-ONNX-WebGPU-Vision', name: 'Ternary Bonsai 2 4B (2-bit, sees pictures, ~2.1GB)', group: 'Experimental', isVL: true, dtypeMap: { embed_tokens: 'q2f16', decoder_model_merged: 'q2f16', vision_encoder: 'fp16' }, size: '~2.1GB' },
+  { id: 'webbrain-one/Ternary-Bonsai-2-2B-ONNX-WebGPU-Vision', name: 'Ternary Bonsai 2 2B (2-bit, sees pictures, ~1.4GB)', group: 'Experimental', isVL: true, dtypeMap: { embed_tokens: 'q2f16', decoder_model_merged: 'q2f16', vision_encoder: 'fp16' }, size: '~1.4GB' },
+  { id: 'flackzz/Ternary-Bonsai-2-9B-ONNX-WebGPU', name: 'Ternary Bonsai 2 9B (2-bit, sees pictures)', group: 'Experimental', isVL: true, dtypeMap: { embed_tokens: 'q2f16', decoder_model_merged: 'q2f16', vision_encoder: 'fp16' } },
+  { id: 'Mike0021/Ternary-Bonsai-2-4B-text-ONNX', name: 'Ternary Bonsai 2 4B, text only (2-bit, ~1GB)', group: 'Experimental', size: '~1GB', recommendedDtype: 'q2f16' },
+  { id: 'LiquidAI/LFM2.5-2.6B-ONNX', name: 'LFM2.5 2.6B (Liquid AI, ~1.6GB)', group: 'Experimental', isLiquid: true, size: '~1.6GB', recommendedDtype: 'q4f16' },
+  { id: 'LiquidAI/LFM2.5-8B-A1B-ONNX', name: 'LFM2.5 8B-A1B (Liquid AI, mixture of experts, 1B active)', group: 'Experimental', isLiquid: true, recommendedDtype: 'q4f16' },
   // Gemma 4 (WebGPU kernels)
   { id: 'google/gemma-4-E2B-it-qat-mobile-transformers', name: 'Gemma 4 E2B (QAT mobile, WebGPU kernels, ~980MB)', group: 'Gemma 4', isGemma4: true, size: '~980MB', recommendedDtype: 'q4f16' }
 ];
@@ -168,6 +175,7 @@ export class WebGPUTransformersArtist extends Artist {
       const options = {
         device: this.device,
         dtype: chosenDtype,
+        dtypeMap: preset?.dtypeMap,
         progress_callback: (progress) => {
           if (progressCallback) progressCallback(progress);
           if (this.onProgress) this.onProgress(progress);
