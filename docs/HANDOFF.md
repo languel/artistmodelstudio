@@ -345,3 +345,8 @@ Instead of one model for everything, stay in the Liquid ecosystem and give each 
 **Browser memory is the constraint.** Omni (1.6 GB) + a coder (1 to 2 GB) + a VL (1 GB) is 4 to 5 GB of weights: load a role on first use, keep the last two or three, evict the rest, and show it (the status line already shows downloads); a slow first use is the cost, so say so.
 
 **Honest state:** for code, the Liquid models measured so far trail the Qwen coders by a wide margin (9/14 and 7/14 against 14/14). Whether an all-Liquid code role is realistic depends on the LFM3-1.7B and LFM2.5-8B-A1B results and on fine-tuning a small LFM on the lesson boards and the request log.
+
+## Update, end of 5 Nov 2026 (LFM catalog and tests)
+- Catalog of LFM builds by runtime (browser ONNX, MLX, Ollama GGUF, Spaces) is in `docs/quick-commands.md`. Results: LFM2.5-24B-A2B 13/14 (Ollama), lfm3:1.7b 8, LFM2.5-2.6B browser 8, LFM3-Omni 7-9, onnx-community LFM3-1.7B browser 3 (thinks aloud). The user leans to a ~2B versatile model in the browser, bigger (5-6 GB) acceptable but not default; Ollama/MLX for personal use (Mac M5).
+- Removed presets: danyalmalik Qwen3-8B / Nemotron Bolt (Quick Inference layout, do not load). Added: `onnx-community/LFM3-1.7B-ONNX` (loads; needs thinking suppressed).
+- Open: Bonsai browser builds (4B Vision error "undefined is not iterable" undiagnosed, get a stack trace); LFM3 tooling experiments; try `@huggingface/transformers@4.4.0-next.0` for Liquid's LFM3-1.7B-ONNX; MLX route for personal use (mlx-lm / LM Studio, LFM2.5-24B-A2B-MLX-4bit).

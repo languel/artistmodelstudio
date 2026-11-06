@@ -59,6 +59,21 @@ ul{padding-left:1.2em}li{margin:.25em 0}code{background:var(--card);border:1px s
 <li>A model-menu bug (&ldquo;not installed&rdquo; on models you have), a settings bug (a saved 0.4 temperature that was only a default), and a stale-library bug in the dev server are fixed.</li>
 </ul>
 
+<h2>Update: Liquid (LFM) models in the browser and beyond</h2>
+<p>Formats in one line each: <b>ONNX</b> is what the browser runs (WebGPU); <b>MLX</b> is Apple-silicon native (your Mac); <b>GGUF</b> is Ollama and LM Studio; <b>LiteRT / MNN</b> are phone runtimes and not for us. Full catalog with sizes: <code>docs/quick-commands.md</code>.</p>
+<div class="tbl"><table><tr><th>Model</th><th>Where</th><th>Score /14</th><th>Note</th></tr>
+<tr><td>LFM2.5-24B-A2B (13&nbsp;GB, 2B active)</td><td>Ollama</td><td><b>13</b></td><td>Best LFM; for your own machine. MLX 4/6-bit builds exist too.</td></tr>
+<tr><td>LFM3 1.7B</td><td>Ollama</td><td>8</td><td>Not the same model as Omni.</td></tr>
+<tr><td>LFM2.5-2.6B</td><td>Browser</td><td>8</td><td>Loads today.</td></tr>
+<tr><td>LFM3-Omni 2B</td><td>Ollama</td><td>7</td><td>Browser run was 9.</td></tr>
+<tr><td>LFM3 1.7B (onnx-community)</td><td>Browser</td><td>3</td><td>Loads, but thinks aloud and runs out of tokens.</td></tr></table></div>
+<ul>
+<li>At about 2B, Qwen2.5-Coder 1.5B (10) is still the best code writer in the browser; the LFM models are not better at code. Keep LFM3-Omni for voice and tools, and route code writing through the Code model.</li>
+<li>Liquid's own LFM3-1.7B ONNX needs a newer transformers.js (<code>logits_to_keep</code>). The Omni and Audio ONNX builds need architectures that even 4.4.0-next.0 lacks; Omni runs through Liquid's own runtime.</li>
+<li>The danyalmalik builds (Qwen3-8B, Nemotron Bolt, DeepSeek R1 7B, Flint) use the Quick Inference layout and do not load in our engine; presets removed. They would need that runtime as a second engine.</li>
+<li>Not done: Bonsai browser builds (the 4B Vision load error is undiagnosed) and the LFM3 tooling experiments.</li>
+</ul>
+
 <h2>Needs a decision from you</h2>
 <ul>
 <li><b>Make the browser tier the default for students?</b> It is one click now (<code>/browser</code>); a first-run prompt when Ollama is missing is a small step.</li>
