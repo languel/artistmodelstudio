@@ -259,11 +259,10 @@ input, select, textarea { font: inherit; color: var(--wb-text); }
 .wb-picker-status.warn::before { content: '● '; color: #b58d5a; }
 
 /* ---- guide (visible automation) ---- */
-:root { --wb-guide-fill: #f4f4f2; --wb-guide-stroke: #1c1c1c; --wb-guide-body: rgba(20, 20, 20, 0.5); --wb-guide-glow: rgba(224, 160, 48, 0.8); }
-:root[data-theme="light"] { --wb-guide-fill: #1f1f1f; --wb-guide-stroke: #fafafa; --wb-guide-body: rgba(250, 250, 250, 0.6); }
+:root { --wb-guide-fill: #ffffff; --wb-guide-stroke: #1c1c1c; --wb-guide-body: var(--wb-accent-2, #c8664f); --wb-guide-glow: color-mix(in srgb, var(--wb-accent-2, #c8664f) 85%, transparent); }   /* the agent's pointer is the accent color: it is not yours */
 .wb-guide-layer { position: fixed; inset: 0; pointer-events: none; z-index: 90; }
 .wb-guide-cursor { position: absolute; left: 0; top: 0; transition: opacity .3s; filter: drop-shadow(0 0 5px var(--wb-guide-glow)) drop-shadow(0 1px 1.5px rgba(0,0,0,.55)); }
-.wb-guide-halo { position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--wb-text); opacity: 0; }
+.wb-guide-halo { position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--wb-accent-2, #c8664f); opacity: 0; }
 .wb-guide-halo.on { animation: wb-halo .5s ease-out; }
 @keyframes wb-halo { from { opacity: .8; transform-origin: center; scale: .4; } to { opacity: 0; scale: 1.5; } }
 .wb-guide-card { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 91; width: min(520px, 90vw); background: var(--wb-panel); border: 1px solid var(--wb-line); border-radius: 8px; box-shadow: var(--wb-shadow); }
