@@ -248,6 +248,8 @@ export function mountTimeline(root, app) {
 
   const saveTake = async () => {
     const take = rootTake();
+    take.clips = take.clips.filter(c => c.live !== 'history');   // (the live History track is rebuilt, not kept)
+    if (take._histKey) take._histKey = null;
     delete take.original;
     take.duration = duration(take);
     if (take.assetId) await app.assetStore.update(take.assetId, { program: JSON.parse(JSON.stringify(take)), title: take.title, meta: { clips: take.clips.length, duration: take.duration } });
@@ -502,7 +504,30 @@ export function mountTimeline(root, app) {
     if (ev.shiftKey) { followHold = true; scrollTo(lanes.scrollLeft + d); return; }
     zoomBy(Math.exp(-d * 0.003), viewW() / 2);
   }, { passive: false });
+  // ---- the History track ---------------------------------------------------------------------
+  // Every take carries the drawing's History as a composition on a muted track of its own: one clip, "History", that holds the changes made so far, one
+  // clip each, at the pace they were made. Unmute the track to replay it; open the composition (double-click) to inspect, move or delete steps.
+  // It is kept in step with History (rebuilt when History changes) and never saved with the take (see saveTake). Only on the take itself.
+  const syncHistory = () => {
+    const take = P()?.take, H = app.history;
+    if (!take || !H || compStack.length) return;
+    const key = `${H.seq}|${H.entries.length}|${H.entries.filter(e => e.muted).length}`;
+    if (take._histKey === key) return;
+    Object.defineProperty(take, '_histKey', { value: key, writable: true, configurable: true, enumerable: false });
+    let tr = tracksOf(take).find(t => t.live === 'history');
+    if (!tr) { tr = addTrack(take, 'comp', 'History'); tr.live = 'history'; tr.muted = true; }
+    const inner = H.clipsFrom(H.entries.slice(-200).map(e => e.id)).map((c, i) => ({ ...c, id: `hist${H.seq}x${i}` }));
+    const dur = Math.max(1, ...inner.map(c => c.start + c.dur));
+    const old = take.clips.find(c => c.live === 'history');
+    const clip = { id: old?.id || clipId(), track: 'comp', lane: tr.id, live: 'history', start: old?.start ?? 0, dur, rate: 1, label: `History (${H.entries.length})`, fx: {}, comp: { tracks: [{ id: 'draw', kind: 'draw', name: 'Drawing' }], clips: inner } };
+    take.clips = [...take.clips.filter(c => c.live !== 'history'), ...(inner.length ? [clip] : [])];
+    touch(take);
+  };
+  let histQueued = false;
+  app.history?.on(() => { if (histQueued) return; histQueued = true; requestAnimationFrame(() => { histQueued = false; if (P()?.take) { syncHistory(); drawLanes(); } }); });
+
   const drawLanes = () => {
+    syncHistory();
     const p = P(), rec = live(), take = p?.take || rec;
     // No tracks until there is something to put on one (a recording, a drop, an insert) or you add one.
     const tracks = take ? tracksOf(take) : [];
