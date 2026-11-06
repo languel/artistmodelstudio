@@ -8,7 +8,7 @@ import { runScript, runScoreInto, SCRIPT_REFERENCE } from '../process/script.js'
 import { EXERCISES } from '../process/exercises.js';
 import { ROLES, STAGE_KINDS, normalizeElement } from '../process/document.js';
 import { BRUSHES } from '../process/brushes.js';
-import { shapePoints } from './shapes.js';
+import { shapePoints, polygonOf } from './shapes.js';
 import { FX } from '../process/fx.js';
 import { toSVG, toExcalidraw, toP5, processSheet } from '../process/exports.js';
 import { toP5Min } from '../process/p5min.js';
@@ -72,10 +72,11 @@ export function workbenchTools(app) {
       return f === 'svg' ? { svg: toSVG(one) } : f === 'excalidraw' ? toExcalidraw(one) : f === 'p5' ? { sketch: toP5(one) } : a.board ? one : doc();
     } },
     { name: 'ams_set', description: 'Replace the process document (JSON).', inputSchema: S({ doc: { type: 'object' } }, ['doc']), run: (a) => { app.loadDocument(a.doc, 'agent set'); return { ok: true }; } },
-    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color (stroke), fill, why, text (notes), path (smooth: a curve through the points; straight: segments). Or a shape instead of points: shape circle | rect with box [x0, y0, x1, y1] (a plane mark; a circle has sides points, 3–64, default 12, round when smooth and a polygon when path is straight; a rectangle has round 0–1, 1 a pill, and is always straight). With board (id or title), points are relative to that board\'s top-left and the mark joins it; without, points are world units and the mark joins the board it lands on (the blackboard outside boards).', inputSchema: S({ role: str('Role'), board: str('Board id or title'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), path: str('smooth | straight'), shape: str('circle | rect'), box: { type: 'array' }, repeat: { type: 'object', description: '{count, dx, dy}: add count copies, each moved by dx, dy from the last (a row: dx 300; a column: dy 300)' }, sides: num('Circle sides (default 12)'), round: num('Rectangle roundness 0–1 (default 0)'), by: { type: 'object' } }, []), run: (a) => {
+    { name: 'ams_add', description: 'Add one element: role (point|line|plane|guide|gesture|note), points [[x,y],...], stage id or name (default: active), brush, params, color (stroke), fill, why, text (notes), path (smooth: a curve through the points; straight: segments). Or a shape instead of points: shape circle | rect | triangle | diamond | pentagon | hexagon | polygon (with sides) with box [x0, y0, x1, y1] (a plane mark; a circle has sides points, 3–64, default 12, round when smooth and a polygon when path is straight; a rectangle has round 0–1, 1 a pill, and is always straight). With board (id or title), points are relative to that board\'s top-left and the mark joins it; without, points are world units and the mark joins the board it lands on (the blackboard outside boards).', inputSchema: S({ role: str('Role'), board: str('Board id or title'), points: { type: 'array' }, stage: str('Stage id or name'), brush: str('Brush id'), params: { type: 'object' }, color: str('Color'), why: str('Reason'), text: str('Note text'), path: str('smooth | straight'), shape: str('circle | rect'), box: { type: 'array' }, repeat: { type: 'object', description: '{count, dx, dy}: add count copies, each moved by dx, dy from the last (a row: dx 300; a column: dy 300)' }, sides: num('Circle sides (default 12)'), round: num('Rectangle roundness 0–1 (default 0)'), by: { type: 'object' } }, []), run: (a) => {
       const st = doc().stages.find(s => s.id === a.stage || s.name === a.stage) || app.activeStage;
       // Good assumptions beat refusals: a model that says "shape" or leaves the geometry out gets a sensible one (and is told what was assumed).
       let assumed = '';
+      { const poly = a.shape && polygonOf(a.shape, a.sides); if (poly) { a.shape = poly.shape; a.sides = poly.sides; a.path = poly.path; } }   // (triangle, diamond, pentagon…: a circle with straight sides)
       if (a.shape) a.shape = ({ box: 'rect', square: 'rect', rectangle: 'rect', oval: 'circle', ellipse: 'circle', round: 'circle', dot: 'circle' })[String(a.shape).toLowerCase()] || a.shape;
       const ROLE = { shape: 'rect', rectangle: 'rect', square: 'rect', box: 'rect', circle: 'circle', ellipse: 'circle', oval: 'circle', plane: null, dot: 'point', polyline: 'line', path: 'line', stroke: 'line', curve: 'line' };
       if (a.role && !ADD_ROLES.includes(a.role) && a.role in ROLE) { const r = ROLE[a.role]; if (r === 'circle' || r === 'rect') { a.shape ||= r; a.role = 'plane'; } else a.role = r || 'plane'; }
@@ -93,7 +94,7 @@ export function workbenchTools(app) {
         a.role = 'plane';
         a.points = shapePoints(a.shape, Math.min(bx0, bx1), Math.min(by0, by1), Math.max(bx0, bx1), Math.max(by0, by1), { sides: a.sides, round: a.round }).map(([x, y]) => [x, y]);
         if (a.shape === 'rect') a.path = 'straight';
-      } else if (!Array.isArray(a.points)) throw new Error('ams_add needs points [[x, y], ...], or a shape (circle | rect) with a box [x0, y0, x1, y1]. For a circle: {shape: "circle", box: [x0, y0, x1, y1]}');
+      } else if (!Array.isArray(a.points)) throw new Error('ams_add needs points [[x, y], ...], or a shape (circle | rect | triangle | diamond | pentagon | hexagon) with a box [x0, y0, x1, y1]. For a circle: {shape: "circle", box: [x0, y0, x1, y1]}');
       if (!ADD_ROLES.includes(a.role)) throw new Error(`role must be one of ${ADD_ROLES.join(', ')}${a.role ? ` (you gave "${a.role}")` : ''}. For a circle or rectangle use shape + box`);
       a.points = normalizePoints(a.points);
       // Marks that cannot be seen are refused with the way out, rather than added invisibly.

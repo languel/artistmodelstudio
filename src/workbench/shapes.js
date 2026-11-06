@@ -21,3 +21,13 @@ export function shapePoints(tool, x0, y0, x1, y1, { sides = 12, round = 0 } = {}
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, rx = (x1 - x0) / 2, ry = (y1 - y0) / 2;
   return timed(Array.from({ length: n }, (_, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / n; return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]; }));
 }
+
+/**
+ * More names for a shape than the two tools have: a triangle, a diamond, a pentagon… are a circle with that many straight sides (a regular polygon in the box,
+ * pointing up). Returns { shape: 'circle' | 'rect', sides?, path? } for a name, or null if the name is not one of these.
+ */
+export function polygonOf(name, sides) {
+  const n = String(name || '').toLowerCase();
+  const N = { triangle: 3, diamond: 4, rhombus: 4, pentagon: 5, hexagon: 6, octagon: 8, polygon: Number(sides) || 5 }[n];
+  return N ? { shape: 'circle', sides: n === 'polygon' ? Math.max(3, Math.min(64, N)) : N, path: 'straight' } : null;
+}

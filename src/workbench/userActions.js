@@ -102,6 +102,8 @@ export class UserActions {
       if (!app.store) return setTimeout(later, 50);
       app.store.subscribe((doc, reason) => this.effect(reason && reason !== 'change' ? String(reason) : 'Edit the drawing'));
       app.on('tool', () => this.effect(`Tool: ${this.toolName()}`));
+      // The agent's own (shown) tool calls, in the same list: what it did, as a line you could follow by hand
+      app.on('tool-call', (name, args, o) => { if (o?.quiet || o?.replay) return; this.cue({ kind: 'agent', button: 'agent', input: `Agent · ${String(name).replace(/^ams_/, '').replace(/_/g, ' ')}`, where: 'Agent', fallback: o?.summary || '', ui: { name: o?.summary || '', tool: this.toolName() } }); });
       app.on('selection', () => { const n = app.canvas?.selected?.size || 0; this.effect(n ? `Select ${n} mark${n === 1 ? '' : 's'}` : 'Select nothing'); });
       app.on('log', () => { const l = app.logLines?.at(-1); if (l && Date.now() - l.t < 100) this.effect(l.text.length > 90 ? `${l.text.slice(0, 88)}…` : l.text, 'log'); });
       const watchPlayer = () => {

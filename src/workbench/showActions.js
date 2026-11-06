@@ -6,6 +6,7 @@
  * current session; a session starts with a baseline copy of the document, so
  * "how did you do that?" can replay it with the guide.
  */
+import { shapePoints, polygonOf } from './shapes.js';
 import { normalizeElement } from '../process/document.js';
 
 const SESSIONS_KEY = 'ams_agent_sessions_v1';
@@ -40,9 +41,19 @@ export const SHOW = {
   async ams_run_score(g) { await g.moveTo('panel:script'); await g.moveTo('button:run-score'); },
   async ams_exercise(g, a) { if (a.load) { await g.moveTo('panel:script'); await g.moveTo('button:run-score'); } },
   async ams_add(g, a, app) {
-    await g.moveTo(`tool:${a.role}`);
-    const pts = (a.points || []).map((p, i) => [p[0], p[1], p[2] ?? i * 16, p[3] ?? 0.5]);
-    const base = { role: a.role, stage: 'draft', realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, seed: 1 };
+    // What the agent is about to draw, as the tool will make it: a circle or rect with a box is its outline; the tool the person would pick for it
+    // is picked for real (the cursor goes to the toolbar and the tool changes), then the stroke is traced with the cursor as it appears.
+    let role = a.role, points = a.points;
+    if (a.shape && Array.isArray(a.box) && a.box.length === 4) {
+      const [x0, y0, x1, y1] = a.box.map(Number), poly = polygonOf(a.shape, a.sides), shape = poly ? 'circle' : ['circle', 'oval', 'ellipse', 'round', 'dot'].includes(String(a.shape).toLowerCase()) ? 'circle' : 'rect';
+      points = shapePoints(shape, Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1), { sides: poly ? poly.sides : a.sides, round: a.round });
+      role = 'plane';
+    }
+    role = ['point', 'line', 'plane'].includes(role) ? role : 'plane';
+    await g.moveTo(`tool:${role}`);
+    if (g.active && app.tool !== role) app.setTool?.(role);
+    const pts = (points || []).map((p, i) => [p[0], p[1], p[2] ?? i * 16, p[3] ?? 0.5]);
+    const base = { role, stage: 'draft', realize: a.brush ? { brush: a.brush, params: a.params || {} } : undefined, color: a.color, fill: a.fill, seed: 1 };
     await g.trace(pts, n => { app.canvas.draft = normalizeElement({ ...base, points: pts.slice(0, n) }, 'draft'); app.canvas.invalidate(); });
     app.canvas.draft = null;
   },
