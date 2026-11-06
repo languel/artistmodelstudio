@@ -6,7 +6,8 @@
 import { askConfirm, askText } from '../dialog.js';
 import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
-import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
+import { clipWords } from '../../process/clipWords.js';
+import { duration, summarize, touch, flatClips, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
 import { showMenu } from '../menu.js';
 import { TimelineUndo } from '../timelineUndo.js';
 import { liveClock } from '../liveClock.js';
@@ -427,7 +428,22 @@ export function mountTimeline(root, app) {
   // The playhead is one element moved by a transform every frame; lanes are rebuilt only when clips change.
   const playhead = h('div', { class: 'wb-tl-playhead' });
   let laneWidth = 0;
-  const setHead = ms => { playhead.style.transform = `translateX(${x(ms)}px)`; setNavHead(ms); };
+  // What the clips under the playhead say, beside it, as it passes (Settings › Timeline › Text at the playhead; off by default). Muted tracks too: that is the point.
+  const now = h('div', { class: 'wb-tl-now', hidden: true });
+  playhead.append(now);
+  let nowKey = '';
+  const paintNow = ms => {
+    if (setting('ams_tl_head_text', '0') !== '1') { if (!now.hidden) { now.hidden = true; nowKey = ''; } return; }
+    const take = P()?.take || live();
+    const act = take ? flatClips(take).filter(c => c.track !== 'comp' && ms >= c.start && ms < c.start + Math.max(c.dur || 0, 1)).slice(-4) : [];
+    const key = act.map(c => `${c.id}${c.muted ? 'm' : ''}`).join('|');
+    if (key === nowKey && !now.hidden) return;
+    nowKey = key;
+    now.replaceChildren(...act.map(c => h('div', { class: `wb-tl-now-line t-${c.track}${c.muted ? ' muted' : ''}` }, c.track === 'action' ? `Action: ${clipWords(c)}` : clipWords(c))));
+    now.hidden = !act.length;
+  };
+  app.timelineRedraw = () => { nowKey = ''; drawLanes(); paintNow(P()?.t || 0); };
+  const setHead = ms => { playhead.style.transform = `translateX(${x(ms)}px)`; setNavHead(ms); paintNow(ms); };
   // Follow in pages: when the playhead nears the right edge, jump so it sits near the left. Not while
   // the user has moved the view away (until the playhead comes back into it, or play starts again).
   const follow = ms => {
@@ -796,11 +812,19 @@ export function mountTimeline(root, app) {
     { label: 'Delete track', hint: 'Its clips go too', disabled: !tr.live && tracksOf(take).filter(t => t.kind === tr.kind).length < 2 && take.clips.some(c => laneOf(c) === tr.id), run: () => { if (tr.live === 'history') take.noHistory = true; if (tr.live === 'interactions') take.noInteractions = true; take.clips = take.clips.filter(c => laneOf(c) !== tr.id); take.tracks = take.tracks.filter(t => t !== tr); edited(); } }
   ];
 
+  // What hovering a clip says (Settings › Timeline › Clip tips): brief is its kind, time and label; full is the clip in words, with who made it and what it changed.
+  const setting = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+  const tipOf = (c, text) => {
+    const head = `${TRACK_LABEL[c.track]} · ${fmt(c.start)}${setting('ams_tl_tip', 'brief') === 'full' ? `–${fmt(c.start + (c.dur || 0))}` : ''} · ${((c.dur || 0) / 1000).toFixed(1)} s`;
+    if (setting('ams_tl_tip', 'brief') !== 'full') return `${head}\n${text}`;
+    const more = [c.by && `by ${c.by}`, c.ui?.changes?.length && `made ${c.ui.changes.length} History entr${c.ui.changes.length === 1 ? 'y' : 'ies'}`, c.live && `live ${c.live} track`].filter(Boolean).join(' · ');
+    return `${head}\n${clipWords(c)}${more ? `\n${more}` : ''}`;
+  };
   const clipEl = (c, readOnly = false) => {
     const w = Math.max(6, x(c.dur || 0));
     const rate = c.rate > 0 ? c.rate : 1;
     const text = c.track === 'say' || c.track === 'title' ? c.text : c.track === 'draw' ? drawLabel(c) : c.track === 'camera' ? `${Math.round((c.z || 1) * 100)}%` : c.track === 'comp' ? `${c.label || 'Composition'}${Math.abs(rate - 1) > 0.001 ? ` ×${+rate.toFixed(2)}` : ''}` : c.label || c.name || '';
-    const el = h('div', { class: `wb-tl-clip t-${c.track}${picked.has(c.id) ? ' sel' : ''}`, 'data-id': c.id, style: { left: `${x(c.start)}px`, width: `${w}px` }, title: `${TRACK_LABEL[c.track]} · ${fmt(c.start)} · ${(c.dur / 1000).toFixed(1)} s\n${text}${c.track === 'comp' ? '\nDouble-click to open; drag the right edge to stretch it (Alt: trim)' : ''}` },
+    const el = h('div', { class: `wb-tl-clip t-${c.track}${picked.has(c.id) ? ' sel' : ''}`, 'data-id': c.id, style: { left: `${x(c.start)}px`, width: `${w}px` }, title: `${tipOf(c, text)}${c.track === 'comp' ? '\nDouble-click to open; drag the right edge to stretch it (Alt: trim)' : ''}` },
       h('span', { class: 'wb-tl-cliptext' }, text), h('span', { class: 'wb-tl-grip', title: c.track === 'comp' ? 'Drag to stretch (Alt: trim)' : 'Drag to retime' }));
     // A composition shows its clips small inside it, at its rate.
     if (c.track === 'comp' && c.comp?.clips?.length) {

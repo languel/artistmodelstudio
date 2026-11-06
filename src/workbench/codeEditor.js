@@ -4,7 +4,7 @@
  * line marked after a run.
  */
 import { EditorState, Compartment } from '@codemirror/state';
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, hoverTooltip, placeholder as placeholderExt } from '@codemirror/view';
+import { EditorView, Decoration, ViewPlugin, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, hoverTooltip, placeholder as placeholderExt } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { javascript } from '@codemirror/lang-javascript';
 import { markdown } from '@codemirror/lang-markdown';
@@ -71,6 +71,8 @@ const theme = EditorView.theme({
   '.cm-lintRange-error': { backgroundImage: 'none', textDecoration: 'underline wavy #c0563f' },
   '.cm-diagnostic-error': { borderLeftColor: '#c0563f' },
   '.cm-hover-doc': { padding: '6px 8px', maxWidth: '340px', fontSize: '12px' },
+  '.cm-headline': { fontWeight: '600' },
+  '.cm-headline span': { color: 'var(--wb-text) !important', fontStyle: 'normal !important' },
   '.cm-hover-doc code': { fontFamily: 'var(--font-mono, monospace)' }
 });
 
@@ -125,6 +127,27 @@ if (typeof window !== 'undefined') Object.defineProperty(window, '__codeEditor',
 /** The code editor last used (for the buttons that act on "the" editor). */
 export const activeCodeEditor = () => lastEditor;
 
+/**
+ * Headline comments: a line that starts `//!` is a note to the reader that matters (what a clip is, in words), so it is not dimmed like other comments:
+ * the marker stays quiet and the text is bold and in the text color.
+ */
+const HEADLINE = Decoration.line({ class: 'cm-headline' });
+const headlines = ViewPlugin.fromClass(class {
+  constructor(view) { this.decorations = this.build(view); }
+  update(u) { if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view); }
+  build(view) {
+    const out = [];
+    for (const { from, to } of view.visibleRanges) {
+      for (let pos = from; pos <= to;) {
+        const line = view.state.doc.lineAt(pos);
+        if (/^\s*\/\/!/.test(line.text)) out.push(HEADLINE.range(line.from));
+        pos = line.to + 1;
+      }
+    }
+    return Decoration.set(out);
+  }
+}, { decorations: v => v.decorations });
+
 export function createCodeEditor(parent, { value = '', onRun, onChange, onNotice, getDocLines = () => [], placeholder = '', language = 'ams' } = {}) {
   const wrap = new Compartment(), lang = new Compartment(), indent = new Compartment(), dots = new Compartment();
   let live = null;
@@ -139,7 +162,7 @@ export function createCodeEditor(parent, { value = '', onRun, onChange, onNotice
         dots.of(codeView().colorDots === false ? [] : colorDots()),
         nums.of(codeView().lineNumbers ? lineNumbers() : []), foldGutter(), params.of(paramsExt()), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(),
         indentOnInput(), bracketMatching(), closeBrackets(), highlightSelectionMatches(), lintGutter(), linter(() => [], { delay: 1e9 }),
-        lang.of(languageFor(language, getDocLines, codeView().help)), syntaxHighlighting(highlight), theme,
+        lang.of(languageFor(language, getDocLines, codeView().help)), syntaxHighlighting(highlight), theme, headlines,
         wrap.of(codeView().wrap === false ? [] : EditorView.lineWrapping), indent.of([indentUnit.of(' '.repeat(codeView().tabSize || 2)), EditorState.tabSize.of(codeView().tabSize || 2)]),
         placeholder ? placeholderExt(placeholder) : [],
         keymap.of([

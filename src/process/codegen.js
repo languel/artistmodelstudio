@@ -1,3 +1,4 @@
+import { clipWords } from './clipWords.js';
 /**
  * Everything as code: marks and timeline clips written as the code that makes them, and that code
  * applied back. A mark's code is the score line that would create it (in artboard units, so
@@ -101,7 +102,7 @@ export function clipCode(c) {
     const d = o.diff;
     o.diff = `kept: ${[d.add?.length && `${d.add.length} added`, d.update?.length && `${d.update.length} changed`, d.remove?.length && `${d.remove.length} removed`].filter(Boolean).join(', ') || 'document settings'}`;
   }
-  const head = `// ${c.track} clip · ${(c.start / 1000).toFixed(1)}–${((c.start + c.dur) / 1000).toFixed(1)} s (times in ms)`;
+  const head = `// ${c.track} clip · ${(c.start / 1000).toFixed(1)}–${((c.start + c.dur) / 1000).toFixed(1)} s (times in ms)\n//! ${clipWords(c).replace(/\n/g, ' ')}`;   // (in words, so the code does not have to be read to know what the clip is)
   return `${head}\nclip(${JSON.stringify(o, null, 2)})\n`;
 }
 
