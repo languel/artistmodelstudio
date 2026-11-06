@@ -5,6 +5,8 @@
  * and when. Strokes on the canvas are not here (History has them); neither are pointer moves. Off until switched on (the Timeline's pointer
  * button). Shown as a track of the open take, and played back by the Guide's cursor travelling to each control (it shows, it does not redo).
  */
+import { effectsOf } from './userActions.js';
+
 const KEY = 'ams_interactions_capture';
 const MAX = 500;
 
@@ -33,7 +35,7 @@ export class Interactions {
     const H = this.app.history, ui = c.ui || {};
     const changes = (H?.entries || []).filter(e => e.t >= c.t - 60 && e.t <= c.t + 700).map(e => ({ id: e.id, label: e.label, summary: e.summary }));
     const entry = { id: `i${++this.seq}`, t: c.t, kind: c.kind, input: c.input, button: c.button || '', where: c.where || '', target: ui.target || null, name: ui.name || '', tool: ui.tool || '', command: ui.command || null,
-      drag: Boolean(ui.drag), since: ui.since || c.t, from: ui.from || null, to: ui.to || null, world: ui.world || null, effects: (c.effects || []).filter(f => f.kind !== 'log').map(f => f.text), changes };   // (effects: the app's own log lines are not what the step did)
+      drag: Boolean(ui.drag), since: ui.since || c.t, from: ui.from || null, to: ui.to || null, world: ui.world || null, effects: effectsOf((c.effects || []).filter(f => f.kind !== 'log')), changes };   // (effects: the app's own log lines are not what the step did)
     this.entries.push(entry);
     if (this.entries.length > MAX) this.entries.shift();
     this.emit();

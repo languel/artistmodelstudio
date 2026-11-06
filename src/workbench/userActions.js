@@ -44,10 +44,27 @@ const keycaps = c => {
   if (!rest) return mods;
   if (c.kind === 'key') return `${mods}${cap(rest)}`;
   let g;
-  if ((g = /^(left|right|middle|pen|touch) (click|drag)$/.exec(rest))) return `${mods}${cap(BUTTON[g[1]])}${cap(g[2])}`;
-  if ((g = /^scroll \(zoom\)$/.exec(rest))) return `${mods}${cap('scroll')}${cap('zoom')}`;
-  if ((g = /^scroll (up|down|left|right)$/.exec(rest))) return `${mods}${cap('scroll')}${cap(ARROW[g[1]])}`;
+  if ((g = /^(left|right|middle|pen|touch) (click|drag)$/.exec(rest))) return `${mods}<kbd class="wide"><b>${esc(BUTTON[g[1]])}</b>${esc(g[2])}</kbd>`;
+  if ((g = /^scroll \(zoom\)$/.exec(rest))) return `${mods}<kbd class="wide"><b>scroll</b>zoom</kbd>`;
+  if ((g = /^scroll (up|down|left|right)$/.exec(rest))) return `${mods}<kbd class="wide"><b>scroll</b>${esc(ARROW[g[1]])}</kbd>`;
   return `${mods}<span class="wb-ua-gesture">${esc(rest)}</span>`;
+};
+
+/**
+ * What a cue did, as lines. A selection that follows (a drag draws a mark and the new mark is selected; starting a stroke clears the selection) is
+ * only the tool's own side effect when something else was done, so it is left out then; alone it is the point of the click: "Select 2 marks", "Deselect".
+ */
+export function effectsOf(effects = []) {
+  const main = effects.filter(f => !/^Select /.test(f.text));
+  return (main.length ? main : effects).map(f => (f.text === 'Select nothing' ? 'Deselect' : f.text));
+}
+
+/** A gesture in a few characters: "L click", "R drag", "scroll ↑" (the keycaps show the same). */
+export const shortInput = c => {
+  const g = /^([⌘⌃⌥⇧]*)\s*(left|right|middle|pen|touch) (click|drag)$/.exec(c.input);
+  if (g) return `${g[1]}${BUTTON[g[2]]} ${g[3]}`;
+  const w = /^([⌘⌃⌥⇧]*)\s*scroll (up|down|left|right)$/.exec(c.input);
+  return w ? `${w[1]}scroll ${ARROW[w[2]]}` : c.input;
 };
 
 export class UserActions {
@@ -216,7 +233,7 @@ export class UserActions {
   render() {
     if (!this.visible) return;
     const el = this.el, cur = this.cues.at(-1), q = sel => el.querySelector(sel);
-    const what = c => (c.effects.length ? c.effects.map(f => f.text).join(' · ') : c.fallback || '');
+    const what = c => (c.effects.length ? effectsOf(c.effects).join(' · ') : c.fallback || '');
     const tag = c => (c.kind === 'key' ? 'key' : c.kind === 'agent' ? 'agent' : c.button === 'scroll' ? 'wheel' : c.button === 'pen' || c.button === 'touch' ? c.button : 'mouse');
     q('.wb-ua-glyph').innerHTML = !cur ? MOUSE('') : cur.kind === 'key' ? KEYBOARD : MOUSE(cur.button);
     // The latest one: the key or gesture large, what it did beside it, where it was under it. One line each, so the box never changes size.
@@ -232,7 +249,7 @@ export class UserActions {
     more.title = earlier.length ? `${this.minimal ? 'Show' : 'Hide'} the ${n} earlier action${n === 1 ? '' : 's'}` : 'Nothing earlier yet';
     more.disabled = !earlier.length;
     const prev = this.minimal ? [] : earlier.slice(0, SHOWN);
-    q('.wb-ua-list').innerHTML = prev.map(c => `<div class="wb-ua-row"><b>${esc(c.input)}</b><span>${esc(what(c) || c.where)}</span></div>`).join('');
+    q('.wb-ua-list').innerHTML = prev.map(c => `<div class="wb-ua-row"><b>${esc(shortInput(c))}</b><span>${esc(what(c) || c.where)}</span></div>`).join('');
     el.classList.toggle('minimal', this.minimal);
   }
 }
