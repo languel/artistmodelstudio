@@ -42,8 +42,9 @@ const ADD_TRACK = svg('<rect x="3" y="7" width="12" height="10" rx="2"/><path d=
 
 export function mountTimeline(root, app) {
   const P = () => app.player, R = () => app.recorder;
-  /** A take made now starts its live History and Interactions tracks from now (not from earlier in the session). Not saved. */
-  const fresh = t => { Object.defineProperty(t, '_liveFrom', { value: Date.now(), writable: true, configurable: true, enumerable: false }); return t; };
+  /** A take made now starts its live History and Interactions tracks from now, or from when interaction recording began. Not saved. */
+  // (while recording interactions, a new take starts from when recording began: act first, then make the take from what you did)
+  const fresh = t => { Object.defineProperty(t, '_liveFrom', { value: app.interactions?.capturing && app.interactions.startedAt ? app.interactions.startedAt : Date.now(), writable: true, configurable: true, enumerable: false }); return t; };
   const S = () => P().settings;   // the scene's transport: tempo, signature, fps, ruler, loop range
   /** A time (ms) as the ruler reads it. */
   const stamp = ms => {
@@ -585,8 +586,7 @@ export function mountTimeline(root, app) {
     take.clips = [...take.clips.filter(c => c.live !== 'history'), ...(inner.length ? [clip] : [])];
     touch(take);
   };
-  // The Interactions track: the controls clicked while "record interactions" was on, as Actions clips (muted until you unmute it; unmuted, the Guide's cursor
-  // travels to each control as the take plays). Kept in step like History's; unlike it, saved with the take (a walkthrough is the point).
+  // The Interactions track: the controls clicked while "record interactions" was on, as Actions clips (the Guide's cursor travels to each control as the take plays; mute the track to silence it). Kept in step like History's; unlike it, saved with the take (a walkthrough is the point).
   const syncInteractions = () => {
     const take = P()?.take, I = app.interactions;
     if (!take || !I || compStack.length || take.noInteractions || take.source === 'eval' || !take._liveFrom || !I.entries.length) return;
@@ -594,7 +594,7 @@ export function mountTimeline(root, app) {
     if (take._intKey === key) return;
     Object.defineProperty(take, '_intKey', { value: key, writable: true, configurable: true, enumerable: false });
     let tr = tracksOf(take).find(t => t.live === 'interactions');
-    if (!tr) { tr = addTrack(take, 'action', 'Interactions'); tr.live = 'interactions'; tr.muted = true; }
+    if (!tr) { tr = addTrack(take, 'action', 'Interactions'); tr.live = 'interactions'; }   // (not muted: you switched recording on to watch it back; History's track is muted, it replays the drawing itself)
     const { clock } = liveClockNow();
     take.clips = [...take.clips.filter(c => c.live !== 'interactions'), ...I.clips(clock, I.entries.filter(e => e.t >= take._liveFrom)).map((c, i) => ({ ...c, id: `int${I.seq}x${i}`, lane: tr.id, live: 'interactions' }))];
     touch(take);

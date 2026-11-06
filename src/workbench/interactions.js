@@ -16,12 +16,13 @@ export class Interactions {
     this.entries = [];
     this.listeners = new Set();
     this.seq = 0;
+    this.startedAt = 0;   // (when recording was switched on: a take made after it starts from here)
     try { this.capturing = localStorage.getItem(KEY) === '1'; } catch { this.capturing = false; }
   }
 
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit() { for (const f of this.listeners) { try { f(this); } catch (err) { console.error(err); } } }
-  setCapturing(on) { this.capturing = Boolean(on); try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* ignore */ } this.emit(); }
+  setCapturing(on) { if (on && !this.capturing) this.startedAt = Date.now(); this.capturing = Boolean(on); try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* ignore */ } this.emit(); }
   clear() { this.entries = []; this.emit(); }
 
   /**
