@@ -147,7 +147,7 @@ export class Guide {
     const my = (this.token = {});   // (one interaction moves the pointer at a time: starting this one stops the last)
     this.following = false;   // (clicks on the Timeline itself, recorded before they were left out: replaying them would send the pointer and its halo flying down to the Timeline)
     this.popupFor(ui);
-    this.say(label, 'Interaction', { sticky: false });
+    this.say(label, 'Interaction', { sticky: false, keepCursor: true });
     if (ui.kind === 'key' || (!ui.target && !ui.from)) return;
     if (ui.drag && ui.path?.length > 1) { await this.follow(ui.path, ui.pathSpace, rate); return; }
     if (ui.target && this.rect(ui.target)) { await this.moveTo(ui.target); return; }
@@ -226,14 +226,14 @@ export class Guide {
     });
   }
 
-  say(text, meta = 'Agent', { sticky = this.sticky } = {}) {
+  say(text, meta = 'Agent', { sticky = this.sticky, keepCursor = false } = {}) {
     if (text) this.app.emit('say', text, this.label || meta);   // the recorder keeps narration even when the guide is hidden
     if (!this.enabled || !text) return;
     this.text.textContent = text;
     this.meta.textContent = this.label || meta;
     this.card.hidden = false;
     clearTimeout(this.hideTimer);
-    if (!sticky) this.hideTimer = setTimeout(() => { this.card.hidden = true; this.cursor.style.opacity = '0'; }, 9000);
+    if (!sticky) this.hideTimer = setTimeout(() => { this.card.hidden = true; if (!keepCursor) this.cursor.style.opacity = '0'; }, 9000);   // (keepCursor: a take playing keeps the pointer where it was between interactions)
   }
 
   /** Walkthroughs put their controls (back, pause, next, stop) on the card and keep it open. */

@@ -170,8 +170,8 @@ export class TakePlayer {
       // Time is the wall clock's (not the frames'): a slow frame skips ahead, it does not slow the music.
       this.t = advanceTransportPlaybackTime(this.t / 1000, (now - last) / 1000, { rate: this.rate, loopEnabled: Boolean(r), loopStart: r ? r[0] / 1000 : 0, loopEnd: r ? r[1] / 1000 : 0 }) * 1000;
       last = now; this.at = now;
-      if (!r && this.stopAt != null && this.t >= this.stopAt) { this.t = this.stopAt; this.playing = false; clearInterval(this.timer); }
-      else if (this.take && !r && !this.recording && this.t >= this.duration) { this.t = this.duration; this.playing = false; clearInterval(this.timer); }
+      if (!r && this.stopAt != null && this.t >= this.stopAt) { this.t = this.stopAt; this.playing = false; clearInterval(this.timer); this.scrubCursor(); }
+      else if (this.take && !r && !this.recording && this.t >= this.duration) { this.t = this.duration; this.playing = false; clearInterval(this.timer); this.scrubCursor(); }
       if (this.take && this.t > t0) this.fireCues(t0, this.t);
       this.render(); this.syncAudio(); this.emit();
     };
