@@ -136,7 +136,7 @@ export class UserActions {
       const g = d.target.closest?.('[data-guide]'), cv = app.canvas?.canvas?.getBoundingClientRect?.();
       const world = where === 'Canvas' && cv && app.canvas?.toWorld ? [[d.x, d.y], [e.clientX, e.clientY]].map(([x, y]) => app.canvas.toWorld(x - cv.left, y - cv.top).map(Math.round)) : null;
       this.cue({ kind: 'pointer', button, input: `${mods(de)}${mods(de) ? ' ' : ''}${button} ${drag ? 'drag' : 'click'}`, where, fallback: where === 'Canvas' ? this.toolName() : this.targetName(d.target),
-        ui: { path: drag ? pathOf(d.path, where === 'Canvas' && cv && app.canvas?.toWorld ? (x, y) => app.canvas.toWorld(x - cv.left, y - cv.top) : null) : null, pathSpace: where === 'Canvas' && cv && app.canvas?.toWorld ? 'world' : 'screen', target: g?.getAttribute('data-guide') || null, name: this.targetName(d.target), tool: this.toolName(), drag, since: d.at, from: [Math.round(d.x), Math.round(d.y)], to: [Math.round(e.clientX), Math.round(e.clientY)], world, bar: Boolean(d.target.closest?.('.wb-tl-bar')) } }, d.effects);
+        ui: { popup: d.target.closest?.('.wb-cp-pop') ? 'paint' : null, popupAt: (() => { const pop = d.target.closest?.('.wb-cp-pop'); if (!pop) return null; const b = pop.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top)]; })(), path: drag ? pathOf(d.path, where === 'Canvas' && cv && app.canvas?.toWorld ? (x, y) => app.canvas.toWorld(x - cv.left, y - cv.top) : null) : null, pathSpace: where === 'Canvas' && cv && app.canvas?.toWorld ? 'world' : 'screen', target: g?.getAttribute('data-guide') || null, name: this.targetName(d.target), tool: this.toolName(), drag, since: d.at, from: [Math.round(d.x), Math.round(d.y)], to: [Math.round(e.clientX), Math.round(e.clientY)], world, bar: Boolean(d.target.closest?.('.wb-tl-bar')) } }, d.effects);
     }, true);
     window.addEventListener('pointercancel', e => downs.delete(e.pointerId), true);
     let lastWheel = 0;
@@ -176,6 +176,7 @@ export class UserActions {
   /** Where an input landed: the canvas, the Timeline, a panel (by its title), a menu, the bar. */
   where(t) {
     if (!t?.closest) return '';
+    if (t.closest('.wb-cp-pop')) return 'Color picker';
     if (t.closest('.wb-menu')) return 'Menu';
     if (t.closest('.wb-tl')) return 'Timeline';
     if (this.app.canvas?.canvas && (t === this.app.canvas.canvas || this.app.canvas.canvas.parentElement?.contains(t) && t.tagName === 'CANVAS')) return 'Canvas';

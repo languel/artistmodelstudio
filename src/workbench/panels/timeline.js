@@ -236,7 +236,7 @@ export function mountTimeline(root, app) {
     const rate = h('select', { class: 'wb-select', title: 'Playback rate' }, ...[0.5, 1, 2, 4, 8].map(r => h('option', { value: r, selected: r === (p?.rate || 1) }, `${r}×`)));
     rate.addEventListener('change', () => { p.rate = Number(rate.value); rate.blur(); });
     bar.replaceChildren(...[
-      h('button', { class: `wb-icon-btn wb-tl-rec${rec || od ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : od ? 'Stop recording (Space too; the take is saved)' : `Record onto the Timeline: the transport plays (${p.loop ? 'round the loop: each pass adds to the last' : p.inOut ? 'from In to Out' : 'from the playhead'}) and each gesture you draw goes on the drawing track where the playhead is`, html: rec || od ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="5.5" fill="currentColor"/></svg>', onclick: () => (rec ? R().stop() : od ? R().stopOverdub() : R().startOverdub()), oncontextmenu: ev => { ev.preventDefault(); const poly = R().settings.overdubLanes !== 'tracks'; showMenu([{ label: 'Overlapping gestures' }, { label: 'On one track, as voices (polyphonic)', active: poly, run: () => R().setSettings({ overdubLanes: 'poly' }) }, { label: 'On a track of their own (a track per pass)', active: !poly, run: () => R().setSettings({ overdubLanes: 'tracks' }) }], ev.clientX, ev.clientY); } }),
+      h('button', { class: `wb-icon-btn wb-tl-rec${rec || od ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : od ? 'Stop recording (Space too; the take is saved)' : `Record onto the Timeline: the transport plays (${p.loop ? 'round the loop: each pass adds to the last' : p.inOut ? 'from In to Out' : 'from the playhead'}) and each gesture you draw goes on the drawing track where the playhead is`, html: rec || od ? '<svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="9" fill="currentColor"/><circle cx="12" cy="12" r="4.2" fill="none" stroke="var(--wb-panel, #222)" stroke-width="1.8"/></svg>' : '<svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>', onclick: () => (rec ? R().stop() : od ? R().stopOverdub() : R().startOverdub()), oncontextmenu: ev => { ev.preventDefault(); const poly = R().settings.overdubLanes !== 'tracks'; showMenu([{ label: 'Overlapping gestures' }, { label: 'On one track, as voices (polyphonic)', active: poly, run: () => R().setSettings({ overdubLanes: 'poly' }) }, { label: 'On a track of their own (a track per pass)', active: !poly, run: () => R().setSettings({ overdubLanes: 'tracks' }) }], ev.clientX, ev.clientY); } }),
       h('button', { class: `wb-icon-btn wb-tl-hist${app.history?.capturing ? ' on' : ''}`, title: app.history?.capturing ? 'Recording History: every change goes to the History panel and the History track (click to pause)' : 'History is paused: changes are not recorded (click to record)', html: icon('history'), onclick: () => { const H = app.history; if (!H) return; const on = !H.capturing; H.setCapturing(on); if (on && P()?.take) { P().take.noHistory = false; P().take._histKey = null; } drawBar(); drawLanes(); } }),
       h('button', { class: `wb-icon-btn wb-tl-ints${app.interactions?.capturing ? ' on' : ''}`, title: app.interactions?.capturing ? 'Recording interactions: the controls you click (not the drawing; History has that). Click to stop' : 'Record interactions: the controls you click, for walkthroughs. They appear as an Interactions track and the cursor travels to each one on playback. Right-click: make a take from what was recorded', html: icon('select'), oncontextmenu: ev => { ev.preventDefault(); showMenu([{ label: 'Take from the recording', hint: 'A take with what was recorded since recording was switched on (History and Interactions)', run: takeFromRecording }, { label: 'Clear what was recorded', hint: 'Forget the recorded interactions so far (History is cleared in its own panel)', run: () => { app.interactions?.clear(); drawBar(); } }], ev.clientX, ev.clientY); }, onclick: () => { const I = app.interactions; if (!I) return; I.setCapturing(!I.capturing); if (I.capturing && P()?.take) { P().take.noInteractions = false; P().take._intKey = null; } drawBar(); } }),
       h('button', { class: 'wb-icon-btn', title: 'Play / pause (Space in the timeline)', html: p?.playing ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : icon('play'), onclick: () => p.toggle() }),
@@ -587,12 +587,15 @@ export function mountTimeline(root, app) {
   const liveClockNow = () => {
     const H = app.history, I = app.interactions, from = P()?.take?._liveFrom || 0;
     const hs = H ? H.entries.filter(e => e.t >= from).slice(-200) : [], is = I ? I.entries.filter(e => e.t >= from) : [];
-    return { clock: liveClock([...(H ? H.moments(hs) : []), ...is.flatMap(e => [e.since ?? e.t, e.t])]), hs, is };
+    const take = P()?.take;
+    // A take made with the record button is on the transport's own time (no idle gap is shortened): what happened 12 s into the recording is at 12 s, where the drawing track's gestures are too.
+    const clock = take?._liveRealtime ? { origin: from, at: t => t - from + (take._liveAt || 0) } : liveClock([...(H ? H.moments(hs) : []), ...is.flatMap(e => [e.since ?? e.t, e.t])]);
+    return { clock, hs, is };
   };
   const liveKey = () => `${app.history?.seq}|${app.history?.entries.length}|${app.history?.entries.filter(e => e.muted).length}|${app.interactions?.seq}|${app.interactions?.entries.length}`;
   const syncHistory = () => {
     const take = P()?.take, H = app.history;
-    if (!take || !H || compStack.length || take.noHistory || take.source === 'eval' || !take._liveFrom) return;   // (noHistory: its History track was deleted; the record-history button brings it back)
+    if (!take || !H || compStack.length || take.noHistory || take.source === 'eval' || !take._liveFrom || take._liveDone) return;   // (noHistory: its History track was deleted; the record-history button brings it back)
     const key = liveKey();
     if (take._histKey === key) return;
     Object.defineProperty(take, '_histKey', { value: key, writable: true, configurable: true, enumerable: false });
@@ -614,7 +617,7 @@ export function mountTimeline(root, app) {
   // The Interactions track: the controls clicked while "record interactions" was on, as Actions clips (the Guide's cursor travels to each control as the take plays; mute the track to silence it). Kept in step like History's; unlike it, saved with the take (a walkthrough is the point).
   const syncInteractions = () => {
     const take = P()?.take, I = app.interactions;
-    if (!take || !I || compStack.length || take.noInteractions || take.source === 'eval' || !take._liveFrom || !I.entries.length) return;
+    if (!take || !I || compStack.length || take.noInteractions || take.source === 'eval' || !take._liveFrom || take._liveDone || !I.entries.length) return;
     const key = liveKey();
     if (take._intKey === key) return;
     Object.defineProperty(take, '_intKey', { value: key, writable: true, configurable: true, enumerable: false });
@@ -634,6 +637,7 @@ export function mountTimeline(root, app) {
 
   const drawLanes = () => {
     syncHistory(); syncInteractions();
+    { const tk = P()?.take; if (tk?._liveFrom && !tk._liveRecording) tk._liveDone = true; }   // (a take that is not recording is built once and then left alone)
     const p = P(), rec = live(), take = p?.take || rec;
     // No tracks until there is something to put on one (a recording, a drop, an insert) or you add one.
     const tracks = take ? tracksOf(take) : [];
@@ -1181,6 +1185,7 @@ export function mountTimeline(root, app) {
   const liveRedraw = () => { if (liveQueued) return; liveQueued = true; setTimeout(() => { liveQueued = false; if (live()) drawLanes(); }, 250); };
   app.on('recording-update', liveRedraw);
   app.on('recording', on => {
+    { const tk = P()?.take; if (tk?._liveFrom !== undefined && !on && tk._liveRecording) { tk._liveRecording = false; tk._histKey = null; tk._intKey = null; } }   // (recording ended: one last build, then it is left alone)
     if (on && !P().take) { pps = 40; followHold = false; }
     drawBar(); timeEl = null; drawLanes();
     if (on) kick();

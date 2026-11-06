@@ -25,7 +25,9 @@ export class TakePlayer {
     this.listeners = new Set();
     app.canvas.drawPreviewOverlay = (ctx, tf, W, H) => {
       if (!this.take) return;
-      if (!app.guide?.following) drawPen(ctx, app.canvas.previewDoc, tf);   // (the agent's pointer is the pen while it follows a stroke)
+      // The pen marker (a ring at the tip of a stroke being drawn back) is off unless Settings › Timeline › Pen marker is on: the pointer is the pen now.
+      let marker = false; try { marker = localStorage.getItem('ams_pen_marker') === '1'; } catch { /* ignore */ }
+      if (marker && !app.guide?.following) drawPen(ctx, app.canvas.previewDoc, tf);
       const dpr = app.canvas.dpr || 1;   // (drawCaptions works in device pixels, with no transform: on a sharp screen the view's CSS size is only a fraction of it)
       drawCaptions(ctx, this.take, this.t, Math.round(W * dpr), Math.round(H * dpr));
       // A quiet label: this is a recording, not the drawing (Esc or any tool goes back).
@@ -112,7 +114,17 @@ export class TakePlayer {
   position() { return this.playing ? this.t + (performance.now() - (this.at ?? performance.now())) * this.rate : this.t; }
 
   // (past a take's end too: that is where the next thing goes; playing from there starts it over)
-  seek(t) { this.t = Math.max(0, Number.isFinite(t) ? t : this.duration); this.at = performance.now(); this.render(); this.syncAudio(); this.emit(); }
+  seek(t) { this.t = Math.max(0, Number.isFinite(t) ? t : this.duration); this.at = performance.now(); this.render(); this.syncAudio(); if (!this.playing) this.scrubCursor(); this.emit(); }
+
+  /** Scrubbing or paused inside a recorded interaction: the agent pointer is where the pointer was at that moment (a stroke, a click on a control); outside one it is put away. */
+  scrubCursor() {
+    const g = this.app.guide; if (!g || !this.take) return;
+    let hide = false; try { hide = localStorage.getItem('ams_guide_playback') === 'hide'; } catch { /* ignore */ }
+    const c = hide || !g.enabled ? null : flatClips(this.take).filter(x => x.ui && !x.muted && this.t >= x.start && this.t <= x.start + Math.max(x.dur || 0, 1)).pop();
+    const at = c ? g.pointAt(c.ui, (this.t - c.start) / Math.max(c.dur || 1, 1)) : null;
+    if (at) { g.scrubbing = true; g.cursor.style.opacity = '1'; g.place(at[0], at[1]); }
+    else if (g.scrubbing) { g.scrubbing = false; g.cursor.style.opacity = '0'; }
+  }
 
   /** The range playback wraps in (ms), or null: with Loop on, the loop region, else In to Out, else the whole take. */
   wrapRange() {
@@ -168,7 +180,7 @@ export class TakePlayer {
   /** Pause and go back to the start. */
   stop() { this.pause(); this.rewind(); }
 
-  pause() { this.playing = false; cancelAnimationFrame(this.raf); clearInterval(this.timer); this.syncAudio(); this.emit(); }
+  pause() { this.playing = false; cancelAnimationFrame(this.raf); clearInterval(this.timer); this.syncAudio(); this.scrubCursor(); this.emit(); }
   toggle() { this.playing ? this.pause() : this.play(); }
 
   render() {

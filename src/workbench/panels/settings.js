@@ -123,6 +123,7 @@ export function mountSettings(root, app) {
         row('p5.js', selectField([['2', '2.x (latest)'], ['1', '1.x']], app.p5Version(), v => { try { localStorage.setItem('ams_p5_version', v); } catch { /* ignore */ } }), 'The p5.js version p5 exports target: 2.x uses splineVertex, 1.x curveVertex')),
       section('Timeline', true,
         row('Clip tips', selectField([['brief', 'Brief'], ['full', 'In words, with details']], (() => { try { return localStorage.getItem('ams_tl_tip') || 'brief'; } catch { return 'brief'; } })(), v => { ls('ams_tl_tip', v); app.timelineRedraw?.(); }), 'What hovering a clip tells you: its kind, time and label, or the clip in words with who made it and what it changed'),
+        row('Pen marker', check((() => { try { return localStorage.getItem('ams_pen_marker') === '1'; } catch { return false; } })(), v => { ls('ams_pen_marker', v ? '1' : '0'); }, 'A small ring at the tip of a stroke being drawn back (off by default: the agent pointer is the pen)')),
         row('Text at the playhead', check((() => { try { return localStorage.getItem('ams_tl_head_text') === '1'; } catch { return false; } })(), v => { ls('ams_tl_head_text', v ? '1' : '0'); app.timelineRedraw?.(); }, 'Show what the clips under the playhead say, beside it, as it passes (muted tracks too)'))),
       app.modelSection ||= modelSection(app),
       soundSection(app),

@@ -37,7 +37,7 @@ export class Recorder {
   startOverdub() {
     if (this.take || this.od) return;
     const app = this.app, p = app.player;
-    if (!p.take) p.load(markLive(app, createTake({ title: `Recording ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, baseline: clone(app.store.doc) })));   // (it carries the live History and Interactions tracks too)
+    if (!p.take) p.load(markLive(app, createTake({ title: `Recording ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, baseline: clone(app.store.doc) }), Date.now(), { record: true, at: p.t }));   // (it carries the live History and Interactions tracks too)
     // Not looping, with In and Out marked: start at In (from outside them), stop at Out.
     const io = p.inOut;
     if (!p.loop && io && (p.t < io[0] || p.t >= io[1])) p.seek(io[0]);

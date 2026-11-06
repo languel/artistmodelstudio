@@ -116,8 +116,31 @@ export class Guide {
    * A recorded interaction, shown: for a control, the cursor travels to it and clicks; for a drag, from where it began to where it ended; a key or a scroll
    * is only said. Nothing is redone (the drawing is the History track's). Quiet when the pace is Instant.
    */
+  /** Where the pointer was `frac` (0 to 1) of the way through a recorded interaction, in window coordinates (null if it cannot be told). */
+  pointAt(ui, frac = 0) {
+    const cv = this.app.canvas, r = cv.canvas.getBoundingClientRect();
+    if (ui.drag && ui.path?.length > 1) {
+      const total = ui.path.at(-1)[2] || 1, ms = Math.max(0, Math.min(1, frac)) * total, path = ui.path;
+      let i = 0; while (i < path.length - 2 && path[i + 1][2] <= ms) i++;
+      const a = path[i], b = path[Math.min(i + 1, path.length - 1)], k = Math.max(0, Math.min(1, (ms - a[2]) / ((b[2] - a[2]) || 1)));
+      const at = ([x, y]) => (ui.pathSpace === 'world' ? [r.left + x * cv.cam.z + cv.cam.x, r.top + y * cv.cam.z + cv.cam.y] : [x, y]);
+      const [ax, ay] = at(a), [bx, by] = at(b);
+      return [ax + (bx - ax) * k, ay + (by - ay) * k];
+    }
+    if (ui.target) { const rc = this.rect(ui.target); if (rc) return [rc.left + rc.width / 2, rc.top + rc.height / 2]; }
+    return ui.from ? [...ui.from] : null;
+  }
+
+  /** What a recorded interaction inside the colour picker needs: the picker open where it was (it closes again at the next interaction outside it). */
+  popupFor(ui) {
+    if (ui?.popup === 'paint') {
+      if (!this._popup && !document.querySelector('.wb-cp-pop')) this._popup = this.app.openPaintPicker?.(ui.popupAt?.[0] ?? 200, ui.popupAt?.[1] ?? 200) || null;
+    } else if (this._popup) { try { this._popup.close?.(); } catch { /* already closed */ } this._popup = null; }
+  }
+
   async cue(ui, label = '', { rate = 1 } = {}) {
     if (!this.active || !ui) return;
+    this.popupFor(ui);
     this.say(label, 'Interaction', { sticky: false });
     if (ui.kind === 'key' || (!ui.target && !ui.from)) return;
     if (ui.drag && ui.path?.length > 1) { await this.follow(ui.path, ui.pathSpace, rate); return; }

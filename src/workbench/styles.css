@@ -502,8 +502,9 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-bottom: 4px; }
 .wb-tl-time { font: 11.5px var(--font-mono, ui-monospace, monospace); color: var(--wb-muted); min-width: 108px; }
 .wb-tl-take { max-width: 240px; }
-.wb-tl-rec { color: #c0563f; }
-.wb-tl-rec.on { color: #fff; background: #c0563f; border-radius: 50%; }
+.wb-tl-rec { color: var(--wb-muted); }
+.wb-tl-rec:hover { color: var(--wb-text); }
+.wb-tl-rec.on { color: var(--wb-accent-2, #c0563f); background: none; }
 .wb-tl-body { display: flex; flex: 1; min-height: 0; border-top: 1px solid var(--wb-line); }
 .wb-tl-labels { flex: none; width: 76px; border-right: 1px solid var(--wb-line); }
 .wb-tl-labels > div, .wb-tl-row { height: calc(24px * var(--tl-vz, 1)); box-sizing: border-box; border-bottom: 1px solid color-mix(in srgb, var(--wb-line) 60%, transparent); }
@@ -548,8 +549,8 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 :root { --wb-selection: color-mix(in srgb, var(--wb-accent) 32%, transparent); }
 ::selection { background: var(--wb-selection); color: inherit; }
 .wb-tl, .wb-tl * { user-select: none; -webkit-user-select: none; }
-.wb-tl-rec { color: var(--wb-accent-2); }
-.wb-tl-rec.on { background: var(--wb-accent-2); }
+.wb-tl-rec { color: var(--wb-muted); }
+.wb-tl-rec.on { background: none; }
 .wb-tl-playhead { background: var(--wb-accent-2); }
 .wb-tl-time { background: transparent; }
 .wb-code-modes { margin-bottom: 6px; align-self: flex-start; }
@@ -1166,8 +1167,9 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .sc-label { position: absolute; white-space: nowrap; transform: translate(-50%, -50%); font: 600 22px/1 'Latin Modern Roman', 'Times New Roman', Georgia, serif; text-shadow: 0 0 4px #fff, 0 0 4px #fff, 0 0 2px #fff; }
 .sc-label.sc-formula { color: #fff; background: rgba(18, 18, 22, 0.9); padding: 8px 14px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); text-shadow: none; }
 /* Record buttons (the Timeline's, History's capture): square like the other buttons, the glyph centred; red while on. */
-.wb-icon-btn.wb-tl-rec { width: 24px; height: 24px; padding: 0; display: inline-grid; place-items: center; border-radius: var(--radius); color: var(--wb-accent-2); }
-.wb-icon-btn.wb-tl-rec.on { color: #fff; background: var(--wb-accent-2); border-radius: var(--radius); }
+.wb-icon-btn.wb-tl-rec { width: 24px; height: 24px; padding: 0; display: inline-grid; place-items: center; border-radius: var(--radius); color: var(--wb-muted); }
+.wb-icon-btn.wb-tl-rec:hover { color: var(--wb-text); }
+.wb-icon-btn.wb-tl-rec.on { color: var(--wb-accent-2, #c0563f); background: none; }   /* recording: a filled button with a clear ring in it; idle: only an outline */
 .wb-icon-btn.wb-tl-rec svg { display: block; }
 /* Compositions: a clip holding clips (open it to edit them); its clips show small inside it. */
 .wb-tl-clip.t-comp { background: #c4b5de; }
