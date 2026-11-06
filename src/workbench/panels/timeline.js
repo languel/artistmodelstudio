@@ -511,7 +511,7 @@ export function mountTimeline(root, app) {
   // It is kept in step with History (rebuilt when History changes) and never saved with the take (see saveTake). Only on the take itself.
   const syncHistory = () => {
     const take = P()?.take, H = app.history;
-    if (!take || !H || compStack.length || take.noHistory) return;   // (noHistory: its History track was deleted; the record-history button brings it back)
+    if (!take || !H || compStack.length || take.noHistory || take.source === 'eval') return;   // (noHistory: its History track was deleted; the record-history button brings it back)
     const key = `${H.seq}|${H.entries.length}|${H.entries.filter(e => e.muted).length}`;
     if (take._histKey === key) return;
     Object.defineProperty(take, '_histKey', { value: key, writable: true, configurable: true, enumerable: false });
