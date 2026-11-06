@@ -69,7 +69,8 @@ export function mountTimeline(root, app) {
   const bar = h('div', { class: 'wb-tl-bar' });
   const labels = h('div', { class: 'wb-tl-labels' });
   const lanes = h('div', { class: 'wb-tl-lanes', tabIndex: 0 });
-  const body = h('div', { class: 'wb-tl-body' }, labels, lanes);
+  const vzBar = h('div', { class: 'wb-tl-vzbar' });
+  const body = h('div', { class: 'wb-tl-body' }, labels, lanes, vzBar);
   // The navigator: the whole timeline in a strip, with the view as a window on it.
   const navCanvas = h('canvas', { class: 'wb-tl-nav-c' });
   const navWin = h('div', { class: 'wb-tl-nav-win', title: 'The view: drag to pan, drag an edge to zoom' }, h('div', { class: 'wb-tl-nav-h in' }), h('div', { class: 'wb-tl-nav-h out' }));
@@ -80,11 +81,14 @@ export function mountTimeline(root, app) {
   const zoomBar = h('div', { class: 'wb-tl-zoom' },
     zoomBtn('Zoom out (− in the timeline; Ctrl/⌘ + wheel zooms at the pointer)', ZOOM_OUT, () => { zoomBy(1 / ZOOM_STEP); lanes.focus({ preventScroll: true }); }),
     zoomBtn('Zoom in (= in the timeline)', ZOOM_IN, () => { zoomBy(ZOOM_STEP); lanes.focus({ preventScroll: true }); }),
-    zoomBtn('Fit: all, the loop range, the selected clip… (F frames the selection, \\ fits all)', icon('fit'), ev => showMenu(fitItems(), ev.clientX, ev.clientY)),
-    vzSlider = rangeInput({ min: 1, max: 4, step: 0.05, value: vz, title: 'Track height (Alt+wheel over the tracks too): taller tracks show whole clip labels' }));
+    zoomBtn('Fit: all, the loop range, the selected clip… (F frames the selection, \\ fits all)', icon('fit'), ev => showMenu(fitItems(), ev.clientX, ev.clientY)));
+  // Track height: a slider down the right side of the tracks (taller up)
+  vzSlider = rangeInput({ min: 1, max: 4, step: 0.05, value: vz, title: 'Track height (Alt+wheel over the tracks too): taller tracks show whole clip labels' });
+  vzSlider.classList.add('vert');
   // (the navigator under the tracks, as an editor's zoom bar: it stands in for the scrollbar)
   const tl = h('div', { class: 'wb-tl' }, bar, body, h('div', { class: 'wb-tl-navrow' }, zoomBar, nav, navInfo));
   root.append(tl);
+  vzBar.append(vzSlider);
   vzSlider.addEventListener('input', () => setVZ(Number(vzSlider.value)));
   paintVZ();
 
