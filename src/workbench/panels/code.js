@@ -15,9 +15,11 @@ import { mountBoardCode } from './boardCode.js';
 import { codeView, setCodeView, onCodeView } from '../codeView.js';
 import { icon } from '../icons.js';
 import { createCodeEditor, activeCodeEditor } from '../codeEditor.js';
+import { transcriptOf } from '../transcript.js';
+import { tracksOf } from '../../process/take.js';
 import { selectionCode, applySelectionCode, replaceElements, clipCode, applyClipCode } from '../../process/codegen.js';
 
-const MODES = [['score', 'Score', 'The drawing as a score'], ['brush', 'Brush', 'Brushes are code'], ['sculpt', 'Sculpt', 'Sculpt tools are code'], ['board', 'Board', 'The active board’s own code: it redraws the board, live'], ['selection', 'Selection', 'The selected marks as code'], ['clip', 'Clip', 'The selected timeline clip as code']];
+const MODES = [['score', 'Score', 'The drawing as a score'], ['brush', 'Brush', 'Brushes are code'], ['sculpt', 'Sculpt', 'Sculpt tools are code'], ['board', 'Board', 'The active board’s own code: it redraws the board, live'], ['selection', 'Selection', 'The selected marks as code'], ['clip', 'Clip', 'The selected timeline clip as code'], ['take', 'Take', 'The take on the Timeline as text: every track, or one, as Markdown or JSON']];
 
 export function mountCode(root, app) {
   let mode = localStorage.getItem('ams_code_mode') || 'score';
@@ -46,6 +48,7 @@ export function mountCode(root, app) {
   mountBrushes(views.brush, app);
   mountSculpts(views.sculpt, app);
   mountBoardCode(views.board, app);
+  const el_take = views.take;
   const sel = objectView(views.selection, app, {
     empty: 'Select marks on the canvas (or right-click one → Show code).',
     get: () => { const els = app.selectedElements(); return els.length ? { key: els.map(e => e.id).join(), text: selectionCode(els, app.store.doc), title: `${els.length} mark${els.length === 1 ? '' : 's'}` } : null; },
@@ -71,6 +74,32 @@ export function mountCode(root, app) {
     }
   });
 
+  // Take: the take on the Timeline in words (Markdown) or as data (JSON), every track or one. To read, copy, or hand to an agent; not applied back.
+  const take = (() => {
+    const info = h('div', { class: 'wb-muted wb-small' }), host = h('div', { class: 'wb-code-host' });
+    let track = '', format = 'markdown';
+    const tsel = h('select', { class: 'wb-select', title: 'Which track' }), fsel = h('select', { class: 'wb-select', title: 'Format' }, h('option', { value: 'markdown' }, 'Markdown'), h('option', { value: 'json' }, 'JSON'));
+    const copy = h('button', { class: 'wb-btn', type: 'button', title: 'Copy the text', onclick: async () => { try { await navigator.clipboard.writeText(editor.value); app.log('Copied the take as text.'); } catch { /* the text is selectable */ } } }, 'Copy');
+    const editor = createCodeEditor(host, { value: '', onChange: () => {} });
+    const refresh = (force = false) => {
+      const t = app.player?.take;
+      host.hidden = !t;
+      if (!t) { info.textContent = 'Open or start a take on the Timeline: this shows it as text.'; tsel.hidden = fsel.hidden = copy.hidden = true; return; }
+      tsel.hidden = fsel.hidden = copy.hidden = false;
+      const want = track, ids = tracksOf(t).map(x => x.id);
+      tsel.replaceChildren(h('option', { value: '' }, 'All tracks'), ...tracksOf(t).map(x => h('option', { value: x.id, selected: x.id === want }, x.name || x.id)));
+      if (want && !ids.includes(want)) track = '';
+      tsel.value = track;
+      const { text } = transcriptOf(t, { track: track || null, format });
+      info.textContent = `${t.title || 'Take'} · ${format === 'json' ? 'JSON' : 'Markdown'}`;
+      if (force || editor.value !== text) editor.value = text;
+    };
+    tsel.addEventListener('change', () => { track = tsel.value; refresh(true); });
+    fsel.addEventListener('change', () => { format = fsel.value; refresh(true); });
+    el_take.append(h('div', { class: 'wb-row wb-take-bar' }, tsel, fsel, copy, h('button', { class: 'wb-icon-btn', title: 'Refresh', html: icon('redo'), onclick: () => refresh(true) })), info, host);
+    return { refresh, track: id => { track = id || ''; } };
+  })();
+
   const setMode = m => {
     mode = m;
     try { localStorage.setItem('ams_code_mode', m); } catch { /* ignore */ }
@@ -78,17 +107,21 @@ export function mountCode(root, app) {
     for (const [id, v] of Object.entries(views)) v.hidden = id !== mode;
     if (m === 'selection') sel.refresh(true);
     if (m === 'clip') clip.refresh(true);
+    if (m === 'take') take.refresh(true);
   };
   // Only when the Code panel is showing (the editor is not cheap to refill).
   const visible = () => root.isConnected && root.offsetParent !== null;
   app.on('selection', () => { if (mode === 'selection' && visible()) sel.refresh(); });
   app.on('clip-select', () => { if (mode === 'clip' && visible()) clip.refresh(); });
+  app.on('take', () => { if (mode === 'take' && visible()) take.refresh(true); });
+  app.timelineEdited2 = () => { if (mode === 'take' && visible()) take.refresh(); };
   app.store.subscribe(() => { if (mode === 'selection' && visible()) sel.refresh(); });
 
   /** Open the Code panel in a mode: 'score' | 'brush' (id) | 'selection' | 'clip' (clip). */
   app.openCode = (m = 'score', arg) => {
     app.docks.open('script');
     if (m === 'clip' && arg) app.selectClip?.(arg);
+    if (m === 'take') take.track(arg);
     setMode(m);
     if (m === 'brush' && arg) app.brushesPanel?.open(arg);
     if (m === 'sculpt' && arg) app.sculptsPanel?.open(arg);

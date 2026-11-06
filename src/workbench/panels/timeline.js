@@ -3,14 +3,14 @@
  * tracks: drag to move, drag the right edge to retime, double-click narration or titles to edit,
  * right-click for more. The selected clip's properties are in Properties.
  */
-import { askConfirm, askText, showDialog } from '../dialog.js';
-import { transcriptOf } from '../transcript.js';
+import { askConfirm, askText } from '../dialog.js';
 import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
 import { duration, summarize, touch, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
 import { showMenu } from '../menu.js';
 import { TimelineUndo } from '../timelineUndo.js';
 import { liveClock } from '../liveClock.js';
+import { rangeInput, paintRange } from '../rangeInput.js';
 import { formatMusicalPosition, secondsToFrame } from '../../time/transport.js';
 import { RULERS, FPS_CHOICES, QUANT_CHOICES, SNAP_CHOICES, snapStep, timeContext } from '../../time/sceneTransport.js';
 import { waveFor, fromPeaks, drawWave } from '../waveform.js';
@@ -41,6 +41,8 @@ const ADD_TRACK = svg('<rect x="3" y="7" width="12" height="10" rx="2"/><path d=
 
 export function mountTimeline(root, app) {
   const P = () => app.player, R = () => app.recorder;
+  /** A take made now starts its live History and Interactions tracks from now (not from earlier in the session). Not saved. */
+  const fresh = t => { Object.defineProperty(t, '_liveFrom', { value: Date.now(), writable: true, configurable: true, enumerable: false }); return t; };
   const S = () => P().settings;   // the scene's transport: tempo, signature, fps, ruler, loop range
   /** A time (ms) as the ruler reads it. */
   const stamp = ms => {
@@ -62,7 +64,8 @@ export function mountTimeline(root, app) {
   try { vz = Number(localStorage.getItem('ams_tl_vzoom')) || 1; } catch { /* ignore */ }
   const VZ = [1, 1.6, 2.4, 3.4];
   const setVZ = z => { vz = Math.max(1, Math.min(4, z)); try { localStorage.setItem('ams_tl_vzoom', String(vz)); } catch { /* ignore */ } paintVZ(); };
-  const paintVZ = () => { root.style.setProperty('--tl-vz', String(vz)); root.classList.toggle('vz-tall', vz >= 1.5); };
+  let vzSlider = null;
+  const paintVZ = () => { root.style.setProperty('--tl-vz', String(vz)); root.classList.toggle('vz-tall', vz >= 1.5); if (vzSlider && Number(vzSlider.value) !== vz) { vzSlider.value = String(vz); paintRange(vzSlider); } };
   const bar = h('div', { class: 'wb-tl-bar' });
   const labels = h('div', { class: 'wb-tl-labels' });
   const lanes = h('div', { class: 'wb-tl-lanes', tabIndex: 0 });
@@ -77,10 +80,12 @@ export function mountTimeline(root, app) {
   const zoomBar = h('div', { class: 'wb-tl-zoom' },
     zoomBtn('Zoom out (− in the timeline; Ctrl/⌘ + wheel zooms at the pointer)', ZOOM_OUT, () => { zoomBy(1 / ZOOM_STEP); lanes.focus({ preventScroll: true }); }),
     zoomBtn('Zoom in (= in the timeline)', ZOOM_IN, () => { zoomBy(ZOOM_STEP); lanes.focus({ preventScroll: true }); }),
-    zoomBtn('Fit: all, the loop range, the selected clip… (F frames the selection, \\ fits all)', icon('fit'), ev => showMenu(fitItems(), ev.clientX, ev.clientY)));
+    zoomBtn('Fit: all, the loop range, the selected clip… (F frames the selection, \\ fits all)', icon('fit'), ev => showMenu(fitItems(), ev.clientX, ev.clientY)),
+    vzSlider = rangeInput({ min: 1, max: 4, step: 0.05, value: vz, title: 'Track height (Alt+wheel over the tracks too): taller tracks show whole clip labels' }));
   // (the navigator under the tracks, as an editor's zoom bar: it stands in for the scrollbar)
   const tl = h('div', { class: 'wb-tl' }, bar, body, h('div', { class: 'wb-tl-navrow' }, zoomBar, nav, navInfo));
   root.append(tl);
+  vzSlider.addEventListener('input', () => setVZ(Number(vzSlider.value)));
   paintVZ();
 
   // Selecting only moves the highlight (rebuilding the lanes would replace a clip mid-drag).
@@ -97,7 +102,7 @@ export function mountTimeline(root, app) {
   };
   const pickedClips = () => (P().take?.clips || []).filter(c => picked.has(c.id));
   app.selectClip = select;
-  const edited = () => { P().changed(); drawLanes(); app.emit('clip-select', selected); commit('edit'); };
+  const edited = () => { P().changed(); drawLanes(); app.emit('clip-select', selected); commit('edit'); app.timelineEdited2?.(); };
 
   // ---- compositions: open one (its own timeline), and back out ----
   // Inside a composition the Timeline shows a take made of its clips and tracks (the same lists), from
@@ -200,6 +205,8 @@ export function mountTimeline(root, app) {
       h('option', { value: '' }, (t0 => (t0 ? `${t0.title}${t0.assetId ? '' : ' (unsaved)'}` : 'Takes…'))(compStack.length ? compStack[0].holder : take)),
       ...takes.map(a => h('option', { value: a.id }, `${a.title} · ${fmt(a.meta?.duration || 0)}`)));
     sel.addEventListener('change', async () => { const a = takes.find(x => x.id === sel.value); if (a) openTake(a); sel.blur(); });
+    // Shift+click the name: rename the take (Enter keeps it)
+    sel.addEventListener('mousedown', ev => { if (!ev.shiftKey || !take) return; ev.preventDefault(); renameTake(); });
     const st = S();
     const ruler = h('select', { class: 'wb-select wb-tl-ruler-mode', title: 'What the ruler shows' }, ...RULERS.map(r => h('option', { value: r, selected: r === st.ruler, title: RULER_NAMES[r] }, { time: 's', beats: '♩', frames: 'f' }[r])));
     ruler.addEventListener('change', () => { p.setSettings({ ruler: ruler.value }); ruler.blur(); });
@@ -224,8 +231,6 @@ export function mountTimeline(root, app) {
       h('button', { class: `wb-icon-btn wb-tl-rec${rec || od ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : od ? 'Stop recording (Space too; the take is saved)' : `Record onto the Timeline: the transport plays (${p.loop ? 'round the loop: each pass adds to the last' : p.inOut ? 'from In to Out' : 'from the playhead'}) and each gesture you draw goes on the drawing track where the playhead is`, html: rec || od ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="5.5" fill="currentColor"/></svg>', onclick: () => (rec ? R().stop() : od ? R().stopOverdub() : R().startOverdub()), oncontextmenu: ev => { ev.preventDefault(); const poly = R().settings.overdubLanes !== 'tracks'; showMenu([{ label: 'Overlapping gestures' }, { label: 'On one track, as voices (polyphonic)', active: poly, run: () => R().setSettings({ overdubLanes: 'poly' }) }, { label: 'On a track of their own (a track per pass)', active: !poly, run: () => R().setSettings({ overdubLanes: 'tracks' }) }], ev.clientX, ev.clientY); } }),
       h('button', { class: `wb-icon-btn wb-tl-hist${app.history?.capturing ? ' on' : ''}`, title: app.history?.capturing ? 'Recording History: every change goes to the History panel and the History track (click to pause)' : 'History is paused: changes are not recorded (click to record)', html: icon('history'), onclick: () => { const H = app.history; if (!H) return; const on = !H.capturing; H.setCapturing(on); if (on && P()?.take) { P().take.noHistory = false; P().take._histKey = null; } drawBar(); drawLanes(); } }),
       h('button', { class: `wb-icon-btn wb-tl-ints${app.interactions?.capturing ? ' on' : ''}`, title: app.interactions?.capturing ? 'Recording interactions: the controls you click (not the drawing; History has that). Click to stop' : 'Record interactions: the controls you click, for walkthroughs. They appear as a muted Interactions track; unmute it and the cursor travels to each one on playback', html: icon('select'), onclick: () => { const I = app.interactions; if (!I) return; I.setCapturing(!I.capturing); if (I.capturing && P()?.take) { P().take.noInteractions = false; P().take._intKey = null; } drawBar(); } }),
-      h('button', { class: `wb-icon-btn wb-tl-vz${vz > 1 ? ' on' : ''}`, title: 'Track height: click to make the tracks taller (clips show their whole label), again for taller, then back to normal. Alt+wheel is smooth', html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"/></svg>', onclick: () => { const i = VZ.findIndex(z => z > vz + 0.05); setVZ(i < 0 ? 1 : VZ[i]); drawBar(); } }),
-      h('button', { class: 'wb-icon-btn', title: 'Transcript: the take (or one track) as text, Markdown or JSON', disabled: !take, html: icon('log'), onclick: () => openTranscript() }),
       h('button', { class: 'wb-icon-btn', title: 'Play / pause (Space in the timeline)', html: p?.playing ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : icon('play'), onclick: () => p.toggle() }),
       h('span', { class: 'wb-tl-time' }, rec && !take ? `● ${fmt(R().now())}` : stampOf(p.t, p.duration)),
       ruler,
@@ -248,11 +253,19 @@ export function mountTimeline(root, app) {
       take ? h('button', { class: 'wb-icon-btn', title: 'Close the take (back to your drawing)', html: icon('close'), onclick: () => { leaveComps(); P().close(); select(null); drawBar(); drawLanes(); } }) : null].filter(Boolean));
   };
 
+  const renameTake = async () => {
+    const take = P()?.take; if (!take) return;
+    const v = await askText('Name of the take', take.title || '');
+    if (v == null || !v.trim()) return;
+    take.title = v.trim();
+    if (take.assetId) { try { await app.assetStore.update(take.assetId, { title: take.title }); } catch { /* the name stays on the open take */ } }
+    loadTakes(); drawBar();
+  };
   const newTake = async () => {
     leaveComps();
     const p = P(), cur = p.take;
     if (cur && !cur.assetId && cur.clips.length && !(await askConfirm('Start a new take? This one is not saved (the save button keeps it).'))) return;
-    p.load(createTake({ title: `Take ${takes.length + 1}`, baseline: JSON.parse(JSON.stringify(app.store.doc)) }));
+    p.load(fresh(createTake({ title: `Take ${takes.length + 1}`, baseline: JSON.parse(JSON.stringify(app.store.doc)) })));
     select(null); fitZoom(); drawBar(); drawLanes();
     app.log('A new, empty take: drag changes in from History, insert at the playhead, or record.');
   };
@@ -286,7 +299,7 @@ export function mountTimeline(root, app) {
 
   /** The take being edited, started (empty, from the drawing as it is) if there is none. */
   const ensureTake = () => {
-    if (!P().take) { P().load(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(app.store.doc)) })); fitZoom(); drawBar(); }
+    if (!P().take) { P().load(fresh(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(app.store.doc)) }))); fitZoom(); drawBar(); }
     return P().take;
   };
   /** Add a track of a kind (from the bar's button and the track names' menu). */
@@ -520,25 +533,7 @@ export function mountTimeline(root, app) {
     if (ev.shiftKey) { followHold = true; scrollTo(lanes.scrollLeft + d); return; }
     zoomBy(Math.exp(-d * 0.003), viewW() / 2);
   }, { passive: false });
-  // ---- the transcript ------------------------------------------------------------------------
-  // The take as text: every track (or one) in words, as Markdown or JSON, to read, copy, or hand to an agent.
-  const openTranscript = (trackId = null) => {
-    const take = P()?.take; if (!take) { app.log('Open or start a take first: the transcript is of the take on the Timeline.'); return; }
-    showDialog((box, done) => {
-      box.classList.add('wb-transcript');
-      let track = trackId, format = 'markdown';
-      const sel = h('select', { class: 'wb-select', title: 'Which track' }, h('option', { value: '' }, 'All tracks'), ...tracksOf(take).map(t => h('option', { value: t.id, selected: t.id === trackId }, t.name || t.id)));
-      const fmt = h('select', { class: 'wb-select', title: 'Format' }, h('option', { value: 'markdown' }, 'Markdown'), h('option', { value: 'json' }, 'JSON'));
-      const area = h('textarea', { class: 'wb-inline wb-transcript-text', readonly: true, spellcheck: false });
-      const copy = h('button', { class: 'wb-btn', type: 'button', title: 'Copy the text', onclick: async () => { try { await navigator.clipboard.writeText(area.value); copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy'; }, 1200); } catch { area.select(); } } }, 'Copy');
-      const paint = () => { area.value = transcriptOf(take, { track: track || null, format }).text; };
-      sel.addEventListener('change', () => { track = sel.value || null; paint(); });
-      fmt.addEventListener('change', () => { format = fmt.value; paint(); });
-      paint();
-      box.append(h('div', { class: 'wb-dialog-row wb-transcript-bar' }, h('strong', {}, `Transcript · ${take.title || 'Take'}`), sel, fmt, copy, h('button', { class: 'wb-btn', type: 'button', onclick: () => done(null) }, 'Close')), area);
-      setTimeout(() => area.focus());
-    });
-  };
+  const openTranscript = trackId => app.openCode?.('take', trackId);   // (the take as text lives in the Code panel: Take)
 
   // ---- the History track ---------------------------------------------------------------------
   // Every take carries the drawing's History as a composition on a muted track of its own: one clip, "History", that holds the changes made so far, one
@@ -546,14 +541,14 @@ export function mountTimeline(root, app) {
   // It is kept in step with History (rebuilt when History changes) and never saved with the take (see saveTake). Only on the take itself.
   // (History and Interactions share one clock, built from both: a click, the stroke it drew and its History entry line up; idle gaps are shortened alike)
   const liveClockNow = () => {
-    const H = app.history, I = app.interactions;
-    const hs = H ? H.entries.slice(-200) : [], is = I ? I.entries : [];
+    const H = app.history, I = app.interactions, from = P()?.take?._liveFrom || 0;
+    const hs = H ? H.entries.filter(e => e.t >= from).slice(-200) : [], is = I ? I.entries.filter(e => e.t >= from) : [];
     return { clock: liveClock([...(H ? H.moments(hs) : []), ...is.flatMap(e => [e.since ?? e.t, e.t])]), hs, is };
   };
   const liveKey = () => `${app.history?.seq}|${app.history?.entries.length}|${app.history?.entries.filter(e => e.muted).length}|${app.interactions?.seq}|${app.interactions?.entries.length}`;
   const syncHistory = () => {
     const take = P()?.take, H = app.history;
-    if (!take || !H || compStack.length || take.noHistory || take.source === 'eval') return;   // (noHistory: its History track was deleted; the record-history button brings it back)
+    if (!take || !H || compStack.length || take.noHistory || take.source === 'eval' || !take._liveFrom) return;   // (noHistory: its History track was deleted; the record-history button brings it back)
     const key = liveKey();
     if (take._histKey === key) return;
     Object.defineProperty(take, '_histKey', { value: key, writable: true, configurable: true, enumerable: false });
@@ -572,14 +567,14 @@ export function mountTimeline(root, app) {
   // travels to each control as the take plays). Kept in step like History's; unlike it, saved with the take (a walkthrough is the point).
   const syncInteractions = () => {
     const take = P()?.take, I = app.interactions;
-    if (!take || !I || compStack.length || take.noInteractions || take.source === 'eval' || !I.entries.length) return;
+    if (!take || !I || compStack.length || take.noInteractions || take.source === 'eval' || !take._liveFrom || !I.entries.length) return;
     const key = liveKey();
     if (take._intKey === key) return;
     Object.defineProperty(take, '_intKey', { value: key, writable: true, configurable: true, enumerable: false });
     let tr = tracksOf(take).find(t => t.live === 'interactions');
     if (!tr) { tr = addTrack(take, 'action', 'Interactions'); tr.live = 'interactions'; tr.muted = true; }
     const { clock } = liveClockNow();
-    take.clips = [...take.clips.filter(c => c.live !== 'interactions'), ...I.clips(clock).map((c, i) => ({ ...c, id: `int${I.seq}x${i}`, lane: tr.id, live: 'interactions' }))];
+    take.clips = [...take.clips.filter(c => c.live !== 'interactions'), ...I.clips(clock, I.entries.filter(e => e.t >= take._liveFrom)).map((c, i) => ({ ...c, id: `int${I.seq}x${i}`, lane: tr.id, live: 'interactions' }))];
     touch(take);
   };
   let histQueued = false;
@@ -787,7 +782,7 @@ export function mountTimeline(root, app) {
     return el;
   };
   const trackMenu = (tr, take) => [
-    { label: 'Transcript…', hint: 'This track as text (Markdown or JSON)', run: () => openTranscript(tr.id) },
+    { label: 'Show as text…', hint: 'This track as text (Markdown or JSON), in the Code panel', run: () => openTranscript(tr.id) },
     { label: 'Rename', run: () => { const el = document.querySelector(`[data-track-label="${CSS.escape(tr.id)}"] .wb-tl-labeltext`); if (el) editInPlace(el, v => { tr.name = v; drawLanes(); commit('track'); }); } },
     { label: tr.muted ? 'Unmute' : 'Mute', run: () => { tr.muted = !tr.muted; edited(); } },
     { label: `Add a ${(TRACK_NAMES[tr.kind] || tr.kind).toLowerCase()} track`, run: () => { addTrack(take, tr.kind); drawLanes(); commit('track'); } },
@@ -960,7 +955,7 @@ export function mountTimeline(root, app) {
     if (!id) return;
     const a = await app.assetStore.get(id);
     if (!a) return;
-    if (!P().take) P().load(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(app.store.doc)) }));
+    if (!P().take) P().load(fresh(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(app.store.doc)) })));
     const t = dropMs;
     const take = P().take;
     const row = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('.wb-tl-row');
