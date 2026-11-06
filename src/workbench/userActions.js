@@ -31,12 +31,23 @@ const shortName = s => String(s || '').split(/[:(;—]|\. /)[0].trim().slice(0, 
 const MOUSE = b => `<svg viewBox="0 0 24 26" width="18" height="20" fill="none" stroke="currentColor" stroke-width="1.6">${b === 'left' ? '<path d="M4 10V9a8 8 0 0 1 8-8v9Z" fill="currentColor"/>' : ''}${b === 'right' ? '<path d="M12 1a8 8 0 0 1 8 8v1h-8Z" fill="currentColor"/>' : ''}<rect x="4" y="1" width="16" height="24" rx="8"/><path d="M12 1v9M4.5 10h15"/>${b === 'scroll' || b === 'middle' ? '<path d="M12 4.5v5" stroke-width="2.4"/>' : ''}</svg>`;
 const KEYBOARD = '<svg viewBox="0 0 24 18" width="20" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="21" height="13" rx="2"/><path d="M5 6h1M8 6h1M11 6h1M14 6h1M17 6h1M5 9h1M8 9h1M11 9h1M14 9h1M17 9h1M5 12h7M14 12h5"/></svg>';
 
-/** The input as keycaps: each modifier its own cap, then the key itself in one (a gesture, such as "left drag", is plain text after the modifiers). */
+/**
+ * The input as keycaps. A key: each modifier its own cap, then the key. A pointer gesture is abbreviated to caps of the same size: the button (L, R, M; ✎ for a pen, ☝ for touch)
+ * and what it did (click, drag; scroll with its direction, or zoom).
+ */
+const BUTTON = { left: 'L', right: 'R', middle: 'M', pen: '✎', touch: '☝' };
+const ARROW = { up: '↑', down: '↓', left: '←', right: '→' };
 const keycaps = c => {
   const m = /^([⌘⌃⌥⇧]*)\s*(.*)$/.exec(c.input) || [];
-  const caps = [...(m[1] || '')].map(k => `<kbd>${esc(k)}</kbd>`).join('');
-  const rest = m[2] || '';
-  return `${caps}${rest ? (c.kind === 'key' ? `<kbd>${esc(rest)}</kbd>` : `<span class="wb-ua-gesture">${esc(rest)}</span>`) : ''}`;
+  const cap = t => `<kbd>${esc(t)}</kbd>`;
+  const mods = [...(m[1] || '')].map(cap).join(''), rest = (m[2] || '').trim();
+  if (!rest) return mods;
+  if (c.kind === 'key') return `${mods}${cap(rest)}`;
+  let g;
+  if ((g = /^(left|right|middle|pen|touch) (click|drag)$/.exec(rest))) return `${mods}${cap(BUTTON[g[1]])}${cap(g[2])}`;
+  if ((g = /^scroll \(zoom\)$/.exec(rest))) return `${mods}${cap('scroll')}${cap('zoom')}`;
+  if ((g = /^scroll (up|down|left|right)$/.exec(rest))) return `${mods}${cap('scroll')}${cap(ARROW[g[1]])}`;
+  return `${mods}<span class="wb-ua-gesture">${esc(rest)}</span>`;
 };
 
 export class UserActions {
@@ -179,7 +190,7 @@ export class UserActions {
     el.className = 'wb-ua';
     el.dataset.userActions = '';
     el.setAttribute('aria-label', 'User actions');
-    el.innerHTML = '<button type="button" class="wb-ua-close" title="Hide (⌘⌥I)" aria-label="Hide">×</button><header class="wb-ua-head" title="Drag to move"><span class="wb-ua-glyph"></span><span class="wb-ua-input"></span><span class="wb-ua-what"></span><span class="wb-ua-kind"></span></header><div class="wb-ua-foot"><button type="button" class="wb-ua-more" title="Earlier actions: show or hide"></button><span class="wb-ua-tool"></span></div><div class="wb-ua-list" aria-live="polite"></div>';
+    el.innerHTML = '<button type="button" class="wb-ua-close" title="Hide (⌘⌥I)" aria-label="Hide">×</button><header class="wb-ua-head" title="Drag to move"><span class="wb-ua-glyph"></span><span class="wb-ua-input"></span><span class="wb-ua-what"></span><span class="wb-ua-sub"><span class="wb-ua-kind"></span><button type="button" class="wb-ua-more"></button><span class="wb-ua-tool"></span></span></header><div class="wb-ua-list" aria-live="polite"></div>';
     el.querySelector('.wb-ua-close').addEventListener('click', () => this.hide());
     el.querySelector('.wb-ua-more').addEventListener('click', () => { this.minimal = !this.minimal; write(KEY_MIN, this.minimal); this.render(); });
     el.querySelector('.wb-ua-head').addEventListener('pointerdown', e => {
@@ -217,7 +228,8 @@ export class UserActions {
     q('.wb-ua-tool').textContent = tool; q('.wb-ua-tool').title = `The tool: ${tool}`;
     const earlier = this.cues.slice(0, -1).reverse(), n = Math.min(earlier.length, SHOWN);
     const more = q('.wb-ua-more');
-    more.textContent = `${this.minimal ? '▸' : '▾'} Earlier${earlier.length ? ` (${n})` : ''}`;
+    more.textContent = this.minimal ? '▸' : '▾';
+    more.title = earlier.length ? `${this.minimal ? 'Show' : 'Hide'} the ${n} earlier action${n === 1 ? '' : 's'}` : 'Nothing earlier yet';
     more.disabled = !earlier.length;
     const prev = this.minimal ? [] : earlier.slice(0, SHOWN);
     q('.wb-ua-list').innerHTML = prev.map(c => `<div class="wb-ua-row"><b>${esc(c.input)}</b><span>${esc(what(c) || c.where)}</span></div>`).join('');
