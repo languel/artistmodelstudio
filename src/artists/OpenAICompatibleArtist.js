@@ -34,14 +34,60 @@ function getStorage(key, fallback = '') {
   }
 }
 
+/** Which providers the dev server holds a key for (GET /__llm/_status → { pratt: true, … }); {} where there is no such server. Asked once. */
+let envPromise = null;
+export const llmEnv = () => (envPromise ||= (typeof fetch === 'undefined' || typeof location === 'undefined' ? Promise.resolve({}) : fetch('/__llm/_status').then(r => (r.ok && /json/.test(r.headers.get('content-type') || '') ? r.json() : {})).catch(() => ({}))).then(env => (globalThis.__amsLlmEnv = env)));
+
 export class OpenAICompatibleArtist extends Artist {
+  /**
+   * options: id, name, baseURL (the provider's own), prefix (storage keys: ams_<prefix>_key, _model, _base_url, _headers), models (presets),
+   * modelsPath ('/models' by default), proxy (true: when the dev server holds this provider's key in its environment, go through /__llm/<id>, which adds it).
+   */
   constructor(options = {}) {
     super(options.id || 'openai', options.name || 'OpenAI / ChatGPT', 'cloud');
-    this.baseURL = options.baseURL || getStorage('ams_openai_base_url', 'https://api.openai.com/v1');
-    this.apiKey = options.apiKey || getStorage('ams_openai_key') || '';
-    this.model = options.model || getStorage('ams_openai_model', 'gpt-4o');
-    this.customHeaders = options.customHeaders || getStorage('ams_openai_headers') || '';
+    this.prefix = options.prefix || (options.id && options.id !== 'openai' ? options.id : 'openai');
+    this.proxy = Boolean(options.proxy);
+    this.presets = options.models || OPENAI_MODEL_PRESETS;
+    this.modelsPath = options.modelsPath || null;   // (from the origin; by default the base URL's path + /models)
+    this.defaultBase = options.baseURL || 'https://api.openai.com/v1';
+    this.baseURL = options.baseURL || getStorage(this.k('base_url'), this.defaultBase);
+    this.apiKey = options.apiKey || getStorage(this.k('key')) || '';
+    this.model = options.model || getStorage(this.k('model'), this.presets[0]?.id || 'gpt-4o');
+    this.customHeaders = options.customHeaders || getStorage(this.k('headers')) || '';
     this.temperature = options.temperature ?? 0.8;
+    this.fetched = null;   // the provider's own model list, once asked
+  }
+
+  k(name) { return `ams_${this.prefix}_${name}`; }
+
+  /** True when no key of the user's own is set and the dev server holds one for this provider in its environment. */
+  viaProxy() { return this.proxy && !getStorage(this.k('key')) && Boolean(globalThis.__amsLlmEnv?.[this.id]); }
+
+  /** The base URL calls go to. */
+  base() { return this.viaProxy() ? `/__llm/${this.id}${this.basePath()}` : (getStorage(this.k('base_url')) || this.baseURL || this.defaultBase).replace(/\/+$/, ''); }
+
+  basePath() { try { return new URL(this.defaultBase).pathname.replace(/\/+$/, ''); } catch { return ''; } }
+
+  /** Where the provider lists its models. */
+  modelsURL() {
+    const path = this.modelsPath || `${this.basePath()}/models`;
+    if (this.viaProxy()) return `/__llm/${this.id}${path}`;
+    try { return `${new URL(getStorage(this.k('base_url')) || this.baseURL || this.defaultBase).origin}${path}`; } catch { return `${this.base()}/models`; }
+  }
+
+  /** Ask the provider which models it has (cached; force re-asks). → [{ id, name }] or throws. */
+  async fetchModels(force = false) {
+    if (this.fetched && !force) return this.fetched;
+    await llmEnv();
+    const headers = {};
+    const key = getStorage(this.k('key')) || this.apiKey;
+    if (key) headers.Authorization = key.startsWith('Bearer ') ? key : `Bearer ${key}`;
+    const res = await fetch(this.modelsURL(), { headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${res.status}`);
+    const list = (Array.isArray(data) ? data : data.data || data.models || []).map(m => ({ id: m.id || m.name, name: m.name && m.name !== m.id ? `${m.name} (${m.id})` : m.id })).filter(m => m.id && !/embed|rerank|safety-guard|guard|content-safety/i.test(m.id));   // (only models that chat)
+    this.fetched = list.sort((a, b) => a.id.localeCompare(b.id));
+    return this.fetched;
   }
 
   getModel() {
@@ -52,12 +98,12 @@ export class OpenAICompatibleArtist extends Artist {
     if (!modelId) return;
     this.model = modelId;
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('ams_openai_model', modelId);
+      localStorage.setItem(this.k('model'), modelId);
     }
   }
 
   getAvailableModels() {
-    const list = [...OPENAI_MODEL_PRESETS];
+    const list = [...(this.fetched?.length ? this.fetched : this.presets)];
     if (this.model && !list.some(p => p.id === this.model)) {
       list.push({ id: this.model, name: `Custom (${this.model})` });
     }
@@ -65,8 +111,7 @@ export class OpenAICompatibleArtist extends Artist {
   }
 
   getEndpoint() {
-    const base = (this.baseURL || 'https://api.openai.com/v1').replace(/\/+$/, '');
-    return `${base}/chat/completions`;
+    return `${this.base()}/chat/completions`;
   }
 
   async generate(request) {
@@ -74,15 +119,16 @@ export class OpenAICompatibleArtist extends Artist {
     const systemPrompt = buildSystemPrompt(request.mediumCapabilities);
     
     // Resolve dynamic settings
-    const targetModel = request.settings?.model || getStorage('ams_openai_model') || this.model || 'gpt-4o';
-    const apiKey = request.settings?.apiKey || getStorage('ams_openai_key') || this.apiKey;
-    const baseURL = request.settings?.baseURL || getStorage('ams_openai_base_url') || this.baseURL || 'https://api.openai.com/v1';
-    const customHeadersStr = request.settings?.customHeaders || getStorage('ams_openai_headers') || this.customHeaders;
+    const targetModel = request.settings?.model || getStorage(this.k('model')) || this.model || 'gpt-4o';
+    const apiKey = request.settings?.apiKey || getStorage(this.k('key')) || this.apiKey;
+    const baseURL = request.settings?.baseURL || getStorage(this.k('base_url')) || this.baseURL || 'https://api.openai.com/v1';
+    const customHeadersStr = request.settings?.customHeaders || getStorage(this.k('headers')) || this.customHeaders;
 
     this.baseURL = baseURL;
+    await llmEnv();
     const endpoint = this.getEndpoint();
 
-    if (!apiKey && !endpoint.includes('localhost') && !endpoint.includes('127.0.0.1')) {
+    if (!apiKey && !this.viaProxy() && !endpoint.includes('localhost') && !endpoint.includes('127.0.0.1')) {
       const errorMsg = 'OpenAI API key or Bearer token is missing. Click Settings to enter your API key.';
       request.onProgress?.({ type: 'error', error: errorMsg, message: errorMsg });
       throw new Error(errorMsg);
@@ -193,12 +239,13 @@ export class OpenAICompatibleArtist extends Artist {
 
   /** One chat completion: { system, user, image?, temperature?, signal } → text. */
   async complete({ system, user, image = null, temperature = 0.7, signal, model: modelOverride } = {}) {
-    const apiKey = getStorage('ams_openai_key') || this.apiKey;
+    await llmEnv();
+    const apiKey = getStorage(this.k('key')) || this.apiKey;
     const headers = { 'Content-Type': 'application/json' };
-    const custom = getStorage('ams_openai_headers') || this.customHeaders;
+    const custom = getStorage(this.k('headers')) || this.customHeaders;
     if (custom) { try { Object.assign(headers, typeof custom === 'object' ? custom : JSON.parse(custom)); } catch { /* ignore */ } }
     if (apiKey) headers.Authorization = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
-    const model = modelOverride || getStorage('ams_openai_model') || this.model || 'gpt-4o';
+    const model = modelOverride || getStorage(this.k('model')) || this.model || 'gpt-4o';
     const body = { model, messages: [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: openAIContent(user, image) }] };
     if (!/^o\d/.test(model)) body.temperature = temperature;
     const res = await fetch(this.getEndpoint(), { method: 'POST', headers, signal, body: JSON.stringify(body) });
@@ -209,14 +256,15 @@ export class OpenAICompatibleArtist extends Artist {
 
   /** Describe an image (data URL) as a drawing prompt with the current model. */
   async describe(image, { signal } = {}) {
-    const apiKey = getStorage('ams_openai_key') || this.apiKey;
+    await llmEnv();
+    const apiKey = getStorage(this.k('key')) || this.apiKey;
     const headers = { 'Content-Type': 'application/json' };
-    const custom = getStorage('ams_openai_headers') || this.customHeaders;
+    const custom = getStorage(this.k('headers')) || this.customHeaders;
     if (custom) { try { Object.assign(headers, typeof custom === 'object' ? custom : JSON.parse(custom)); } catch { /* ignore */ } }
     if (apiKey) headers.Authorization = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
     const res = await fetch(this.getEndpoint(), {
       method: 'POST', headers, signal,
-      body: JSON.stringify({ model: getStorage('ams_openai_model') || this.model || 'gpt-4o', messages: [{ role: 'user', content: openAIContent(DESCRIBE_INSTRUCTION, image) }] })
+      body: JSON.stringify({ model: getStorage(this.k('model')) || this.model || 'gpt-4o', messages: [{ role: 'user', content: openAIContent(DESCRIBE_INSTRUCTION, image) }] })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);

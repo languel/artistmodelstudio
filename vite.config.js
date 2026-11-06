@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -165,10 +166,51 @@ function amsRelayPlugin() {
 }
 
 
+/**
+ * Hosted LLM providers through the dev server: GET /__llm/_status says which have a key here; /__llm/<id>/<path> forwards to the provider
+ * with its key from the environment added, so the key never reaches the page (and the provider's CORS does not matter).
+ */
+function llmProxyPlugin() {
+  const ghToken = () => { try { return execFileSync('gh', ['auth', 'token'], { encoding: 'utf8', timeout: 4000 }).trim(); } catch { return ''; } };
+  const providers = {
+    pratt: { origin: 'https://llm.pratt.edu', env: ['PRATT_LLM_API_KEY'] },
+    nim: { origin: 'https://integrate.api.nvidia.com', env: ['NVIDIA_NIM_API_KEY', 'NVIDIA_API_KEY'] },
+    github: { origin: 'https://models.github.ai', env: ['GITHUB_TOKEN', 'GH_TOKEN'], fallback: ghToken }
+  };
+  const keyOf = p => p.env.map(n => process.env[n]).find(Boolean) || p.fallback?.() || '';
+  return {
+    name: 'ams-llm-proxy',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/__llm', async (req, res) => {
+        const url = new URL(req.url, 'http://x');
+        const [, id, ...rest] = url.pathname.split('/');
+        if (url.pathname === '/_status' || url.pathname === '/') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(Object.fromEntries(Object.entries(providers).map(([k, p]) => [k, Boolean(keyOf(p))])))); }
+        const p = providers[id];
+        if (!p) { res.statusCode = 404; return res.end('unknown provider'); }
+        const key = keyOf(p);
+        if (!key) { res.statusCode = 401; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ error: { message: `No key for ${id} in the environment of the dev server` } })); }
+        try {
+          const chunks = []; for await (const c of req) chunks.push(c);
+          const body = Buffer.concat(chunks);
+          const up = await fetch(`${p.origin}/${rest.join('/')}${url.search}`, { method: req.method, headers: { 'Content-Type': req.headers['content-type'] || 'application/json', Accept: req.headers.accept || '*/*', 'Accept-Encoding': 'identity', Authorization: `Bearer ${key}` }, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body });
+          res.statusCode = up.status;
+          const ct = up.headers.get('content-type'); if (ct) res.setHeader('Content-Type', ct);
+          if (!up.body) return res.end();
+          const reader = up.body.getReader();
+          res.on('close', () => reader.cancel().catch(() => {}));
+          for (;;) { const { done, value } = await reader.read(); if (done) break; res.write(value); }
+          res.end();
+        } catch (err) { if (!res.headersSent) { res.statusCode = 502; res.setHeader('Content-Type', 'application/json'); } res.end(JSON.stringify({ error: { message: `Proxy: ${err.message}` } })); }
+      });
+    }
+  };
+}
+
 export default defineConfig({
   // GitHub Pages serves the site under /<repo>/ (the deploy workflow sets BASE_PATH); locally it is /.
   base: process.env.BASE_PATH || '/',
-  plugins: [probeSavePlugin(), amsRelayPlugin(), renderVideoPlugin()],
+  plugins: [probeSavePlugin(), amsRelayPlugin(), llmProxyPlugin(), renderVideoPlugin()],
   server: {
     port: 3000,
     // Files written to exports/ (pages, reports, sketches) are outputs: writing them must not reload the studio.

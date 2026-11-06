@@ -9,9 +9,9 @@ import { favorites, toggleFavorite, isFavorite } from './modelStore.js';
 
 export const ENGINES = [
   ['ollama', 'Ollama (local)'], ['lfm3', 'LFM3-Omni (this browser)'], ['webgpu', 'In-browser (WebGPU)'], ['openrouter', 'OpenRouter'],
-  ['openai', 'OpenAI-compatible'], ['agent', 'Agent (MCP)']
+  ['openai', 'OpenAI-compatible'], ['pratt', 'Pratt Institute'], ['nim', 'NVIDIA NIM'], ['github', 'GitHub Models'], ['agent', 'Agent (MCP)']
 ];
-export const MODEL_KEYS = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model', lfm3: 'ams_lfm3_model' };
+export const MODEL_KEYS = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', pratt: 'ams_pratt_model', nim: 'ams_nim_model', github: 'ams_github_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model', lfm3: 'ams_lfm3_model' };
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return v; };
 
 /** An engine's models in groups (Favorites first, whatever the engine), with whether it is ready and why not. */
@@ -53,6 +53,13 @@ async function loadEngineModels(engineId, artist) {
   if (engineId === 'webgpu') {
     const models = artist.getAvailableModels?.() || [];
     return { ready: Boolean(navigator.gpu), status: navigator.gpu ? 'WebGPU available' : 'WebGPU unavailable in this browser', groups: [['Presets', models.map(m => ({ id: m.id, name: `${m.name || m.id}${m.isVL ? '  · image' : ''}` }))]] };
+  }
+  if (['pratt', 'nim', 'github'].includes(engineId)) {   // (hosted providers: their own list, the presets if it cannot be had)
+    let list, why = '';
+    try { list = await artist.fetchModels(); } catch (err) { why = err.message; }
+    const env = globalThis.__amsLlmEnv?.[engineId], key = ls(`ams_${engineId}_key`);
+    const have = list?.length ? list : (artist.getAvailableModels?.() || []);
+    return { ready: !why, status: why ? `${why}${key || env ? '' : ' (no key: paste one in Keys below, or set it in the dev server environment)'}` : `${have.length} models · ${key ? 'your key' : env ? 'key from the dev server environment' : 'no key'}`, groups: [['Models', have.map(m => ({ id: m.id, name: m.name || m.id }))]] };
   }
   if (engineId === 'openai') {
     const key = ls('ams_openai_key');

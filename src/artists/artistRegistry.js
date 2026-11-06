@@ -14,6 +14,7 @@ import { ReferenceFitterArtist } from './ReferenceFitterArtist.js';
 import { DistilledArtist } from './DistilledArtist.js';
 import { AgentArtist } from './AgentArtist.js';
 import { Lfm3WebGPUArtist } from './Lfm3WebGPUArtist.js';
+import { PROVIDERS, providerModels } from './providers.js';
 
 export class ArtistRegistry {
   constructor() {
@@ -32,6 +33,7 @@ export class ArtistRegistry {
     this.register(fitter);
     this.register(openrouter);
     this.register(openai);
+    for (const p of PROVIDERS) this.register(new OpenAICompatibleArtist({ id: p.id, name: p.name, baseURL: p.baseURL, models: providerModels(p), modelsPath: p.modelsPath, proxy: true }));
     this.register(ollama);
     this.register(webgpu);
     this.register(new Lfm3WebGPUArtist());
