@@ -43,8 +43,7 @@ const ADD_TRACK = svg('<rect x="3" y="7" width="12" height="10" rx="2"/><path d=
 
 export function mountTimeline(root, app) {
   const P = () => app.player, R = () => app.recorder;
-  // A take made while interactions are being recorded takes what was recorded since the last take was made (or since recording began): record, act, then New take.
-  // The next take starts after it, so nothing is carried from one take to the next.
+  // A new take starts its live History and Interactions tracks from now; "Take from the recording" (right-click the interactions button) starts them from when recording began.
   const fresh = t => markLive(app, t);
   const S = () => P().settings;   // the scene's transport: tempo, signature, fps, ruler, loop range
   /** A time (ms) as the ruler reads it. */
@@ -239,7 +238,7 @@ export function mountTimeline(root, app) {
     bar.replaceChildren(...[
       h('button', { class: `wb-icon-btn wb-tl-rec${rec || od ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : od ? 'Stop recording (Space too; the take is saved)' : `Record onto the Timeline: the transport plays (${p.loop ? 'round the loop: each pass adds to the last' : p.inOut ? 'from In to Out' : 'from the playhead'}) and each gesture you draw goes on the drawing track where the playhead is`, html: rec || od ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="5.5" fill="currentColor"/></svg>', onclick: () => (rec ? R().stop() : od ? R().stopOverdub() : R().startOverdub()), oncontextmenu: ev => { ev.preventDefault(); const poly = R().settings.overdubLanes !== 'tracks'; showMenu([{ label: 'Overlapping gestures' }, { label: 'On one track, as voices (polyphonic)', active: poly, run: () => R().setSettings({ overdubLanes: 'poly' }) }, { label: 'On a track of their own (a track per pass)', active: !poly, run: () => R().setSettings({ overdubLanes: 'tracks' }) }], ev.clientX, ev.clientY); } }),
       h('button', { class: `wb-icon-btn wb-tl-hist${app.history?.capturing ? ' on' : ''}`, title: app.history?.capturing ? 'Recording History: every change goes to the History panel and the History track (click to pause)' : 'History is paused: changes are not recorded (click to record)', html: icon('history'), onclick: () => { const H = app.history; if (!H) return; const on = !H.capturing; H.setCapturing(on); if (on && P()?.take) { P().take.noHistory = false; P().take._histKey = null; } drawBar(); drawLanes(); } }),
-      h('button', { class: `wb-icon-btn wb-tl-ints${app.interactions?.capturing ? ' on' : ''}`, title: app.interactions?.capturing ? 'Recording interactions: the controls you click (not the drawing; History has that). Click to stop' : 'Record interactions: the controls you click, for walkthroughs. They appear as a muted Interactions track; unmute it and the cursor travels to each one on playback', html: icon('select'), onclick: () => { const I = app.interactions; if (!I) return; I.setCapturing(!I.capturing); if (I.capturing && P()?.take) { P().take.noInteractions = false; P().take._intKey = null; } drawBar(); } }),
+      h('button', { class: `wb-icon-btn wb-tl-ints${app.interactions?.capturing ? ' on' : ''}`, title: app.interactions?.capturing ? 'Recording interactions: the controls you click (not the drawing; History has that). Click to stop' : 'Record interactions: the controls you click, for walkthroughs. They appear as an Interactions track and the cursor travels to each one on playback. Right-click: make a take from what was recorded', html: icon('select'), oncontextmenu: ev => { ev.preventDefault(); showMenu([{ label: 'Take from the recording', hint: 'A take with what was recorded since recording was switched on (History and Interactions)', run: takeFromRecording }, { label: 'Clear what was recorded', hint: 'Forget the recorded interactions so far (History is cleared in its own panel)', run: () => { app.interactions?.clear(); drawBar(); } }], ev.clientX, ev.clientY); }, onclick: () => { const I = app.interactions; if (!I) return; I.setCapturing(!I.capturing); if (I.capturing && P()?.take) { P().take.noInteractions = false; P().take._intKey = null; } drawBar(); } }),
       h('button', { class: 'wb-icon-btn', title: 'Play / pause (Space in the timeline)', html: p?.playing ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : icon('play'), onclick: () => p.toggle() }),
       h('span', { class: 'wb-tl-time' }, rec && !take ? `● ${fmt(R().now())}` : stampOf(p.t, p.duration)),
       ruler,
@@ -280,6 +279,16 @@ export function mountTimeline(root, app) {
     if (saved) { try { await app.assetStore.remove(take.assetId); } catch (err) { app.log(`Could not delete the take: ${err.message}`); } }
     P().close(); select(null); await loadTakes(); drawBar(); drawLanes();
     app.log(`${saved ? 'Deleted' : 'Threw away'} the take “${take.title}”.`);
+  };
+  const takeFromRecording = async () => {
+    const I = app.interactions, from = I?.startedAt || 0;
+    if (!from) { app.log('Switch recording on first (the pointer button), do the work, then make the take from it.'); return; }
+    leaveComps();
+    const p = P(), cur = p.take;
+    if (cur && !cur.assetId && cur.clips.length && !(await askConfirm('Start a new take from the recording? This one is not saved (the save button keeps it).'))) return;
+    p.load(markLive(app, createTake({ title: `Take ${takes.length + 1}`, baseline: JSON.parse(JSON.stringify(app.store.doc)) }), from));
+    select(null); fitZoom(); drawBar(); drawLanes();
+    app.log('A take from what was recorded since recording was switched on.');
   };
   const newTake = async () => {
     leaveComps();
@@ -587,9 +596,10 @@ export function mountTimeline(root, app) {
     const key = liveKey();
     if (take._histKey === key) return;
     Object.defineProperty(take, '_histKey', { value: key, writable: true, configurable: true, enumerable: false });
-    let tr = tracksOf(take).find(t => t.live === 'history');
-    if (!tr) { tr = addTrack(take, 'comp', 'History'); tr.live = 'history'; tr.muted = true; }
     const { clock, hs } = liveClockNow();
+    let tr = tracksOf(take).find(t => t.live === 'history');
+    if (!hs.length) { if (tr) { take.tracks = take.tracks.filter(t => t !== tr); take.clips = take.clips.filter(c => c.live !== 'history'); touch(take); } return; }   // (nothing to show: no empty track)
+    if (!tr) { tr = addTrack(take, 'comp', 'History'); tr.live = 'history'; tr.muted = true; }
     const from = Math.max(0, Math.min(...hs.map(e => clock.at(e.t - (H.durationOf(e) || 0))), Infinity));
     const inner = H.realClips(hs, clock, Number.isFinite(from) ? from : 0).map((c, i) => ({ ...c, id: `hist${H.seq}x${i}` }));
     const dur = Math.max(1, ...inner.map(c => c.start + c.dur));
@@ -605,10 +615,12 @@ export function mountTimeline(root, app) {
     const key = liveKey();
     if (take._intKey === key) return;
     Object.defineProperty(take, '_intKey', { value: key, writable: true, configurable: true, enumerable: false });
+    const mine = I.entries.filter(e => e.t >= take._liveFrom);
     let tr = tracksOf(take).find(t => t.live === 'interactions');
+    if (!mine.length) { if (tr) { take.tracks = take.tracks.filter(t => t !== tr); take.clips = take.clips.filter(c => c.live !== 'interactions'); touch(take); } return; }   // (nothing to show: no empty track)
     if (!tr) { tr = addTrack(take, 'action', 'Interactions'); tr.live = 'interactions'; }   // (not muted: you switched recording on to watch it back; History's track is muted, it replays the drawing itself)
     const { clock } = liveClockNow();
-    take.clips = [...take.clips.filter(c => c.live !== 'interactions'), ...I.clips(clock, I.entries.filter(e => e.t >= take._liveFrom)).map((c, i) => ({ ...c, id: `int${I.seq}x${i}`, lane: tr.id, live: 'interactions' }))];
+    take.clips = [...take.clips.filter(c => c.live !== 'interactions'), ...I.clips(clock, mine).map((c, i) => ({ ...c, id: `int${I.seq}x${i}`, lane: tr.id, live: 'interactions' }))];
     touch(take);
   };
   let histQueued = false;
