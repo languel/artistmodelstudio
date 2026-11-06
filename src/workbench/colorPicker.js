@@ -264,7 +264,7 @@ function fieldsBody(app, { stroke, fill, set, active: side0 }) {
     const col = h('div', { class: 'wb-cp-col', 'data-paint': which, title: label }, b.el);
     return { b, col };
   };
-  const F = side('fill', 'Fill', fill, '#ffffff'), S = side('stroke', 'Stroke', stroke, '#1d1b19');
+  const F = side('fill', 'Fill', fill, '#ffffff'), S = side('stroke', 'Stroke', stroke, app?.inkColor?.() || '#1d1b19');
   const swap = h('button', { class: 'wb-cp-swap', type: 'button', title: 'Swap stroke and fill', onclick: () => {
     const f = F.b.get(), s = S.b.get(), fo = F.b.el.classList.contains('wb-cp-off'), so = S.b.el.classList.contains('wb-cp-off');
     if (so) { set('fill', null); F.b.el.classList.add('wb-cp-off'); } else F.b.choose(s);
@@ -289,7 +289,7 @@ function fieldsBody(app, { stroke, fill, set, active: side0 }) {
 function shellBody(app, { stroke, fill, set, active: side0 }, widget) {
   const none = v => !v || v === 'none';
   const mk = (v, fb) => { const p = parseColor(none(v) ? fb : v, fb); return { hsv: hexHsv(p.hex), alpha: p.alpha, off: none(v), dirty: false }; };
-  const st = { stroke: mk(stroke, '#1d1b19'), fill: mk(fill, '#ffffff') };
+  const st = { stroke: mk(stroke, app?.inkColor?.() || '#1d1b19'), fill: mk(fill, '#ffffff') };
   let active = side0 === 'fill' ? 'fill' : 'stroke';
   const hexOf = w => hsvHex(st[w].hsv), fmt = w => formatColor(hexOf(w), st[w].alpha);
   const sidesUI = {};

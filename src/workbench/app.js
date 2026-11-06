@@ -17,7 +17,7 @@ import { Scenes } from './scenes.js';
 import { runScoreInto } from '../process/script.js';
 import { toP5Min } from '../process/p5min.js';
 import { SCULPTS, loadSculptLibrary } from '../process/sculpt.js';
-import { ProcessStore, createDocument, themeGround, normalizeDocument, normalizeElement, DEFAULT_REALIZE, ROLES } from '../process/document.js';
+import { ProcessStore, createDocument, themeGround, inkOn, normalizeDocument, normalizeElement, DEFAULT_REALIZE, ROLES } from '../process/document.js';
 import { toSVG, fromSVG, toExcalidraw, fromExcalidraw, toP5, p5IndexHtml, processSheet } from '../process/exports.js';
 import { dslToProcess } from '../process/fromDsl.js';
 import { canvasBlob } from './ui.js';
@@ -203,6 +203,7 @@ export class Workbench {
       if (reason === 'live board code') return;   // a live redraw: saved, drawn; the panels stay as they are
       this.perfTick?.();   // a board's performance switch (or a scene with some) starts or stops the count
       if (!this.store.doc.stages.some(s => s.id === this.activeStageId)) this.activeStageId = this.store.doc.stages[0]?.id;
+      this.syncInk();
       this.emit('document', reason);
       this.renderChrome();
     }, { live: true });
@@ -713,10 +714,20 @@ export class Workbench {
   openGridMenu(x = this.pointerAt?.[0] ?? 200, y = this.pointerAt?.[1] ?? 200) { return openGridParams(this, x, y); }
   openCanvasMenu(x = this.pointerAt?.[0] ?? 200, y = this.pointerAt?.[1] ?? 200) { return openCanvasParams(this, x, y); }
 
+  /** The color a mark with no stroke of its own is drawn in on the board being worked on: dark ink on a light paper, bright on a dark one (the same rule the renderer uses). */
+  inkColor() {
+    const b = boardById(this.store.doc, this.activeBoard) || boardById(this.store.doc, MAIN);
+    return inkOn(b?.ground ?? this.store.doc.artboard?.ground) || '#1d1b19';
+  }
+
+  /** The stroke swatch follows the paper: its ink is a CSS variable, set when the drawing or the board being worked on changes. */
+  syncInk() { try { document.documentElement.style.setProperty('--wb-ink', this.inkColor()); } catch { /* no document */ } }
+
   paintSwatches() {
+    this.syncInk();
     const { stroke: s, fill: f } = this.paintValues();
     const chip = (which, v, tip) => {
-      const b = h('button', { class: `wb-paint-${which}${v && v !== 'none' ? '' : ' none'}${which === 'stroke' && !v ? ' ink' : ''}`, title: tip, type: 'button' }, h('span', { style: which === 'stroke' ? { boxShadow: `inset 0 0 0 5px ${v && v !== 'none' ? v : !v ? 'var(--wb-text)' : 'transparent'}` } : { background: v || 'transparent' } }));
+      const b = h('button', { class: `wb-paint-${which}${v && v !== 'none' ? '' : ' none'}${which === 'stroke' && !v ? ' ink' : ''}`, title: tip, type: 'button' }, h('span', { style: which === 'stroke' ? { boxShadow: `inset 0 0 0 5px ${v && v !== 'none' ? v : !v ? 'var(--wb-ink, ' + this.inkColor() + ')' : 'transparent'}` } : { background: v || 'transparent' } }));
       b.addEventListener('click', ev => { ev.stopPropagation(); this.openPaintPicker(0, 0, { active: which, anchor: b }); });   // the picker in its last mode, this side selected
       b.addEventListener('contextmenu', ev => { ev.preventDefault(); showMenu([{ label: which === 'fill' ? 'No fill' : 'No stroke', run: () => this.setPaint(which, which === 'stroke' ? 'none' : null) }, ...(which === 'stroke' ? [{ label: 'Brush ink (default)', run: () => this.setPaint('stroke', null) }] : []), { label: 'Swap stroke and fill', run: () => this.swapPaint() }, { label: 'Stroke and fill together…', run: () => this.openPaintPicker(ev.clientX, ev.clientY) }], ev.clientX, ev.clientY); });
       return b;
@@ -1395,7 +1406,7 @@ export class Workbench {
       return openPropertiesPopup(this, e.clientX, e.clientY);
     };
     this.activeBoard = MAIN;
-    this.canvas.onBoardSelect = id => { this.activeBoard = id; this.selectedAsset = null; this.emit('board'); };
+    this.canvas.onBoardSelect = id => { this.activeBoard = id; this.selectedAsset = null; this.syncInk(); this.emit('board'); };
     // A click on a sketch makes it live to the pointer and keys (see CanvasView): said the first few times.
     this.canvas.onBoardActivate = id => {
       if (this.activeBoard === id) return;
