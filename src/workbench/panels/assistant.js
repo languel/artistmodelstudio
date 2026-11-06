@@ -185,13 +185,21 @@ export function mountAssistant(root, app) {
     els.forEach(e => { e.textContent = f; });
   };
   const keepSpinning = () => { if (!spinTimer) spinTimer = setInterval(spinTick, 90); };
+  let lastBot = null;
+  const linkReply = (el, t) => {
+    t.linked = true; el._trace = t.el;
+    el.classList.add('has-trace'); el.title = 'Click to see what it did: each tool call and what came back';
+    el.addEventListener('click', ev => { if (ev.target.closest('button')) return; const on = !t.el.classList.contains('peek'); t.el.classList.toggle('peek', on); t.el.open = on; el.classList.toggle('peeking', on); if (on) t.el.scrollIntoView({ block: 'nearest' }); });
+  };
   const add = (who, text, kind = '') => {
     hint.remove();
     let shown = text, extra = {};
     if (who === 'you' && kind !== 'cmd') { const m = /^(\[Context:[^\]]*\])\n/.exec(text); if (m) { extra.title = m[1]; shown = text.slice(m[0].length); } shown = shown.replace(/\n\nAttached [\s\S]*$/, ''); }
     const el = h('div', { class: `wb-msg ${who} ${kind}`, ...extra }, ...(who === 'bot' && !kind ? [h('span', {}, shown), h('button', { class: 'wb-say-btn', type: 'button', title: 'Read aloud', html: '🔊', onclick: () => (app.speaker.speaking ? app.speaker.stop() : app.speaker.say(shown)) })] : kind === 'pending' ? [h('span', { class: 'wb-spin' }, SPIN[0]), h('span', { class: 'wb-pending-text' }, ` ${shown}`)] : [shown]));
     if (kind === 'pending') keepSpinning();
-    if (who === 'you') trace = null;
+    if (who === 'you') { trace = null; lastBot = null; }
+    // A reply that came with tool calls opens to them when clicked (the calls may come before the reply or after it)
+    if (who === 'bot' && !kind) { lastBot = el; if (trace?.el && !trace.linked) linkReply(el, trace); }
     log.append(el); log.scrollTop = log.scrollHeight; return el;
   };
 
@@ -214,6 +222,7 @@ export function mountAssistant(root, app) {
       const el = h('details', { class: 'wb-trace' }, h('summary', {}, spin, ' ', label), body);
       trace = { el, label, spin, body, calls: [], running: true, ended: false };
       log.append(el); keepSpinning();
+      if (lastBot && !lastBot._trace) linkReply(lastBot, trace);
     }
     trace.calls.push(c);
     const brief = v => JSON.stringify(v ?? null).replace(/"data:image[^"]+"/g, '"<image>"').slice(0, 240);

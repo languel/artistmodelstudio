@@ -41,3 +41,6 @@ export function askText(label, value = '') {
     setTimeout(() => { input.focus(); input.select?.(); });
   });
 }
+
+/** A dialog with content of its own: build(box, close) fills it; closes on Esc or a click outside. */
+export function showDialog(build) { return modal(build); }

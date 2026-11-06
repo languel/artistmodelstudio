@@ -498,14 +498,14 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-rec.on { color: #fff; background: #c0563f; border-radius: 50%; }
 .wb-tl-body { display: flex; flex: 1; min-height: 0; border-top: 1px solid var(--wb-line); }
 .wb-tl-labels { flex: none; width: 76px; border-right: 1px solid var(--wb-line); }
-.wb-tl-labels > div, .wb-tl-row { height: 24px; box-sizing: border-box; border-bottom: 1px solid color-mix(in srgb, var(--wb-line) 60%, transparent); }
+.wb-tl-labels > div, .wb-tl-row { height: calc(24px * var(--tl-vz, 1)); box-sizing: border-box; border-bottom: 1px solid color-mix(in srgb, var(--wb-line) 60%, transparent); }
 .wb-tl-rulerlabel, .wb-tl-ruler { height: 24px !important; }
-.wb-tl-label { font-size: 11px; color: var(--wb-muted); line-height: 24px; padding-left: 6px; }
+.wb-tl-label { font-size: 11px; color: var(--wb-muted); line-height: calc(24px * var(--tl-vz, 1)); padding-left: 6px; }
 .wb-tl-lanes { position: relative; flex: 1; overflow: auto; outline: none; }
 .wb-tl-ruler { position: relative; border-bottom: 1px solid var(--wb-line); cursor: text; }
 .wb-tl-ruler span { position: absolute; top: 8px; font: 10px var(--font-mono, monospace); color: var(--wb-muted); transform: translateX(2px); border-left: 1px solid var(--wb-line); padding-left: 2px; }
 .wb-tl-row { position: relative; }
-.wb-tl-clip { position: absolute; top: 3px; height: 17px; box-sizing: border-box; border-radius: 4px; font-size: 10.5px; line-height: 15px; padding: 0 6px 0 5px; overflow: hidden; white-space: nowrap; cursor: grab; border: 1px solid transparent; color: #1d1b19; }
+.wb-tl-clip { position: absolute; top: calc(3px * var(--tl-vz, 1)); height: calc(17px * var(--tl-vz, 1)); box-sizing: border-box; border-radius: 4px; font-size: 10.5px; line-height: 15px; padding: 0 6px 0 5px; overflow: hidden; white-space: nowrap; cursor: grab; border: 1px solid transparent; color: #1d1b19; }
 .wb-tl-clip.sel { border-color: var(--wb-text); box-shadow: 0 0 0 1px var(--wb-text); }
 .wb-tl-cliptext { pointer-events: none; }
 .wb-tl-grip { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
@@ -552,8 +552,8 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 
 .wb-tl-lanes.drop { outline: 1px dashed color-mix(in srgb, var(--wb-select) 70%, transparent); outline-offset: -2px; }
 .wb-tl-wave { position: absolute; left: 1px; top: 1px; pointer-events: none; }
-.wb-tl-row[data-kind="audio"], .wb-tl-labels > .wb-tl-label[data-kind="audio"] { height: 40px; }
-.wb-tl-row[data-kind="audio"] .wb-tl-clip { height: 33px; }
+.wb-tl-row[data-kind="audio"], .wb-tl-labels > .wb-tl-label[data-kind="audio"] { height: calc(40px * var(--tl-vz, 1)); }
+.wb-tl-row[data-kind="audio"] .wb-tl-clip { height: calc(33px * var(--tl-vz, 1)); }
 .wb-tl-row[data-kind="audio"] .wb-tl-cliptext { position: relative; font-size: 9.5px; line-height: 12px; opacity: 0.8; }
 .wb-tl-label[data-kind="audio"] { line-height: 40px; }
 
@@ -1294,3 +1294,22 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-tl-hist.on { opacity: 1; color: var(--wb-accent-2, #c0563f); }
 .wb-tl-ints { opacity: 0.55; }
 .wb-tl-ints.on { opacity: 1; color: var(--wb-accent-2, #c0563f); }
+
+/* A reply that did something: click it to see the calls (even with Show tool details off) */
+.wb-msg.bot.has-trace { cursor: pointer; }
+.wb-msg.bot.has-trace:hover { text-decoration: underline dotted color-mix(in srgb, var(--wb-muted) 60%, transparent); text-underline-offset: 3px; }
+.wb-msg.bot.peeking { color: var(--wb-text); }
+.wb-chat.no-trace .wb-trace.peek, .wb-chat.no-trace .wb-trace.done.peek:not(.failed) { display: block !important; }
+.wb-chat.no-trace .wb-trace.peek .wb-trace-body { display: block !important; }
+.wb-chat.no-trace .wb-trace.peek > summary { pointer-events: auto; }
+
+/* Taller tracks: the whole label of a clip, wrapped */
+.vz-tall .wb-tl-clip { white-space: normal; line-height: 13px; padding-top: 2px; overflow: hidden; }
+.vz-tall .wb-tl-cliptext { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 7; overflow: hidden; }
+.wb-tl-vz { opacity: 0.55; }
+.wb-tl-vz.on { opacity: 1; color: var(--wb-accent-2, #c0563f); }
+
+.wb-dialog.wb-transcript { width: min(760px, 92vw); max-width: none; }
+.wb-transcript-bar { align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-start; }
+.wb-transcript-bar strong { margin-right: auto; }
+.wb-transcript-text { width: 100%; height: min(60vh, 520px); resize: vertical; font: 12px/1.5 var(--font-mono, ui-monospace, monospace); white-space: pre; margin-top: 8px; }
