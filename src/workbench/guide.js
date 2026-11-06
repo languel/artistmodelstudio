@@ -15,7 +15,14 @@ import { h } from './ui.js';
 
 const PACE_KEY = 'ams_guide_pace';
 // The pointer is the arrowhead of the direct-select tool (icons.js), as an outline, with a soft glow (the CSS).
-const ARROW = '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 3l14 8-6 1.5L10 19z" fill="var(--wb-guide-body)" stroke="var(--wb-guide-fill)" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+/** The pointer's shapes: the SVG inside a 24-unit box, and where in it the point is (the arrow's tip; the middle of the others). The look is set in CSS (outline or filled, in the pointer color). */
+export const POINTER_SHAPES = {
+  arrow: { label: 'Arrow', hot: [5, 3], svg: '<path d="M5 3l14 8-6 1.5L10 19z" stroke-linejoin="round"/>' },
+  ring: { label: 'Ring', hot: [12, 12], svg: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5"/>' },
+  cross: { label: 'Crosshair', hot: [12, 12], svg: '<path d="M12 3v6M12 15v6M3 12h6M15 12h6" stroke-linecap="round"/><circle cx="12" cy="12" r="1.5"/>' },
+  dot: { label: 'Dot', hot: [12, 12], svg: '<circle cx="12" cy="12" r="5"/>' }
+};
+const pointerSvg = shape => `<svg viewBox="0 0 24 24" width="24" height="24">${(POINTER_SHAPES[shape] || POINTER_SHAPES.arrow).svg}</svg>`;
 
 export class Guide {
   constructor(app) {
@@ -23,7 +30,8 @@ export class Guide {
     this.enabled = true;
     try { this.pace = Number(localStorage.getItem(PACE_KEY) ?? 1); } catch { this.pace = 1; }
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) this.pace = 0;
-    this.cursor = h('div', { class: 'wb-guide-cursor', html: ARROW });
+    this.cursor = h('div', { class: 'wb-guide-cursor', html: pointerSvg('arrow') });
+    this.hot = POINTER_SHAPES.arrow.hot;
     this.halo = h('div', { class: 'wb-guide-halo' });
     this.text = h('div', { class: 'wb-guide-text' });
     this.meta = h('div', { class: 'wb-guide-meta' });
@@ -51,6 +59,10 @@ export class Guide {
   applyLook() {
     const get = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
     const style = get('ams_guide_style', 'outline'), glow = Math.max(0, Math.min(1, Number(get('ams_guide_glow', '0.7')))), pulse = get('ams_guide_pulse', '0') === '1';
+    const shape = POINTER_SHAPES[get('ams_guide_shape', 'arrow')] ? get('ams_guide_shape', 'arrow') : 'arrow', color = get('ams_guide_color', '');
+    if (this.cursor.dataset.shape !== shape) { this.cursor.dataset.shape = shape; this.cursor.innerHTML = pointerSvg(shape); this.hot = POINTER_SHAPES[shape].hot; if (this.pos) this.place(this.pos.x, this.pos.y); }
+    // the pointer's color: the accent color unless one was chosen (Settings › Guide)
+    for (const el of [this.cursor, this.halo]) { if (color) el.style.setProperty('--gc', color); else el.style.removeProperty('--gc'); }
     this.cursor.dataset.style = style;
     this.cursor.classList.toggle('pulse', pulse && glow > 0);
     this.cursor.style.setProperty('--glow', String(glow));
@@ -59,7 +71,7 @@ export class Guide {
   get active() { return this.enabled && this.pace > 0; }
   wait(ms) { return new Promise(r => setTimeout(r, ms * this.pace)); }
 
-  place(x, y) { this.pos = { x, y }; this.cursor.style.transform = `translate(${x - 5}px, ${y - 3}px)`; }
+  place(x, y) { this.pos = { x, y }; this.cursor.style.transform = `translate(${x - this.hot[0]}px, ${y - this.hot[1]}px)`; }
 
   /** Resolve a semantic target to a screen rect. */
   rect(target) {

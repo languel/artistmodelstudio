@@ -1,5 +1,6 @@
 /** Settings: the artboard (size, paper), the workspace (theme, grid, reference), and the guide. */
 import { rangeInput } from '../rangeInput.js';
+import { POINTER_SHAPES } from '../guide.js';
 import { icon } from '../icons.js';
 import { h, row, numberField, selectField, section } from '../ui.js';
 import { colorField } from '../colorPicker.js';
@@ -129,7 +130,15 @@ export function mountSettings(root, app) {
       section('Guide', true,
         row('Show agents', check(app.guide.enabled, v => { app.guide.enabled = v; ls('ams_guide_enabled', v ? '1' : '0'); }, 'Move a cursor and narrate when an agent or walkthrough acts')),
         row('Pace', selectField([['0', 'Instant'], ['0.5', 'Fast'], ['1', 'Normal'], ['2', 'Slow']], String(app.guide.pace), v => { app.guide.pace = Number(v); ls('ams_guide_pace', v); })),
-        row('Pointer', selectField([['outline', 'Outline'], ['filled', 'Filled']], ls('ams_guide_style') || 'outline', v => { ls('ams_guide_style', v); app.guide.applyLook(); }), 'The agent\'s pointer: an outline in the accent color, or filled'),
+        row('Pointer shape', selectField(Object.entries(POINTER_SHAPES).map(([id, v]) => [id, v.label]), ls('ams_guide_shape') || 'arrow', v => { ls('ams_guide_shape', v); app.guide.applyLook(); }), 'The agent\'s pointer: an arrow (the default), a ring, a crosshair or a dot'),
+        row('Pointer color', (() => {
+          const accent = () => { const c = document.createElement('canvas').getContext('2d'); c.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--wb-accent-2').trim() || '#c8664f'; return c.fillStyle; };
+          const input = h('input', { type: 'color', class: 'wb-color-input', value: ls('ams_guide_color') || accent(), title: 'The pointer\'s color (the accent color until you choose one)' });
+          const reset = h('button', { class: 'wb-icon-btn', type: 'button', title: 'Back to the accent color', html: '↺', hidden: !ls('ams_guide_color'), onclick: () => { ls('ams_guide_color', ''); input.value = accent(); reset.hidden = true; app.guide.applyLook(); } });
+          input.addEventListener('input', () => { ls('ams_guide_color', input.value); reset.hidden = false; app.guide.applyLook(); });
+          return h('span', { class: 'wb-model-ctl' }, input, reset);
+        })(), 'Accent color by default'),
+        row('Pointer style', selectField([['outline', 'Outline'], ['filled', 'Filled']], ls('ams_guide_style') || 'outline', v => { ls('ams_guide_style', v); app.guide.applyLook(); }), 'The agent\'s pointer: an outline in the accent color, or filled'),
         row('Glow', (() => { const r = rangeInput({ min: 0, max: 1, step: 0.05, value: Number(ls('ams_guide_glow') ?? 0.7), title: 'How much the pointer glows (0 is none)' }); r.addEventListener('input', () => { ls('ams_guide_glow', r.value); app.guide.applyLook(); }); return r; })()),
         row('Pulse', check(ls('ams_guide_pulse') === '1', v => { ls('ams_guide_pulse', v ? '1' : '0'); app.guide.applyLook(); }, 'Let the glow breathe in and out (off by default)')))
     );
