@@ -37,7 +37,7 @@ export class Interactions {
     const H = this.app.history, ui = c.ui || {};
     const changes = (H?.entries || []).filter(e => e.t >= c.t - 60 && e.t <= c.t + 700).map(e => ({ id: e.id, label: e.label, summary: e.summary }));
     const entry = { id: `i${++this.seq}`, t: c.t, kind: c.kind, input: c.input, button: c.button || '', where: c.where || '', target: ui.target || null, name: ui.name || '', tool: ui.tool || '', command: ui.command || null,
-      drag: Boolean(ui.drag), since: ui.since || c.t, from: ui.from || null, to: ui.to || null, world: ui.world || null, effects: effectsOf((c.effects || []).filter(f => f.kind !== 'log')), changes };   // (effects: the app's own log lines are not what the step did)
+      drag: Boolean(ui.drag), path: ui.path || null, pathSpace: ui.pathSpace || 'screen', since: ui.since || c.t, from: ui.from || null, to: ui.to || null, world: ui.world || null, effects: effectsOf((c.effects || []).filter(f => f.kind !== 'log')), changes };   // (effects: the app's own log lines are not what the step did)
     this.entries.push(entry);
     if (this.entries.length > MAX) this.entries.shift();
     this.emit();
@@ -59,7 +59,7 @@ export class Interactions {
     // (on the shared clock, from when a press began to when it was released: a drag lasts as long as it did)
     return entries.map(e => {
       const start = clock.at(e.since ?? e.t), end = clock.at(e.t);
-      return { track: 'action', start: Math.round(start), dur: Math.max(500, Math.round(end - start)), name: 'ui', label: this.describe(e), ui: { kind: e.kind, target: e.target, drag: e.drag, from: e.from, to: e.to, where: e.where, command: e.command, changes: e.changes.map(c => c.id) }, fx: {} };
+      return { track: 'action', start: Math.round(start), dur: Math.max(500, Math.round(end - start)), name: 'ui', label: this.describe(e), ui: { kind: e.kind, target: e.target, drag: e.drag, path: e.path, pathSpace: e.pathSpace, from: e.from, to: e.to, where: e.where, command: e.command, changes: e.changes.map(c => c.id) }, fx: {} };
     });
   }
 }

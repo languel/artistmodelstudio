@@ -596,13 +596,16 @@ export function mountTimeline(root, app) {
     const key = liveKey();
     if (take._histKey === key) return;
     Object.defineProperty(take, '_histKey', { value: key, writable: true, configurable: true, enumerable: false });
-    const { clock, hs } = liveClockNow();
+    const { clock, hs, is } = liveClockNow();
     let tr = tracksOf(take).find(t => t.live === 'history');
     if (!hs.length) { if (tr) { take.tracks = take.tracks.filter(t => t !== tr); take.clips = take.clips.filter(c => c.live !== 'history'); touch(take); } return; }   // (nothing to show: no empty track)
     if (!tr) { tr = addTrack(take, 'comp', 'History'); tr.live = 'history'; tr.muted = true; }
     const from = Math.max(0, Math.min(...hs.map(e => clock.at(e.t - (H.durationOf(e) || 0))), Infinity));
     const inner = H.realClips(hs, clock, Number.isFinite(from) ? from : 0).map((c, i) => ({ ...c, id: `hist${H.seq}x${i}` }));
-    const dur = Math.max(1, ...inner.map(c => c.start + c.dur));
+    // The History clip spans as long as the recording does (to the last interaction too), so the live tracks line up end to end; the strokes sit inside it where they happened.
+    const start0 = Number.isFinite(from) ? Math.round(from) : 0;
+    const end = Math.max(...inner.map(c => start0 + c.start + c.dur), ...is.map(e => clock.at(e.t)), start0 + 1);
+    const dur = Math.max(1, Math.round(end - start0));
     const old = take.clips.find(c => c.live === 'history');
     const clip = { id: old?.id || clipId(), track: 'comp', lane: tr.id, live: 'history', start: Number.isFinite(from) ? Math.round(from) : 0, dur, rate: 1, label: `History (${H.entries.length})`, fx: {}, comp: { tracks: [{ id: 'draw', kind: 'draw', name: 'Drawing' }], clips: inner } };
     take.clips = [...take.clips.filter(c => c.live !== 'history'), ...(inner.length ? [clip] : [])];

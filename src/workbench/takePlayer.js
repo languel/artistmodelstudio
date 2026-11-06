@@ -25,7 +25,7 @@ export class TakePlayer {
     this.listeners = new Set();
     app.canvas.drawPreviewOverlay = (ctx, tf, W, H) => {
       if (!this.take) return;
-      drawPen(ctx, app.canvas.previewDoc, tf);
+      if (!app.guide?.following) drawPen(ctx, app.canvas.previewDoc, tf);   // (the agent's pointer is the pen while it follows a stroke)
       const dpr = app.canvas.dpr || 1;   // (drawCaptions works in device pixels, with no transform: on a sharp screen the view's CSS size is only a fraction of it)
       drawCaptions(ctx, this.take, this.t, Math.round(W * dpr), Math.round(H * dpr));
       // A quiet label: this is a recording, not the drawing (Esc or any tool goes back).
@@ -157,7 +157,9 @@ export class TakePlayer {
   /** Recorded interactions that fall in [a, b) play on the Guide's cursor (unmuted clips only). */
   fireCues(a, b) {
     const g = this.app.guide; if (!g?.active || b - a > 2000 || this.rate >= 4) return;   // (fast playback: the result, not the cursor)
-    for (const c of flatClips(this.take)) if (c.ui && !c.muted && c.start >= a && c.start < b) g.cue(c.ui, c.label);
+    let hide = false; try { hide = localStorage.getItem('ams_guide_playback') === 'hide'; } catch { /* ignore */ }
+    if (hide) return;   // (Settings › Guide › On playback: no pointer, for a video or a quick look)
+    for (const c of flatClips(this.take)) if (c.ui && !c.muted && c.start >= a && c.start < b) g.cue(c.ui, c.label, { rate: this.rate });
   }
 
   /** Back to the start: In, if marked; else, while looping, the loop region's start; else 0. */

@@ -130,6 +130,7 @@ export function mountSettings(root, app) {
       section('Guide', true,
         row('Show agents', check(app.guide.enabled, v => { app.guide.enabled = v; ls('ams_guide_enabled', v ? '1' : '0'); }, 'Move a cursor and narrate when an agent or walkthrough acts')),
         row('Pace', selectField([['0', 'Instant'], ['0.5', 'Fast'], ['1', 'Normal'], ['2', 'Slow']], String(app.guide.pace), v => { app.guide.pace = Number(v); ls('ams_guide_pace', v); })),
+        row('On playback', selectField([['show', 'Follow the drawing'], ['hide', 'No pointer']], ls('ams_guide_playback') || 'show', v => ls('ams_guide_playback', v)), 'When a take plays: the pointer follows what was done (clicks, strokes as they are drawn), or is left out (to watch the drawing alone, as for a video)'),
         row('Pointer shape', selectField(Object.entries(POINTER_SHAPES).map(([id, v]) => [id, v.label]), ls('ams_guide_shape') || 'arrow', v => { ls('ams_guide_shape', v); app.guide.applyLook(); }), 'The agent\'s pointer: an arrow (the default), a ring, a crosshair or a dot'),
         row('Pointer color', (() => {
           const accent = () => { const c = document.createElement('canvas').getContext('2d'); c.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--wb-accent-2').trim() || '#c8664f'; return c.fillStyle; };

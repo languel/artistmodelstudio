@@ -67,6 +67,16 @@ export const shortInput = c => {
   return w ? `${w[1]}scroll ${ARROW[w[2]]}` : c.input;
 };
 
+/** A dragged path, thinned (a point only when it moved a few pixels, at most ~100) and, for the canvas, in the drawing's own coordinates so it follows the view. [[x, y, ms], …] */
+function pathOf(path, toWorld) {
+  const out = [], keep = (x, y, t) => { const [a, b] = toWorld ? toWorld(x, y) : [x, y]; out.push([Math.round(a * 10) / 10, Math.round(b * 10) / 10, t]); };
+  let last = null;
+  for (const [x, y, t] of path) { if (!last || Math.hypot(x - last[0], y - last[1]) >= 3) { keep(x, y, t); last = [x, y]; } }
+  const end = path.at(-1); if (end && last && (end[0] !== last[0] || end[1] !== last[1])) keep(end[0], end[1], end[2]);
+  if (out.length > 120) { const k = out.length / 120; return Array.from({ length: 120 }, (_, i) => out[Math.min(out.length - 1, Math.round(i * k))]).concat([out.at(-1)]); }
+  return out;
+}
+
 export class UserActions {
   constructor(app) {
     this.app = app;
@@ -105,11 +115,15 @@ export class UserActions {
       const held = e.key === ' ' && where === 'Canvas' && !sc ? 'Hold: pan' : '';
       this.cue({ kind: 'key', input: `${mods(e)}${keyName(e)}`, where, fallback: tl || shortName(sc?.label) || held, ui: { command: sc?.id || null, name: tl || shortName(sc?.label) || held || '', tool: this.toolName() } });
     }, true);
-    window.addEventListener('pointermove', e => { this.hoverTarget = e.target; }, { capture: true, passive: true });
+    window.addEventListener('pointermove', e => {
+      this.hoverTarget = e.target;
+      const d = downs.get(e.pointerId);   // (a press being dragged: where the pointer went, and when, so playback can follow it)
+      if (d && d.path.length < 2000) d.path.push([e.clientX, e.clientY, Date.now() - d.at]);
+    }, { capture: true, passive: true });
     window.addEventListener('pointerdown', e => {
       if (mine(e.target)) return;
       // (what a press does at once, the playhead moving, belongs to the click or drag it starts)
-      downs.set(e.pointerId, { x: e.clientX, y: e.clientY, e, target: e.target, effects: [], at: Date.now() });
+      downs.set(e.pointerId, { x: e.clientX, y: e.clientY, e, target: e.target, effects: [], at: Date.now(), path: [[e.clientX, e.clientY, 0]] });
       this.pending = downs.get(e.pointerId);
     }, true);
     window.addEventListener('pointerup', e => {
@@ -122,7 +136,7 @@ export class UserActions {
       const g = d.target.closest?.('[data-guide]'), cv = app.canvas?.canvas?.getBoundingClientRect?.();
       const world = where === 'Canvas' && cv && app.canvas?.toWorld ? [[d.x, d.y], [e.clientX, e.clientY]].map(([x, y]) => app.canvas.toWorld(x - cv.left, y - cv.top).map(Math.round)) : null;
       this.cue({ kind: 'pointer', button, input: `${mods(de)}${mods(de) ? ' ' : ''}${button} ${drag ? 'drag' : 'click'}`, where, fallback: where === 'Canvas' ? this.toolName() : this.targetName(d.target),
-        ui: { target: g?.getAttribute('data-guide') || null, name: this.targetName(d.target), tool: this.toolName(), drag, since: d.at, from: [Math.round(d.x), Math.round(d.y)], to: [Math.round(e.clientX), Math.round(e.clientY)], world, bar: Boolean(d.target.closest?.('.wb-tl-bar')) } }, d.effects);
+        ui: { path: drag ? pathOf(d.path, where === 'Canvas' && cv && app.canvas?.toWorld ? (x, y) => app.canvas.toWorld(x - cv.left, y - cv.top) : null) : null, pathSpace: where === 'Canvas' && cv && app.canvas?.toWorld ? 'world' : 'screen', target: g?.getAttribute('data-guide') || null, name: this.targetName(d.target), tool: this.toolName(), drag, since: d.at, from: [Math.round(d.x), Math.round(d.y)], to: [Math.round(e.clientX), Math.round(e.clientY)], world, bar: Boolean(d.target.closest?.('.wb-tl-bar')) } }, d.effects);
     }, true);
     window.addEventListener('pointercancel', e => downs.delete(e.pointerId), true);
     let lastWheel = 0;

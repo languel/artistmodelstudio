@@ -116,15 +116,45 @@ export class Guide {
    * A recorded interaction, shown: for a control, the cursor travels to it and clicks; for a drag, from where it began to where it ended; a key or a scroll
    * is only said. Nothing is redone (the drawing is the History track's). Quiet when the pace is Instant.
    */
-  async cue(ui, label = '') {
+  async cue(ui, label = '', { rate = 1 } = {}) {
     if (!this.active || !ui) return;
     this.say(label, 'Interaction', { sticky: false });
     if (ui.kind === 'key' || (!ui.target && !ui.from)) return;
+    if (ui.drag && ui.path?.length > 1) { await this.follow(ui.path, ui.pathSpace, rate); return; }
     if (ui.target && this.rect(ui.target)) { await this.moveTo(ui.target); return; }
     const [x0, y0] = ui.from || [], [x1, y1] = ui.to || ui.from || [];
     if (x0 == null) return;
     await this.moveTo({ x: x0, y: y0 }, { click: false });
     if (ui.drag) await this.moveTo({ x: x1, y: y1 }, { click: false }); else await this.click();
+  }
+
+  /**
+   * Follow a recorded path, at the pace it was drawn (and the playback rate): the cursor goes where the pen went, so it traces the stroke as the stroke appears.
+   * path is [[x, y, ms], …]; space 'world' is the drawing's own coordinates (they follow the view), 'screen' is the window's.
+   */
+  async follow(path, space = 'screen', rate = 1) {
+    const cv = this.app.canvas, r = cv.canvas.getBoundingClientRect();
+    const toS = ([x, y]) => (space === 'world' ? [r.left + x * cv.cam.z + cv.cam.x, r.top + y * cv.cam.z + cv.cam.y] : [x, y]);
+    const [x0, y0] = toS(path[0]);
+    this.cursor.style.opacity = '1';
+    // a quick glide to where it starts (the drawing has begun already), then the path in its own time
+    const g0 = this.pos, gt0 = performance.now();
+    await new Promise(res => { const step = now => { const k = Math.min(1, (now - gt0) / 110); this.place(g0.x + (x0 - g0.x) * k, g0.y + (y0 - g0.y) * k); if (k < 1) requestAnimationFrame(step); else res(); }; requestAnimationFrame(step); });
+    this.following = true;
+    const total = path.at(-1)[2] || 1, t0 = performance.now();
+    await new Promise(res => {
+      let i = 0;
+      const step = now => {
+        const el = Math.min(total, (now - t0) * rate);
+        while (i < path.length - 2 && path[i + 1][2] <= el) i++;
+        const a = path[i], b = path[Math.min(i + 1, path.length - 1)], span = (b[2] - a[2]) || 1, k = Math.max(0, Math.min(1, (el - a[2]) / span));
+        const [ax, ay] = toS(a), [bx, by] = toS(b);
+        this.place(ax + (bx - ax) * k, ay + (by - ay) * k);
+        if (el < total) requestAnimationFrame(step); else res();
+      };
+      requestAnimationFrame(step);
+    });
+    this.following = false;
   }
 
   async click() {
