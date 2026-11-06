@@ -31,11 +31,19 @@ const shortName = s => String(s || '').split(/[:(;—]|\. /)[0].trim().slice(0, 
 const MOUSE = b => `<svg viewBox="0 0 24 26" width="18" height="20" fill="none" stroke="currentColor" stroke-width="1.6">${b === 'left' ? '<path d="M4 10V9a8 8 0 0 1 8-8v9Z" fill="currentColor"/>' : ''}${b === 'right' ? '<path d="M12 1a8 8 0 0 1 8 8v1h-8Z" fill="currentColor"/>' : ''}<rect x="4" y="1" width="16" height="24" rx="8"/><path d="M12 1v9M4.5 10h15"/>${b === 'scroll' || b === 'middle' ? '<path d="M12 4.5v5" stroke-width="2.4"/>' : ''}</svg>`;
 const KEYBOARD = '<svg viewBox="0 0 24 18" width="20" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="21" height="13" rx="2"/><path d="M5 6h1M8 6h1M11 6h1M14 6h1M17 6h1M5 9h1M8 9h1M11 9h1M14 9h1M17 9h1M5 12h7M14 12h5"/></svg>';
 
+/** The input as keycaps: each modifier its own cap, then the key itself in one (a gesture, such as "left drag", is plain text after the modifiers). */
+const keycaps = c => {
+  const m = /^([⌘⌃⌥⇧]*)\s*(.*)$/.exec(c.input) || [];
+  const caps = [...(m[1] || '')].map(k => `<kbd>${esc(k)}</kbd>`).join('');
+  const rest = m[2] || '';
+  return `${caps}${rest ? (c.kind === 'key' ? `<kbd>${esc(rest)}</kbd>` : `<span class="wb-ua-gesture">${esc(rest)}</span>`) : ''}`;
+};
+
 export class UserActions {
   constructor(app) {
     this.app = app;
     this.cues = [];
-    this.minimal = read(KEY_MIN, false);
+    this.minimal = read(KEY_MIN, true);   // (the earlier actions are folded away until asked for)
     this.el = null;
     this.open = null;   // the cue gathering effects, and until when
     this.listen();
@@ -171,9 +179,9 @@ export class UserActions {
     el.className = 'wb-ua';
     el.dataset.userActions = '';
     el.setAttribute('aria-label', 'User actions');
-    el.innerHTML = '<header class="wb-ua-head" title="Drag to move"><button type="button" class="wb-ua-glyph" title="Double-click: one line only, or the recent ones too"></button><span class="wb-ua-now"></span><span class="wb-ua-tool"></span><button type="button" class="wb-ua-close" title="Hide (⌘⌥I)">×</button></header><div class="wb-ua-list" aria-live="polite"></div>';
+    el.innerHTML = '<button type="button" class="wb-ua-close" title="Hide (⌘⌥I)" aria-label="Hide">×</button><header class="wb-ua-head" title="Drag to move"><span class="wb-ua-glyph"></span><span class="wb-ua-input"></span><span class="wb-ua-what"></span><span class="wb-ua-kind"></span></header><div class="wb-ua-foot"><button type="button" class="wb-ua-more" title="Earlier actions: show or hide"></button><span class="wb-ua-tool"></span></div><div class="wb-ua-list" aria-live="polite"></div>';
     el.querySelector('.wb-ua-close').addEventListener('click', () => this.hide());
-    el.querySelector('.wb-ua-glyph').addEventListener('dblclick', () => { this.minimal = !this.minimal; write(KEY_MIN, this.minimal); this.render(); });
+    el.querySelector('.wb-ua-more').addEventListener('click', () => { this.minimal = !this.minimal; write(KEY_MIN, this.minimal); this.render(); });
     el.querySelector('.wb-ua-head').addEventListener('pointerdown', e => {
       if (e.button !== 0 || e.target.closest('.wb-ua-close')) return;
       e.preventDefault();
@@ -196,18 +204,23 @@ export class UserActions {
 
   render() {
     if (!this.visible) return;
-    const el = this.el, cur = this.cues.at(-1);
+    const el = this.el, cur = this.cues.at(-1), q = sel => el.querySelector(sel);
     const what = c => (c.effects.length ? c.effects.map(f => f.text).join(' · ') : c.fallback || '');
-    const tag = c => (c.kind === 'key' ? 'key' : c.button === 'scroll' ? 'wheel' : c.button === 'pen' || c.button === 'touch' ? c.button : 'mouse');
-    el.querySelector('.wb-ua-glyph').innerHTML = !cur ? MOUSE('') : cur.kind === 'key' ? KEYBOARD : MOUSE(cur.button);
-    el.querySelector('.wb-ua-now').innerHTML = cur
-      ? `<strong>${esc(cur.input)}</strong><em>${esc(tag(cur))}${cur.where ? ` · ${esc(cur.where)}` : ''}</em><span class="wb-ua-what">${esc(what(cur))}</span>`
-      : '<strong>Ready</strong><em>keys, clicks and what they do</em>';
+    const tag = c => (c.kind === 'key' ? 'key' : c.kind === 'agent' ? 'agent' : c.button === 'scroll' ? 'wheel' : c.button === 'pen' || c.button === 'touch' ? c.button : 'mouse');
+    q('.wb-ua-glyph').innerHTML = !cur ? MOUSE('') : cur.kind === 'key' ? KEYBOARD : MOUSE(cur.button);
+    // The latest one: the key or gesture large, what it did beside it, where it was under it. One line each, so the box never changes size.
+    q('.wb-ua-input').innerHTML = cur ? keycaps(cur) : 'Ready';
+    q('.wb-ua-what').textContent = cur ? what(cur) : '';
+    q('.wb-ua-kind').textContent = cur ? `${tag(cur)}${cur.where ? ` · ${cur.where}` : ''}` : 'keys, clicks and what they do';
+    q('.wb-ua-what').title = cur ? what(cur) : '';
     const tool = this.toolName();
-    el.querySelector('.wb-ua-tool').textContent = tool;
-    el.querySelector('.wb-ua-tool').title = `The tool: ${tool}`;
-    const prev = this.minimal ? [] : this.cues.slice(-(SHOWN + 1), -1).reverse();
-    el.querySelector('.wb-ua-list').innerHTML = prev.map(c => `<div class="wb-ua-row"><b>${esc(c.input)}</b><span>${esc(what(c) || c.where)}</span></div>`).join('');
+    q('.wb-ua-tool').textContent = tool; q('.wb-ua-tool').title = `The tool: ${tool}`;
+    const earlier = this.cues.slice(0, -1).reverse(), n = Math.min(earlier.length, SHOWN);
+    const more = q('.wb-ua-more');
+    more.textContent = `${this.minimal ? '▸' : '▾'} Earlier${earlier.length ? ` (${n})` : ''}`;
+    more.disabled = !earlier.length;
+    const prev = this.minimal ? [] : earlier.slice(0, SHOWN);
+    q('.wb-ua-list').innerHTML = prev.map(c => `<div class="wb-ua-row"><b>${esc(c.input)}</b><span>${esc(what(c) || c.where)}</span></div>`).join('');
     el.classList.toggle('minimal', this.minimal);
   }
 }
