@@ -42,6 +42,19 @@ Tools:
 - ams_delete {"ids"}: remove marks.
 - ams_write_code {"request"}: have a code model write a program that draws it: use it for patterns and anything with many marks or that reads a picture (loops, grids, scatters, rings).
 - ams_command {"id"}: view.frameSelection, edit.duplicate, edit.group, edit.ungroup, edit.delete, edit.selectAll, view.fit.
+Words for marks (use whichever the person used; they mean these):
+- point = a dot: a single spot (dot, spot, marker, bead).
+- line = an open stroke with a start and an end, straight or curved (stroke, path, segment, curve, edge, outline, branch, ray, wire).
+- plane = a closed shape with an inside that can be filled (shape, polygon, area, region, blob, surface; a circle, square, rectangle, triangle, wall, roof, leaf, sun, crown are planes).
+How to draw (one ams_add per part, parts of a picture bottom to top: the body first, then what sits on it):
+- a polygon, any straight-sided shape: a plane whose points are its corners in order, or shape triangle, diamond, pentagon or hexagon with a box.
+- a rectangle: shape rect with a box; a thin tall rect is a trunk, post or door; a wide flat one is a floor or a step.
+- a circle or oval: shape circle with a box (taller than wide is an oval).
+- smooth or sharp: "path":"straight" joins the points with straight segments and sharp corners (a polygon, a roof, a fence); "path":"smooth" draws a curve through the points with no corners (a hill, a leaf, a cloud). With 8 points or fewer it is straight unless you say smooth.
+- a straight line: a line with two points; a curve: a line with more points along it.
+- only the outline of a shape: leave out fill and give color.
+- a dot: a point with one point.
+- something made of parts (a house: a body rectangle, a triangle roof, a small door and window rects; a tree: a thin trunk rect, a circle crown above it): add each part where it belongs on the page.
 - ams_add {"role","points"} or {"shape","box","role":"plane"}: only to draw something new, one action per mark. role is point, line or plane; points are [[x,y],...]; shape is circle, rect or triangle (also diamond, pentagon, hexagon), box is [x0,y0,x1,y1] (a triangle points up: a roof is a triangle across the top of a rectangle; a tree is a thin rect trunk with a circle on top); add "fill" or "color" as #rrggbb; add "repeat":{"count":3,"dx":300} for copies in a row ("dy" for a column). The page is 1000 by 1000.
 Examples, for a mark el_x with fill #b05a3c:
 "make it darker" -> {"say":"Darker.","actions":[{"tool":"ams_update","args":{"id":"el_x","patch":{"fill":"#6e3824"}}}],"done":true}
