@@ -328,3 +328,20 @@ The studio "already kind of works" on a phone. The aim is a touch-first, minimal
 - **An LFM3-1.7B text engine** next to Omni (1.1 GB against 1.6 GB, same family): add it as a second library in `Lfm3WebGPUArtist.js` (the library URL and class name become settings) and run the chat and lesson evals on it.
 - **A board-code agent** (our own, in the AMS tools): `read_board_code`, `edit_board_code` (replace this text with that), `run_board` (returns the studio's `{error, line}` or the mark count), then look again. Editing and re-running suits a small model better than rewriting a whole program, and gives students "make the dots bigger" as a conversation with the code. Instructions modelled on theirs: "Inspect before editing. Verify with a tool, then give a short factual answer."
 - Not the workspace itself (its file system and terminal duplicate what the code boards and Code panel already are).
+
+## Idea: a family of LFMs by role, orchestrated (5 Nov 2026)
+
+Instead of one model for everything, stay in the Liquid ecosystem and give each job its own LFM, with an LFM (or an outside agent over MCP) deciding who does what. The **Code model** setting is the first step: it already says "conversation here, code there". Generalize it into **roles**, each an engine and a model (`modelFor(role)` in `modelStore.js`, the settings shown the same way):
+
+| Role | What it does | LFM candidates (status) |
+|---|---|---|
+| talk / orchestrate | conversation, commands, drawing; decides which tool or role to use | LFM3-Omni 2B (browser, 15/16 with the instant phrases); LFM3-1.7B text (being tested) |
+| code | writes and fixes board code | LFM3-Omni 9/14 and 7/14 (weak for code); LFM3-1.7B, LFM2.5-2.6B, LFM2.5-8B-A1B, LFM2-24B-A2B (to test); a small LFM fine-tuned on AMS code (the sub-1B idea, base `LFM2.5-230M`); Qwen coders are the benchmark (14/14) |
+| see | looks at a picture, a board, a reference | LFM3-VL 2B (browser runtime works; weak at code, not tested at seeing), LFM2.5-VL 1.6B and 3B (ONNX, in the browser) |
+| hear / speak | dictation, spoken replies, narration | LFM3-Omni (speech in and out, working), LFM2.5-Audio 1.5B (speech recognition and speech in transformers.js, to try) |
+
+**Orchestration comes through the tools, so the same surface serves an inner LFM and an outside agent.** AMS already is an MCP server (`ams_*`). An inner orchestrator uses flat tools whose implementation calls a role: `ams_write_code` calls the code role; a new `ams_look {board}` would call the see role on a snapshot and return a description; speak and transcribe call the voice role. An outside agent (Claude Code, another harness) calls the same tools and so sees the same roles.
+
+**Browser memory is the constraint.** Omni (1.6 GB) + a coder (1 to 2 GB) + a VL (1 GB) is 4 to 5 GB of weights: load a role on first use, keep the last two or three, evict the rest, and show it (the status line already shows downloads); a slow first use is the cost, so say so.
+
+**Honest state:** for code, the Liquid models measured so far trail the Qwen coders by a wide margin (9/14 and 7/14 against 14/14). Whether an all-Liquid code role is realistic depends on the LFM3-1.7B and LFM2.5-8B-A1B results and on fine-tuning a small LFM on the lesson boards and the request log.
