@@ -233,3 +233,5 @@ Ollama (GGUF): already installed `dlasher/LFM2.5-24B-A2B-ENG:IQ4_NL` (13 GB), `l
 Community / elsewhere: Spaces `LiquidAI/LFM2.5-1.2B-Thinking-WebGPU`, `LFM2.5-VL-{450M,1.6B,3B}-WebGPU`, `LFM2-MoE-WebGPU`, `webml-community/lfm2-webgpu-kernels` (LFM2.5-230M with custom kernels), `webml-community/LFM3-1.7B-WebGPU-Pi`. Fine-tunes: `LFM2.5-350M-JSON-NoFence`, `ScanAtlas-LFM2.5-350M-Planner`.
 
 Plan: browser = student default (LFM2.5-2.6B / LFM3-1.7B once loadable, Qwen as the reliable fallback); Ollama/MLX = personal, with the 24B-A2B as the "better model" test.
+
+Candidate found by the user (5 Nov): `danyalmalik/NVIDIA-Nemotron-3.5-Bolt-E4B-ONNX-WebGPU` — NVIDIA Nemotron 3.5 Bolt E4B (post-trained from Gemma 4 E4B), text only, q4f16 ~4.9 GB (decoder 2.9 GB + embeddings 2.0 GB), licence OpenMDW-1.1, arch `gemma4` (graphs from `onnx-community/gemma-4-E4B-it-ONNX`, so transformers.js may load it; it is built for the "Quick Inference" runtime). Too big for a student default; a candidate for personal browser use. To test after the running sweep (editing `src/` would reload the page).
