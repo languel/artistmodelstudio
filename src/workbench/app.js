@@ -486,8 +486,7 @@ export class Workbench {
   lineStackButton() { return this.stackToolButton(LINES, this.lineTool, 'Line', 'Shift+1 cycles line, gesture and guide'); }
 
   setTool(t) {
-    // Choosing a tool means drawing again: leave a take being reviewed (not while recording onto it).
-    if (this.player?.take && !this.recorder?.overdubbing) this.player.close();
+    // (a take that is open stays open when a tool is chosen: you pick a tool to overdub onto it; the × in the Timeline is how you go back to your drawing)
     if (LINES.some(c => c[0] === t)) this.lineTool = t;
     if (t === 'select' || t === 'direct') this.selectTool = t;
     if (PANS.some(c => c[0] === t)) this.panTool = t;
@@ -1407,6 +1406,7 @@ export class Workbench {
       return openPropertiesPopup(this, e.clientX, e.clientY);
     };
     this.activeBoard = MAIN;
+    this.canvas.onViewOnly = () => { const tk = this.player?.take; if (tk && this._viewOnlyHint !== tk) { this._viewOnlyHint = tk; this.log('This take is view-only: press record to draw onto it (overdub), or the × in the Timeline to go back to your drawing.'); } };
     this.canvas.onBoardSelect = id => { this.activeBoard = id; this.selectedAsset = null; this.syncInk(); this.emit('board'); };
     // A click on a sketch makes it live to the pointer and keys (see CanvasView): said the first few times.
     this.canvas.onBoardActivate = id => {

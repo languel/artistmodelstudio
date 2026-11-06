@@ -249,7 +249,7 @@ export function mountTimeline(root, app) {
       h('button', { class: `wb-icon-btn${p?.loop ? ' on' : ''}`, title: `Loop: ${p.loopRange ? 'round the loop region' : p.inOut ? 'from In to Out (no loop region marked)' : 'the whole take'}. Shift-drag the ruler to mark a loop region; I and O mark In and Out`, html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a6 6 0 016-6h8l-3-3M20 12a6 6 0 01-6 6H6l3 3"/></svg>', onclick: () => { p.loop = !p.loop; drawBar(); drawLanes(); } }),
       sel,
       compStack.length ? h('button', { class: 'wb-btn wb-tl-crumb', title: 'Inside a composition: back out one level (Esc over the Timeline)', onclick: () => exitComp() }, `‹ ${[compStack[0].holder.title, ...compStack.map(L => L.clip.label || 'Composition')].join(' › ')}`) : null,
-      h('button', { class: 'wb-icon-btn', title: 'New take: an empty one, starting from the drawing as it is', disabled: Boolean(rec), onclick: newTake, html: NEW_TAKE_SVG }),
+      h('button', { class: 'wb-icon-btn', title: 'New take: an empty one (Shift+click: starting from the drawing as it is)', disabled: Boolean(rec), onclick: newTake, html: NEW_TAKE_SVG }),
       h('button', { class: 'wb-icon-btn', title: 'Insert at the playhead: a title card, a line of narration, a camera keyframe, a hold, a sound (a take is started if there is none)', disabled: Boolean(rec), onclick: e => showMenu(addItems(), e.clientX, e.clientY), html: INSERT }),
       h('button', { class: 'wb-icon-btn', title: 'Add a track', disabled: Boolean(rec), onclick: e => showMenu(trackItems(), e.clientX, e.clientY), html: ADD_TRACK }),
       take?.original
@@ -290,13 +290,16 @@ export function mountTimeline(root, app) {
     select(null); fitZoom(); drawBar(); drawLanes();
     app.log('A take from what was recorded since recording was switched on.');
   };
-  const newTake = async () => {
+  const newTake = async ev => {
     leaveComps();
     const p = P(), cur = p.take;
     if (cur && !cur.assetId && cur.clips.length && !(await askConfirm('Start a new take? This one is not saved (the save button keeps it).'))) return;
-    p.load(fresh(createTake({ title: `Take ${takes.length + 1}`, baseline: JSON.parse(JSON.stringify(app.store.doc)) })));
+    // A new take starts empty; Shift+click starts it from the drawing as it is (the end state of what you just recorded, say).
+    const base = JSON.parse(JSON.stringify(app.store.doc)), fromDrawing = Boolean(ev?.shiftKey);
+    if (!fromDrawing) { base.elements = []; base.decisions = []; }
+    p.load(fresh(createTake({ title: `Take ${takes.length + 1}`, baseline: base })));
     select(null); fitZoom(); drawBar(); drawLanes();
-    app.log('A new, empty take: drag changes in from History, insert at the playhead, or record.');
+    app.log(fromDrawing ? 'A new take, starting from the drawing as it is: drag changes in from History, insert at the playhead, or record.' : 'A new, empty take: drag changes in from History, insert at the playhead, or record. (Shift+click the button to start from the drawing as it is.)');
   };
   const openTake = a => { leaveComps(); compStack = []; const take = JSON.parse(JSON.stringify(a.program)); take.assetId = a.id; P().load(take); select(null); fitZoom(); drawBar(); drawLanes(); };
   app.openTake = async id => { const a = await app.assetStore.get(id); if (!a?.program) throw new Error('No such take'); app.docks.open('timeline'); openTake(a); return a; };
