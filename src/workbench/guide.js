@@ -87,11 +87,19 @@ export class Guide {
     if (click) await this.click();
   }
 
-  /** A recorded interaction, shown: the cursor travels to the control (or where it was) and clicks it; nothing is redone. Quiet when the pace is Instant. */
+  /**
+   * A recorded interaction, shown: for a control, the cursor travels to it and clicks; for a drag, from where it began to where it ended; a key or a scroll
+   * is only said. Nothing is redone (the drawing is the History track's). Quiet when the pace is Instant.
+   */
   async cue(ui, label = '') {
     if (!this.active || !ui) return;
     this.say(label, 'Interaction', { sticky: false });
-    await this.moveTo(ui.target && this.rect(ui.target) ? ui.target : { x: ui.x, y: ui.y });
+    if (ui.kind === 'key' || (!ui.target && !ui.from)) return;
+    if (ui.target && this.rect(ui.target)) { await this.moveTo(ui.target); return; }
+    const [x0, y0] = ui.from || [], [x1, y1] = ui.to || ui.from || [];
+    if (x0 == null) return;
+    await this.moveTo({ x: x0, y: y0 }, { click: false });
+    if (ui.drag) await this.moveTo({ x: x1, y: y1 }, { click: false }); else await this.click();
   }
 
   async click() {

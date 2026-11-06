@@ -67,7 +67,7 @@ export class UserActions {
       const tl = where === 'Timeline' ? app.timelineKeyLabel?.(e) : null;
       const sc = app.shortcuts?.find(comboOf(e) || '');
       const held = e.key === ' ' && where === 'Canvas' && !sc ? 'Hold: pan' : '';
-      this.cue({ kind: 'key', input: `${mods(e)}${keyName(e)}`, where, fallback: tl || shortName(sc?.label) || held });
+      this.cue({ kind: 'key', input: `${mods(e)}${keyName(e)}`, where, fallback: tl || shortName(sc?.label) || held, ui: { command: sc?.id || null, name: tl || shortName(sc?.label) || held || '', tool: this.toolName() } });
     }, true);
     window.addEventListener('pointermove', e => { this.hoverTarget = e.target; }, { capture: true, passive: true });
     window.addEventListener('pointerdown', e => {
@@ -83,7 +83,10 @@ export class UserActions {
       const button = de.pointerType === 'pen' ? 'pen' : de.pointerType === 'touch' ? 'touch' : ['left', 'middle', 'right'][de.button] || 'left';
       if (this.pending === d) this.pending = null;
       const where = this.where(d.target);
-      this.cue({ kind: 'pointer', button, input: `${mods(de)}${mods(de) ? ' ' : ''}${button} ${drag ? 'drag' : 'click'}`, where, fallback: where === 'Canvas' ? this.toolName() : this.targetName(d.target) }, d.effects);
+      const g = d.target.closest?.('[data-guide]'), cv = app.canvas?.canvas?.getBoundingClientRect?.();
+      const world = where === 'Canvas' && cv && app.canvas?.toWorld ? [[d.x, d.y], [e.clientX, e.clientY]].map(([x, y]) => app.canvas.toWorld(x - cv.left, y - cv.top).map(Math.round)) : null;
+      this.cue({ kind: 'pointer', button, input: `${mods(de)}${mods(de) ? ' ' : ''}${button} ${drag ? 'drag' : 'click'}`, where, fallback: where === 'Canvas' ? this.toolName() : this.targetName(d.target),
+        ui: { target: g?.getAttribute('data-guide') || null, name: this.targetName(d.target), tool: this.toolName(), drag, from: [Math.round(d.x), Math.round(d.y)], to: [Math.round(e.clientX), Math.round(e.clientY)], world, bar: Boolean(d.target.closest?.('.wb-tl-bar')) } }, d.effects);
     }, true);
     window.addEventListener('pointercancel', e => downs.delete(e.pointerId), true);
     let lastWheel = 0;
@@ -91,7 +94,7 @@ export class UserActions {
       if (mine(e.target) || performance.now() - lastWheel < 400) return;
       lastWheel = performance.now();
       const zoom = e.ctrlKey || e.metaKey, dir = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? (e.deltaY > 0 ? 'down' : 'up') : (e.deltaX > 0 ? 'right' : 'left');
-      this.cue({ kind: 'pointer', button: 'scroll', input: zoom ? `${mods(e)} scroll (zoom)` : `${mods(e)}${mods(e) ? ' ' : ''}scroll ${dir}`, where: this.where(e.target), fallback: zoom ? 'Zoom' : 'Scroll' });
+      this.cue({ kind: 'pointer', button: 'scroll', input: zoom ? `${mods(e)} scroll (zoom)` : `${mods(e)}${mods(e) ? ' ' : ''}scroll ${dir}`, where: this.where(e.target), fallback: zoom ? 'Zoom' : 'Scroll', ui: { name: zoom ? 'Zoom' : 'Scroll', tool: this.toolName() } });
     }, { capture: true, passive: true });
 
     // What follows an input, for a moment, is what it did.
@@ -141,6 +144,8 @@ export class UserActions {
   cue(c, effects = []) {
     c.id = (this.seq = (this.seq || 0) + 1);
     c.effects = effects;
+    c.t = Date.now(); c.h0 = this.app.history?.entries.length ?? 0;   // (when, and where History stood: what it gains in the next moments is this cue's doing)
+    setTimeout(() => this.app.interactions?.addCue(c), WINDOW + 120);
     this.cues.push(c);
     if (this.cues.length > KEEP) this.cues.shift();
     this.open = { cue: c, until: performance.now() + WINDOW };

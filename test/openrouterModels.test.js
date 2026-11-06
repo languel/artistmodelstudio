@@ -72,7 +72,23 @@ describe('OpenRouter Models, Search & Favorites', () => {
     const groups = new Set(models.map(m => m.group));
     expect(groups.has('Favorites (Mostly Free)')).toBe(true);
     expect(groups.has('🆓 Free Models (:free)')).toBe(true);
-    expect(groups.has('Cloud Frontier & Other')).toBe(true);
+    // (paid models are opt-in: nothing paid is offered until they are switched on)
+    expect(groups.has('Cloud Frontier & Other')).toBe(false);
+    expect(models.every(m => m.isFree || m.id === artist.getModel() || m.id === 'openrouter/free' || /:free$/.test(m.id))).toBe(true);
+  });
+
+  it('offers the paid frontier models only when they are switched on, and defaults to free ones', () => {
+    expect(artist.getModel()).toMatch(/:free$/);
+    expect(artist.getFavorites().every(id => /:free$|^openrouter\/free$/.test(id))).toBe(true);
+    const store = {}; const prev = globalThis.localStorage;
+    globalThis.localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };
+    try { localStorage.setItem('ams_allow_paid', '1'); expect(new Set(artist.getAvailableModels().map(m => m.group)).has('Cloud Frontier & Other')).toBe(true); }
+    finally { if (prev) globalThis.localStorage = prev; else delete globalThis.localStorage; }
+  });
+
+  it('refuses a paid model while paid models are off', () => {
+    expect(() => artist.assertAllowed('anthropic/claude-3.5-sonnet')).toThrow(/paid model/);
+    expect(() => artist.assertAllowed('google/gemma-4-31b-it:free')).not.toThrow();
   });
 });
 

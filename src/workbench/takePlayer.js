@@ -156,7 +156,7 @@ export class TakePlayer {
 
   /** Recorded interactions that fall in [a, b) play on the Guide's cursor (unmuted clips only). */
   fireCues(a, b) {
-    const g = this.app.guide; if (!g?.active || b - a > 2000) return;
+    const g = this.app.guide; if (!g?.active || b - a > 2000 || this.rate >= 4) return;   // (fast playback: the result, not the cursor)
     for (const c of flatClips(this.take)) if (c.ui && !c.muted && c.start >= a && c.start < b) g.cue(c.ui, c.label);
   }
 

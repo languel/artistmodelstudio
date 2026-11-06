@@ -8,6 +8,8 @@
 import { h, row, selectField, numberField, section } from '../ui.js';
 import { icon } from '../icons.js';
 import { ENGINES, loadModels } from '../modelPicker.js';
+import { allowPaid, setAllowPaid } from '../../artists/paid.js';
+import { isFreeModel } from '../../artists/OpenRouterArtist.js';
 import { voiceSettings, setVoice, LANGUAGES, GENDERS } from '../voiceOut.js';
 import { ENGINE_FIELDS, ENGINE_NAMES, currentEngine, setEngine, useModel, favorites, isFavorite, toggleFavorite, filterModels, assistantSettings, setAssistantSettings, FALLBACK_TEMPERATURE, codeTarget, setCodeTarget } from '../modelStore.js';
 
@@ -117,18 +119,25 @@ export function modelSection(app) {
     // The Code model: which engine and model write board code (a program, not a conversation). Bigger is better here: a 9B coder
     // reproduced the lessons 14/14, a 2B model 9/14. Unset, the assistant's own model writes it.
     const codeRows = () => {
-      const ct = codeTarget(), picks = ENGINES.filter(([id]) => id in ENGINE_NAMES && id !== 'agent');
+      let ct = codeTarget();
+      const picks = ENGINES.filter(([id]) => id in ENGINE_NAMES && id !== 'agent');
       const art = ct ? app.artists.get(ct.engine) : null;
-      const listId = 'wb-code-models';
-      const models = h('datalist', { id: listId }, ...(art?.getAvailableModels?.() || []).map(m => h('option', { value: m.id }, m.name || m.id)));
-      if (ct?.engine === 'ollama') art.fetchAvailableModels?.().then(l => { if (l.length && models.isConnected) models.replaceChildren(...l.map(id => h('option', { value: id }))); }).catch(() => {});
-      const modelIn = ct ? h('input', { class: 'wb-inline', type: 'text', value: ct.model, list: listId, spellcheck: false, autocomplete: 'off', title: 'The model that writes code (pick from the list, or type its id)' }) : null;
-      modelIn?.addEventListener('change', () => { if (modelIn.value.trim()) setCodeTarget(ct.engine, modelIn.value.trim()); });
-      modelIn?.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') modelIn.blur(); });
+      // (a paid OpenRouter model chosen before paid models were opt-in does not stay the code model: the engine's own, free one takes its place)
+      if (ct?.engine === 'openrouter' && !allowPaid() && !isFreeModel(ct.model)) { setCodeTarget('openrouter', art.getModel()); ct = codeTarget(); }
+      // (a list to pick from, as for the assistant's model: the engine's own models, free ones only on OpenRouter unless paid models are on)
+      const modelSel = ct ? h('select', { class: 'wb-select', title: 'The model that writes code' }, h('option', { value: ct.model, selected: true }, ct.model || 'Loading…')) : null;
+      if (ct) loadModels(ct.engine, art).then(({ groups }) => {
+        if (!modelSel.isConnected) return;
+        const seen = new Set(), opts = [];
+        for (const [label, items] of groups) { const og = h('optgroup', { label }); for (const m of items.slice(0, 400)) { if (seen.has(m.id)) continue; seen.add(m.id); og.append(h('option', { value: m.id, selected: m.id === ct.model }, m.name || m.id)); } if (og.children.length) opts.push(og); }
+        if (ct.model && !seen.has(ct.model)) opts.unshift(h('option', { value: ct.model, selected: true }, `${ct.model} (not in the list)`));
+        modelSel.replaceChildren(...opts);
+      }).catch(() => {});
+      modelSel?.addEventListener('change', () => { if (modelSel.value) setCodeTarget(ct.engine, modelSel.value); });
       return [
         h('div', { class: 'wb-sub', title: 'Writing a program is harder than talking or drawing, and model size shows: a 9B coder reproduced the lessons 14 of 14, a 2B model 9 of 14. Pick a bigger model here for code; the assistant keeps its quick one for the rest. Unset, the assistant\'s own model writes code.' }, 'Code model'),
         row('Engine', selectField([['', 'Same as the assistant'], ...picks], ct?.engine || '', v => { setCodeTarget(v, v ? (app.artists.get(v)?.getModel?.() || '') : ''); build(); }, 'Which engine writes board code')),
-        ...(ct ? [row('Model', h('span', { class: 'wb-model-ctl' }, modelIn, models))] : [])
+        ...(ct ? [row('Model', h('span', { class: 'wb-model-ctl' }, modelSel))] : [])
       ];
     };
     const a = assistantSettings();
@@ -152,6 +161,7 @@ export function modelSection(app) {
       engine !== 'agent' ? row('Model', h('span', { class: 'wb-model-ctl' }, h('span', { class: 'wb-combo' }, input, list), star, reload)) : null,
       engine === 'lfm3' ? lfmControls() : null,
       engine === 'openrouter' ? row('Show', selectField([['', 'All'], ['free', 'Free'], ['image', 'Image input']], tag, v => { tag = v; paint(); }, 'Narrow the OpenRouter list')) : null,
+      engine === 'openrouter' ? row('Paid models', (() => { const c = h('input', { type: 'checkbox', checked: allowPaid(), title: 'Off: only free models (:free) are listed and used, and a paid one chosen before waits. On: the paid models appear too, and they cost money' }); c.addEventListener('change', () => { setAllowPaid(c.checked); artist?.fetchModels?.(true).catch(() => {}); refresh(); build(); }); return c; })(), 'Off by default: only free models') : null,
       h('div', { class: 'wb-row wb-model-status' }, h('span', { class: 'wb-row-label' }), status),
       ...codeRows(),
       h('div', { class: 'wb-sub', title: engine === 'agent' ? 'Not used with an external agent: it chooses how to ask for itself' : 'How the Assistant panel asks the model (the quick / field has its own temperature, below)' }, 'Asking'),

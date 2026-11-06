@@ -15,7 +15,6 @@ export class Interactions {
     this.listeners = new Set();
     this.seq = 0;
     try { this.capturing = localStorage.getItem(KEY) === '1'; } catch { this.capturing = false; }
-    this.listen();
   }
 
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
@@ -23,30 +22,33 @@ export class Interactions {
   setCapturing(on) { this.capturing = Boolean(on); try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* ignore */ } this.emit(); }
   clear() { this.entries = []; this.emit(); }
 
-  listen() {
-    const downs = new Map();
-    const ignored = t => !t?.closest || t.closest('[data-user-actions], .wb-guide-layer, .wb-guide-card, .wb-tl-bar, .wb-tl-hist, .wb-tl-ints');   // (its own switches, the overlays)
-    window.addEventListener('pointerdown', e => { if (this.capturing) downs.set(e.pointerId, { x: e.clientX, y: e.clientY, target: e.target }); }, true);
-    window.addEventListener('pointerup', e => {
-      const d = downs.get(e.pointerId); downs.delete(e.pointerId);
-      if (!this.capturing || !d || ignored(d.target) || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return;
-      const canvas = this.app.canvas?.canvas;
-      if (canvas && (d.target === canvas || canvas.contains?.(d.target))) return;   // (marks drawn are in History)
-      this.record(d.target, e.clientX, e.clientY);
-    }, true);
-    window.addEventListener('pointercancel', e => downs.delete(e.pointerId), true);
-  }
-
-  /** A click on `el`: remember the control. */
-  record(el, x, y) {
-    const g = el.closest?.('[data-guide]');
-    const target = g?.getAttribute('data-guide') || null;
-    const label = this.app.userActions?.targetName?.(el) || (target || '').replace(/^[a-z]+:/, '') || 'click';
-    const where = this.app.userActions?.where?.(el) || '';
-    this.entries.push({ id: `i${++this.seq}`, t: Date.now(), target, label, where, x: Math.round(x), y: Math.round(y) });
+  /**
+   * A finished cue from Show user actions (keys, clicks, drags, scrolls, with what each did): kept as a step.
+   * Two readers in mind. A student watching needs every step in words (the input, what it was on, the tool, what it did). Something playing the
+   * sequence back faster needs each step to be checkable: `changes` are the History entries made by the step (their ids and summaries: before is the
+   * drawing without them, after is with), `effects` the interface's own account.
+   */
+  addCue(c) {
+    if (!this.capturing || !c || c.ui?.bar) return;
+    const H = this.app.history, ui = c.ui || {};
+    const changes = (H?.entries || []).filter(e => e.t >= c.t - 60 && e.t <= c.t + 700).map(e => ({ id: e.id, label: e.label, summary: e.summary }));
+    const entry = { id: `i${++this.seq}`, t: c.t, kind: c.kind, input: c.input, button: c.button || '', where: c.where || '', target: ui.target || null, name: ui.name || '', tool: ui.tool || '', command: ui.command || null,
+      drag: Boolean(ui.drag), from: ui.from || null, to: ui.to || null, world: ui.world || null, effects: (c.effects || []).map(f => f.text), changes };
+    this.entries.push(entry);
     if (this.entries.length > MAX) this.entries.shift();
     this.emit();
   }
+
+  /** A step in words: "left drag on the canvas (Line) from 120,300 to 480,310 → add line". */
+  describe(e) {
+    const on = e.target ? e.name || e.target : e.where === 'Canvas' ? `the canvas${e.tool ? ` (${e.tool})` : ''}` : e.name || e.where || '';
+    const path = e.drag && e.world ? ` from ${e.world[0].join(',')} to ${e.world[1].join(',')}` : '';
+    const did = e.effects.length ? e.effects.join(' · ') : e.changes.map(c => c.summary || c.label).join(' · ');
+    return `${e.input}${on ? ` on ${on}` : e.name ? ` · ${e.name}` : ''}${path}${did ? ` → ${did}` : ''}`;
+  }
+
+  /** The sequence as steps for an agent or a handout: numbered, in words, with what changed. */
+  steps() { return this.entries.map((e, i) => ({ n: i + 1, at: e.t, say: this.describe(e), input: e.input, on: e.target || e.where, tool: e.tool, from: e.world?.[0] || null, to: e.world?.[1] || null, command: e.command, effects: e.effects, changes: e.changes })); }
 
   /** Clips for the Timeline's Actions kind: real spacing (gaps over 1.5 s shortened), each lasting long enough to read. */
   clips(entries = this.entries, { gap = 1500, dur = 800 } = {}) {
@@ -54,7 +56,7 @@ export class Interactions {
     let at = 0, prev = null;
     for (const e of entries) {
       if (prev) at += Math.min(gap, Math.max(300, e.t - prev.t));
-      out.push({ track: 'action', start: Math.round(at), dur, name: 'ui', label: e.label || e.target || 'click', ui: { target: e.target, x: e.x, y: e.y, where: e.where }, fx: {} });
+      out.push({ track: 'action', start: Math.round(at), dur, name: 'ui', label: this.describe(e), ui: { kind: e.kind, target: e.target, drag: e.drag, from: e.from, to: e.to, where: e.where, command: e.command, changes: e.changes.map(c => c.id) }, fx: {} });
       prev = e;
     }
     return out;

@@ -12,6 +12,7 @@ import { Artist } from './Artist.js';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
 import { normalizeProgram, parseModelOutput } from '../language/normalize.js';
 import { extractPartialActions } from '../language/streaming.js';
+import { allowPaid } from './paid.js';
 
 export const OPENROUTER_CURATED_FREE_MODELS = [
   { id: 'openrouter/free', name: 'OpenRouter Free Models Router', contextLength: 128000, description: 'Auto-routed free models with zero cost' },
@@ -44,10 +45,12 @@ export const DEFAULT_OPENROUTER_FAVORITES = [
   'google/gemma-4-31b-it:free',
   'qwen/qwen3.8-27b:free',
   'cohere/north-mini-code:free',
-  'openrouter/free',
-  'anthropic/claude-3.5-sonnet',
-  'google/gemini-2.5-flash'
-];
+  'openrouter/free'
+];   // (free only: paid models are opt-in, see paid.js)
+/** The default model: free. */
+export const DEFAULT_OPENROUTER_MODEL = 'google/gemma-4-31b-it:free';
+/** Paid models that earlier versions starred by default: dropped from a saved favorites list once. */
+const OLD_PAID_DEFAULTS = ['anthropic/claude-3.5-sonnet', 'google/gemini-2.5-flash'];
 
 export function isFreeModel(m) {
   if (!m) return false;
@@ -89,7 +92,8 @@ export class OpenRouterArtist extends Artist {
   constructor(options = {}) {
     super(options.id || 'openrouter', options.name || 'OpenRouter', 'cloud');
     this.apiKey = options.apiKey || getStorage('ams_openrouter_key') || '';
-    this.model = options.model || getStorage('ams_openrouter_model', 'anthropic/claude-3.5-sonnet');
+    this.model = options.model || getStorage('ams_openrouter_model', DEFAULT_OPENROUTER_MODEL);
+    if (!allowPaid() && !isFreeModel(this.model)) this.model = DEFAULT_OPENROUTER_MODEL;   // (a paid model chosen earlier waits until paid models are switched on)
     this.temperature = options.temperature ?? 0.8;
     this.catalog = null;
     this.isFetchingCatalog = false;
@@ -117,7 +121,7 @@ export class OpenRouterArtist extends Artist {
       combined.push({ ...m, isFree: true });
       seen.add(m.id);
     }
-    for (const m of OPENROUTER_FRONTIER_MODELS) {
+    for (const m of allowPaid() ? OPENROUTER_FRONTIER_MODELS : []) {
       if (!seen.has(m.id)) {
         combined.push({ ...m, isFree: false });
         seen.add(m.id);
@@ -126,7 +130,13 @@ export class OpenRouterArtist extends Artist {
     return combined;
   }
 
+  /** The catalog as offered: free models only unless paid models are switched on. */
   async fetchModels(force = false) {
+    const all = await this.fetchAllModels(force);
+    return allowPaid() ? all : all.filter(m => isFreeModel(m) || m.id === 'openrouter/free');
+  }
+
+  async fetchAllModels(force = false) {
     if (!force && this.catalog && this.catalog.length > 0) {
       return this.catalog;
     }
@@ -205,6 +215,8 @@ export class OpenRouterArtist extends Artist {
         if (stored) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
+            // (the paid models earlier versions starred by default are not the user's choice: dropped once)
+            if (!localStorage.getItem('ams_openrouter_fav_v2')) { localStorage.setItem('ams_openrouter_fav_v2', '1'); const kept = parsed.filter(id => !OLD_PAID_DEFAULTS.includes(id)); if (kept.length !== parsed.length) localStorage.setItem('ams_openrouter_favorites', JSON.stringify(kept)); this.favorites = kept; return this.favorites; }
             this.favorites = parsed;
             return this.favorites;
           }
@@ -333,7 +345,7 @@ export class OpenRouterArtist extends Artist {
     }
 
     // 3. Group: Cloud Frontier & Other
-    for (const m of OPENROUTER_FRONTIER_MODELS) {
+    for (const m of allowPaid() ? OPENROUTER_FRONTIER_MODELS : []) {
       if (!addedIds.has(m.id)) {
         result.push({
           id: m.id,
@@ -364,6 +376,7 @@ export class OpenRouterArtist extends Artist {
     const count = request.count || 4;
     const systemPrompt = buildSystemPrompt(request.mediumCapabilities);
     const targetModel = request.settings?.model || getStorage('ams_openrouter_model') || this.model;
+    this.assertAllowed(targetModel);
     await llmEnv();
     const apiKey = request.settings?.apiKey || getStorage('ams_openrouter_key') || this.apiKey;
 
@@ -469,6 +482,14 @@ export class OpenRouterArtist extends Artist {
    * One chat completion: { system, user, image?, temperature?, signal } → text.
    * Used by the workbench, where models write scores rather than drawing programs.
    */
+  /** Throws unless the model is free or paid models are switched on. */
+  assertAllowed(model) {
+    if (allowPaid() || isFreeModel(model) || model === 'openrouter/free') return;
+    const cat = (this.catalog || []).find(m => m.id === model);
+    if (cat && isFreeModel(cat)) return;
+    throw new Error(`${model} is a paid model on OpenRouter. Paid models are off: switch on "Paid models" in Settings → Model to use it, or pick a free one (:free).`);
+  }
+
   /** Chat endpoint: through the dev server when it holds OPENROUTER_API_KEY and the user set no key of their own (the proxy adds it). */
   get endpoint() { return this.viaProxy() ? '/__llm/openrouter/api/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions'; }
   viaProxy() { return !getStorage('ams_openrouter_key') && !this.apiKey && Boolean(globalThis.__amsLlmEnv?.openrouter); }
@@ -477,6 +498,7 @@ export class OpenRouterArtist extends Artist {
     await llmEnv();
     const apiKey = getStorage('ams_openrouter_key') || this.apiKey;
     if (!apiKey && !this.viaProxy()) throw new Error('OpenRouter API key missing (Settings → Model, or OPENROUTER_API_KEY in the dev server environment)');
+    this.assertAllowed(model || getStorage('ams_openrouter_model') || this.model);
     const res = await fetchWithRetry(this.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, 'X-Title': 'Artist Model Studio' },
@@ -493,6 +515,7 @@ export class OpenRouterArtist extends Artist {
     await llmEnv();
     const apiKey = getStorage('ams_openrouter_key') || this.apiKey;
     if (!apiKey && !this.viaProxy()) throw new Error('OpenRouter API key missing');
+    this.assertAllowed(getStorage('ams_openrouter_model') || this.model);
     const res = await fetchWithRetry(this.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },

@@ -27,6 +27,7 @@ import { SHOW, revealScore, SessionRecorder, summarize, READ_ONLY } from './show
 const S = (properties = {}, required = []) => ({ type: 'object', properties, required });
 const str = d => ({ type: 'string', description: d });
 const num = d => ({ type: 'number', description: d });
+const bool = d => ({ type: 'boolean', description: d });
 const PRINCIPLES = `You are drawing in Artist Model Studio. The picture is a process: name your stages (analysis → concept → construction → structure → value → marks → notes), record decisions with decide(), and give every mark a short reason (why). The harness does not paint for you: brushes only realize your paths. Keep construction (guides, gestures) separate from marks. Coordinates are artboard units (origin top-left).`;
 
 const ADD_ROLES = ['point', 'line', 'plane', 'guide', 'gesture', 'note'];
@@ -460,6 +461,14 @@ export function workbenchTools(app) {
         return { ...sc.prefs, mixer: sc.mixer(), midi: sc.midi.selected, outputs: sc.outputs().map(o => o.id) };
       }
       throw new Error('Unknown action');
+    } },
+    { name: 'ams_interactions', description: 'The controls, keys, drags and scrolls recorded while "record interactions" is on (the Timeline\'s pointer button), as numbered steps: each in words ("left drag on the canvas (Line) from 120,300 to 480,310 → add line"), the tool, the canvas coordinates of a drag, the interface\'s own account of what it did (effects), and the History entries it made (changes: id, label, summary; the drawing before is without them, after is with). action: "steps" (default), "record" {on}, "clear", "state".', inputSchema: S({ action: str('steps | record | clear | state'), on: bool('For record: true to start, false to stop') }, []), run: async (a) => {
+      const I = app.interactions;
+      if (!I) throw new Error('Interactions are not available');
+      if (a.action === 'record') { I.setCapturing(a.on !== false); return { recording: I.capturing }; }
+      if (a.action === 'clear') { I.clear(); return { cleared: true }; }
+      if (a.action === 'state') return { recording: I.capturing, steps: I.entries.length };
+      return { recording: I.capturing, steps: I.steps() };
     } },
     { name: 'ams_timeline', description: 'Takes on the timeline: action "list" (takes in Assets), "open" {id}, "play", "pause", "seek" {ms}, "summary" (a short-form cut of the open take, saved), "walkthrough" (make a live walkthrough from it), "export" {format: html | project | video | json, rate}.', inputSchema: S({ action: str('list | open | play | pause | seek | summary | walkthrough | export'), id: str('Take asset id'), ms: num('Time in ms'), format: str('html | project | video | json'), rate: num('Video speed') }, ['action']), run: async (a) => {
       const p = app.player;
