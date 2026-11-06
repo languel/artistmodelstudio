@@ -1290,3 +1290,6 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-assist-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .wb-assist-body[hidden] { display: none; }
 .wb-assist-body > .wb-assistant { height: 100%; }
+
+.wb-tl-hist { opacity: 0.55; }
+.wb-tl-hist.on { opacity: 1; color: var(--wb-accent-2, #c0563f); }

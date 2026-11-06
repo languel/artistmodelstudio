@@ -213,6 +213,7 @@ export function mountTimeline(root, app) {
     rate.addEventListener('change', () => { p.rate = Number(rate.value); rate.blur(); });
     bar.replaceChildren(...[
       h('button', { class: `wb-icon-btn wb-tl-rec${rec || od ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : od ? 'Stop recording (Space too; the take is saved)' : `Record onto the Timeline: the transport plays (${p.loop ? 'round the loop: each pass adds to the last' : p.inOut ? 'from In to Out' : 'from the playhead'}) and each gesture you draw goes on the drawing track where the playhead is`, html: rec || od ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="5.5" fill="currentColor"/></svg>', onclick: () => (rec ? R().stop() : od ? R().stopOverdub() : R().startOverdub()), oncontextmenu: ev => { ev.preventDefault(); const poly = R().settings.overdubLanes !== 'tracks'; showMenu([{ label: 'Overlapping gestures' }, { label: 'On one track, as voices (polyphonic)', active: poly, run: () => R().setSettings({ overdubLanes: 'poly' }) }, { label: 'On a track of their own (a track per pass)', active: !poly, run: () => R().setSettings({ overdubLanes: 'tracks' }) }], ev.clientX, ev.clientY); } }),
+      h('button', { class: `wb-icon-btn wb-tl-hist${app.history?.capturing ? ' on' : ''}`, title: app.history?.capturing ? 'Recording History: every change goes to the History panel and the History track (click to pause)' : 'History is paused: changes are not recorded (click to record)', html: icon('history'), onclick: () => { const H = app.history; if (!H) return; const on = !H.capturing; H.setCapturing(on); if (on && P()?.take) { P().take.noHistory = false; P().take._histKey = null; } drawBar(); drawLanes(); } }),
       h('button', { class: 'wb-icon-btn', title: 'Play / pause (Space in the timeline)', html: p?.playing ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : icon('play'), onclick: () => p.toggle() }),
       h('span', { class: 'wb-tl-time' }, rec && !take ? `● ${fmt(R().now())}` : stampOf(p.t, p.duration)),
       ruler,
@@ -510,7 +511,7 @@ export function mountTimeline(root, app) {
   // It is kept in step with History (rebuilt when History changes) and never saved with the take (see saveTake). Only on the take itself.
   const syncHistory = () => {
     const take = P()?.take, H = app.history;
-    if (!take || !H || compStack.length) return;
+    if (!take || !H || compStack.length || take.noHistory) return;   // (noHistory: its History track was deleted; the record-history button brings it back)
     const key = `${H.seq}|${H.entries.length}|${H.entries.filter(e => e.muted).length}`;
     if (take._histKey === key) return;
     Object.defineProperty(take, '_histKey', { value: key, writable: true, configurable: true, enumerable: false });
@@ -524,7 +525,8 @@ export function mountTimeline(root, app) {
     touch(take);
   };
   let histQueued = false;
-  app.history?.on(() => { if (histQueued) return; histQueued = true; requestAnimationFrame(() => { histQueued = false; if (P()?.take) { syncHistory(); drawLanes(); } }); });
+  let histCap = app.history?.capturing;
+  app.history?.on(() => { if (histQueued) return; histQueued = true; requestAnimationFrame(() => { histQueued = false; if (histCap !== app.history.capturing) { histCap = app.history.capturing; drawBar(); } if (P()?.take) { syncHistory(); drawLanes(); } }); });
 
   const drawLanes = () => {
     syncHistory();
@@ -729,7 +731,7 @@ export function mountTimeline(root, app) {
     { label: tr.muted ? 'Unmute' : 'Mute', run: () => { tr.muted = !tr.muted; edited(); } },
     { label: `Add a ${(TRACK_NAMES[tr.kind] || tr.kind).toLowerCase()} track`, run: () => { addTrack(take, tr.kind); drawLanes(); commit('track'); } },
     '-',
-    { label: 'Delete track', hint: 'Its clips go too', disabled: tracksOf(take).filter(t => t.kind === tr.kind).length < 2 && take.clips.some(c => laneOf(c) === tr.id), run: () => { take.clips = take.clips.filter(c => laneOf(c) !== tr.id); take.tracks = take.tracks.filter(t => t !== tr); edited(); } }
+    { label: 'Delete track', hint: 'Its clips go too', disabled: tr.live !== 'history' && tracksOf(take).filter(t => t.kind === tr.kind).length < 2 && take.clips.some(c => laneOf(c) === tr.id), run: () => { if (tr.live === 'history') take.noHistory = true; take.clips = take.clips.filter(c => laneOf(c) !== tr.id); take.tracks = take.tracks.filter(t => t !== tr); edited(); } }
   ];
 
   const clipEl = (c, readOnly = false) => {
