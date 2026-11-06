@@ -204,3 +204,32 @@ The small tier for weak laptops: **Qwen2.5-Coder 1.5B (about 1 GB) scores 10/14*
 `ams_write_code` (codeWriter.js: the prompt, `fixCode`, run, up to two repairs) on the 7 lesson-test tasks in the teacher's wording (`scripts/eval/results/code-model-smoke-2026-11-05.json`): **Qwen 3.8 9B coder on Ollama 6/7** (the dot grid took three tries and passed; the sun failed), **browser Standard (Qwen3 4B Instruct) 6/7** (the pointillist walk fails, as everywhere), **browser Light (Qwen2.5-Coder 1.5B) 5/7** (the sun passed on its second try). That agrees with the eval (14/14, 12/14, 10/14 over both wordings) within the noise of one wording.
 
 Chat and command evals after all of today's changes (LFM3-Omni in the browser, the 16 tasks of `assistEval.js`): the whole path (instant phrases, then commands, then the model) **15/16 and 15/16** (only "draw a house" fails); the model alone 13/16 and 10/16.
+
+## LFMs in the browser (WebGPU), and the other formats (catalog, 5 Nov 2026)
+
+Format key: **ONNX** is what transformers.js runs in a browser (WebGPU). **MLX** is Apple's runtime for a Mac: fast on Apple silicon, not in a browser. **GGUF** is what Ollama / LM Studio / llama.cpp run (and Liquid's own browser runtime for Omni). **LiteRT / MNN** are phone runtimes (Android/iOS), not for us.
+
+Browser (WebGPU), transformers.js 4.3.2 (what AMS ships):
+
+| Model | Size (q4f16) | Works now | Notes |
+|---|---|---|---|
+| `LiquidAI/LFM2.5-1.2B-Instruct-ONNX` | ~0.8 GB | yes (default preset) | text |
+| `LiquidAI/LFM2.5-2.6B-ONNX` | 1.53 GB | preset (Experimental) | text |
+| `LiquidAI/LFM2.5-8B-A1B-ONNX` | 5.05 GB | preset (Experimental) | MoE, 1B active |
+| `LiquidAI/LFM2.5-24B-A2B-ONNX` | 13.7 GB | too big for students | MoE, 2B active |
+| `LiquidAI/LFM3-VL-2B-ONNX` | 1.31 GB | yes | vision; weak at code (2/14) |
+| `LiquidAI/LFM2.5-VL-3B-ONNX` | 2.87 GB | untested | vision |
+| `LiquidAI/LFM3-1.7B-ONNX` | 1.38 GB | **no on 4.3.2**: "Missing inputs: logits_to_keep" | needs a newer transformers.js (4.4.0-next.0 mentions `logits_to_keep`; to test) |
+| `onnx-community/LFM3-1.7B-ONNX` | 1.09 GB | untested | an earlier export; may not need `logits_to_keep` |
+| `onnx-community/LFM2-1.2B-Tool-ONNX` | 0.87 GB | untested | tool-calling fine-tune |
+| `LiquidAI/LFM3-Omni-2B-ONNX`, `LFM3-Audio-2B-ONNX`, `LFM2.5-Audio-1.5B-ONNX` | 1.4-1.7 GB | **no**: `lfm3_omni` / `lfm3_audio` are not in transformers.js 4.3.2 or 4.4.0-next.0 | Omni runs through Liquid's own runtime instead (what AMS uses) |
+
+Browser, Liquid's own runtime (loaded from their Space): LFM3-Omni-2B GGUF (1.6 GB; text, tools, speech in and out) and the Pi coding-agent Space's LFM3-1.7B GGUF Q4_K_M (~1.1 GB, `Lfm3ForCausalLM.js`). Licence of the runtime is unstated: load at run time, do not vendor.
+
+Mac (MLX, for personal development; `mlx-lm` / LM Studio): `LiquidAI/LFM3-1.7B-MLX-{4,5,6,8bit,bf16}`, `LiquidAI/LFM3-Omni-2B-MLX-{4,8bit,bf16}`, `LFM3-VL-2B-MLX-*`, `LFM3-Audio-2B-MLX-*`, `LiquidAI/LFM2.5-24B-A2B-MLX-{4,6}bit`, `mlx-community/LFM2.5-24B-A2B-OptiQ-4bit`, `mlx-community/LFM2.5-8B-A1B-OptiQ-4bit`, `mlx-community/LFM2.5-230M-OptiQ-4bit` (sub-1B candidate).
+
+Ollama (GGUF): already installed `dlasher/LFM2.5-24B-A2B-ENG:IQ4_NL` (13 GB), `lfm3:1.7b`, `lfm3-omni`.
+
+Community / elsewhere: Spaces `LiquidAI/LFM2.5-1.2B-Thinking-WebGPU`, `LFM2.5-VL-{450M,1.6B,3B}-WebGPU`, `LFM2-MoE-WebGPU`, `webml-community/lfm2-webgpu-kernels` (LFM2.5-230M with custom kernels), `webml-community/LFM3-1.7B-WebGPU-Pi`. Fine-tunes: `LFM2.5-350M-JSON-NoFence`, `ScanAtlas-LFM2.5-350M-Planner`.
+
+Plan: browser = student default (LFM2.5-2.6B / LFM3-1.7B once loadable, Qwen as the reliable fallback); Ollama/MLX = personal, with the 24B-A2B as the "better model" test.
