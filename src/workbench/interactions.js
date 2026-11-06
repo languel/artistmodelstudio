@@ -52,12 +52,12 @@ export class Interactions {
   }
 
   /** The sequence as steps for an agent or a handout: numbered, in words, with what changed. */
-  steps() { return this.entries.map((e, i) => ({ n: i + 1, at: e.t, say: this.describe(e), input: e.input, on: e.target || e.where, tool: e.tool, from: e.world?.[0] || null, to: e.world?.[1] || null, command: e.command, effects: e.effects, changes: e.changes })); }
+  steps() { return this.entries.filter(e => e.where !== 'Timeline').map((e, i) => ({ n: i + 1, at: e.t, say: this.describe(e), input: e.input, on: e.target || e.where, tool: e.tool, from: e.world?.[0] || null, to: e.world?.[1] || null, command: e.command, effects: e.effects, changes: e.changes })); }
 
   /** Clips for the Timeline's Actions kind, placed on the shared clock (liveClock.js). */
   clips(clock, entries = this.entries) {
     // (on the shared clock, from when a press began to when it was released: a drag lasts as long as it did)
-    return entries.map(e => {
+    return entries.filter(e => e.where !== 'Timeline').map(e => {   // (clicks on the Timeline itself, recorded before they were left out, are not clips)
       const start = clock.at(e.since ?? e.t), end = clock.at(e.t);
       return { track: 'action', start: Math.round(start), dur: Math.max(500, Math.round(end - start)), name: 'ui', label: this.describe(e), ui: { kind: e.kind, target: e.target, drag: e.drag, popup: e.popup, popupAt: e.popupAt, path: e.path, pathSpace: e.pathSpace, from: e.from, to: e.to, where: e.where, command: e.command, changes: e.changes.map(c => c.id) }, fx: {} };
     });

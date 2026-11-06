@@ -118,6 +118,7 @@ export class Guide {
    */
   /** Where the pointer was `frac` (0 to 1) of the way through a recorded interaction, in window coordinates (null if it cannot be told). */
   pointAt(ui, frac = 0) {
+    if (ui.where === 'Timeline') return null;
     const cv = this.app.canvas, r = cv.canvas.getBoundingClientRect();
     if (ui.drag && ui.path?.length > 1) {
       const total = ui.path.at(-1)[2] || 1, ms = Math.max(0, Math.min(1, frac)) * total, path = ui.path;
@@ -140,6 +141,7 @@ export class Guide {
 
   async cue(ui, label = '', { rate = 1 } = {}) {
     if (!this.active || !ui) return;
+    if (ui.where === 'Timeline') return;   // (clicks on the Timeline itself, recorded before they were left out: replaying them would send the pointer and its halo flying down to the Timeline)
     this.popupFor(ui);
     this.say(label, 'Interaction', { sticky: false });
     if (ui.kind === 'key' || (!ui.target && !ui.from)) return;
