@@ -207,7 +207,7 @@ export class UserActions {
     el.className = 'wb-ua';
     el.dataset.userActions = '';
     el.setAttribute('aria-label', 'User actions');
-    el.innerHTML = '<button type="button" class="wb-ua-close" title="Hide (⌘⌥I)" aria-label="Hide">×</button><header class="wb-ua-head" title="Drag to move"><span class="wb-ua-glyph"></span><span class="wb-ua-input"></span><span class="wb-ua-what"></span><span class="wb-ua-sub"><span class="wb-ua-kind"></span><button type="button" class="wb-ua-more"></button><span class="wb-ua-tool"></span></span></header><div class="wb-ua-list" aria-live="polite"></div>';
+    el.innerHTML = '<button type="button" class="wb-ua-close" title="Hide (⌘⌥I)" aria-label="Hide">×</button><button type="button" class="wb-ua-more"></button><header class="wb-ua-head" title="Drag to move"><span class="wb-ua-glyph"></span><span class="wb-ua-input"></span><span class="wb-ua-what"></span></header><div class="wb-ua-list" aria-live="polite"></div>';
     el.querySelector('.wb-ua-close').addEventListener('click', () => this.hide());
     el.querySelector('.wb-ua-more').addEventListener('click', () => { this.minimal = !this.minimal; write(KEY_MIN, this.minimal); this.render(); });
     el.querySelector('.wb-ua-head').addEventListener('pointerdown', e => {
@@ -236,20 +236,16 @@ export class UserActions {
     const what = c => (c.effects.length ? effectsOf(c.effects).join(' · ') : c.fallback || '');
     const tag = c => (c.kind === 'key' ? 'key' : c.kind === 'agent' ? 'agent' : c.button === 'scroll' ? 'wheel' : c.button === 'pen' || c.button === 'touch' ? c.button : 'mouse');
     q('.wb-ua-glyph').innerHTML = !cur ? MOUSE('') : cur.kind === 'key' ? KEYBOARD : MOUSE(cur.button);
-    // The latest one: the key or gesture large, what it did beside it, where it was under it. One line each, so the box never changes size.
+    // On top, always: the key or gesture (accent) and what it did. Under the line (the chevron folds it away): the same cue's kind and where, with the tool, then the earlier ones, dimmer.
     q('.wb-ua-input').innerHTML = cur ? keycaps(cur) : 'Ready';
     q('.wb-ua-what').textContent = cur ? what(cur) : '';
-    q('.wb-ua-kind').textContent = cur ? `${tag(cur)}${cur.where ? ` · ${cur.where}` : ''}` : 'keys, clicks and what they do';
     q('.wb-ua-what').title = cur ? what(cur) : '';
-    const tool = this.toolName();
-    q('.wb-ua-tool').textContent = tool; q('.wb-ua-tool').title = `The tool: ${tool}`;
-    const earlier = this.cues.slice(0, -1).reverse(), n = Math.min(earlier.length, SHOWN);
+    const tool = this.toolName(), earlier = this.cues.slice(0, -1).reverse().slice(0, SHOWN);
     const more = q('.wb-ua-more');
-    more.textContent = this.minimal ? '▸' : '▾';
-    more.title = earlier.length ? `${this.minimal ? 'Show' : 'Hide'} the ${n} earlier action${n === 1 ? '' : 's'}` : 'Nothing earlier yet';
-    more.disabled = !earlier.length;
-    const prev = this.minimal ? [] : earlier.slice(0, SHOWN);
-    q('.wb-ua-list').innerHTML = prev.map(c => `<div class="wb-ua-row"><b>${esc(shortInput(c))}</b><span>${esc(what(c) || c.where)}</span></div>`).join('');
+    more.textContent = this.minimal ? '▾' : '▴';
+    more.title = this.minimal ? 'Show where, the tool and the earlier actions' : 'Hide them';
+    const now = `<div class="wb-ua-row cur"><span>${esc(cur ? `${tag(cur)}${cur.where ? ` · ${cur.where}` : ''}` : 'keys, clicks and what they do')}</span><span title="The tool: ${esc(tool)}">${esc(tool)}</span></div>`;
+    q('.wb-ua-list').innerHTML = this.minimal ? '' : now + earlier.map(c => `<div class="wb-ua-row"><b>${esc(shortInput(c))}</b><span>${esc(what(c) || c.where)}</span></div>`).join('');
     el.classList.toggle('minimal', this.minimal);
   }
 }

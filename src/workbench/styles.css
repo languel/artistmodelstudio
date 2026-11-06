@@ -1173,27 +1173,27 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 /* User actions (View → Show user actions): the latest key or click and what it did, the recent ones under it. */
 .wb-ua { position: fixed; z-index: 9000; width: 300px; max-width: calc(100vw - 16px); box-sizing: border-box; border: 1px solid var(--wb-line); border-radius: 8px; background: color-mix(in srgb, var(--wb-panel) 94%, transparent); box-shadow: var(--wb-shadow); backdrop-filter: blur(6px); font-size: 12px; color: var(--wb-text); }
 /* the latest: the key or gesture large on the left, what it did on the right, what kind and where under the key; every line is one line, so the box keeps its size */
-.wb-ua-head { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, auto); grid-template-rows: 24px 16px; column-gap: 8px; align-items: center; padding: 8px 26px 8px 10px; cursor: grab; }
-.wb-ua-glyph { grid-row: 1 / span 2; color: var(--wb-accent-2, #c8664f); opacity: 0.8; display: grid; place-items: center; }
-.wb-ua-input { grid-column: 2; display: flex; align-items: center; gap: 4px; font: 600 15px/24px var(--font-mono, ui-monospace, monospace); letter-spacing: 0.05em; color: var(--wb-accent-2, #c8664f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wb-ua-what { grid-column: 3; grid-row: 1; justify-self: end; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--wb-text); }
+.wb-ua-head { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, auto); grid-template-rows: 22px; column-gap: 8px; align-items: center; padding: 8px 30px 8px 10px; cursor: grab; }
+.wb-ua-glyph { width: 22px; height: 22px; box-sizing: border-box; color: var(--wb-accent-2, #c8664f); opacity: 0.85; display: grid; place-items: center; }
+.wb-ua-glyph svg { width: 18px; height: 18px; display: block; }
+.wb-ua-input { display: flex; align-items: center; gap: 4px; min-width: 0; height: 22px; font: 600 15px/22px var(--font-mono, ui-monospace, monospace); letter-spacing: 0.05em; color: var(--wb-accent-2, #c8664f); white-space: nowrap; overflow: hidden; }
 .wb-ua-input kbd { font: inherit; letter-spacing: 0; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; display: inline-grid; place-items: center; border: 1px solid color-mix(in srgb, var(--wb-accent-2, #c8664f) 55%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--wb-accent-2, #c8664f) 12%, transparent); line-height: 1; }
 .wb-ua-input kbd.wide { gap: 6px; display: inline-flex; align-items: center; padding: 0 8px; }
 .wb-ua-input kbd.wide b { font-weight: 700; }
 .wb-ua-gesture { letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wb-ua-sub { grid-column: 2 / span 2; grid-row: 2; display: flex; align-items: center; gap: 2px; min-width: 0; font-size: 11px; color: var(--wb-muted); }
-.wb-ua-kind { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.wb-ua-close { position: absolute; top: 3px; right: 4px; width: 16px; height: 16px; padding: 0; border: 0; background: none; color: var(--wb-muted); font-size: 13px; line-height: 16px; text-align: center; cursor: pointer; border-radius: 4px; }
-.wb-ua-close:hover { color: var(--wb-text); background: var(--wb-hover); }
-.wb-ua-more { border: 0; background: none; color: var(--wb-muted); padding: 0 4px; height: 16px; font: inherit; cursor: pointer; border-radius: 4px; flex: none; }
-.wb-ua-more:hover:not(:disabled) { color: var(--wb-text); background: var(--wb-hover); }
-.wb-ua-more:disabled { opacity: 0.5; cursor: default; }
-.wb-ua-tool { margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; flex: 0 1 auto; padding-left: 8px; }
-/* the earlier ones: the same two columns, dimmer */
-.wb-ua-list:not(:empty) { border-top: 1px solid var(--wb-line); padding: 4px 10px 6px; opacity: 0.6; }
-.wb-ua-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; color: var(--wb-muted); height: 18px; box-sizing: border-box; }
+.wb-ua-what { justify-self: end; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--wb-text); }
+/* the two small buttons stacked down the right edge: close, then fold */
+.wb-ua-close, .wb-ua-more { position: absolute; right: 5px; width: 18px; height: 16px; padding: 0; border: 0; background: none; color: var(--wb-muted); line-height: 16px; text-align: center; cursor: pointer; border-radius: 4px; }
+.wb-ua-close { top: 3px; font-size: 14px; }
+.wb-ua-more { top: 21px; font-size: 9px; }
+.wb-ua-close:hover, .wb-ua-more:hover { color: var(--wb-text); background: var(--wb-hover); }
+/* under the line: this cue's kind and where, with the tool (white), then the earlier ones (dimmer), in the same two columns */
+.wb-ua-list:not(:empty) { border-top: 1px solid var(--wb-line); padding: 4px 10px 6px; }
+.wb-ua-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; color: var(--wb-muted); height: 18px; box-sizing: border-box; opacity: 0.6; }
+.wb-ua-row.cur { opacity: 1; color: var(--wb-text); }
 .wb-ua-row b { color: color-mix(in srgb, var(--wb-accent-2, #c8664f) 85%, transparent); font-weight: 600; white-space: nowrap; font-family: var(--font-mono, ui-monospace, monospace); font-size: 11.5px; letter-spacing: 0.05em; }
-.wb-ua-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.wb-ua-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-ua-row > span:last-child { text-align: right; }
 .wb-ua.minimal .wb-ua-list { display: none; }
 /* The physics toolbar (src/physics/toolbar.js): its own island. */
 .wb-phys { position: absolute; left: 10px; top: 64px; z-index: 10; }
