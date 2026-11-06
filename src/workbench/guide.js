@@ -191,7 +191,8 @@ export class Guide {
 
   async click() {
     if (!this.active) return;
-    this.halo.style.transform = `translate(${this.pos.x - 14}px, ${this.pos.y - 14}px)`;
+    // (placed with left and top, not a transform: the ring grows with the `scale` property, which is applied before `transform`, so a translate would have the ring fly in from the corner of the page through the click)
+    this.halo.style.left = `${this.pos.x - 14}px`; this.halo.style.top = `${this.pos.y - 14}px`;
     this.halo.classList.remove('on'); void this.halo.offsetWidth; this.halo.classList.add('on');
     await this.wait(260);
   }
