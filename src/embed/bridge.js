@@ -222,6 +222,14 @@ export function startBridge(app, { origin = location.origin } = {}) {
       app.canvas.invalidate(); app.renderChrome();
       return { visible: app.reference.visible, opacity: app.reference.opacity };
     },
+    // Takes (the recording system, docs/recording-system.md): the host records and plays the editor's takes as plain `ams-take` JSON.
+    'record-start': ({ title } = {}) => { app.recorder.start({ title, source: 'host' }); return { recording: true }; },
+    'record-stop': async () => { const take = app.recorder.take; await app.recorder.stop({ save: false }); return { take: take ? structuredClone(take) : null }; },
+    'take-load': ({ take }) => { app.player.load(take); return { duration: app.player.duration }; },
+    'take-play': () => { app.player.play(); return { playing: true }; },
+    'take-pause': () => { app.player.pause(); return { playing: false, t: app.player.position() }; },
+    'take-seek': ({ t }) => { app.player.seek(t); return { t: app.player.position() }; },
+    'take-state': () => ({ loaded: Boolean(app.player.take), playing: app.player.playing, t: app.player.position(), duration: app.player.duration, recording: app.recorder.recording }),
     camera: cam => { if (cam && 'z' in cam) setCamera(cam); const c = app.canvas; return { ...c.cam, w: c.w, h: c.h }; },
     focus: () => { app.canvas.canvas.focus?.(); window.focus(); return {}; },
     fit: ({ board, padding } = {}) => { app.canvas.fit(padding ?? 40, board ? boardOf(board).id : undefined); return {}; }
@@ -308,6 +316,8 @@ export function startBridge(app, { origin = location.origin } = {}) {
   app.on('host-action', (id, ids) => post({ type: 'action', id, ids }));
   app.on('selection', () => post({ type: 'selection', ids: [...app.canvas.selected] }));
   app.on('tool', () => post({ type: 'tool', id: app.tool }));
+  app.on('recording', on => post({ type: 'recording', on: Boolean(on) }));
+  app.on('take', take => post({ type: 'take', id: take?.id || null, title: take?.title || '', duration: take?.duration || 0 }));
   // Keys the editor did not use go to the host, so the host's own shortcuts keep working.
   window.addEventListener('keydown', e => {
     if (hostKey || e.defaultPrevented || e.target.closest?.('input, textarea, select, [contenteditable]')) return;

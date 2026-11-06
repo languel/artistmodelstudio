@@ -56,6 +56,8 @@ Host → editor: `init { ns, ui, theme, background, boards, persist, tools[] }`,
 
 Editor → host: `ready { protocol, version, tools }`, `change { rev, reason }` (throttled; no payload, ask for the document when needed), `draft { active }` (a stroke is being drawn: at most once per frame while it grows and once more when it ends; no payload; a stroke is in the document only after the pointer is released, so a live host answers with `export { draft: true }`), `selection { ids }`, `tool { id }`, `result { id, value }`, `error { id, message }`, `key { combo }` (shortcuts the editor does not use, so the host's keys keep working; and the host's keys forwarded in when focus is outside).
 
+Takes (6 Nov 2026; the recording system, `docs/recording-system.md`): host → editor `record-start { title }`, `record-stop` (result `{ take }`, plain `ams-take` JSON), `take-load { take }`, `take-play`, `take-pause`, `take-seek { t }`, `take-state`; editor → host `recording { on }` and `take { id, title, duration }`. Client: `recordStart`, `recordStop`, `loadTake`, `playTake`, `pauseTake`, `seekTake`, `takeState`. Hosts keep takes as opaque JSON.
+
 Guarantees: documents are plain JSON (`normalizeDocument` on load, so older files migrate); `change` is cheap and `get-document` is the only expensive call; exports render off-screen and never include grid, selection or UI; a `rev` that only goes up lets a host skip stale exports.
 
 ## Phases
