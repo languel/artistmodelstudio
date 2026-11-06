@@ -5,13 +5,14 @@
  */
 import { h } from './ui.js';
 import { icon } from './icons.js';
+import { llmEnv } from '../artists/OpenAICompatibleArtist.js';
 import { favorites, toggleFavorite, isFavorite } from './modelStore.js';
 
 export const ENGINES = [
   ['ollama', 'Ollama (local)'], ['lfm3', 'LFM3-Omni (this browser)'], ['webgpu', 'In-browser (WebGPU)'], ['openrouter', 'OpenRouter'],
-  ['openai', 'OpenAI-compatible'], ['pratt', 'Pratt Institute'], ['nim', 'NVIDIA NIM'], ['github', 'GitHub Models'], ['agent', 'Agent (MCP)']
+  ['openai', 'OpenAI-compatible'], ['pratt', 'Pratt Institute'], ['gemini', 'Google Gemini'], ['nim', 'NVIDIA NIM'], ['github', 'GitHub Models'], ['agent', 'Agent (MCP)']
 ];
-export const MODEL_KEYS = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', pratt: 'ams_pratt_model', nim: 'ams_nim_model', github: 'ams_github_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model', lfm3: 'ams_lfm3_model' };
+export const MODEL_KEYS = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', pratt: 'ams_pratt_model', gemini: 'ams_gemini_model', nim: 'ams_nim_model', github: 'ams_github_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model', lfm3: 'ams_lfm3_model' };
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return v; };
 
 /** An engine's models in groups (Favorites first, whatever the engine), with whether it is ready and why not. */
@@ -30,7 +31,8 @@ async function loadEngineModels(engineId, artist) {
     return { ready: list.length > 0, status: list.length ? `${list.length} installed` : `not reachable at ${artist.endpoint}`, groups: [['Installed', list.map(id => ({ id, name: id }))]] };
   }
   if (engineId === 'openrouter') {
-    const key = ls('ams_openrouter_key');
+    await llmEnv();
+    const key = ls('ams_openrouter_key') || (globalThis.__amsLlmEnv?.openrouter ? 'the dev server environment' : '');
     let list = [];
     try { list = await artist.fetchModels?.(); } catch { list = artist.getAvailableModels?.() || []; }
     const free = list.filter(m => /:free$/.test(m.id) || m.isFree);
@@ -38,7 +40,7 @@ async function loadEngineModels(engineId, artist) {
     const fav = new Set(favorites('openrouter', artist));
     const label = m => `${m.name || m.id}${vision(m) ? '  · image' : ''}`;
     return {
-      ready: Boolean(key), status: key ? `${list.length} models` : 'API key missing (Keys below)',
+      ready: Boolean(key), status: key ? `${list.length} models${ls('ams_openrouter_key') ? '' : ' · key from the dev server environment'}` : 'API key missing (Keys below, or OPENROUTER_API_KEY in the dev server environment)',
       groups: [
         ['Favorites', list.filter(m => fav.has(m.id)).map(m => ({ id: m.id, name: label(m) }))],
         ['Free', free.map(m => ({ id: m.id, name: label(m) }))],
@@ -54,7 +56,7 @@ async function loadEngineModels(engineId, artist) {
     const models = artist.getAvailableModels?.() || [];
     return { ready: Boolean(navigator.gpu), status: navigator.gpu ? 'WebGPU available' : 'WebGPU unavailable in this browser', groups: [['Presets', models.map(m => ({ id: m.id, name: `${m.name || m.id}${m.isVL ? '  · image' : ''}` }))]] };
   }
-  if (['pratt', 'nim', 'github'].includes(engineId)) {   // (hosted providers: their own list, the presets if it cannot be had)
+  if (['pratt', 'nim', 'github', 'gemini'].includes(engineId)) {   // (hosted providers: their own list, the presets if it cannot be had)
     let list, why = '';
     try { list = await artist.fetchModels(); } catch (err) { why = err.message; }
     const env = globalThis.__amsLlmEnv?.[engineId], key = ls(`ams_${engineId}_key`);

@@ -52,7 +52,7 @@ export function modelSection(app) {
     const pick = id => { useModel(app, engine, id); query = ''; list.hidden = true; showCurrent(); input.blur(); paint(); };
     const refresh = async (force = false) => {
       status.className = 'wb-picker-status wb-small'; status.textContent = 'checking…';
-      if (force && (engine === 'openrouter' || ['pratt', 'nim', 'github'].includes(engine))) { try { await artist?.fetchModels?.(true); } catch { /* the list below says */ } }
+      if (force && (engine === 'openrouter' || ['pratt', 'nim', 'github', 'gemini'].includes(engine))) { try { await artist?.fetchModels?.(true); } catch { /* the list below says */ } }
       info = await loadModels(engine, artist).catch(err => ({ ready: false, status: err.message, groups: [] }));
       showCurrent(); paint();
     };

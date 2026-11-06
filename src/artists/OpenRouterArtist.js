@@ -6,6 +6,7 @@
  * canvas iterations, and cancellation support.
  */
 
+import { llmEnv } from './OpenAICompatibleArtist.js';
 import { openAIContent, IMAGE_NOTE, DESCRIBE_INSTRUCTION } from './imagePrompt.js';
 import { Artist } from './Artist.js';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
@@ -87,7 +88,6 @@ async function fetchWithRetry(url, init, tries = 4) {
 export class OpenRouterArtist extends Artist {
   constructor(options = {}) {
     super(options.id || 'openrouter', options.name || 'OpenRouter', 'cloud');
-    this.endpoint = 'https://openrouter.ai/api/v1/chat/completions';
     this.apiKey = options.apiKey || getStorage('ams_openrouter_key') || '';
     this.model = options.model || getStorage('ams_openrouter_model', 'anthropic/claude-3.5-sonnet');
     this.temperature = options.temperature ?? 0.8;
@@ -364,9 +364,10 @@ export class OpenRouterArtist extends Artist {
     const count = request.count || 4;
     const systemPrompt = buildSystemPrompt(request.mediumCapabilities);
     const targetModel = request.settings?.model || getStorage('ams_openrouter_model') || this.model;
+    await llmEnv();
     const apiKey = request.settings?.apiKey || getStorage('ams_openrouter_key') || this.apiKey;
 
-    if (!apiKey) {
+    if (!apiKey && !this.viaProxy()) {
       const errorMsg = 'OpenRouter API key is missing. Click Settings to enter your OpenRouter key (sk-or-...).';
       request.onProgress?.({ type: 'error', error: errorMsg, message: errorMsg });
       throw new Error(errorMsg);
@@ -468,9 +469,14 @@ export class OpenRouterArtist extends Artist {
    * One chat completion: { system, user, image?, temperature?, signal } → text.
    * Used by the workbench, where models write scores rather than drawing programs.
    */
+  /** Chat endpoint: through the dev server when it holds OPENROUTER_API_KEY and the user set no key of their own (the proxy adds it). */
+  get endpoint() { return this.viaProxy() ? '/__llm/openrouter/api/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions'; }
+  viaProxy() { return !getStorage('ams_openrouter_key') && !this.apiKey && Boolean(globalThis.__amsLlmEnv?.openrouter); }
+
   async complete({ system, user, image = null, temperature = 0.7, maxTokens = 4000, signal, model } = {}) {
+    await llmEnv();
     const apiKey = getStorage('ams_openrouter_key') || this.apiKey;
-    if (!apiKey) throw new Error('OpenRouter API key missing (Generate panel → Keys)');
+    if (!apiKey && !this.viaProxy()) throw new Error('OpenRouter API key missing (Settings → Model, or OPENROUTER_API_KEY in the dev server environment)');
     const res = await fetchWithRetry(this.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, 'X-Title': 'Artist Model Studio' },
@@ -484,8 +490,9 @@ export class OpenRouterArtist extends Artist {
 
   /** Describe an image (data URL) as a drawing prompt with the current model. */
   async describe(image, { signal } = {}) {
+    await llmEnv();
     const apiKey = getStorage('ams_openrouter_key') || this.apiKey;
-    if (!apiKey) throw new Error('OpenRouter API key missing');
+    if (!apiKey && !this.viaProxy()) throw new Error('OpenRouter API key missing');
     const res = await fetchWithRetry(this.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },

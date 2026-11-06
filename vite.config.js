@@ -175,7 +175,9 @@ function llmProxyPlugin() {
   const providers = {
     pratt: { origin: 'https://llm.pratt.edu', env: ['PRATT_LLM_API_KEY'] },
     nim: { origin: 'https://integrate.api.nvidia.com', env: ['NVIDIA_NIM_API_KEY', 'NVIDIA_API_KEY'] },
-    github: { origin: 'https://models.github.ai', env: ['GITHUB_TOKEN', 'GH_TOKEN'], fallback: ghToken }
+    github: { origin: 'https://models.github.ai', env: ['GITHUB_TOKEN', 'GH_TOKEN'], fallback: ghToken },
+    gemini: { origin: 'https://generativelanguage.googleapis.com', env: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'] },
+    openrouter: { origin: 'https://openrouter.ai', env: ['OPENROUTER_API_KEY'] }
   };
   const keyOf = p => p.env.map(n => process.env[n]).find(Boolean) || p.fallback?.() || '';
   return {

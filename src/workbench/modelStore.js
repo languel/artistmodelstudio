@@ -8,13 +8,14 @@
 export const ASSISTANT_ENGINE_KEY = 'ams_assistant_engine';
 const FAV_KEY = 'ams_model_favorites';
 const SETTINGS_KEY = 'ams_assistant_settings';
-export const ENGINE_NAMES = { ollama: 'Ollama', lfm3: 'LFM3-Omni', webgpu: 'In-browser', openrouter: 'OpenRouter', openai: 'OpenAI-compatible', pratt: 'Pratt Institute', nim: 'NVIDIA NIM', github: 'GitHub Models', agent: 'Agent (MCP)' };
+export const ENGINE_NAMES = { ollama: 'Ollama', lfm3: 'LFM3-Omni', webgpu: 'In-browser', openrouter: 'OpenRouter', openai: 'OpenAI-compatible', pratt: 'Pratt Institute', gemini: 'Google Gemini', nim: 'NVIDIA NIM', github: 'GitHub Models', agent: 'Agent (MCP)' };
 
 /** What each engine needs to connect: [label, localStorage key, input type, placeholder]. */
 export const ENGINE_FIELDS = {
   ollama: [['Endpoint', 'ams_ollama_endpoint', 'text', 'http://localhost:11434']],
   openai: [['Base URL', 'ams_openai_base_url', 'text', 'https://api.openai.com/v1'], ['API key', 'ams_openai_key', 'password', '']],
-  openrouter: [['API key', 'ams_openrouter_key', 'password', '']],
+  openrouter: [['API key', 'ams_openrouter_key', 'password', 'sk-or-… (empty: the dev server uses OPENROUTER_API_KEY)']],
+  gemini: [['API key', 'ams_gemini_key', 'password', 'AIza… (empty: the dev server uses GEMINI_API_KEY)']],
   pratt: [['API key', 'ams_pratt_key', 'password', 'sk-pratt-… (empty: the dev server uses PRATT_LLM_API_KEY)']],
   nim: [['API key', 'ams_nim_key', 'password', 'nvapi-… (empty: the dev server uses NVIDIA_NIM_API_KEY)']],
   github: [['Token', 'ams_github_key', 'password', 'GitHub token with models:read (empty: the dev server uses GITHUB_TOKEN or gh)']],
@@ -34,7 +35,7 @@ export function setEngine(engine) { set(ASSISTANT_ENGINE_KEY, engine); changed()
 export function useModel(app, engine, model) {
   set(ASSISTANT_ENGINE_KEY, engine);
   const artist = app.artists.get(engine);
-  if (model) { artist?.setModel?.(model); const key = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', pratt: 'ams_pratt_model', nim: 'ams_nim_model', github: 'ams_github_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model', lfm3: 'ams_lfm3_model' }[engine]; if (key) set(key, model); }
+  if (model) { artist?.setModel?.(model); const key = { openrouter: 'ams_openrouter_model', openai: 'ams_openai_model', pratt: 'ams_pratt_model', gemini: 'ams_gemini_model', nim: 'ams_nim_model', github: 'ams_github_model', ollama: 'ams_ollama_model', webgpu: 'ams_webgpu_model', lfm3: 'ams_lfm3_model' }[engine]; if (key) set(key, model); }
   changed();
 }
 

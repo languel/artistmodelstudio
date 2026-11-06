@@ -12,5 +12,7 @@ export const PROVIDERS = [
     ['deepseek-ai/deepseek-v4.1-flash', 'DeepSeek V4.1 Flash'], ['openai/gpt-oss-20b', 'gpt-oss 20B']] },
   { id: 'github', name: 'GitHub Models', baseURL: 'https://models.github.ai/inference', modelsPath: '/catalog/models', env: ['GITHUB_TOKEN', 'GH_TOKEN'], ghCli: true, keyHint: 'a GitHub token (models:read)', models: [
     ['openai/gpt-4.1', 'GPT-4.1'], ['openai/gpt-4.1-mini', 'GPT-4.1 mini'], ['meta/Llama-3.3-70B-Instruct', 'Llama 3.3 70B'], ['deepseek/DeepSeek-V3-0324', 'DeepSeek V3'], ['microsoft/Phi-4', 'Phi-4']] }
+  ,{ id: 'gemini', name: 'Google Gemini', baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai', env: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'], keyHint: 'AIza…', models: [
+    ['gemini-2.5-flash', 'Gemini 2.5 Flash'], ['gemini-2.5-pro', 'Gemini 2.5 Pro'], ['gemini-2.5-flash-lite', 'Gemini 2.5 Flash-Lite']] }
 ];
 export const providerModels = p => p.models.map(([id, name]) => ({ id, name }));

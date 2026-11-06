@@ -85,7 +85,7 @@ export class OpenAICompatibleArtist extends Artist {
     const res = await fetch(this.modelsURL(), { headers });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${res.status}`);
-    const list = (Array.isArray(data) ? data : data.data || data.models || []).map(m => ({ id: m.id || m.name, name: m.name && m.name !== m.id ? `${m.name} (${m.id})` : m.id })).filter(m => m.id && !/embed|rerank|safety-guard|guard|content-safety/i.test(m.id));   // (only models that chat)
+    const list = (Array.isArray(data) ? data : data.data || data.models || []).map(m => { const id = String(m.id || m.name || '').replace(/^models\//, ''); return { id, name: m.name && m.name !== m.id && !/^models\//.test(m.name) ? `${m.name} (${id})` : id }; }).filter(m => m.id && !/embed|rerank|safety-guard|guard|content-safety/i.test(m.id));   // (only models that chat)
     this.fetched = list.sort((a, b) => a.id.localeCompare(b.id));
     return this.fetched;
   }
