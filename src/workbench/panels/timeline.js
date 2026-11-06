@@ -88,7 +88,9 @@ export function mountTimeline(root, app) {
   // (the navigator under the tracks, as an editor's zoom bar: it stands in for the scrollbar)
   const tl = h('div', { class: 'wb-tl' }, bar, body, h('div', { class: 'wb-tl-navrow' }, zoomBar, nav, navInfo));
   root.append(tl);
-  vzBar.append(vzSlider);
+  // Fit: the tracks' height so that all of them fill the view (never shorter than normal)
+  const fitVZ = () => { const take = P()?.take || live(), n = Math.max(1, take ? tracksOf(take).length + 1 : 1); setVZ((lanes.clientHeight - 24) / (24 * n)); };
+  vzBar.append(h('button', { class: 'wb-icon-btn wb-tl-vzfit', type: 'button', title: 'Fit the tracks to the view: as tall as will show them all', html: icon('fit'), onclick: fitVZ }), vzSlider);
   vzSlider.addEventListener('input', () => setVZ(Number(vzSlider.value)));
   paintVZ();
 

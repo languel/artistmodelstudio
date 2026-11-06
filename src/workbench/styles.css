@@ -1315,7 +1315,9 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-transcript-text { width: 100%; height: min(60vh, 520px); resize: vertical; font: 12px/1.5 var(--font-mono, ui-monospace, monospace); white-space: pre; margin-top: 8px; }
 
 /* Track height: a vertical slider down the right side of the tracks, taller up */
-.wb-tl-vzbar { flex: none; width: 16px; display: flex; justify-content: center; align-items: stretch; padding: 8px 0; border-left: 1px solid var(--wb-line); }
+.wb-tl-vzbar { flex: none; width: 22px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0 8px; border-left: 1px solid var(--wb-line); }
+.wb-tl-vzbar .wb-icon-btn { width: 20px; height: 20px; }
+.wb-tl-vzbar .wb-range { flex: 1; }
 .wb-range.vert { writing-mode: vertical-lr; direction: rtl; width: 10px; height: auto; cursor: ns-resize; }
 .wb-range.vert::-webkit-slider-runnable-track { height: auto; width: 10px; background: linear-gradient(to top, var(--fill) var(--p, 50%), var(--rest) var(--p, 50%)); }
 .wb-range.vert::-webkit-slider-thumb { margin-top: 0; margin-left: 1px; }
