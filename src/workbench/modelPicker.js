@@ -61,7 +61,10 @@ async function loadEngineModels(engineId, artist) {
     try { list = await artist.fetchModels(); } catch (err) { why = err.message; }
     const env = globalThis.__amsLlmEnv?.[engineId], key = ls(`ams_${engineId}_key`);
     const have = list?.length ? list : (artist.getAvailableModels?.() || []);
-    return { ready: !why, status: why ? `${why}${key || env ? '' : ' (no key: paste one in Keys below, or set it in the dev server environment)'}` : `${have.length} models · ${key ? 'your key' : env ? 'key from the dev server environment' : 'no key'}`, groups: [['Models', have.map(m => ({ id: m.id, name: m.name || m.id }))]] };
+    const dec = artist.decisionModels?.length ? ` · ${artist.decisionModels.length} decision model${artist.decisionModels.length > 1 ? 's' : ''} set apart (${artist.decisionModels.map(d => d.id).join(', ')})` : '';
+    const byGroup = new Map();
+    for (const m of have) { const g = m.group || 'Models'; if (!byGroup.has(g)) byGroup.set(g, []); byGroup.get(g).push({ id: m.id, name: m.name || m.id }); }
+    return { ready: !why, status: why ? `${why}${key || env ? '' : ' (no key: paste one in Keys below, or set it in the dev server environment)'}` : `${have.length} chat models${dec} · ${key ? 'your key' : env ? 'key from the dev server environment' : 'no key'}`, groups: [...byGroup.entries()] };
   }
   if (engineId === 'openai') {
     const key = ls('ams_openai_key');

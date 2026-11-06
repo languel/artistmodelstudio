@@ -13,6 +13,7 @@
 
 import { openAIContent, IMAGE_NOTE, DESCRIBE_INSTRUCTION } from './imagePrompt.js';
 import { Artist } from './Artist.js';
+import { shapeProviderModels, routedTo } from './providers.js';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder.js';
 import { normalizeProgram, parseModelOutput } from '../language/normalize.js';
 import { extractPartialActions } from '../language/streaming.js';
@@ -38,6 +39,10 @@ function getStorage(key, fallback = '') {
 let envPromise = null;
 export const llmEnv = () => (envPromise ||= (typeof fetch === 'undefined' || typeof location === 'undefined' ? Promise.resolve({}) : fetch('/__llm/_status').then(r => (r.ok && /json/.test(r.headers.get('content-type') || '') ? r.json() : {})).catch(() => ({}))).then(env => (globalThis.__amsLlmEnv = env)));
 
+let orCatalog = null;
+/** OpenRouter's public model list (once per session): where the recommended settings of routed models are. */
+const openRouterCatalog = () => (orCatalog ||= fetch('https://openrouter.ai/api/v1/models').then(r => r.json()).then(d => d.data || []).catch(() => { orCatalog = null; return []; }));
+
 /** A reply as JSON; a page that is not JSON (a gateway's 404, a login wall) becomes an error that says what it was. */
 async function jsonOrWhy(res) {
   const text = await res.text();
@@ -53,12 +58,13 @@ export class OpenAICompatibleArtist extends Artist {
     super(options.id || 'openai', options.name || 'OpenAI / ChatGPT', 'cloud');
     this.prefix = options.prefix || (options.id && options.id !== 'openai' ? options.id : 'openai');
     this.proxy = Boolean(options.proxy);
+    this.catalogName = options.catalog || null;   // (see providers.js: names, groups and what is not a chat model)
     this.presets = options.models || OPENAI_MODEL_PRESETS;
     this.modelsPath = options.modelsPath || null;   // (from the origin; by default the base URL's path + /models)
     this.defaultBase = options.baseURL || 'https://api.openai.com/v1';
     this.baseURL = options.baseURL || getStorage(this.k('base_url'), this.defaultBase);
     this.apiKey = options.apiKey || getStorage(this.k('key')) || '';
-    this.model = options.model || getStorage(this.k('model'), this.presets[0]?.id || 'gpt-4o');
+    this.model = options.model || getStorage(this.k('model'), this.presets[0]?.id || (this.catalogName === 'pratt' ? 'pratt-deepseek-flash' : 'gpt-4o'));
     this.customHeaders = options.customHeaders || getStorage(this.k('headers')) || '';
     this.temperature = options.temperature ?? 0.8;
     this.fetched = null;   // the provider's own model list, once asked
@@ -81,6 +87,28 @@ export class OpenAICompatibleArtist extends Artist {
     try { return `${new URL(getStorage(this.k('base_url')) || this.baseURL || this.defaultBase).origin}${path}`; } catch { return `${this.base()}/models`; }
   }
 
+  /**
+   * What the model's maker recommends, where it can be found: a model routed through OpenRouter has its `default_parameters` in OpenRouter's public
+   * catalog ({ temperature, top_p… }). Cached. Null when there is nothing (the settings then use their own defaults).
+   */
+  async recommended(model = this.model) {
+    const slug = routedTo(this.catalogName, model);
+    if (!slug) return null;
+    this._rec ||= new Map();
+    if (!this._rec.has(model)) {
+      this._rec.set(model, (async () => {
+        try {
+          const list = await openRouterCatalog();
+          const hit = list.find(m => m.id === slug) || list.find(m => m.id.startsWith(`${slug}:`));   // (the exact model, never a sibling like -prime)
+          const out = {};
+          for (const [k, v] of Object.entries(hit?.default_parameters || {})) if (Number.isFinite(Number(v)) && v !== null) out[k] = Number(v);
+          return Object.keys(out).length ? out : null;
+        } catch { return null; }
+      })());
+    }
+    return this._rec.get(model);
+  }
+
   /** Ask the provider which models it has (cached; force re-asks). → [{ id, name }] or throws. */
   async fetchModels(force = false) {
     if (this.fetched && !force) return this.fetched;
@@ -92,7 +120,9 @@ export class OpenAICompatibleArtist extends Artist {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${res.status}`);
     const list = (Array.isArray(data) ? data : data.data || data.models || []).map(m => { const id = String(m.id || m.name || '').replace(/^models\//, ''); return { id, name: m.name && m.name !== m.id && !/^models\//.test(m.name) ? `${m.name} (${id})` : id }; }).filter(m => m.id && !/embed|rerank|safety-guard|guard|content-safety/i.test(m.id));   // (only models that chat)
-    this.fetched = list.sort((a, b) => a.id.localeCompare(b.id));
+    const shaped = shapeProviderModels(list.sort((a, b) => a.id.localeCompare(b.id)), this.catalogName);
+    this.decisionModels = shaped.decision;   // (set apart: they answer /v1/systemone, not chat)
+    this.fetched = shaped.chat;
     return this.fetched;
   }
 
