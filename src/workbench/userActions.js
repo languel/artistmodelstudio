@@ -242,7 +242,7 @@ export class UserActions {
     q('.wb-ua-what').title = cur ? what(cur) : '';
     const tool = this.toolName(), earlier = this.cues.slice(0, -1).reverse().slice(0, SHOWN);
     const more = q('.wb-ua-more');
-    more.textContent = this.minimal ? '▾' : '▴';
+    more.innerHTML = `<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="${this.minimal ? 'M2.5 4.5 6 8 9.5 4.5' : 'M2.5 7.5 6 4 9.5 7.5'}"/></svg>`;   // (an outline chevron, the size of the ×)
     more.title = this.minimal ? 'Show where, the tool and the earlier actions' : 'Hide them';
     const now = `<div class="wb-ua-row cur"><span>${esc(cur ? `${tag(cur)}${cur.where ? ` · ${cur.where}` : ''}` : 'keys, clicks and what they do')}</span><span title="The tool: ${esc(tool)}">${esc(tool)}</span></div>`;
     q('.wb-ua-list').innerHTML = this.minimal ? '' : now + earlier.map(c => `<div class="wb-ua-row"><b>${esc(shortInput(c))}</b><span>${esc(what(c) || c.where)}</span></div>`).join('');
