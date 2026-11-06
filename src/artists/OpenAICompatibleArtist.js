@@ -38,6 +38,12 @@ function getStorage(key, fallback = '') {
 let envPromise = null;
 export const llmEnv = () => (envPromise ||= (typeof fetch === 'undefined' || typeof location === 'undefined' ? Promise.resolve({}) : fetch('/__llm/_status').then(r => (r.ok && /json/.test(r.headers.get('content-type') || '') ? r.json() : {})).catch(() => ({}))).then(env => (globalThis.__amsLlmEnv = env)));
 
+/** A reply as JSON; a page that is not JSON (a gateway's 404, a login wall) becomes an error that says what it was. */
+async function jsonOrWhy(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { return { error: { message: `HTTP ${res.status}: ${text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'no JSON in the reply'} (is the model available on this provider?)` } }; }
+}
+
 export class OpenAICompatibleArtist extends Artist {
   /**
    * options: id, name, baseURL (the provider's own), prefix (storage keys: ams_<prefix>_key, _model, _base_url, _headers), models (presets),
@@ -249,8 +255,8 @@ export class OpenAICompatibleArtist extends Artist {
     const body = { model, messages: [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: openAIContent(user, image) }] };
     if (!/^o\d/.test(model)) body.temperature = temperature;
     const res = await fetch(this.getEndpoint(), { method: 'POST', headers, signal, body: JSON.stringify(body) });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+    const data = await jsonOrWhy(res);
+    if (!res.ok) throw new Error(data?.error?.message || data?.detail || `HTTP ${res.status}`);
     return String(data.choices?.[0]?.message?.content || '');
   }
 

@@ -55,5 +55,6 @@ export async function recordEval(app, { engine, model, mode = 'model', use = 'sa
   const passed = results.filter(r => r.pass).length;
   take.meta = { kind: 'eval', engine, model, mode, use, passed, of: results.length, note };
   const a = await app.recorder.saveTake(take, { title: `Eval · ${model} · ${passed}/${results.length}` });
+  app.emit?.('take', take);   // (the Timeline's list of takes refreshes)
   return { assetId: a.id, passed, of: results.length, ms: Math.round(performance.now() - t0), results };
 }
