@@ -78,7 +78,7 @@ export function withDot(field, address) {
 }
 
 // I over a field keys it (Alt+I removes): in the capture phase, before the Eyedropper's I.
-window.addEventListener('keydown', ev => {
+if (typeof window !== 'undefined') window.addEventListener('keydown', ev => {
   if (!hovered || ev.metaKey || ev.ctrlKey || ev.shiftKey || (ev.key !== 'i' && ev.key !== 'I' && ev.code !== 'KeyI')) return;
   if (!hovered.isConnected) { hovered = null; return; }
   ev.preventDefault(); ev.stopImmediatePropagation();
