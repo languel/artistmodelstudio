@@ -8,7 +8,7 @@ import { icon } from '../icons.js';
 import { colorField } from '../colorPicker.js';
 import { FX, normalizeFx, normalizeStops } from '../../process/fx.js';
 
-export function fxEditor({ list, onChange, app = null }) {
+export function fxEditor({ list, onChange, app = null, address = null }) {
   const fx = normalizeFx(list);   // (with parameters filled in)
   const box = h('div', { class: 'wb-fx' });
   const emit = (next, final = true) => onChange(next, { final });
@@ -23,7 +23,7 @@ export function fxEditor({ list, onChange, app = null }) {
       i > 0 ? btn('Earlier', 'up', () => { const n = fx.slice(); [n[i - 1], n[i]] = [n[i], n[i - 1]]; emit(n); }) : null,
       i < fx.length - 1 ? btn('Later', 'down', () => { const n = fx.slice(); [n[i + 1], n[i]] = [n[i], n[i + 1]]; emit(n); }) : null,
       btn('Remove', 'close', () => emit(fx.filter((_, j) => j !== i))));
-    const rows = def.params.map(p => row(p.label, numberField({ value: e[p.key], min: p.min, max: p.max, step: p.step, def: p.default, title: p.doc, onChange: (v, { final }) => set(i, { [p.key]: v }, final) })));
+    const rows = def.params.map(p => row(p.label, numberField({ value: e[p.key], min: p.min, max: p.max, step: p.step, def: p.default, title: p.doc, address: address ? `${address}.${i}.${p.key}` : null, onChange: (v, { final }) => set(i, { [p.key]: v }, final) })));
     if (def.stops) {
       const stops = normalizeStops(e.stops);
       rows.push(h('div', { class: 'wb-row wb-fx-stops', title: 'Dark to light: the first color is what black becomes, the last what white becomes' },

@@ -26,7 +26,7 @@ const blendGlyph = id => (BLEND_GLYPH.has(id) ? icon(`blend_${id}`) : '');
 const ROLE_GLYPH = { point: 'point', line: 'line', plane: 'plane', guide: 'guide', gesture: 'gesture', note: 'note', image: 'picture' };
 const cap = s => s[0].toUpperCase() + s.slice(1);
 /** The blend choice, as glyphs. */
-const blendField = (value, onChange, doc, list = BLENDS) => glyphSelect(list.map(b => (Array.isArray(b) ? b : [b, cap(b)])), value || 'normal', onChange, { title: 'Blend', glyph: blendGlyph, compact: COMPACT });
+const blendField = (value, onChange, doc, list = BLENDS, address = null) => glyphSelect(list.map(b => (Array.isArray(b) ? b : [b, cap(b)])), value || 'normal', onChange, { title: 'Blend', glyph: blendGlyph, compact: COMPACT, address });
 const pathField = (value, onChange) => glyphSelect([['smooth', 'Smooth'], ['straight', 'Straight']], value, onChange, { title: 'Path', glyph: v => icon(v === 'straight' ? 'lineStraight' : 'line'), compact: COMPACT });
 
 /** Properties in a container; returns a function that stops it following the document (for the popup). */
@@ -66,8 +66,8 @@ export function mountProperties(el, app, { compact = false } = {}) {
       }, { title: 'Role', glyph: r => icon(ROLE_GLYPH[r] || ''), compact }), ROLES[e.role]),
       multi ? null : nameRow(app, e),
       row('Stage', selectField(app.store.doc.stages.map(s => [s.id, s.name]), e.stage, v => patchAll({ stage: v }, 'stage'))),
-      e.role === 'plane' ? null : row('Color', colorField(e.color, v => { patchAll({ color: v }, 'color'); if (e.role === 'note') app.setDefaults('note', { color: v }); }, { app })),
-      e.role !== 'plane' && e.closed ? row('Fill', colorField(e.fill, v => patchAll({ fill: v }, 'fill'), { app, allowNone: true, title: 'Fill: the inside of this closed mark', fallback: e.color && e.color !== 'none' ? e.color : '#8a8175' })) : null,
+      e.role === 'plane' ? null : row('Color', colorField(e.color, v => { patchAll({ color: v }, 'color'); if (e.role === 'note') app.setDefaults('note', { color: v }); }, { app, address: multi ? null : `mark:${e.id}.color` })),
+      e.role !== 'plane' && e.closed ? row('Fill', colorField(e.fill, v => patchAll({ fill: v }, 'fill'), { app, address: multi ? null : `mark:${e.id}.fill`, allowNone: true, title: 'Fill: the inside of this closed mark', fallback: e.color && e.color !== 'none' ? e.color : '#8a8175' })) : null,
       e.role === 'note' ? row('Text', noteText(e, v => patchAll({ text: v }, 'note'))) : null
     ));
     if (e.role === 'note') el.append(noteSection(noteProps(e), patch => {
@@ -81,11 +81,11 @@ export function mountProperties(el, app, { compact = false } = {}) {
     else if (e.role === 'plane') {
       // A plane is a stroke, a fill, and a way of painting that fill (its brush).
       el.append(section('Stroke', true,
-        row('Color', colorField(e.color, v => patchAll({ color: v }, 'stroke'), { app, allowNone: true, noneValue: 'none', noneLabel: !e.color && !e.fill ? 'default' : 'none', title: 'The outline' })),
+        row('Color', colorField(e.color, v => patchAll({ color: v }, 'stroke'), { app, address: multi ? null : `mark:${e.id}.color`, allowNone: true, noneValue: 'none', noneLabel: !e.color && !e.fill ? 'default' : 'none', title: 'The outline' })),
         row('Width', numberField({ value: e.strokeWidth ?? 2, min: 0.25, max: 60, step: 0.25, def: 2, title: 'How wide the outline is', address: multi ? null : `mark:${e.id}.strokeWidth`, onChange: (v, { final }) => { if (final) patchAll({ strokeWidth: v }, 'stroke width'); } }))));
       el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'fill style'), app.store.doc, {
         title: 'Fill', label: 'Style', showParams: Boolean(e.fill), address: multi ? null : `mark:${e.id}`,
-        before: [row('Color', colorField(e.fill, v => patchAll({ fill: v }, 'fill'), { app, allowNone: true, title: 'The inside. None: the plane is its outline alone', fallback: e.color && e.color !== 'none' ? e.color : '#8a8175' }))]
+        before: [row('Color', colorField(e.fill, v => patchAll({ fill: v }, 'fill'), { app, address: multi ? null : `mark:${e.id}.fill`, allowNone: true, title: 'The inside. None: the plane is its outline alone', fallback: e.color && e.color !== 'none' ? e.color : '#8a8175' }))]
       }));
     }
     else el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc, { address: multi ? null : `mark:${e.id}` }));
@@ -203,9 +203,11 @@ export function mountProperties(el, app, { compact = false } = {}) {
       row('Width', numberField({ value: b.width, min: 40, max: 10000, step: 10, def: 1000, address: `board:${b.id}.width`, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { width: Math.round(v) }); } })),
       row('Height', numberField({ value: b.height, min: 40, max: 10000, step: 10, def: 1000, address: `board:${b.id}.height`, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { height: Math.round(v) }); } })),
       row('Redraw', numberField({ value: rateOf(b), min: 0, max: 60, step: 1, def: 0, title: 'Runs a second for a board that follows a source (each with fresh randomness); 0: once per new frame of the source', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { rate: Math.round(v) }); } })),
-      row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app })),
+      row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app, address: `board:${b.id}.ground` })),
+      b.main ? null : row('X', numberField({ value: Math.round(b.x), min: -100000, max: 100000, step: 10, def: Math.round(b.x), address: `board:${b.id}.x`, title: 'Where the board is (its left edge); keyframed, the board moves across the canvas', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { x: Math.round(v) }); } })),
+      b.main ? null : row('Y', numberField({ value: Math.round(b.y), min: -100000, max: 100000, step: 10, def: Math.round(b.y), address: `board:${b.id}.y`, title: 'Where the board is (its top edge)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { y: Math.round(v) }); } })),
       row('Opacity', withDot(numberField({ value: opacityOf(b), min: 0, max: 1, step: 0.05, def: 1, title: 'How much of the board shows over what is under it (boards are layers: later ones are above)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { opacity: v }); } }), `board:${b.id}.opacity`)),
-      row('Blend', blendField(blendOf(b), v => app.store.updateBoard(b.id, { blend: v }), '', BOARD_BLENDS)),
+      row('Blend', blendField(blendOf(b), v => app.store.updateBoard(b.id, { blend: v }), '', BOARD_BLENDS, `board:${b.id}.blend`)),
       h('div', { class: 'wb-muted wb-small' }, `${marksOf(app.store.doc, b.id).length} marks${!app.embed && trainBoard(app.store.doc) === b.id ? ' · models learn from this board' : ''}`)));
     // Media: the same controls as the player board (play / pause, frame steps, the timeline, speed),
     // for the source this board shows or plays. The values follow the source while this is showing.
@@ -362,7 +364,7 @@ export function mountProperties(el, app, { compact = false } = {}) {
 function lookSection(e, onChange, address = null) {
   return section('Look', true,
     row('Opacity', withDot(numberField({ value: e.opacity ?? 1, min: 0, max: 1, step: 0.05, def: 1, title: 'The whole element’s opacity (on top of the brush’s own)', onChange: v => onChange({ opacity: v }) }), address)),
-    row('Blend', blendField(e.blend, v => onChange({ blend: v }), 'How the element mixes with what is under it')),
+    row('Blend', blendField(e.blend, v => onChange({ blend: v }), 'How the element mixes with what is under it', undefined, address ? address.replace(/\.opacity$/, '.blend') : null)),
     row('Path', pathField(e.path === 'straight' ? 'straight' : 'smooth', v => onChange({ path: v === 'straight' ? 'straight' : undefined })), 'Smooth: a curve through the points. Straight: straight segments between them'));
 }
 
@@ -432,14 +434,14 @@ function boardFxSections(app, b) {
   const maskRows = m ? [
     row('Mode', selectField([['luma', 'Light'], ['alpha', 'Alpha']], m.mode === 'alpha' ? 'alpha' : 'luma', v => patch({ mode: v }), 'Light: where the mask is light, the board shows. Alpha: where the mask is opaque.')),
     row('Invert', h('button', { class: `wb-icon-btn${m.invert ? ' on' : ''}`, title: m.invert ? 'Inverted: click to show where it hid' : 'Show where the mask hides', html: icon('mask'), onclick: () => patch({ invert: !m.invert }) })),
-    row('Feather', numberField({ value: m.feather || 0, min: 0, max: 80, step: 1, def: 0, title: 'Soften the mask\'s edge (pixels of the mask)', onChange: (v, { final }) => patch({ feather: v || undefined }, final ? undefined : { transient: true }) })),
+    row('Feather', numberField({ value: m.feather || 0, min: 0, max: 80, step: 1, def: 0, address: `board:${b.id}.maskWith.feather`, title: 'Soften the mask\'s edge (pixels of the mask)', onChange: (v, { final }) => patch({ feather: v || undefined }, final ? undefined : { transient: true }) })),
     m.source ? row('Fit', selectField([['cover', 'Cover'], ['contain', 'Contain']], m.fit === 'contain' ? 'contain' : 'cover', v => patch({ fit: v === 'contain' ? 'contain' : undefined }), 'How the mask\'s picture fits the board')) : null,
     h('div', { class: 'wb-muted wb-small' }, 'Mask effects'),
-    fxEditor({ list: m.fx, app, onChange: (list, { final }) => patch({ fx: list.length ? list : undefined }, final ? undefined : { transient: true }) })
+    fxEditor({ list: m.fx, app, address: `board:${b.id}.maskWith.fx`, onChange: (list, { final }) => patch({ fx: list.length ? list : undefined }, final ? undefined : { transient: true }) })
   ] : [];
   return [
     section('Mask', Boolean(m), row('From', from), ...maskRows),
-    section('Effects', Boolean(b.fx?.length), fxEditor({ list: b.fx, app, onChange: (list, { final }) => app.setBoardFx(b.id, 'fx', list, final ? undefined : { transient: true }) })),
-    b.source ? section('Source effects', Boolean(b.sourceFx?.length), fxEditor({ list: b.sourceFx, app, onChange: (list, { final }) => app.setBoardFx(b.id, 'sourceFx', list, final ? undefined : { transient: true }) })) : null
+    section('Effects', Boolean(b.fx?.length), fxEditor({ list: b.fx, app, address: `board:${b.id}.fx`, onChange: (list, { final }) => app.setBoardFx(b.id, 'fx', list, final ? undefined : { transient: true }) })),
+    b.source ? section('Source effects', Boolean(b.sourceFx?.length), fxEditor({ list: b.sourceFx, app, address: `board:${b.id}.sourceFx`, onChange: (list, { final }) => app.setBoardFx(b.id, 'sourceFx', list, final ? undefined : { transient: true }) })) : null
   ].filter(Boolean);
 }

@@ -3,7 +3,7 @@
  * registers a resolver; `param(address)` gives { get(), set(v), min, max, step } or null (the thing is gone or the
  * property is not automatable). `set` is transient: a live change, no undo step.
  */
-import { boardById } from '../process/boards.js';
+import { boardById, MAIN } from '../process/boards.js';
 import { opacityOf } from '../process/boards.js';
 import { resolveParams } from '../process/brushes.js';
 import { findControls } from '../process/controls.js';
@@ -21,8 +21,13 @@ export function param(address) {
   return a ? scopes.get(a.scope)?.(a.id, a.prop) || null : null;
 }
 
-const NAMES = { opacity: 'Opacity', x: 'X', y: 'Y', width: 'Width', height: 'Height', strokeWidth: 'Stroke width', sourceOpacity: 'Source opacity' };
-const pretty = prop => NAMES[prop] || (prop.startsWith('brush.') ? prop.slice(6).replace(/^./, c => c.toUpperCase()) : prop);
+// Any property by its path ('fx.0.amount', 'note.size', 'play.speed'): numbers, colours, choices, anything a field holds.
+const segs = prop => prop.split('.').map(s => (/^\d+$/.test(s) ? Number(s) : s));
+const getPath = (o, p) => p.reduce((x, k) => (x == null ? undefined : x[k]), o);
+const setPath = (o, p, v) => { let x = o; for (let i = 0; i < p.length - 1; i++) { if (x[p[i]] == null) x[p[i]] = typeof p[i + 1] === 'number' ? [] : {}; x = x[p[i]]; } x[p[p.length - 1]] = v; };
+
+const NAMES = { color: 'Color', fill: 'Fill', blend: 'Blend', ground: 'Paper', opacity: 'Opacity', x: 'X', y: 'Y', width: 'Width', height: 'Height', strokeWidth: 'Stroke width', sourceOpacity: 'Source opacity' };
+const pretty = prop => NAMES[prop] || (/^(fx|sourceFx)\.\d+\./.test(prop) ? prop.replace(/^(fx|sourceFx)\.(\d+)\./, (m, k, i) => `${k === 'fx' ? 'Effect' : 'Source effect'} ${+i + 1} · `) : null) || (prop.startsWith('brush.') ? prop.slice(6).replace(/^./, c => c.toUpperCase()) : prop);
 
 /** The scopes the studio has: boards, marks and a sketch's live controls. Each parameter: { get, set, min, max, step, label }. */
 export function installParams(app) {
@@ -30,7 +35,7 @@ export function installParams(app) {
   const T = { transient: true };
   const boardNum = (id, prop, min, max, step) => ({
     get: () => { const b = boardById(app.store.doc, id); return prop === 'opacity' ? opacityOf(b) : b?.[prop]; },
-    set: v => app.store.updateBoard(id, prop === 'x' || prop === 'y' ? { [prop]: v, moveMarks: false } : { [prop]: v }, T),
+    set: v => app.store.updateBoard(id, { [prop]: v }, T),   // (a board's marks move with it)
     min, max, step, label: `${boardById(app.store.doc, id)?.title || id} · ${pretty(prop)}`
   });
   registerScope('board', (id, prop) => {
@@ -40,7 +45,13 @@ export function installParams(app) {
     if (prop === 'x' || prop === 'y') return boardNum(id, prop, -1e5, 1e5, 1);
     if (prop === 'width' || prop === 'height') return boardNum(id, prop, 40, 10000, 1);
     if (prop === 'sourceOpacity') return { get: () => boardById(app.store.doc, id)?.sourceOpacity ?? 0.5, set: v => app.setBoardSourceLook(id, { opacity: v }), min: 0, max: 1, step: 0.01, label: `${b.title} · ${pretty(prop)}` };
-    return null;
+    // The rest by path on the board (its paper, blend, effects: 'fx.0.amount', mask feather: 'maskWith.feather').
+    const path = segs(prop), raw = d => (id === MAIN ? d.artboard : d.boards.find(x => x.id === id));
+    return {
+      get: () => getPath(raw(app.store.doc), path),
+      set: v => app.store.change('automation', d => { const o = raw(d); if (o) setPath(o, path, v); }, T),
+      min: -Infinity, max: Infinity, step: 0.01, label: `${b.title} · ${pretty(prop)}`
+    };
   });
   registerScope('mark', (id, prop) => {
     const find = () => app.store.doc.elements.find(e => e.id === id);
@@ -58,7 +69,13 @@ export function installParams(app) {
         min: -Infinity, max: Infinity, step: 0.01, label
       };
     }
-    return null;
+    // The rest by path on the mark (colour, fill, blend, note.size, play.speed…).
+    const path = segs(prop);
+    return {
+      get: () => getPath(find(), path),
+      set: v => edit(e => setPath(e, path, v)),
+      min: -Infinity, max: Infinity, step: 0.01, label
+    };
   });
   registerScope('ctl', (id, prop) => {
     const f = app.frames?.frames.get(id);

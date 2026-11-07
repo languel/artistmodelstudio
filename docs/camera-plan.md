@@ -198,3 +198,6 @@ Feedback: no clear difference between "driven by a key" and "changed by hand"; k
 - **Value kinds** (`mix` in `src/process/keyframes.js`, tested): colours, palettes (per colour), choices (index through the options, snap to nearest), toggles (snap half-way). A lane keeps `meta.options` for choices.
 - **Lane geometry.** Lane bars are square-ended and keys sit exactly on `x(t)`, so a key at 0 or at the end is on the edge.
 Open: choices in Properties (selects, blend modes), colour pickers, board X/Y, a curve editor, record. Possible refinement: auto-key on a not-yet-animated parameter (today only animated ones key).
+
+### Update: the dot on colours, choices, position and effects (7 Nov 2026, night)
+Colour fields, blend modes (a stepped choice), a board's X/Y, effect parameters and mask feather now carry the dot. Checked on a board: X 1046→1446 over 2 s, paper `#1b1c1f`→`#e63946` (`#812b33` at 1 s), blend normal→multiply (1 s)→screen (1.5 s). Findings: **effects are addressed by index** (no ids), so reordering or removing an effect changes what a lane drives: effects need stable ids before this is relied on. A board's X/Y moves its marks with it (that is what you want for a film). Remaining reach: Play section, note size/width, tool and sculpt settings, timeline clip fields.

@@ -23,6 +23,8 @@ export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;'
 let decorate = null;
 /** The keyframe dot registers itself here: a field made with an `address` gets it beside it (keyframeDot.js). */
 export const setFieldDecorator = fn => { decorate = fn; };
+/** Give any field the keyframe dot, if it has an address: `opts` = { fallback (the value it shows), options (a choice's options) }. */
+export const decorated = (field, address, opts) => (address && decorate ? decorate(field, address, opts) : field);
 
 export function numberField({ value, min = -Infinity, max = Infinity, step = 1, def = value, title = '', address = null, onChange }) {
   const input = h('input', { type: 'number', class: 'wb-num', value: String(value), min, max, step, title });
@@ -49,14 +51,16 @@ export function numberField({ value, min = -Infinity, max = Infinity, step = 1, 
     window.addEventListener('pointermove', mv);
     window.addEventListener('pointerup', up);
   });
-  return address && decorate ? decorate(input, address) : input;
+  input._setValue = v => { input.value = String(+Number(v).toFixed(6)); };
+  return decorated(input, address, { fallback: Number(value) });
 }
 
-export function selectField(options, value, onChange, title = '') {
+export function selectField(options, value, onChange, title = '', { address = null } = {}) {
   const sel = h('select', { class: 'wb-select', title });
   for (const [v, label] of options) sel.append(h('option', { value: v, selected: v === value }, label));
   sel.addEventListener('change', () => { onChange(sel.value); sel.blur(); });
-  return sel;
+  sel._setValue = v => { sel.value = String(v); };
+  return decorated(sel, address, { fallback: value, options: options.map(o => o[0]) });
 }
 
 export const row = (label, control, title = '') => h('label', { class: 'wb-row', title }, h('span', { class: 'wb-row-label' }, label), control);

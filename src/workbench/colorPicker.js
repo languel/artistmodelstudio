@@ -3,7 +3,7 @@
  * hue and opacity sliders, a hex field, palette presets, recent colors and your own palette.
  * Values are '#rrggbb' or '#rrggbbaa' (canvas and SVG both read 8-digit hex).
  */
-import { h } from './ui.js';
+import { h, decorated } from './ui.js';
 import { allPalettes, toHex, nameOf, paletteFromImage, savePalette } from './palettes.js';
 import { hexToOklch, oklchHex, oklchLinear, fitChroma, inGamut, CHROMA_MAX } from './oklch.js';
 
@@ -56,7 +56,7 @@ function hsvHex({ h: hh, s, v }) {
 
 // ---- the field -----------------------------------------------------------------------
 /** A swatch that opens the picker. onChange receives '#rrggbb' or '#rrggbbaa'. */
-export function colorField(value, onChange, { title = 'Color', fallback = '#1d1b19', app = null, allowNone = false, noneValue = null, noneLabel = 'none' } = {}) {
+export function colorField(value, onChange, { title = 'Color', fallback = '#1d1b19', app = null, allowNone = false, noneValue = null, noneLabel = 'none', address = null } = {}) {
   let none = allowNone && (!value || value === 'none');
   let { hex, alpha } = parseColor(none ? fallback : value, fallback);
   const chip = h('span', { class: 'wb-cp-chip' });
@@ -69,7 +69,8 @@ export function colorField(value, onChange, { title = 'Color', fallback = '#1d1b
     none = false; hex = c.hex; alpha = c.alpha; paint();
     if (final) onChange(formatColor(hex, alpha));
   }, app, { allowNone }));
-  return btn;
+  btn._setValue = v => { none = allowNone && (!v || v === 'none'); ({ hex, alpha } = parseColor(none ? fallback : v, fallback)); paint(); };
+  return decorated(btn, address, { fallback: value && value !== 'none' ? value : fallback });
 }
 
 let open = null;
