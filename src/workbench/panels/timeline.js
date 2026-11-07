@@ -336,7 +336,14 @@ export function mountTimeline(root, app) {
     return P().take;
   };
   /** Clips made elsewhere (a board's clip) come in at the playhead. */
-  app._tlAddClip = clip => { const take = ensureTake(); take.clips.push({ ...clip, start: Math.round(P().t) }); edited(); select(take.clips[take.clips.length - 1]); drawBar(); };
+  app._tlAddClip = clip => {
+    const take = ensureTake();
+    let start = Math.round(P().t);
+    // A clip added on top of another goes after it: clips put in one by one make a sequence.
+    for (let again = true; again;) { again = false; for (const o of take.clips) if (o.track === clip.track && start < o.start + o.dur && start + clip.dur > o.start) { start = o.start + o.dur; again = true; } }
+    take.clips.push({ ...clip, start }); edited(); select(take.clips[take.clips.length - 1]); drawBar();
+    P().seek(start);
+  };
   /** Add a track of a kind (from the bar's button and the track names' menu). */
   const trackItems = () => [{ label: 'Add a track' }, ...TRACKS.map(k => ({ label: TRACK_NAMES[k], run: () => { addTrack(ensureTake(), k); drawLanes(); commit('track'); } }))];
   const addItems = () => {

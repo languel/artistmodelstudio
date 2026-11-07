@@ -311,6 +311,7 @@ export class CanvasView {
     }
     if (this.previewDoc) { this.drawPreviewOverlay?.(ctx, { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, this.w, this.h); return; }
     this.drawBoards(ctx, css);
+    this.drawLiveOverlay?.(ctx, { x: this.cam.x, y: this.cam.y, scale: this.cam.z }, this.w, this.h);   // (a take being put together: its media and captions over the live canvas)
     // Direct selection: the selected (and hovered) marks' points as small squares; selected points filled.
     if (this.getTool() === 'direct') {
       const sel = new Set((this.selPoints || []).map(p => `${p.id}:${p.i}`));

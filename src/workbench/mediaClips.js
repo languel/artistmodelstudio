@@ -15,6 +15,7 @@ export async function mediaClipFromAsset(app, a, { start = 0, in: t0 = null, out
   if (s) { const m = await resolveMediaUrl(s.page, { quality: s.quality || '480' }); url = m.url; duration = m.duration || duration; t0 ??= s.start ?? null; t1 ??= s.end ?? null; }
   else if (a.blob) duration = duration || await probeDuration(a.blob);
   else throw new Error('This asset has no video');
+  if (!duration && url && t1 == null) duration = await probeDuration(url);   // (a plain file address: ask the file)
   t0 = Math.max(0, t0 ?? 0);
   t1 = t1 ?? duration ?? t0 + 5;
   if (!(t1 > t0)) t1 = t0 + 5;
@@ -24,9 +25,11 @@ export async function mediaClipFromAsset(app, a, { start = 0, in: t0 = null, out
   };
 }
 
-const probeDuration = blob => new Promise(res => {
-  const v = document.createElement('video'), u = URL.createObjectURL(blob);
-  v.preload = 'metadata'; v.onloadedmetadata = () => { res(v.duration || null); URL.revokeObjectURL(u); }; v.onerror = () => res(null); v.src = u;
+const probeDuration = src => new Promise(res => {
+  const v = document.createElement('video'), blob = typeof src !== 'string', u = blob ? URL.createObjectURL(src) : src;
+  const done = d => { if (blob) URL.revokeObjectURL(u); res(Number.isFinite(d) ? d : null); };
+  v.preload = 'metadata'; v.crossOrigin = 'anonymous'; v.onloadedmetadata = () => done(v.duration); v.onerror = () => done(null); v.src = u;
+  setTimeout(() => done(null), 8000);
 });
 
 /**

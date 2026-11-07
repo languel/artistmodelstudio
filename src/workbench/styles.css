@@ -1367,3 +1367,5 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .mt-foot a { color: inherit; }
 .mt-grid { --card: 150px; }
 .wb-tl-clip.t-media { background: #a9c4c2; }
+.mt-card.picked { outline: 2px solid var(--wb-muted); }
+.mt-foot .mt-all { margin: 0 2px; }

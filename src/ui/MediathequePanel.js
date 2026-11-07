@@ -15,6 +15,7 @@ export class MediathequePanel {
     this.store = store; this.onOpen = onOpen; this.log = log || (() => {});
     this.records = []; this.query = ''; this.kind = 'all'; this.clips = null; this.pd = false; this.tags = []; this.sel = null;
     this.have = new Set();
+    this.picked = new Set();   // ⌘/Ctrl-click picks several
   }
 
   render(el) {
@@ -64,9 +65,10 @@ export class MediathequePanel {
 
   draw() {
     const grid = this.el.querySelector('.mt-grid'), list = this.visible();
-    this.el.querySelector('.mt-foot').innerHTML = `${list.length} of ${this.records.length} · <a href="${esc(mediathequeBase())}site/index.html" target="_blank" rel="noopener" title="Open the archive in a browser tab">Mediathèque</a>`;
+    const n = this.picked.size, todo = n ? list.filter(r => this.picked.has(r.id)) : list;
+    this.el.querySelector('.mt-foot').innerHTML = `${list.length} of ${this.records.length} · <button class="btn-micro mt-all" title="Add ${n ? 'the picked' : 'everything shown'} to Assets as references (nothing is stored; ⌘/Ctrl-click cards to pick)">+ ${n ? `${n} picked` : `all ${list.length} shown`}</button> · <a href="${esc(mediathequeBase())}site/index.html" target="_blank" rel="noopener" title="Open the archive in a browser tab">Mediathèque</a>`;
     grid.innerHTML = list.length ? list.map(r => `
-      <div class="variant-card asset-card mt-card${this.have.has(assetId(r)) ? ' have' : ''}${this.sel === r.id ? ' selected' : ''}" data-id="${esc(r.id)}" draggable="true">
+      <div class="variant-card asset-card mt-card${this.have.has(assetId(r)) ? ' have' : ''}${this.picked.has(r.id) ? ' picked' : ''}${this.sel === r.id ? ' selected' : ''}" data-id="${esc(r.id)}" draggable="true">
         <div class="variant-card-header">
           <span class="asset-title" title="${esc(r.title)}">${esc(r.title)}</span>
           <span class="asset-kind" title="${r.type === 'clip' ? 'A clip, cut from ' + esc(r.parent_title || r.parent) : esc(r.kind)}">${r.type === 'clip' ? '✂' : ''}${r.kind === 'video' || r.type === 'clip' ? icon('play', 'icon-sm') : icon('photo', 'icon-sm')}</span>
@@ -85,6 +87,13 @@ export class MediathequePanel {
           <span class="mt-have" title="Already in Assets">✓</span>
         </div>
       </div>`).join('') : `<p class="assets-empty">${this.records.length ? '—' : 'The archive could not be reached.'}</p>`;
+    this.el.querySelector('.mt-all')?.addEventListener('click', async ev => {
+      const b = ev.currentTarget; b.disabled = true;
+      let done = 0;
+      for (const r of todo) { try { await addToAssets(this.store, r); done++; } catch (err) { this.log(`Mediathèque: ${r.title}: ${err.message}`, 'error'); } }
+      this.picked.clear(); b.disabled = false; await this.syncHave(); this.draw();
+      this.log(`${done} item${done === 1 ? '' : 's'} from the Mediathèque added to Assets (references).`);
+    });
     grid.querySelectorAll('.mt-card').forEach(card => {
       const r = list.find(x => x.id === card.dataset.id);
       const run = (fn, msg) => async ev => {
@@ -98,6 +107,7 @@ export class MediathequePanel {
       card.querySelector('[data-act="page"]').addEventListener('click', ev => { ev.stopPropagation(); window.open(r.abs.page, '_blank', 'noopener'); });
       card.addEventListener('click', ev => {
         if (ev.target.closest('button')) return;
+        if (ev.metaKey || ev.ctrlKey || ev.shiftKey) { this.picked.has(r.id) ? this.picked.delete(r.id) : this.picked.add(r.id); card.classList.toggle('picked', this.picked.has(r.id)); this.draw(); return; }
         this.sel = r.id; grid.querySelectorAll('.mt-card').forEach(c => c.classList.toggle('selected', c === card));
       });
       card.querySelector('.variant-thumb-wrap').addEventListener('dblclick', async ev => { const a = await run(() => addToAssets(this.store, r))(ev); if (a) this.onOpen?.(a); });

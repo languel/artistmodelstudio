@@ -6,6 +6,7 @@
  * `loop` (on or off) is this session's. Anything that plays in time (a score) listens to `t`.
  */
 import { docAt, duration, touch, flatClips } from '../process/take.js';
+import { boardById, MAIN } from '../process/boards.js';
 import { advanceTransportPlaybackTime } from '../time/transport.js';
 import { normalizeTransport, loopRange, inOutRange } from '../time/sceneTransport.js';
 
@@ -23,13 +24,14 @@ export class TakePlayer {
     this.loop = false;
     this.followCamera = true;
     this.listeners = new Set();
+    app.canvas.drawLiveOverlay = (ctx, tf, W, H) => this.drawLive(ctx, tf, W, H);
     app.canvas.drawPreviewOverlay = (ctx, tf, W, H) => {
       if (!this.take) return;
       // The pen marker (a ring at the tip of a stroke being drawn back) is off unless Settings › Timeline › Pen marker is on: the pointer is the pen now.
       let marker = false; try { marker = localStorage.getItem('ams_pen_marker') === '1'; } catch { /* ignore */ }
       if (marker && !app.guide?.following) drawPen(ctx, app.canvas.previewDoc, tf);
       const dpr = app.canvas.dpr || 1;   // (drawCaptions works in device pixels, with no transform: on a sharp screen the view's CSS size is only a fraction of it)
-      this.drawMedia(ctx, tf, app.canvas.previewDoc);
+      this.drawMedia(ctx, this.artboardRect(tf, app.canvas.previewDoc));
       drawCaptions(ctx, this.take, this.t, Math.round(W * dpr), Math.round(H * dpr));
       this.drawSelection(ctx, tf, app.canvas.previewDoc);
       // A quiet label: this is a recording, not the drawing (Esc or any tool goes back).
@@ -133,10 +135,33 @@ export class TakePlayer {
     return v;
   }
 
-  /** Draw the media clips under the playhead over the artboard (tf: the view's transform). */
-  drawMedia(ctx, tf, doc) {
-    if (!this.take || !this.videos?.size || !doc?.artboard) return;
-    const ab = doc.artboard, X = tf.x, Y = tf.y, W = ab.width * tf.scale, H = ab.height * tf.scale;
+  /**
+   * A take of titles, narration, sound and media (nothing recorded: no drawing, no camera) is put together on the
+   * Timeline while the canvas stays yours: you can still draw and edit. A take with a recording shows its own picture.
+   */
+  get composing() {
+    if (!this.take || this.recording) return false;
+    return !flatClips(this.take).some(c => c.track === 'draw' || c.track === 'camera');
+  }
+
+  /** Where the picture is on screen: the artboard of a take shown (at the view's transform), else the main board of the scene. */
+  artboardRect(tf, doc) {
+    if (doc?.artboard) return { X: tf.x, Y: tf.y, W: doc.artboard.width * tf.scale, H: doc.artboard.height * tf.scale };
+    const b = boardById(this.app.store.doc, MAIN) || {};
+    return { X: tf.x + (b.x || 0) * tf.scale, Y: tf.y + (b.y || 0) * tf.scale, W: (b.width || 1000) * tf.scale, H: (b.height || 1000) * tf.scale };
+  }
+
+  /** What a composing take adds over the live canvas: its media, captions and title cards. */
+  drawLive(ctx, tf, W, H) {
+    if (!this.take || !this.composing) return;
+    this.drawMedia(ctx, this.artboardRect(tf, null));
+    const dpr = this.app.canvas.dpr || 1;
+    drawCaptions(ctx, this.take, this.t, Math.round(W * dpr), Math.round(H * dpr));
+  }
+
+  /** Draw the media clips under the playhead into a rectangle of the screen. */
+  drawMedia(ctx, { X, Y, W, H }) {
+    if (!this.take || !this.videos?.size) return;
     for (const c of flatClips(this.take)) {
       if (c.track !== 'media' || c.muted || this.t < c.start || this.t >= c.start + c.dur) continue;
       const v = this.videos.get(c.id);
@@ -262,9 +287,9 @@ export class TakePlayer {
     if (!this.take) return;
     const cv = this.app.canvas;
     const doc = docAt(this.take, this.t);
-    cv.previewDoc = doc;
+    cv.previewDoc = this.composing ? null : doc;   // (a take with no recording leaves the canvas live)
     // Follow the take's camera keyframes, if it has any.
-    if (this.followCamera && flatClips(this.take).some(c => c.track === 'camera')) {
+    if (!this.composing && this.followCamera && flatClips(this.take).some(c => c.track === 'camera')) {
       const tf = frameTransform(this.take, this.t, cv.w, cv.h, doc);
       cv.cam = { x: tf.x, y: tf.y, z: tf.scale };
     }
