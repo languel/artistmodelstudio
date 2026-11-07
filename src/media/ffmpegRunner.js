@@ -87,3 +87,40 @@ export function cutMedia({ url = null, blob = null, start = 0, end, format = 'mp
   queue = job.catch(() => {});
   return job;
 }
+
+
+/**
+ * Encode rendered frames (JPEG bytes, in order) into a video: `const enc = await startEncoder({ fps, format })`,
+ * `await enc.add(bytes)` for each frame, then `await enc.finish(onProgress)` → { blob, type, name }. `enc.cancel()` drops the frames.
+ * Frames are kept in ffmpeg's memory until finish (a few hundred at 720p are fine).
+ */
+export async function startEncoder({ fps = 25, format = 'mp4', onStatus = null } = {}) {
+  const spec = FORMATS[format];
+  if (!spec || format === 'gif') throw new Error(`Cannot render to ${format}`);
+  const f = await load(onStatus);
+  let n = 0;
+  const name = i => `r${String(i).padStart(6, '0')}.jpg`;
+  const clean = async () => { for (let i = 0; i < n; i++) { try { await f.deleteFile(name(i)); } catch { /* gone */ } } try { await f.deleteFile(`render.${spec.ext}`); } catch { /* not made */ } n = 0; };
+  return {
+    async add(bytes) { await f.writeFile(name(n++), bytes); },
+    get count() { return n; },
+    async cancel() { await clean(); },
+    async finish(onProgress = null) {
+      const frames = n;
+      const run = async () => {
+        const onProg = ({ progress }) => onProgress?.(Math.max(0, Math.min(1, progress)));
+        f.on('progress', onProg);
+        let log = ''; const onLog = ({ message }) => { log = (log + '\n' + message).slice(-1500); }; f.on('log', onLog);
+        try {
+          const vf = 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p';
+          const codec = format === 'webm' ? ['-c:v', 'libvpx', '-b:v', '4M', '-crf', '8', '-deadline', 'realtime', '-cpu-used', '8'] : ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '20', '-movflags', '+faststart'];
+          const code = await f.exec(['-framerate', String(fps), '-i', 'r%06d.jpg', '-vf', vf, ...codec, `render.${spec.ext}`]);
+          if (code !== 0) throw new Error(`ffmpeg could not encode the frames: ${log.split('\n').filter(Boolean).slice(-2).join(' ')}`);
+          const data = await f.readFile(`render.${spec.ext}`);
+          return { blob: new Blob([data.buffer || data], { type: spec.type }), type: spec.type, name: `render.${spec.ext}`, frames };
+        } finally { f.off('progress', onProg); f.off('log', onLog); await clean(); }
+      };
+      const job = queue.then(run, run); queue = job.catch(() => {}); return job;
+    }
+  };
+}

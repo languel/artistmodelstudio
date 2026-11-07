@@ -83,7 +83,7 @@ const fileLoader = files => `(() => {
 })();`;
 
 /** The page a frame runs: the bridge, then (for p5) p5.js and its files, then the board's code. */
-function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false, threeMods = null, seed = null, ctl = {}, scale = 1) {
+function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = false, threeMods = null, seed = null, ctl = {}, scale = 1, renderMode = false) {
   const bridge = `(() => {
   // A sandboxed frame has no storage: reading it throws. Libraries that touch it (ml5, tfjs) get a
   // stand-in that forgets on reload.
@@ -103,6 +103,21 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   if (seed !== null) { let s = seed; Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   let held = null; const raf0 = window.requestAnimationFrame.bind(window);
   window.requestAnimationFrame = cb => raf0(t => { if (held) held.push(cb); else cb(t); });
+  // A render (docs/camera-plan.md §5): time is the playhead's. The clocks read it, requestAnimationFrame only queues, and the studio
+  // advances the sketch frame by frame (60 a second of its time), so a sketch looks the same each time it is rendered.
+  const RENDER = ${renderMode ? 'true' : 'false'};
+  let simT = 0, simFrame = 0, rq = [], rid = 0, warmed = false, warm = 0;
+  if (RENDER) {
+    const origin = 1760000000000, D = Date;
+    performance.now = () => simT;
+    window.Date = class extends D { constructor(...a) { if (a.length) super(...a); else super(origin + simT); } static now() { return origin + simT; } };
+    window.requestAnimationFrame = cb => { rq.push([++rid, cb]); return rid; };
+    window.cancelAnimationFrame = id => { rq = rq.filter(r => r[0] !== id); };
+    // Ready when the sketch has made its canvas (its setup has run), not merely when the page has loaded.
+    let setupDone = false;
+    addEventListener('load', () => { const s = window.setup; if (typeof s === 'function') window.setup = function (...a) { const r = s.apply(this, a); Promise.resolve(r).then(() => { setupDone = true; }); return r; }; });
+    addEventListener('load', () => { let n = 0; const ask = () => { if ((document.querySelector('canvas') && (setupDone || typeof window.setup !== 'function')) || ++n > 250) parent.postMessage({ amsFrame: token, type: 'rready' }, '*'); else setTimeout(ask, 20); }; ask(); });
+  }
   // Controls the code declares (const n = 6 /* 1..40 */, // @param …): their values, live while the sketch runs.
   const ctlVals = ${JSON.stringify(ctl).replace(/</g, '\\u003c')}, ctlSet = {}, params = { ...ctlVals };
   window.__ctl = (k, f) => { ctlSet[k] = f; if (k in ctlVals) f(ctlVals[k]); };
@@ -154,6 +169,19 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
     if (d.type === 'holdkeys') holdKeys = Boolean(d.on);
     if (d.type === 'present') present = Boolean(d.on);
     if (d.type === 'scale') { ratio = Math.max(1, Number(d.value) || 1); for (const r of window.__amsRenderers || []) { try { r.setPixelRatio(ratio); } catch { /* a renderer that is gone */ } } }
+    if (RENDER && d.type === 'advance') (async () => {
+      const one = () => { simFrame++; simT = simFrame * 1000 / 60; const q = rq; rq = []; for (const [, cb] of q) cb(simT); };
+      try {
+        // The first call: frames until the sketch has painted (a p5 sketch skips its first; frameCount says), so frame 0 is not blank.
+        // Its clock then leads the playhead by those few frames, the same every time.
+        if (!warmed) { warmed = true; for (let i = 0; i < 100 && !rq.length; i++) await new Promise(r => setTimeout(r, 20)); for (let k = 0; k < 3; k++) { one(); await new Promise(r => setTimeout(r, 25)); } warm = simFrame; }   /* (the first frames: a p5 sketch skips the first or two, and registers its next one a moment later) */
+        const target = Math.floor(d.t / 1000 * 60 + 1e-6) + warm;
+        while (simFrame < target && rq.length) one();
+      } catch (err) { parent.postMessage({ amsFrame: token, type: 'error', message: String(err && err.message || err) }, '*'); }
+      simT = d.t;
+      const c = document.querySelector('canvas');
+      (c && c.width > 0 ? createImageBitmap(c) : Promise.resolve(null)).then(bm => parent.postMessage({ amsFrame: token, type: 'advanced', id: d.id, bitmap: bm }, '*', bm ? [bm] : []));
+    })();
     if (d.type === 'ctl') { ctlVals[d.key] = params[d.key] = d.value; try { ctlSet[d.key]?.(d.value); } catch { /* the sketch's own error */ } }
     if (d.type === 'input' && d.ev) { try { replay(d.ev); } catch { /* an event the sketch cannot take */ } }
     if (d.type === 'run') { if (d.on && held) { const q = held; held = null; q.forEach(cb => raf0(cb)); } else if (!d.on && !held) held = []; }
@@ -248,7 +276,7 @@ export class BoardFrames {
     if (sig !== this.titles) { this.titles = sig; this.relink(); }
     for (const b of boardsOf(doc)) {
       const kind = boardKind(b);
-      if (kind === 'drawing' || kind === 'frame' || b.hidden || !(this.canvas.boardOnScreen(b, 0.05) || this.app.outputs?.wants(b.id))) continue;   // (a board sent to an output runs off screen too)
+      if (kind === 'drawing' || kind === 'frame' || b.hidden || !(this.canvas.boardOnScreen(b, 0.05) || this.app.outputs?.wants(b.id) || this.renderWants?.has(b.id))) continue;   // (a board sent to an output runs off screen too)
       seen.add(b.id);
       let f = this.frames.get(b.id);
       if (f && f.kind !== kind) { f.el.remove(); f = null; }
@@ -420,7 +448,7 @@ export class BoardFrames {
       iframe.setAttribute('credentialless', '');
       iframe.title = b.title;
       f.perf = Boolean(this.app.perfWanted?.(b));
-      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods, this.seeds.get(b.id) ?? null, f.vals, f.scaleSent = this.pixelRatioFor());
+      iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods, this.seeds.get(b.id) ?? null, f.vals, f.scaleSent = this.pixelRatioFor(), Boolean(this.renderMode));
       f.iframe = iframe;
       iframe.addEventListener('load', () => { this.sendPipe(f); this.sendForward(f); });   // (an output may be waiting for it)
       f.el.append(iframe);
@@ -825,6 +853,37 @@ export class BoardFrames {
     return this.p5Source;
   }
 
+  // ---- rendering: the sketches advance frame by frame (docs/camera-plan.md §5) -----------------------------------
+  /** Start a render: these boards' sketches start again in render mode (a fixed seed, a clock the studio sets, frames only when asked). Resolves when each has set up. */
+  async beginRender(ids) {
+    this.renderMode = true; this.renderWants = new Set(ids); this.renderPics = new Map(); this.advanceWaiters = new Map(); this.readyWaiters = new Map();
+    for (const id of ids) { this.seeds.set(id, 0x9e3779b1 ^ [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)); this.restart(id); }
+    this.update();
+    const waits = ids.map(id => new Promise(ok => { this.readyWaiters.set(id, ok); setTimeout(ok, 8000); }));
+    // (the frames are made by update(), which runs with the canvas: nudge it until they exist)
+    const poke = setInterval(() => { this.canvas.invalidate(); this.update(); }, 100);
+    await Promise.all(waits); clearInterval(poke);
+  }
+  /** Advance one sketch to time t (ms of the render); its picture is then in `renderPics`. */
+  advance(id, t) {
+    const f = this.frames.get(id);
+    if (!f?.iframe) return Promise.resolve(null);
+    return new Promise(ok => {
+      const seq = (this.advSeq = (this.advSeq || 0) + 1);
+      this.advanceWaiters.set(seq, { id, ok });
+      try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'advance', t, id: seq }, '*'); } catch { this.advanceWaiters.delete(seq); ok(null); }
+      setTimeout(() => { if (this.advanceWaiters.delete(seq)) ok(null); }, 5000);
+    });
+  }
+  /** The render is over: the sketches start again as they were (live, their own seeds). */
+  endRender() {
+    const ids = [...(this.renderWants || [])];
+    for (const bm of this.renderPics?.values() || []) bm?.close?.();
+    this.renderMode = false; this.renderWants = null; this.renderPics = null;
+    for (const id of ids) { this.seeds.delete(id); this.restart(id); }
+    this.canvas.invalidate();
+  }
+
   /** Run a sketch again from the start (its code unchanged). */
   restart(id) { const f = this.frames.get(id); if (f) { f.running = false; this.canvas.invalidate(); } }
 
@@ -848,6 +907,12 @@ export class BoardFrames {
     if (!d || !d.amsFrame) return;
     const id = this.tokens.get(d.amsFrame);
     if (!id) return;
+    if (d.type === 'rready') { this.readyWaiters?.get(id)?.(); return; }
+    if (d.type === 'advanced') {
+      const w = this.advanceWaiters?.get(d.id);
+      if (w) { this.advanceWaiters.delete(d.id); if (d.bitmap) { this.renderPics?.get(w.id)?.close?.(); this.renderPics?.set(w.id, d.bitmap); } w.ok(d.bitmap || null); }
+      return;
+    }
     const f = this.frames.get(id);
     const reply = (msg, transfer) => e.source?.postMessage({ amsFrame: d.amsFrame, type: 'reply', id: d.id, ...msg }, '*', transfer);
     if (d.type === 'perf') { this.perf.set(id, { fps: d.fps, calls: d.calls, ms: d.ms, at: performance.now() }); return; }

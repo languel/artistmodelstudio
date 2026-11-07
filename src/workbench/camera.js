@@ -100,6 +100,7 @@ function drawingPicture(app, b, k) {
 
 /** A running sketch's picture: the last snapshot it sent (asked for again about every 120 ms). */
 function sketchPicture(app, b) {
+  if (app.frames?.renderMode) return app.frames.renderPics?.get(b.id) || null;   // (a render: the picture the stepped sketch sent for this frame)
   let s = sketches.get(b.id);
   if (!s) { s = { img: null, asked: 0 }; sketches.set(b.id, s); }
   const now = performance.now();
