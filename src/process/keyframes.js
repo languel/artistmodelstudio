@@ -19,16 +19,24 @@ const HEX = /^#([0-9a-f]{6})$/i;
 const rgb = s => { const m = HEX.exec(s); return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null; };
 const hex = c => `#${c.map(x => Math.round(Math.max(0, Math.min(255, x))).toString(16).padStart(2, '0')).join('')}`;
 
-/** Between two values by their kind: numbers and #rrggbb colours blend; anything else (a toggle, a choice, a palette) holds the earlier one. */
-export function mix(a, b, u) {
+/**
+ * Between two values by their kind: numbers and #rrggbb colours blend; a palette (a list of colours or numbers of the
+ * same length) blends colour by colour; a choice (`meta.options`) moves through the options by their order and
+ * snaps to the nearest, so it switches half-way (a stepped choice); a toggle or anything else snaps half-way too.
+ * A key with ease `hold` keeps the earlier value (u stays 0).
+ */
+export function mix(a, b, u, meta = null) {
   if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * u;
   const ca = rgb(a), cb = rgb(b);
   if (ca && cb) return hex(ca.map((x, i) => x + (cb[i] - x) * u));
-  return a;
+  if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) return a.map((x, i) => mix(x, b[i], u));
+  const o = meta?.options;
+  if (o?.length) { const i = o.indexOf(a), j = o.indexOf(b); if (i >= 0 && j >= 0) return o[Math.round(i + (j - i) * u)]; }
+  return u < 0.5 ? a : b;
 }
 
 /** The value of a lane's keys at time t (ms, relative to the lane), or null if it has none. */
-export function valueAt(keys, t) {
+export function valueAt(keys, t, meta = null) {
   if (!keys?.length) return null;
   if (t <= keys[0].t) return keys[0].v;
   const last = keys[keys.length - 1];
@@ -36,7 +44,7 @@ export function valueAt(keys, t) {
   let i = 0;
   while (keys[i + 1].t <= t) i++;
   const a = keys[i], b = keys[i + 1], u = (t - a.t) / Math.max(1, b.t - a.t);
-  return mix(a.v, b.v, (EASES[a.ease] || EASES.linear)(u));
+  return mix(a.v, b.v, (EASES[a.ease] || EASES.linear)(u), meta);
 }
 
 /** Whether two parameter values are the same (numbers within `tol`). */
@@ -54,9 +62,9 @@ export const keyNear = (lane, t, tol = 20) => (lane?.keys || []).find(k => Math.
  * Set a key at t (a new lane if the address has none). Returns the lane.
  * An existing key near t is changed (its ease kept) instead of a second one added.
  */
-export function setKey(take, address, t, v, ease = 'ease', label = null) {
+export function setKey(take, address, t, v, ease = 'ease', label = null, meta = null) {
   let lane = laneFor(take, address);
-  if (!lane) { lane = { id: clipId(), track: 'auto', address, start: 0, dur: 1000, keys: [], fx: {}, label: label || address, lane: addTrack(take, 'auto', label || address).id }; take.clips.push(lane); }   // (each parameter gets a row of its own, named for it)
+  if (!lane) { lane = { id: clipId(), track: 'auto', address, start: 0, dur: 1000, keys: [], fx: {}, label: label || address, ...(meta ? { meta } : {}), lane: addTrack(take, 'auto', label || address).id }; take.clips.push(lane); }   // (each parameter gets a row of its own, named for it)
   t = Math.max(0, Math.round(t - lane.start));   // (keys are from the lane's start, so moving the lane moves them)
   const near = keyNear(lane, t);
   if (near) { near.v = v; near.t = t; } else lane.keys.push({ t, v, ease });

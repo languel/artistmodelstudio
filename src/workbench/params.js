@@ -6,6 +6,7 @@
 import { boardById } from '../process/boards.js';
 import { opacityOf } from '../process/boards.js';
 import { resolveParams } from '../process/brushes.js';
+import { findControls } from '../process/controls.js';
 
 const scopes = new Map();
 export const registerScope = (scope, fn) => scopes.set(scope, fn);
@@ -62,6 +63,8 @@ export function installParams(app) {
   registerScope('ctl', (id, prop) => {
     const f = app.frames?.frames.get(id);
     if (!f) return null;
-    return { get: () => app.frames.getCtl(id, prop), set: v => app.frames.setCtl(id, prop, v), min: -Infinity, max: Infinity, step: 0.01, label: `${boardById(app.store.doc, id)?.title || id} · ${prop}` };
+    // What kind of control it is (a choice has options to step through), from the sketch's code.
+    const c = findControls(boardById(app.store.doc, id)?.code || '').find(x => x.name === prop || x.key === prop);
+    return { get: () => app.frames.getCtl(id, prop), set: v => app.frames.setCtl(id, prop, v), min: c?.min ?? -Infinity, max: c?.max ?? Infinity, step: c?.step || 0.01, label: `${boardById(app.store.doc, id)?.title || id} · ${prop}`, kind: c?.kind, ...(c?.options ? { options: c.options } : {}) };
   });
 }

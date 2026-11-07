@@ -19,7 +19,7 @@ export { findControls };
 import { rangeInput, paintRange } from './rangeInput.js';
 import { showMenu } from './menu.js';
 import { openPicker, parseColor } from './colorPicker.js';
-import { keyframeDot } from './keyframeDot.js';
+import { keyframeDot, userChanged } from './keyframeDot.js';
 
 
 const g = d => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -216,6 +216,7 @@ export function controlStrip(editor, { address = null } = {}) {
       const row = document.createElement('label'); row.className = `wb-ctl-row${c.kind === 'range' || c.kind === 'param' ? '' : ' wb-ctl-choice'}`; row.title = ctl.input.title;
       row.append(lab, ctl.input, out);
       const addr = address?.(c);
+      if (addr) ctl.onInput(v => userChanged(addr, v));
       if (addr) row.append(keyframeDot(addr, { show: v => { if (document.activeElement !== ctl.input) { ctl.set(v); out.textContent = show(v); } } }));
       el.append(row);
       return { ctl, out, show, live: ctl.input.classList.contains('live') };

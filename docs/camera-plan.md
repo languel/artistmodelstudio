@@ -190,3 +190,11 @@ Feedback: lanes were dark on dark and hard to read, keys were hard to see, the d
 - **In the code panel the dot sits in the control row** (a fourth column), not on a new row.
 - Keying a parameter no longer re-evaluates every other parameter (a value you changed and have not keyed stays until the playhead moves).
 Still open: colour pickers, selects and blend modes in Properties (only numbers are wired), the camera-style board X/Y, and the audit of the many remaining numeric fields.
+
+### Update after the second try (7 Nov 2026, evening)
+Feedback: no clear difference between "driven by a key" and "changed by hand"; keying showed no visual change; wanted auto-key and colour/palette/choice interpolation; key diamonds did not sit on the lane's edges. Changed:
+- **State tint.** The field (or a sketch control's row) is green while a lane drives it, yellow with a key at the playhead, orange when changed since (Blender's scheme). A user move of a sketch slider on an animated control now sets the running value (the code keeps its default) and shows orange.
+- **Auto-key** (Timeline bar button, `ams_autokey` in localStorage): with it on, a change to an animated parameter at the playhead writes a key. Parameters set by a lane never trigger it (the player marks `applying`).
+- **Value kinds** (`mix` in `src/process/keyframes.js`, tested): colours, palettes (per colour), choices (index through the options, snap to nearest), toggles (snap half-way). A lane keeps `meta.options` for choices.
+- **Lane geometry.** Lane bars are square-ended and keys sit exactly on `x(t)`, so a key at 0 or at the end is on the edge.
+Open: choices in Properties (selects, blend modes), colour pickers, board X/Y, a curve editor, record. Possible refinement: auto-key on a not-yet-animated parameter (today only animated ones key).

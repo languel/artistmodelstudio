@@ -36,3 +36,17 @@ describe('keyframes', () => {
     expect(removeKey(t, 'a:x.y', 0)).toBe(false);
   });
 });
+
+describe('keyframes of other kinds', () => {
+  it('blends colours and palettes, steps choices by their order and snaps toggles half-way', () => {
+    const k = (a, b) => [{ t: 0, v: a, ease: 'linear' }, { t: 1000, v: b, ease: 'linear' }];
+    expect(valueAt(k('#000000', '#ffffff'), 500)).toBe('#808080');
+    expect(valueAt(k(['#000000', '#ff0000'], ['#ffffff', '#00ff00']), 500)).toEqual(['#808080', '#808000']);
+    const meta = { options: ['a', 'b', 'c', 'd'] };
+    expect(valueAt(k('a', 'd'), 0, meta)).toBe('a');
+    expect(valueAt(k('a', 'd'), 400, meta)).toBe('b');
+    expect(valueAt(k('a', 'd'), 700, meta)).toBe('c');
+    expect(valueAt(k(false, true), 400)).toBe(false);
+    expect(valueAt(k(false, true), 600)).toBe(true);
+  });
+});
