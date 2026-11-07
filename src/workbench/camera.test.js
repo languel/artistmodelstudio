@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { camerasOf, addCamera, shotAt, viewFor, poseAt, boardShot, cameraSource } from './camera.js';
+import { parallaxRect, camerasOf, addCamera, shotAt, viewFor, poseAt, boardShot, cameraSource } from './camera.js';
 
 const doc = { boards: [{ id: 'b1', title: 'One', x: 100, y: 50, width: 800, height: 600 }], artboard: { width: 1000, height: 1000 } };
 // boardsOf/boardById read the document: a main board at the origin and `boards`.
@@ -30,5 +30,14 @@ describe('camera', () => {
     const mv = { ...shot, to: { dx: 0, dy: 0, z: 2 } };
     expect(poseAt(mv, 0).z).toBe(1); expect(poseAt(mv, 1000).z).toBe(2); expect(poseAt(mv, 500).z).toBeCloseTo(1.5);
     expect(boardShot({ id: 'b1', title: 'One' }, { id: 'cam2' }).camera).toBe('cam2');
+  });
+  it('parallax: a far board moves less than a near one when the camera pans', () => {
+    const near = { x: 100, y: 0, width: 200, height: 100 }, far = { ...near, depth: 1 };
+    const at = (b, cx) => parallaxRect(b, cx, 50).x - cx;   // (where it sits relative to the middle of the view)
+    const pan = b => at(b, 300) - at(b, 100);               // the view centre moves 200 right
+    expect(pan(near)).toBeCloseTo(-200);                    // a near board slides left by the same amount
+    expect(pan(far)).toBeCloseTo(-100);                     // a board at depth 1 slides half as much
+    expect(parallaxRect(far, 0, 0).w).toBeCloseTo(100);     // and is half the size
+    expect(parallaxRect({ ...near, depth: 0 }, 55, 7).w).toBe(200);
   });
 });

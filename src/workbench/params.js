@@ -77,6 +77,14 @@ export function installParams(app) {
       min: -Infinity, max: Infinity, step: 0.01, label
     };
   });
+  // A shot's pose: zoom and shifts (so a camera move can be keyframed, with the same dot as anything else).
+  registerScope('shot', (id, prop) => {
+    const clip = () => app.player?.take?.clips.find(c => c.id === id);
+    const c = clip();
+    if (!c || !['z', 'dx', 'dy'].includes(prop)) return null;
+    const def = prop === 'z' ? 1 : 0;
+    return { get: () => clip()?.[prop] ?? def, set: v => { const k = clip(); if (k) k[prop] = prop === 'z' ? Math.max(0.05, v) : v; }, min: prop === 'z' ? 0.05 : -10, max: prop === 'z' ? 40 : 10, step: 0.01, label: `${c.label || 'Shot'} · ${prop === 'z' ? 'Zoom' : prop === 'dx' ? 'Shift x' : 'Shift y'}` };
+  });
   registerScope('ctl', (id, prop) => {
     const f = app.frames?.frames.get(id);
     if (!f) return null;

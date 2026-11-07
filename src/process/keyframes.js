@@ -90,3 +90,27 @@ export function clearLane(take, address) { const lane = laneFor(take, address); 
 function dropTrack(take, lane) {
   if (lane.lane && !take.clips.some(c => c !== lane && c.lane === lane.lane)) take.tracks = (take.tracks || []).filter(t => t.id !== lane.lane);
 }
+
+/**
+ * Thin a recorded lane: drop the keys a straight line between their neighbours would reproduce within `tol` (in the
+ * value's own units). Numbers only (other kinds keep every key). Returns how many keys were dropped.
+ */
+export function thinKeys(keys, tol) {
+  if (keys.length < 3 || !keys.every(k => typeof k.v === 'number')) return 0;
+  const keep = new Array(keys.length).fill(false); keep[0] = keep[keys.length - 1] = true;
+  const walk = (a, b) => {
+    let worst = -1, at = -1;
+    for (let i = a + 1; i < b; i++) {
+      const u = (keys[i].t - keys[a].t) / Math.max(1, keys[b].t - keys[a].t), line = keys[a].v + (keys[b].v - keys[a].v) * u, d = Math.abs(keys[i].v - line);
+      if (d > worst) { worst = d; at = i; }
+    }
+    if (worst > tol) { keep[at] = true; walk(a, at); walk(at, b); }
+  };
+  walk(0, keys.length - 1);
+  const dropped = keep.filter(k => !k).length;
+  if (dropped) { const kept = keys.filter((_, i) => keep[i]); keys.length = 0; keys.push(...kept); }
+  return dropped;
+}
+
+/** Set (or change) the key at t whatever is there: a recording writes values, it does not toggle. */
+export const keyHere = (take, address, t, v, ease = 'ease', label = null, meta = null) => setKey(take, address, t, v, ease, label, meta);

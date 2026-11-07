@@ -50,3 +50,17 @@ describe('keyframes of other kinds', () => {
     expect(valueAt(k(false, true), 600)).toBe(true);
   });
 });
+
+import { thinKeys } from './keyframes.js';
+describe('thinning a recording', () => {
+  it('drops keys a straight line reproduces and keeps the corners', () => {
+    const keys = [];
+    for (let i = 0; i <= 20; i++) keys.push({ t: i * 100, v: i <= 10 ? i : 10 - (i - 10) * 2, ease: 'linear' });   // up then down faster
+    const dropped = thinKeys(keys, 0.05);
+    expect(dropped).toBeGreaterThan(15);
+    expect(keys.map(k => k.t)).toEqual([0, 1000, 2000]);
+    const wobble = [{ t: 0, v: 0 }, { t: 100, v: 5 }, { t: 200, v: 0 }];
+    expect(thinKeys(wobble, 0.05)).toBe(0);
+    expect(thinKeys([{ t: 0, v: 'a' }, { t: 1, v: 'b' }, { t: 2, v: 'c' }], 1)).toBe(0);
+  });
+});

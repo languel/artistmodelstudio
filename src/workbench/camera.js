@@ -76,6 +76,12 @@ export function viewFor(doc, shot, t, W, H) {
 
 const COMPOSITE = { add: 'lighter' };
 
+/** Where a board is seen from a view centred on (cx, cy): a board `depth` behind the focal plane moves and scales by 1/(1+depth) about that centre. */
+export function parallaxRect(b, cx, cy) {
+  const f = 1 / (1 + Math.max(-0.9, b.depth || 0));
+  return { x: cx + (b.x - cx) * f, y: cy + (b.y - cy) * f, w: b.width * f, h: b.height * f };
+}
+
 // ---- pictures of boards ---------------------------------------------------------------------------
 const lives = new Map();   // `${boardId}@${side}` → board live canvas (drawing and media boards)
 const sketches = new Map();   // board id → { img, asked }
@@ -122,8 +128,10 @@ export function renderCamera(app, shot, t, ctx, W, H) {
   for (const b of boardsOf(doc)) {
     if (b.kind === 'frame' || b.kind === 'code' || b.kind === 'playlist' || b.hidden || (b.kind === 'player' && b.hidden)) continue;
     if (b.source && app.sources.def(b.source)?.kind === 'timeline') continue;   // (a board that shows the sequence is not in it: no feedback)
+    // Depth (parallax): a board d behind the focal plane moves and scales by 1/(1+d) about the middle of the view, so a pan moves the near planes more.
+    const { x: bx, y: by, w: bw, h: bh } = parallaxRect(b, v.x0 + W / (2 * v.k), v.y0 + H / (2 * v.k));
     // Off the camera's view: skipped.
-    if (b.x > v.rect.x + v.rect.w || b.x + b.width < v.rect.x || b.y > v.rect.y + v.rect.h || b.y + b.height < v.rect.y) continue;
+    if (bx > v.rect.x + v.rect.w || bx + bw < v.rect.x || by > v.rect.y + v.rect.h || by + bh < v.rect.y) continue;
     if (b.source) app.sources.seeCamera?.(b.source);
     if (b.maskWith?.source) app.sources.seeCamera?.(b.maskWith.source);
     const pic = b.kind === 'p5' || b.kind === 'three' ? sketchPicture(app, b) : drawingPicture(app, b, v.k);
@@ -131,7 +139,7 @@ export function renderCamera(app, shot, t, ctx, W, H) {
     ctx.save();
     ctx.globalAlpha = opacityOf(b);
     const bl = blendOf(b); if (bl !== 'normal') ctx.globalCompositeOperation = COMPOSITE[bl] || bl;
-    ctx.drawImage(pic, (b.x - v.x0) * v.k, (b.y - v.y0) * v.k, b.width * v.k, b.height * v.k);
+    ctx.drawImage(pic, (bx - v.x0) * v.k, (by - v.y0) * v.k, bw * v.k, bh * v.k);
     ctx.restore();
   }
   ctx.restore();

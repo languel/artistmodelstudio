@@ -9,7 +9,8 @@ import { icon } from '../icons.js';
 import { clipWords } from '../../process/clipWords.js';
 import { mediaClipFromAsset } from '../mediaClips.js';
 import { camerasOf } from '../camera.js';
-import { autoKey, setAutoKey } from '../keyframeDot.js';
+import { autoKey, setAutoKey, recording, setRecordAuto } from '../keyframeDot.js';
+import { valueAt, EASE_NAMES } from '../../process/keyframes.js';
 import { duration, summarize, touch, flatClips, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
 import { showMenu } from '../menu.js';
 import { TimelineUndo } from '../timelineUndo.js';
@@ -241,6 +242,7 @@ export function mountTimeline(root, app) {
     bar.replaceChildren(...[
       h('button', { class: `wb-icon-btn wb-tl-rec${rec || od ? ' on' : ''}`, title: rec ? 'Stop recording (the take goes to Assets)' : od ? 'Stop recording (Space too; the take is saved)' : `Record onto the Timeline: the transport plays (${p.loop ? 'round the loop: each pass adds to the last' : p.inOut ? 'from In to Out' : 'from the playhead'}) and each gesture you draw goes on the drawing track where the playhead is`, html: rec || od ? '<svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="9" fill="currentColor"/><circle cx="12" cy="12" r="4.2" fill="none" stroke="var(--wb-panel, #222)" stroke-width="1.8"/></svg>' : '<svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>', onclick: () => (rec ? R().stop() : od ? R().stopOverdub() : R().startOverdub()), oncontextmenu: ev => { ev.preventDefault(); const poly = R().settings.overdubLanes !== 'tracks'; showMenu([{ label: 'Overlapping gestures' }, { label: 'On one track, as voices (polyphonic)', active: poly, run: () => R().setSettings({ overdubLanes: 'poly' }) }, { label: 'On a track of their own (a track per pass)', active: !poly, run: () => R().setSettings({ overdubLanes: 'tracks' }) }], ev.clientX, ev.clientY); } }),
       h('button', { class: `wb-icon-btn wb-tl-hist${app.history?.capturing ? ' on' : ''}`, title: app.history?.capturing ? 'Recording History: every change goes to the History panel and the History track (click to pause)' : 'History is paused: changes are not recorded (click to record)', html: icon('history'), onclick: () => { const H = app.history; if (!H) return; const on = !H.capturing; H.setCapturing(on); if (on && P()?.take) { P().take.noHistory = false; P().take._histKey = null; } drawBar(); drawLanes(); } }),
+      h('button', { class: `wb-icon-btn wb-tl-recauto${recording.on ? ' on' : ''}`, title: recording.on ? 'Recording automation: what you move while the transport plays is written as keys. Click to stop (the keys are thinned)' : 'Record automation: press play, then move any parameter with a diamond beside it; it is written as keys', html: '<svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3l9 9-9 9-9-9z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/></svg>', onclick: () => { setRecordAuto(!recording.on); drawBar(); } }),
       h('button', { class: `wb-icon-btn wb-tl-autokey${autoKey.on ? ' on' : ''}`, title: autoKey.on ? 'Auto-key is on: changing an animated parameter at the playhead keys it. Click to turn it off' : 'Auto-key: when on, changing an animated parameter at the playhead keys it (the diamond beside a field keys it by hand)', html: '<svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3l9 9-9 9-9-9z" fill="currentColor"/><circle cx="12" cy="12" r="3" fill="var(--wb-panel, #222)"/></svg>', onclick: () => { setAutoKey(!autoKey.on); drawBar(); } }),
       h('button', { class: `wb-icon-btn wb-tl-ints${app.interactions?.capturing ? ' on' : ''}`, title: app.interactions?.capturing ? 'Recording interactions: the controls you click (not the drawing; History has that). Click to stop' : 'Record interactions: the controls you click, for walkthroughs. They appear as an Interactions track and the cursor travels to each one on playback. Right-click: make a take from what was recorded', html: icon('select'), oncontextmenu: ev => { ev.preventDefault(); showMenu([{ label: 'Take from the recording', hint: 'A take with what was recorded since recording was switched on (History and Interactions)', run: takeFromRecording }, { label: 'Clear what was recorded', hint: 'Forget the recorded interactions so far (History is cleared in its own panel)', run: () => { app.interactions?.clear(); drawBar(); } }], ev.clientX, ev.clientY); }, onclick: () => { const I = app.interactions; if (!I) return; I.setCapturing(!I.capturing); if (I.capturing && P()?.take) { P().take.noInteractions = false; P().take._intKey = null; } drawBar(); } }),
       h('button', { class: 'wb-icon-btn', title: 'Play / pause (Space in the timeline)', html: p?.playing ? '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>' : icon('play'), onclick: () => p.toggle() }),
@@ -349,7 +351,7 @@ export function mountTimeline(root, app) {
     let start = Math.round(P().t);
     // A clip added on top of another goes after it: clips put in one by one make a sequence.
     for (let again = true; again;) { again = false; for (const o of take.clips) if (o.track === clip.track && start < o.start + o.dur && start + clip.dur > o.start) { start = o.start + o.dur; again = true; } }
-    take.clips.push({ ...clip, start }); edited(); select(take.clips[take.clips.length - 1]); drawBar();
+    take.clips.push({ ...clip, id: clip.id || clipId(), start }); edited(); select(take.clips[take.clips.length - 1]); drawBar();
     P().seek(start);
   };
   /** Add a track of a kind (from the bar's button and the track names' menu). */
@@ -874,6 +876,55 @@ export function mountTimeline(root, app) {
     const more = [c.by && `by ${c.by}`, c.ui?.changes?.length && `made ${c.ui.changes.length} History entr${c.ui.changes.length === 1 ? 'y' : 'ies'}`, c.live && `live ${c.live} track`].filter(Boolean).join(' · ');
     return `${head}\n${clipWords(c)}${more ? `\n${more}` : ''}`;
   };
+  /**
+   * An automation lane drawn as a curve: the value over time (numbers), a gradient of the colours (colour lanes), and the keys
+   * as diamonds you can drag (across: when; up and down: the value of a number). Right-click a key: its interpolation, delete.
+   */
+  const paintLane = (el, c) => {
+    for (const n of [...el.querySelectorAll('.wb-tl-key, .wb-tl-curve')]) n.remove();
+    const keys = c.keys || [], nums = keys.length > 0 && keys.every(k => typeof k.v === 'number'), dur = Math.max(1, c.dur || 1);
+    let lo = 0, hi = 1;
+    if (nums) {
+      lo = Math.min(...keys.map(k => k.v)); hi = Math.max(...keys.map(k => k.v));
+      if (hi - lo < 1e-9) { lo -= 0.5; hi += 0.5; }
+      const pad = (hi - lo) * 0.14; lo -= pad; hi += pad;
+    }
+    const yOf = v => 100 * (1 - (v - lo) / (hi - lo));
+    if (nums) {
+      const N = 120, pts = [];
+      for (let i = 0; i <= N; i++) { const t = dur * i / N; pts.push(`${(100 * i / N).toFixed(2)},${yOf(valueAt(keys, t, c.meta)).toFixed(2)}`); }
+      el.append(h('span', { class: 'wb-tl-curve', html: `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points="${pts.join(' ')}" vector-effect="non-scaling-stroke"/></svg>` }));
+    } else if (keys.length && keys.every(k => /^#[0-9a-f]{6}/i.test(k.v))) {
+      el.style.background = `linear-gradient(90deg, ${keys.map(k => `${k.v} ${(100 * k.t / dur).toFixed(1)}%`).join(', ')})`;
+    }
+    for (const k of keys) {
+      const key = h('span', { class: 'wb-tl-key', style: { left: `${x(k.t)}px`, top: `${nums ? yOf(k.v) : 50}%` }, title: `${fmt(c.start + k.t)} · ${typeof k.v === 'number' ? +k.v.toFixed(3) : JSON.stringify(k.v)} · ${k.ease || 'ease'}\nDrag to move it; right-click for more` });
+      key.addEventListener('pointerdown', ev => {
+        if (ev.button !== 0) return;
+        ev.stopPropagation(); ev.preventDefault();
+        const box = el.getBoundingClientRect(), x0 = ev.clientX, t0 = k.t;
+        remember?.();
+        const move = e2 => {
+          k.t = Math.max(0, Math.round(t0 + ((e2.clientX - x0) / pps) * 1000));
+          if (nums) k.v = lo + (1 - Math.max(0, Math.min(1, (e2.clientY - box.top) / box.height))) * (hi - lo);
+          c.keys.sort((a, b) => a.t - b.t); c.dur = Math.max(1000, c.keys[c.keys.length - 1].t);
+          el.style.width = `${Math.max(6, x(c.dur))}px`;
+          paintLane(el, c);
+        };
+        const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); edited(); };
+        window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+      });
+      key.addEventListener('contextmenu', ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        showMenu([
+          { label: 'Key' },
+          { label: 'Interpolation', items: EASE_NAMES.map(n => ({ label: n, active: (k.ease || 'ease') === n, run: () => { k.ease = n; edited(); } })) },
+          { label: 'Delete key', run: () => { c.keys = c.keys.filter(z => z !== k); if (!c.keys.length) P().take.clips = P().take.clips.filter(z => z !== c); edited(); } }
+        ], ev.clientX, ev.clientY);
+      });
+      el.append(key);
+    }
+  };
   const clipEl = (c, readOnly = false) => {
     const w = Math.max(6, x(c.dur || 0));
     const rate = c.rate > 0 ? c.rate : 1;
@@ -887,10 +938,7 @@ export function mountTimeline(root, app) {
         el.append(h('span', { class: `wb-tl-compbit t-${k.track}`, style: { left: `${x(k.start / rate)}px`, width: `${Math.max(2, x((k.dur || 0) / rate))}px` } }));
       }
     }
-    if (c.track === 'auto') {
-      // An automation lane: its keyframes as diamonds (from the lane's start), the value in the tooltip.
-      for (const k of c.keys || []) el.append(h('span', { class: 'wb-tl-key', style: { left: `${x(k.t)}px` }, title: `${fmt(c.start + k.t)} · ${typeof k.v === 'number' ? +k.v.toFixed(3) : JSON.stringify(k.v)} · ${k.ease || 'ease'}` }));
-    }
+    if (c.track === 'auto') paintLane(el, c);
     if (c.track === 'audio') {
       // The waveform: real min/max slices, drawn for the width the clip has now (a rough one from the old peaks shows until the sound is decoded).
       const cv = h('canvas', { class: 'wb-tl-wave' });

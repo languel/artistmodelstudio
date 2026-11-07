@@ -10,7 +10,7 @@
 import { h } from './ui.js';
 import { showMenu } from './menu.js';
 import { param } from './params.js';
-import { valueAt, laneFor, keyNear, setKey, removeKey, clearLane, sameValue, EASE_NAMES } from '../process/keyframes.js';
+import { valueAt, laneFor, keyNear, setKey, removeKey, clearLane, sameValue, thinKeys, keyHere, EASE_NAMES } from '../process/keyframes.js';
 import { setFieldDecorator } from './ui.js';
 
 let host = null;
@@ -19,6 +19,19 @@ export const setKeyframeHost = app => { host = app; };
 const DIAMOND = '<svg viewBox="0 0 12 12" width="11" height="11"><path d="M6 1 11 6 6 11 1 6z"/></svg>';
 /** Auto-key (the Timeline's button): a change to an animated parameter at the playhead keys it. */
 export const autoKey = { on: (() => { try { return localStorage.getItem('ams_autokey') === '1'; } catch { return false; } })() };
+/** Record automation: while the transport plays, what you move is written as keys (thinned when you stop). */
+export const recording = { on: false, touched: new Set() };
+export function setRecordAuto(on) {
+  recording.on = Boolean(on);
+  if (!on && host?.player?.take) {
+    for (const address of recording.touched) {
+      const lane = laneFor(host.player.take, address); if (!lane) continue;
+      const nums = lane.keys.map(k => k.v).filter(v => typeof v === 'number'), span = (Math.max(...nums) - Math.min(...nums)) || 1;
+      thinKeys(lane.keys, span * 0.015); lane.dur = Math.max(1000, lane.keys[lane.keys.length - 1].t);
+    }
+    recording.touched.clear(); host._tlKeysEdited?.();
+  }
+}
 export const setAutoKey = on => { autoKey.on = Boolean(on); try { localStorage.setItem('ams_autokey', on ? '1' : '0'); } catch { /* not kept */ } };
 
 /**
@@ -29,7 +42,8 @@ export function userChanged(address, value) {
   const { p, lane } = read(address);
   if (!p || !lane) return false;
   p.set(value);
-  if (autoKey.on && !host.player.playing) toggle(address, true);
+  if (recording.on && host.player.playing) writeKey(address, value);
+  else if (autoKey.on && !host.player.playing) toggle(address, true);
   host.player.emit();   // (every dot looks again: this one is now changed, or keyed)
   return true;
 }
@@ -41,6 +55,16 @@ function read(address, fallback) {
   const take = host?.player?.take || null, p = param(address), t = host?.player?.t ?? 0;
   const lane = take ? laneFor(take, address) : null;
   return { take, p, lane, t, key: lane ? keyNear(lane, t - lane.start) : null, cur: p?.get?.() ?? fallback, laneValue: lane ? valueAt(lane.keys, t - lane.start, lane.meta) : null };
+}
+
+/** Write the value at the playhead as a key (a recording): makes the lane if needed. */
+function writeKey(address, value, opts = {}) {
+  const { take, p, t } = read(address, opts.fallback);
+  const tk = take || host._tlEnsureTake?.();
+  if (!p || !tk) return;
+  keyHere(tk, address, t, value, 'linear', p.label, (p.options || opts.options) ? { options: p.options || opts.options } : null);
+  recording.touched.add(address);
+  host.player.applied?.delete(address);
 }
 
 function toggle(address, on, opts = {}) {
@@ -67,6 +91,12 @@ export function keyframeDot(address, { show = null, fallback, options } = {}) {
     // The field (or the control's row) says it too: green while a lane drives it, yellow on a key, orange when changed since.
     const box = btn.parentElement;
     if (box) { box.classList.toggle('kf-anim', Boolean(lane)); box.classList.toggle('kf-key', Boolean(key)); box.classList.toggle('kf-dirty', Boolean(dirty)); }
+    // Recording: a change that is not the lane's own (a hand on the control) is written as a key.
+    if (recording.on && host.player.playing && p && cur != null) {
+      const prev = btn._last; btn._last = cur;
+      const laneDriven = lane && laneValue != null && sameValue(cur, laneValue, (p.step || 0.01) / 2);
+      if (!laneDriven && prev !== undefined && !sameValue(prev, cur, (p.step || 0.01) / 2)) { writeKey(address, cur, { fallback, options }); host._tlKeysEdited?.(); }
+    } else btn._last = cur;
     if (dirty && autoKey.on && !host.player.playing && !btn._auto) { btn._auto = true; try { toggle(address, true, { fallback, options }); } finally { btn._auto = false; } return paint(); }
     if (lane && show && cur != null && !btn.matches(':active')) show(cur);   // (what it has now: the lane's, or what you changed it to)
   };

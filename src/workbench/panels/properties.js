@@ -207,6 +207,7 @@ export function mountProperties(el, app, { compact = false } = {}) {
       row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app, address: `board:${b.id}.ground` })),
       b.main ? null : row('X', numberField({ value: Math.round(b.x), min: -100000, max: 100000, step: 10, def: Math.round(b.x), address: `board:${b.id}.x`, title: 'Where the board is (its left edge); keyframed, the board moves across the canvas', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { x: Math.round(v) }); } })),
       b.main ? null : row('Y', numberField({ value: Math.round(b.y), min: -100000, max: 100000, step: 10, def: Math.round(b.y), address: `board:${b.id}.y`, title: 'Where the board is (its top edge)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { y: Math.round(v) }); } })),
+      row('Depth', numberField({ value: b.depth || 0, min: -0.9, max: 20, step: 0.05, def: 0, address: `board:${b.id}.depth`, title: 'How far behind the focal plane the board is, for a camera: a pan moves it (and scales it) by 1/(1+depth), so far boards move less (parallax). 0: in the plane', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { depth: v }); } })),
       row('Opacity', withDot(numberField({ value: opacityOf(b), min: 0, max: 1, step: 0.05, def: 1, title: 'How much of the board shows over what is under it (boards are layers: later ones are above)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { opacity: v }); } }), `board:${b.id}.opacity`)),
       row('Blend', blendField(blendOf(b), v => app.store.updateBoard(b.id, { blend: v }), '', BOARD_BLENDS, `board:${b.id}.blend`)),
       h('div', { class: 'wb-muted wb-small' }, `${marksOf(app.store.doc, b.id).length} marks${!app.embed && trainBoard(app.store.doc) === b.id ? ' · models learn from this board' : ''}`)));
@@ -334,7 +335,7 @@ export function mountProperties(el, app, { compact = false } = {}) {
       const take = app.player.take, cams = take ? camerasOf(take) : [], cam = cams.find(x => x.id === c.camera) || cams[0];
       const boards = boardsOf(app.store.doc).filter(b => !['frame', 'code', 'playlist'].includes(b.kind));
       const tg = c.target?.rect ? 'rect' : c.target?.board || 'main';
-      const pose = (label, get, put, step = 0.05, min = -10, max = 10) => row(label, numberField({ value: +(get() ?? 0).toFixed(3), min, max, step, def: label === 'Zoom' ? 1 : 0, onChange: v => put(v) }));
+      const pose = (label, get, put, step = 0.05, min = -10, max = 10, key = null) => row(label, numberField({ value: +(get() ?? 0).toFixed(3), min, max, step, def: label === 'Zoom' ? 1 : 0, address: key ? `shot:${c.id}.${key}` : null, onChange: v => put(v) }));
       const moving = Boolean(c.to), P = () => ({ dx: c.dx || 0, dy: c.dy || 0, z: c.z || 1 });
       const nameInput = h('input', { class: 'wb-inline', value: cam?.name || '', title: 'Rename this camera' });
       nameInput.addEventListener('change', () => { if (cam && nameInput.value.trim()) { cam.name = nameInput.value.trim(); edited(); } });
@@ -347,9 +348,9 @@ export function mountProperties(el, app, { compact = false } = {}) {
           else set({ target: { board: v } });
         }, 'What the camera frames: a whole board, or a region of the canvas')),
         tg === 'rect' ? h('button', { class: 'wb-btn', title: 'Use what the canvas shows now as this shot’s region', onclick: () => { const r = app.canvas.viewRect(0); set({ target: { rect: [Math.round(r[0]), Math.round(r[1]), Math.round(r[2] - r[0]), Math.round(r[3] - r[1])] } }); } }, 'Frame the current view') : null,
-        pose('Zoom', () => c.z ?? 1, v => set({ z: v || 1 }), 0.05, 0.05, 40),
-        pose('Shift x', () => c.dx, v => set({ dx: v }), 0.02),
-        pose('Shift y', () => c.dy, v => set({ dy: v }), 0.02),
+        pose('Zoom', () => c.z ?? 1, v => set({ z: v || 1 }), 0.05, 0.05, 40, 'z'),
+        pose('Shift x', () => c.dx, v => set({ dx: v }), 0.02, -10, 10, 'dx'),
+        pose('Shift y', () => c.dy, v => set({ dy: v }), 0.02, -10, 10, 'dy'),
         h('label', { class: 'wb-check', title: 'The shot moves: it ends at another pose' }, (() => { const i = h('input', { type: 'checkbox' }); i.checked = moving; i.addEventListener('change', () => set({ to: i.checked ? { ...P() } : undefined })); return i; })(), ' Move to another pose'),
         moving ? pose('To zoom', () => c.to.z ?? 1, v => set({ to: { ...c.to, z: v || 1 } }), 0.05, 0.05, 40) : null,
         moving ? pose('To shift x', () => c.to.dx, v => set({ to: { ...c.to, dx: v } }), 0.02) : null,
