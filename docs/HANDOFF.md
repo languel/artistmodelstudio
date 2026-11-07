@@ -1,6 +1,32 @@
-# Handoff: updated 5 November 2026 (first written 1 October)
+# Handoff: updated 7 November 2026 (first written 1 October)
 
 Where Artist Model Studio stands, how the new parts fit together, and what is next. For the features themselves see [workbench.md](workbench.md); for agents, [mcp.md](mcp.md).
+
+## 7 November 2026: Mediathèque, media on the Timeline, export, and the keyframe dot
+
+Thirteen commits on `main` (`d9a03a5` … `06342b3`), all with tests (777) and a passing build. Read [camera-plan.md](camera-plan.md) first: it is the plan these steps lead into, and its section 11 is the result of the first spike. Features are in [workbench.md](workbench.md) (search "Mediathèque", "Media clips", "Editing like an NLE", "Boards as clips", "Export a clip", and the keyframe dot at the end of the History/Timeline part).
+
+**Built**
+- **Mediathèque in Assets** (`src/assets/mediatheque.js`, `src/ui/MediathequePanel.js`): the public archive `languel.github.io/mediatheque` (repo `~/dev/mediatheque`) as a second view with **My assets | Mediathèque** tabs, shown only while the catalog loads. Items are added as references (a stream asset `mediatheque:<id>`, credit and rights kept) or copies; ⌘/Ctrl-click picks several; **▶ Timeline** on every card. GIF items use their `video_media` (mp4). Base can be a local checkout: `localStorage.ams_mediatheque_base`.
+- **Media clips** (`src/workbench/mediaClips.js`): a `media` track on the take; clips are references `{ url, asset, in, out, speed, fit, opacity, volume, credit }`, stills are 5 s clips, boards can be clips (`board`). Player: `TakePlayer.syncMedia/drawMedia`. A take with only media/titles/sound is *composing*: the canvas stays live (no view-only hand).
+- **NLE basics** in `panels/timeline.js`: append at the playhead (a clip added over another goes after it), **X** splits (a shortcut in `shortcuts.js`), **⇧⌫** ripple delete.
+- **Program board** (`src/workbench/timelineSource.js`, `app.ensureProgramBoard`): the first media clip makes a 16:9 board whose source is `timeline`: the take at the playhead. It is the sequence's monitor and what outputs (pin, window) take from.
+- **Export a clip** as MP4/WebM/GIF with **ffmpeg.wasm** (`src/media/ffmpegRunner.js`, single-thread core, lazy, ~30 MB, 250 MB source limit): board menu › Clip, Assets preview, media clip Properties.
+- **Keyframe dot, spike to first version** (`src/process/keyframes.js`, `src/workbench/params.js`, `src/workbench/keyframeDot.js`): one lane type (`auto` clip: `{address, keys:[{t,v,ease}]}`, keys relative to the lane), addresses `board:`, `mark:`, `ctl:` (sketch controls, set live without touching the code), a diamond beside any field made with `numberField({ address })` and every sketch control, a row per lane on the Timeline with its key diamonds. Numbers ease, `#rrggbb` blends, other values hold.
+- **Plan** [camera-plan.md](camera-plan.md): several cameras, parallax, one keyframe system, a deterministic frame-by-frame render (decisions in its section 0).
+
+**How the new parts fit**
+- The Timeline is per scene (the take is remembered by the scene; transport settings are the scene's).
+- `app.player.applyAutomation()` runs on every `render()`; `seek()` clears the applied cache; `BoardFrames.automated` stops the code-to-sketch value sync from overwriting a control a lane drives (any new code that pushes values from a source of truth needs the same rule).
+- Automation writes values into the document with `transient: true` (no undo step) and they stay in the saved scene.
+- Dev server note: after a code edit the page reloads and an unsaved take is lost; test in one go.
+
+**Not done / next** (see camera-plan.md §7)
+1. Phase 1 cameras (several, shots with targets, Program cut); Phase 2 the dot on every field (colour pickers, selects, blend, board X/Y, then an audit), curve editor, auto-key, record, parallax; Phase 3 sketch parameter audit; Phase 4 deterministic render (spike first: seed + time shim for sketches).
+2. Media clips and board clips are not in the take's standalone player, HTML export or video render yet.
+3. The Timeline panel is small; no edge trimming; Mediathèque cards are large in a narrow dock (a compact list would help).
+4. Untested by hand: drag a card to a timeline lane, the dot's right-click menu and the I key, pinning the Program board.
+5. **Known bugs: the author has a list to give (7 Nov)**; ask for it first.
 
 ## State
 
