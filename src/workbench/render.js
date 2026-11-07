@@ -50,6 +50,12 @@ export async function renderTake(app, { range = null, fps = 25, width = 1280, he
   for (const h of heldSources) app.sources.update?.(h.e.def.name, { speed: 0 });
   let enc = null, ok = false;
   try {
+    onStatus?.('Loading the stop-motion frames…');
+    for (const b of boardsOf(app.store.doc)) {
+      if (b.kind !== 'stopmotion' || !app.stopmotion) continue;
+      const { sm } = app.stopmotion.spec(b);
+      for (const fr of sm?.frames || []) await app.stopmotion.image(b.id, fr);
+    }
     onStatus?.('Starting the sketches…');
     await app.frames.beginRender(sketchIds);
     onStatus?.('Loading the encoder…');

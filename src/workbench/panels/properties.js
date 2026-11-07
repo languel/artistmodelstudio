@@ -207,6 +207,7 @@ export function mountProperties(el, app, { compact = false } = {}) {
       row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app, address: `board:${b.id}.ground` })),
       b.main ? null : row('X', numberField({ value: Math.round(b.x), min: -100000, max: 100000, step: 10, def: Math.round(b.x), address: `board:${b.id}.x`, title: 'Where the board is (its left edge); keyframed, the board moves across the canvas', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { x: Math.round(v) }); } })),
       b.main ? null : row('Y', numberField({ value: Math.round(b.y), min: -100000, max: 100000, step: 10, def: Math.round(b.y), address: `board:${b.id}.y`, title: 'Where the board is (its top edge)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { y: Math.round(v) }); } })),
+      row('Light', numberField({ value: b.light || 0, min: 0, max: 1, step: 0.05, def: 0, address: `board:${b.id}.light`, title: 'A lightbox: a camera sees a falloff of light over the board, bright in the middle and darker toward the edges. Put silhouettes on boards above it with the Multiply blend', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { light: v }); } })),
       row('Depth', numberField({ value: b.depth || 0, min: -0.9, max: 20, step: 0.05, def: 0, address: `board:${b.id}.depth`, title: 'How far behind the focal plane the board is, for a camera: a pan moves it (and scales it) by 1/(1+depth), so far boards move less (parallax). 0: in the plane', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { depth: v }); } })),
       row('Opacity', withDot(numberField({ value: opacityOf(b), min: 0, max: 1, step: 0.05, def: 1, title: 'How much of the board shows over what is under it (boards are layers: later ones are above)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { opacity: v }); } }), `board:${b.id}.opacity`)),
       row('Blend', blendField(blendOf(b), v => app.store.updateBoard(b.id, { blend: v }), '', BOARD_BLENDS, `board:${b.id}.blend`)),
@@ -331,6 +332,10 @@ export function mountProperties(el, app, { compact = false } = {}) {
       row('Center x', numberField({ value: +(c.cx ?? 0.5).toFixed(3), min: -1, max: 2, step: 0.01, def: 0.5, onChange: v => set({ cx: v }) })),
       row('Center y', numberField({ value: +(c.cy ?? 0.5).toFixed(3), min: -1, max: 2, step: 0.01, def: 0.5, onChange: v => set({ cy: v }) }))));
     if (c.track === 'action') el.append(section('Action', true, h('div', { class: 'wb-small' }, c.label || c.name), h('pre', { class: 'wb-ref' }, JSON.stringify(c.args || {}, null, 1).slice(0, 800))));
+    if (c.track === 'cut') {
+      const take = app.player.take, cams = take ? camerasOf(take) : [];
+      el.append(section('Cut', true, row('On air', selectField(cams.map(x => [x.id, x.name]), c.camera, v => { set({ camera: v, label: cams.find(x => x.id === v)?.name || v }); }, 'Which camera the Program shows during this cut'))));
+    }
     if (c.track === 'shot') {
       const take = app.player.take, cams = take ? camerasOf(take) : [], cam = cams.find(x => x.id === c.camera) || cams[0];
       const boards = boardsOf(app.store.doc).filter(b => !['frame', 'code', 'playlist'].includes(b.kind));

@@ -32,7 +32,7 @@ import { AssetPanel } from '../ui/AssetPanel.js';
 import { MediathequePanel } from '../ui/MediathequePanel.js';
 import * as mediaClips from './mediaClips.js';
 import { installParams } from './params.js';
-import { boardShot, camerasOf, cameraById, addCamera, cameraSource } from './camera.js';
+import { boardShot, camerasOf, cameraById, addCamera, cameraSource, cutTo, onAirShot } from './camera.js';
 import { setKeyframeHost } from './keyframeDot.js';
 import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
@@ -1636,8 +1636,22 @@ export class Workbench {
       { label: 'Shot on a board', items: boardsOf(this.store.doc).filter(b => !['frame', 'code', 'playlist'].includes(b.kind)).map(b => ({ label: b.title, run: () => this.boardsToTimeline([b.id]) })) },
       { label: 'Cut to the current view', hint: 'A shot of what the canvas shows now, at the playhead', run: () => this.shotFromView() },
       { label: 'New camera', run: () => this.newCamera() },
+      ...(cams.length > 1 ? [{ label: 'Cut to a camera (at the playhead)', hint: 'The Program shows that camera from here; press play and click a camera in the Timeline bar to cut live', items: cams.map(c => ({ label: c.name, run: () => this.cutToCamera(c.id) })) }] : []),
       cams.length ? { label: 'Board for a camera', hint: 'A board that shows one camera (source(\'camera-1\')): a second monitor', items: cams.map(c => ({ label: c.name, run: () => this.cameraBoard(c.id) })) } : null
     ].filter(Boolean);
+  }
+
+  /** Cut to a camera at the playhead (while the transport plays, a live switch: it is recorded as a cut clip on the Cuts track). */
+  cutToCamera(camId) {
+    const take = this._tlEnsureTake?.(); if (!take) return null;
+    const t = Math.round(this.player.t), cam = cameraById(take, camId);
+    const end = Math.max(...take.clips.map(c => c.start + (c.dur || 0)), t + 1000);
+    // The first cut of a take: what was on air until now (by the shots) is cut from the start, so the Program is not left empty before it.
+    if (t > 0 && !take.clips.some(c => c.track === 'cut')) { const was = onAirShot(take, Math.max(0, t - 1)); if (was && was.camera !== cam.id) { const first = cutTo(take, was.camera, 0, t); first.label = cameraById(take, was.camera).name; } }
+    const clip = cutTo(take, cam.id, t, end);
+    clip.label = cam.name;
+    this._tlKeysEdited?.(); this.log(`Cut to ${cam.name} at ${(t / 1000).toFixed(1)} s.`);
+    return clip;
   }
 
   async shotFromView() {

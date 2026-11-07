@@ -171,7 +171,7 @@ export function migrateBoards(d) {
       id: String(b.id), title: String(b.title || b.id), x: Number(b.x) || 0, y: Number(b.y) || 0,
       width: Math.max(10, Number(b.width) || 1000), height: Math.max(10, Number(b.height) || 1000), ground: b.ground || d.artboard.ground,
       ...(b.text ? { text: String(b.text) } : {}), ...(b.code ? { code: String(b.code) } : {}), ...(b.pseudo ? { pseudo: String(b.pseudo) } : {}),
-      ...(b.follow ? { follow: true } : {}), ...(b.live ? { live: true } : {}), ...(b.paused ? { paused: true } : {}), ...(b.kind ? { kind: String(b.kind) } : {}), ...(b.of ? { of: String(b.of) } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5), ...(b.sourceFit ? { sourceFit: String(b.sourceFit) } : {}), ...(b.sourceBlend ? { sourceBlend: String(b.sourceBlend) } : {}) } : {}), ...fxFields(b), ...(Number(b.depth) ? { depth: Math.max(-0.9, Math.min(20, Number(b.depth))) } : {}), ...flagsOf(b)
+      ...(b.follow ? { follow: true } : {}), ...(b.live ? { live: true } : {}), ...(b.paused ? { paused: true } : {}), ...(b.kind ? { kind: String(b.kind) } : {}), ...(b.of ? { of: String(b.of) } : {}), ...(b.source ? { source: String(b.source), sourceOpacity: Number(b.sourceOpacity ?? 0.5), ...(b.sourceFit ? { sourceFit: String(b.sourceFit) } : {}), ...(b.sourceBlend ? { sourceBlend: String(b.sourceBlend) } : {}) } : {}), ...fxFields(b), ...(Number(b.depth) ? { depth: Math.max(-0.9, Math.min(20, Number(b.depth))) } : {}), ...(Number(b.light) > 0 ? { light: Math.min(1, Number(b.light)) } : {}), ...flagsOf(b)
     }));
     const ids = new Set([MAIN, BLACKBOARD, ...d.boards.map(b => b.id)]);
     for (const e of d.elements) if (e.board && !ids.has(e.board)) e.board = BLACKBOARD;

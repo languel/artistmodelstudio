@@ -8,6 +8,7 @@
  *   action   a tool call (label only; the effect is in the draw clips)
  *   camera   a view keyframe: { cx, cy, z } (artboard center and zoom; z = 1 shows the artboard)
  *   shot     a camera pointed at a board or a region for a time (src/workbench/camera.js); the Program shows the shot that started last
+ *   cut      which camera is on air, from start for dur (the Program cut); with none, the shot that started last is
  *   media    a moment of a video or stream, by reference: { url, asset?, in, out (s of the source), speed, fit, opacity, label, credit }
  *   audio    a sound (src), later
  *   comp     a composition (as in After Effects): clips grouped into one, with a timeline of their own
@@ -92,8 +93,8 @@ export function createTake({ title = 'Take', baseline, clips = [] } = {}) {
 }
 
 export const duration = take => Math.max(0, ...take.clips.map(c => c.start + c.dur));
-export const TRACKS = ['comp', 'title', 'say', 'draw', 'action', 'camera', 'shot', 'media', 'audio'];
-export const TRACK_NAMES = { comp: 'Comps', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', shot: 'Shots', media: 'Media', audio: 'Audio', auto: 'Automation' };
+export const TRACKS = ['comp', 'title', 'say', 'draw', 'action', 'camera', 'shot', 'cut', 'media', 'audio'];
+export const TRACK_NAMES = { comp: 'Comps', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', shot: 'Shots', cut: 'Cuts', media: 'Media', audio: 'Audio', auto: 'Automation' };
 const OLD_TRACKS = ['title', 'say', 'draw', 'action', 'camera', 'audio'];   // (the six every take had before tracks started empty)
 
 /**

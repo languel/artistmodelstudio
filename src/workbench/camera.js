@@ -47,6 +47,28 @@ export function shotAt(take, t, cameraId = null) {
   return best;
 }
 
+/**
+ * The shot on air at t (what the Program shows): with cut clips, the camera of the cut that started last, and that camera's
+ * own shot; without, the shot that started last.
+ */
+export function onAirShot(take, t) {
+  let cut = null;
+  for (const c of flatClips(take)) if (c.track === 'cut' && !c.muted && t >= c.start && t < c.start + c.dur && (!cut || c.start >= cut.start)) cut = c;
+  return cut ? shotAt(take, t, cut.camera) : flatClips(take).some(c => c.track === 'cut') ? null : shotAt(take, t);
+}
+
+/** Cut to a camera at t: the cut that covers t ends there and a new one runs to `until` (the end of the take, at least a second). */
+export function cutTo(take, cameraId, t, until) {
+  t = Math.max(0, Math.round(t));
+  const cuts = take.clips.filter(c => c.track === 'cut');
+  for (const c of cuts) if (t > c.start && t < c.start + c.dur) c.dur = t - c.start;
+  const last = cuts.filter(c => c.start <= t).sort((a, b) => b.start - a.start)[0];
+  if (last && last.camera === cameraId && last.start + last.dur >= t) { last.dur = Math.max(last.dur, (until ?? t + 1000) - last.start); return last; }   // (already on air)
+  const clip = { id: `cut-${Date.now().toString(36)}-${cuts.length}`, track: 'cut', camera: cameraId, start: t, dur: Math.max(1000, (until ?? t + 1000) - t), label: cameraId, fx: {} };
+  take.clips.push(clip);
+  return clip;
+}
+
 const ease = u => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
 
 /** The world rectangle a shot's target covers: { x, y, w, h }. */
@@ -75,6 +97,27 @@ export function viewFor(doc, shot, t, W, H) {
 }
 
 const COMPOSITE = { add: 'lighter' };
+
+/** The frame of a stop-motion board for time t of the film (frames at its fps, over its range, looping), as a bitmap; null until it has loaded. */
+export function stopmotionPicture(app, b, t) {
+  const SM = app.stopmotion; if (!SM) return null;
+  const { sm } = SM.spec(b);
+  if (!sm?.frames?.length) return null;
+  const lo = Math.min(sm.in || 0, sm.frames.length - 1), hi = sm.out == null ? sm.frames.length - 1 : Math.min(sm.out, sm.frames.length - 1), n = Math.max(1, hi - lo + 1);
+  const step = Math.floor((t / 1000) * (sm.fps || 8) / Math.max(1, sm.hold || 1));
+  const i = lo + (sm.loop === false ? Math.min(step, n - 1) : step % n), asset = sm.frames[i];
+  const s = SM.state(b.id);
+  if (!s.images.has(asset)) { SM.image(b.id, asset).then(() => { for (const f of dirtyListeners) f(); }); return null; }
+  return s.images.get(asset);
+}
+
+/** A light falloff over a board's rectangle (a lightbox: bright in the middle, darker toward the edges), by `light` 0..1. */
+function lightFalloff(ctx, x, y, w, h, light) {
+  const g = ctx.createRadialGradient(x + w / 2, y + h / 2, Math.min(w, h) * 0.12, x + w / 2, y + h / 2, Math.hypot(w, h) / 2);
+  const dark = Math.round(255 * (1 - 0.7 * Math.min(1, light)));
+  g.addColorStop(0, '#ffffff'); g.addColorStop(1, `rgb(${dark},${dark},${dark})`);
+  ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = g; ctx.fillRect(x, y, w, h); ctx.restore();
+}
 
 /** Where a board is seen from a view centred on (cx, cy): a board `depth` behind the focal plane moves and scales by 1/(1+depth) about that centre. */
 export function parallaxRect(b, cx, cy) {
@@ -135,12 +178,15 @@ export function renderCamera(app, shot, t, ctx, W, H) {
     if (bx > v.rect.x + v.rect.w || bx + bw < v.rect.x || by > v.rect.y + v.rect.h || by + bh < v.rect.y) continue;
     if (b.source) app.sources.seeCamera?.(b.source);
     if (b.maskWith?.source) app.sources.seeCamera?.(b.maskWith.source);
-    const pic = b.kind === 'p5' || b.kind === 'three' ? sketchPicture(app, b) : drawingPicture(app, b, v.k);
+    const pic = b.kind === 'p5' || b.kind === 'three' ? sketchPicture(app, b) : b.kind === 'stopmotion' ? stopmotionPicture(app, b, t) : drawingPicture(app, b, v.k);
     if (!pic || !(pic.width || pic.naturalWidth)) continue;
     ctx.save();
     ctx.globalAlpha = opacityOf(b);
     const bl = blendOf(b); if (bl !== 'normal') ctx.globalCompositeOperation = COMPOSITE[bl] || bl;
-    ctx.drawImage(pic, (bx - v.x0) * v.k, (by - v.y0) * v.k, bw * v.k, bh * v.k);
+    // (a stop-motion frame is fitted whole into its board)
+    if (b.kind === 'stopmotion') { const w = pic.width, h = pic.height, k = Math.min(bw * v.k / w, bh * v.k / h); ctx.fillStyle = '#101010'; ctx.fillRect((bx - v.x0) * v.k, (by - v.y0) * v.k, bw * v.k, bh * v.k); ctx.drawImage(pic, (bx - v.x0) * v.k + (bw * v.k - w * k) / 2, (by - v.y0) * v.k + (bh * v.k - h * k) / 2, w * k, h * k); }
+    else ctx.drawImage(pic, (bx - v.x0) * v.k, (by - v.y0) * v.k, bw * v.k, bh * v.k);
+    if (b.light > 0) lightFalloff(ctx, (bx - v.x0) * v.k, (by - v.y0) * v.k, bw * v.k, bh * v.k, b.light);
     ctx.restore();
   }
   ctx.restore();

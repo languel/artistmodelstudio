@@ -503,7 +503,8 @@ export class ProcessStore {
         for (const e of d.elements) if (e.board === id) e.points = e.points.map(([x, y, t, p]) => [x + dx, y + dy, t, p]);
       }
       for (const k of ['title', 'ground', 'width', 'height', 'x', 'y']) if (k in patch) b[k] = patch[k];
-      if ('depth' in patch) { if (Number(patch.depth)) b.depth = Number(patch.depth); else delete b.depth; }   // (how far behind the focal plane: the camera moves it less, parallax)
+      if ('depth' in patch) { if (Number(patch.depth)) b.depth = Number(patch.depth); else delete b.depth; }
+      if ('light' in patch) { if (Number(patch.light) > 0) b.light = Math.min(1, Number(patch.light)); else delete b.light; }   // (a lightbox: the camera sees a falloff of light over the board)   // (how far behind the focal plane: the camera moves it less, parallax)
       if ('physics' in patch) { if (patch.physics) b.physics = { ...(b.physics || {}), ...patch.physics }; else delete b.physics; }
       for (const k of BOARD_FLAGS) if (k in patch) { if (patch[k]) b[k] = true; else delete b[k]; }
       if ('rate' in patch) { if (rateOf(patch)) b.rate = rateOf(patch); else delete b.rate; }

@@ -8,7 +8,7 @@
 import { docAt, duration, touch, flatClips } from '../process/take.js';
 import { boardById, MAIN } from '../process/boards.js';
 import { boardLive } from './boardSource.js';
-import { camerasOf, cameraById, shotAt, renderCamera, viewFor, releaseCameras } from './camera.js';
+import { camerasOf, cameraById, shotAt, onAirShot, renderCamera, viewFor, releaseCameras } from './camera.js';
 import { lanesOf, valueAt } from '../process/keyframes.js';
 import { param } from './params.js';
 import { advanceTransportPlaybackTime } from '../time/transport.js';
@@ -153,7 +153,7 @@ export class TakePlayer {
    */
   get composing() {
     if (!this.take || this.recording) return false;
-    return !flatClips(this.take).some(c => c.track === 'draw' || c.track === 'camera');
+    return !flatClips(this.take).some(c => !c.muted && (c.track === 'draw' || c.track === 'camera'));   // (the History track is muted: it does not make a take a recording)
   }
 
   /** Where the picture is on screen: the artboard of a take shown (at the view's transform), else the main board of the scene. */
@@ -190,7 +190,7 @@ export class TakePlayer {
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
     // The camera: the shot active now (the one that started last for the Program, or this camera's own), shown contained.
-    const shot = shotAt(this.take, this.t, cameraId);
+    const shot = cameraId ? shotAt(this.take, this.t, cameraId) : onAirShot(this.take, this.t);
     if (shot) {
       const cam = cameraById(this.take, shot.camera), off = (this.camCanvases ||= new Map()).get(cam.id) || (() => { const c = document.createElement('canvas'); this.camCanvases.set(cam.id, c); return c; })();
       if (off.width !== cam.w || off.height !== cam.h) { off.width = cam.w; off.height = cam.h; }
@@ -212,7 +212,7 @@ export class TakePlayer {
       const shot = shotAt(this.take, this.t, cam.id);
       if (!shot) continue;
       const r = viewFor(this.app.store.doc, shot, this.t, cam.w, cam.h).rect;
-      const x = tf.x + r.x * tf.scale, y = tf.y + r.y * tf.scale, w = r.w * tf.scale, h = r.h * tf.scale, live = shotAt(this.take, this.t)?.camera === cam.id;
+      const x = tf.x + r.x * tf.scale, y = tf.y + r.y * tf.scale, w = r.w * tf.scale, h = r.h * tf.scale, live = onAirShot(this.take, this.t)?.camera === cam.id;
       ctx.save();
       ctx.strokeStyle = cam.color; ctx.lineWidth = live ? 2.5 : 1.5; ctx.setLineDash(live ? [] : [6, 4]);
       ctx.strokeRect(x, y, w, h);

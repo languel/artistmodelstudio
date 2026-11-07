@@ -16,6 +16,7 @@ Commits on `main` from `d9a03a5` to `57f693f`, all with tests (778) and a passin
 - **Cameras (Phase 1)** (`src/workbench/camera.js`, tests `camera.test.js`): `take.cameras`, `shot` clips (target board/region, pose, move), `renderCamera` (each board as a picture through the shot's view), Program = the shot that started last, a board per camera, viewfinders on the canvas, Insert menu and Properties for shots; sources a camera sees are kept running (`Sources.seeCamera`); the Program/camera sources stay awake while a take is open. Deferred: explicit cut track, converting old Camera clips, camera size/fps UI.
 - **Phase 2** : shot pose lanes (`shot:`), board `depth` + parallax in `renderCamera`, curve view + key dragging in `panels/timeline.js` `paintLane`, record automation (`keyframeDot.js` `recording`, `thinKeys`). Clips added by `app._tlAddClip` now always get an id.
 - **Phase 3 + 4**: sketch restart keeps lane values (`ctlValuesFor`); render: `BoardFrames.beginRender/advance/endRender` + render mode in the frame bridge, `workbench/render.js` (`renderTake`, dialog), `startEncoder`. Renders are byte-identical for the same scene. No sound yet. Camera pictures in render come from `app.frames.renderPics`.
+- **Phase 5**: cuts (`cut` clips, `onAirShot`, `cutTo`, `app.cutToCamera`, pills in the bar), stop-motion boards in `renderCamera` (`stopmotionPicture`), lightbox (`board.light`). All five phases of the plan are built; see its status notes.
 - **Plan** [camera-plan.md](camera-plan.md): several cameras, parallax, one keyframe system, a deterministic frame-by-frame render (decisions in its section 0).
 
 **How the new parts fit**
@@ -25,7 +26,7 @@ Commits on `main` from `d9a03a5` to `57f693f`, all with tests (778) and a passin
 - Dev server note: after a code edit the page reloads and an unsaved take is lost; test in one go.
 
 **Not done / next** (see camera-plan.md §7)
-1. Phase 5 (stop-motion poses through the camera, live camera switching recorded as shots, lightbox), render with sound, and the dot on the remaining fields (Play section, notes, tool/sculpt settings, timeline clip fields; effects need stable ids), curve editor, record, auto-key on not-yet-animated parameters, parallax; Phase 3 sketch parameter audit; Phase 4 deterministic render (spike first: seed + time shim for sketches).
+1. Render with sound, onion skin through the camera, depth of field, the dot on the remaining fields, and the author's bug list (Play section, notes, tool/sculpt settings, timeline clip fields; effects need stable ids), curve editor, record, auto-key on not-yet-animated parameters, parallax; Phase 3 sketch parameter audit; Phase 4 deterministic render (spike first: seed + time shim for sketches).
 2. Media clips and board clips are not in the take's standalone player, HTML export or video render yet.
 3. The Timeline panel is small; no edge trimming; Mediathèque cards are large in a narrow dock (a compact list would help).
 4. Untested by hand: drag a card to a timeline lane, the dot's right-click menu and the I key, pinning the Program board, a choice (`a|b|c`) control keyed in a sketch. Testing in the shared browser tab changes the author's real scene: sliders rewrite sketch code, automation leaves values in the document; restore what you touch.
