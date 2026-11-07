@@ -82,14 +82,14 @@ export function mountProperties(el, app, { compact = false } = {}) {
       // A plane is a stroke, a fill, and a way of painting that fill (its brush).
       el.append(section('Stroke', true,
         row('Color', colorField(e.color, v => patchAll({ color: v }, 'stroke'), { app, allowNone: true, noneValue: 'none', noneLabel: !e.color && !e.fill ? 'default' : 'none', title: 'The outline' })),
-        row('Width', numberField({ value: e.strokeWidth ?? 2, min: 0.25, max: 60, step: 0.25, def: 2, title: 'How wide the outline is', onChange: (v, { final }) => { if (final) patchAll({ strokeWidth: v }, 'stroke width'); } }))));
+        row('Width', numberField({ value: e.strokeWidth ?? 2, min: 0.25, max: 60, step: 0.25, def: 2, title: 'How wide the outline is', address: multi ? null : `mark:${e.id}.strokeWidth`, onChange: (v, { final }) => { if (final) patchAll({ strokeWidth: v }, 'stroke width'); } }))));
       el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'fill style'), app.store.doc, {
-        title: 'Fill', label: 'Style', showParams: Boolean(e.fill),
+        title: 'Fill', label: 'Style', showParams: Boolean(e.fill), address: multi ? null : `mark:${e.id}`,
         before: [row('Color', colorField(e.fill, v => patchAll({ fill: v }, 'fill'), { app, allowNone: true, title: 'The inside. None: the plane is its outline alone', fallback: e.color && e.color !== 'none' ? e.color : '#8a8175' }))]
       }));
     }
-    else el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc));
-    el.append(lookSection(e, patch => patchAll(patch, 'look'), e.id ? `mark:${e.id}.opacity` : null));
+    else el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc, { address: multi ? null : `mark:${e.id}` }));
+    el.append(lookSection(e, patch => patchAll(patch, 'look'), e.id && !multi ? `mark:${e.id}.opacity` : null));
     if (e.role !== 'note' && e.role !== 'image') {
       // Several marks: the controls of the first, applied to every selected mark that has the same Play parts (a traveler's tail on all the travelers).
       const kinds = m => Object.keys(m.play || {}).filter(k => k !== 'in').sort().join(',');
@@ -200,8 +200,8 @@ export function mountProperties(el, app, { compact = false } = {}) {
     el.append(h('div', { class: 'wb-panel-title' }, 'Board', h('span', { class: 'wb-muted' }, b.main ? ' · main' : ''), h('span', { style: { flex: 1 } }), flags));
     el.append(section('Board', true,
       row('Title', title),
-      row('Width', numberField({ value: b.width, min: 40, max: 10000, step: 10, def: 1000, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { width: Math.round(v) }); } })),
-      row('Height', numberField({ value: b.height, min: 40, max: 10000, step: 10, def: 1000, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { height: Math.round(v) }); } })),
+      row('Width', numberField({ value: b.width, min: 40, max: 10000, step: 10, def: 1000, address: `board:${b.id}.width`, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { width: Math.round(v) }); } })),
+      row('Height', numberField({ value: b.height, min: 40, max: 10000, step: 10, def: 1000, address: `board:${b.id}.height`, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { height: Math.round(v) }); } })),
       row('Redraw', numberField({ value: rateOf(b), min: 0, max: 60, step: 1, def: 0, title: 'Runs a second for a board that follows a source (each with fresh randomness); 0: once per new frame of the source', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { rate: Math.round(v) }); } })),
       row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app })),
       row('Opacity', withDot(numberField({ value: opacityOf(b), min: 0, max: 1, step: 0.05, def: 1, title: 'How much of the board shows over what is under it (boards are layers: later ones are above)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { opacity: v }); } }), `board:${b.id}.opacity`)),
@@ -213,7 +213,7 @@ export function mountProperties(el, app, { compact = false } = {}) {
     media = null;
     // The source under a board (any): how it shows (opacity, blend, fit).
     const look = b.source && b.kind !== 'player' ? [
-      row('Opacity', numberField({ value: b.sourceOpacity ?? 0.5, min: 0, max: 1, step: 0.05, def: 0.5, title: 'How much of the source shows under the board’s marks', onChange: v => app.setBoardSourceLook(b.id, { opacity: v }) })),
+      row('Opacity', numberField({ value: b.sourceOpacity ?? 0.5, min: 0, max: 1, step: 0.05, def: 0.5, address: `board:${b.id}.sourceOpacity`, title: 'How much of the source shows under the board’s marks', onChange: v => app.setBoardSourceLook(b.id, { opacity: v }) })),
       row('Blend', blendField(b.sourceBlend, v => app.setBoardSourceLook(b.id, { blend: v }))),
       row('Fit', selectField([['cover', 'Cover'], ['contain', 'Contain']], b.sourceFit === 'contain' ? 'contain' : 'cover', v => app.setBoardSourceLook(b.id, { fit: v }), 'Cover fills the board (cropped); contain shows all of it'))
     ] : [];
@@ -379,7 +379,7 @@ function noteSection(p, onChange, noteApp = null) {
       h('label', { class: 'wb-row', title: 'No background: writing straight on the page' }, h('input', { type: 'checkbox', checked: !p.bg, onchange: ev => onChange({ bg: ev.target.checked ? null : bgValue }) }), h('span', {}, 'none')))));
 }
 
-function brushSection(role, realize, onChange, doc, { title = 'Brush', label = 'Brush', before = [], showParams = true } = {}) {
+function brushSection(role, realize, onChange, doc, { title = 'Brush', label = 'Brush', before = [], showParams = true, address = null } = {}) {
   const brushes = brushesForRole(role, doc);
   const brushId = realize?.brush || brushes[0]?.id;
   const b = BRUSHES[brushId];
@@ -390,7 +390,7 @@ function brushSection(role, realize, onChange, doc, { title = 'Brush', label = '
   for (const s of showParams ? b?.params || [] : []) {
     if (s.key === 'edge' && role === 'plane' && !params.edge) continue;   // (the plane has a Stroke; an old edge still shows, to take off)
     box.append(row(s.label, numberField({
-      value: params[s.key], min: s.min, max: s.max, step: s.step, def: s.default, title: s.doc,
+      value: params[s.key], min: s.min, max: s.max, step: s.step, def: s.default, title: s.doc, address: address ? `${address}.brush.${s.key}` : null,
       onChange: (v, { final }) => { if (final) onChange({ brush: brushId, params: { [s.key]: v } }); }
     }), s.doc));
   }

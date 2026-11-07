@@ -662,7 +662,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, [contentedita
 .wb-preview-row { display: flex; gap: 8px; align-items: stretch; flex: none; }
 .wb-ctl-strip { flex: 1 1 40%; min-width: 150px; display: flex; flex-direction: column; justify-content: center; gap: 5px; overflow: auto; }
 .wb-ctl-strip[hidden], .wb-code-view:not(.sliders-preview) .wb-ctl-strip { display: none; }
-.wb-ctl-row { display: grid; grid-template-columns: minmax(40px, 70px) 1fr 34px; gap: 6px; align-items: center; font-size: 11px; }
+.wb-ctl-row { display: grid; grid-template-columns: minmax(40px, 70px) 1fr 34px 14px; gap: 6px; align-items: center; font-size: 11px; }
 .wb-ctl-label { color: var(--wb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-ctl-row .wb-range { width: 100%; }
 .wb-ctl-choice > :nth-child(2) { justify-self: start; max-width: 100%; }
@@ -1382,3 +1382,9 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-kf.anim svg path { fill: currentColor; opacity: .55; }
 .wb-kf.key { color: #f2c14e; } .wb-kf.key svg path { fill: currentColor; opacity: 1; }
 .wb-kf.dirty { color: #e8884a; } .wb-kf.dirty svg path { fill: currentColor; opacity: .8; }
+
+/* Automation lanes on the Timeline: legible, with their keyframes */
+.wb-tl-clip.t-auto { background: #cdbfe6; color: #2a2236; cursor: grab; }
+.wb-tl-clip.t-auto .wb-tl-cliptext { position: relative; z-index: 1; padding-left: 14px; text-shadow: 0 0 3px #cdbfe6, 0 0 3px #cdbfe6; }
+.wb-tl-key { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; transform: rotate(45deg); background: #2a2236; border: 1px solid #f6f1ff; border-radius: 1px; z-index: 2; }
+.wb-tl-key:hover { background: #f2c14e; }

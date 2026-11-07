@@ -20,7 +20,11 @@ export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;'
  * Number field: type a value, or drag horizontally (Shift = fine), Shift+Backspace resets.
  * onChange(value, { final }) — final is true on commit (blur/enter/pointer up).
  */
-export function numberField({ value, min = -Infinity, max = Infinity, step = 1, def = value, title = '', onChange }) {
+let decorate = null;
+/** The keyframe dot registers itself here: a field made with an `address` gets it beside it (keyframeDot.js). */
+export const setFieldDecorator = fn => { decorate = fn; };
+
+export function numberField({ value, min = -Infinity, max = Infinity, step = 1, def = value, title = '', address = null, onChange }) {
   const input = h('input', { type: 'number', class: 'wb-num', value: String(value), min, max, step, title });
   const clamp = v => Math.min(max, Math.max(min, v));
   const round = v => Math.round(v / step) * step;
@@ -45,7 +49,7 @@ export function numberField({ value, min = -Infinity, max = Infinity, step = 1, 
     window.addEventListener('pointermove', mv);
     window.addEventListener('pointerup', up);
   });
-  return input;
+  return address && decorate ? decorate(input, address) : input;
 }
 
 export function selectField(options, value, onChange, title = '') {

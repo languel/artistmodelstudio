@@ -20,7 +20,7 @@ import { waveFor, fromPeaks, drawWave } from '../waveform.js';
 import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, rulerTicks, autoGrid, gridLayer, timeLabel, editPoints, nextEdit, MAX_CONTENT_PX } from '../../time/timelineView.js';
 
 const AUDIO_CLIP_H = 33;
-const TRACK_LABEL = { comp: 'Composition', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', media: 'Media', audio: 'Audio' };
+const TRACK_LABEL = { comp: 'Composition', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', media: 'Media', audio: 'Audio', auto: 'Automation' };
 const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`; };
 const RULER_NAMES = { time: 'Minutes and seconds', beats: 'Bars, beats and sixteenths', frames: 'Frames' };
 /** The clips' colours in the navigator (as the lanes have them). */
@@ -336,7 +336,10 @@ export function mountTimeline(root, app) {
     return P().take;
   };
   /** Clips made elsewhere (a board's clip) come in at the playhead. */
+  /** Keys were added or removed by a dot: redraw the lanes without re-evaluating every parameter (a value you changed on another one stays until you move the playhead). */
+  app._tlKeysEdited = () => { if (!P().take) return; touch(P().take); drawLanes(); drawBar(); commit('keys'); P().emit(); };
   app._tlEnsureTake = ensureTake;
+  app._tlFit = () => { fitZoom(); drawBar(); };
   app._tlAddClip = clip => {
     const take = ensureTake();
     let start = Math.round(P().t);
@@ -878,6 +881,10 @@ export function mountTimeline(root, app) {
         if (k.start >= c.dur * rate) continue;
         el.append(h('span', { class: `wb-tl-compbit t-${k.track}`, style: { left: `${x(k.start / rate)}px`, width: `${Math.max(2, x((k.dur || 0) / rate))}px` } }));
       }
+    }
+    if (c.track === 'auto') {
+      // An automation lane: its keyframes as diamonds (from the lane's start), the value in the tooltip.
+      for (const k of c.keys || []) el.append(h('span', { class: 'wb-tl-key', style: { left: `${Math.min(w - 6, Math.max(6, x(k.t)))}px` }, title: `${fmt(c.start + k.t)} · ${typeof k.v === 'number' ? +k.v.toFixed(3) : JSON.stringify(k.v)} · ${k.ease || 'ease'}` }));
     }
     if (c.track === 'audio') {
       // The waveform: real min/max slices, drawn for the width the clip has now (a rough one from the old peaks shows until the sound is decoded).

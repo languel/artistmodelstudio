@@ -328,7 +328,7 @@ export class TakePlayer {
     const lanes = lanesOf(this.take);
     if (this.app.frames) this.app.frames.automated = new Set(lanes.filter(l => l.address.startsWith('ctl:')).map(l => l.address.slice(4)));   // (sketch controls a lane drives)
     for (const lane of lanes) {
-      const v = valueAt(lane.keys, this.t);
+      const v = valueAt(lane.keys, this.t - lane.start);
       if (v == null || this.applied.get(lane.address) === v) continue;
       const p = param(lane.address);
       if (!p) continue;

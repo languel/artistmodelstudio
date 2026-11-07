@@ -181,3 +181,12 @@ States seen: hollow, animated (filled), keyframe here (bright), changed-not-keye
 3. **Scrub must re-apply.** A value changed by hand, then a jump of the playhead to a time whose lane value is unchanged, must go back; `seek` clears the applied cache (playback keeps it so nothing is redrawn for nothing).
 4. **Only fields on the shared widgets get the dot** (here: three call sites changed by hand). The audit in section 9.8 is still the main cost of Phase 2: this spike wrapped three of the dozens of fields.
 5. The `auto` track needs a name, an icon and a curve view in the Timeline (it appears as a plain row labelled `auto`).
+
+### Update after the author's first try (7 Nov 2026, later)
+Feedback: lanes were dark on dark and hard to read, keys were hard to see, the dot only appeared on Opacity, and in code the dot wrapped to a new row. Changed:
+- **Lanes are legible.** Each parameter gets **its own row, named for it** ("line · Width", "Board 5 · back"), a light bar with its keyframes drawn as diamonds (value and ease in the tooltip). The first keyframe fits the view to the take. Keys are stored **relative to the lane's start**, so moving a lane moves its keys.
+- **The dot is on many more fields.** `numberField({ address })` is all a field needs (the keyframe dot registers a decorator); done for a mark's brush parameters (Width, Pressure, Taper, Wobble, Opacity), plane stroke width, look Opacity, board Width/Height/Opacity and the source's Opacity, and every sketch control. Marks and boards pass a stable address (`mark:<id>.brush.width`, `board:<id>.height`).
+- **Value kinds.** Numbers ease; `#rrggbb` colours blend in RGB (the grey mid-way seen on a sketch's `back`); toggles, choices and palettes hold their value until the next key.
+- **In the code panel the dot sits in the control row** (a fourth column), not on a new row.
+- Keying a parameter no longer re-evaluates every other parameter (a value you changed and have not keyed stays until the playhead moves).
+Still open: colour pickers, selects and blend modes in Properties (only numbers are wired), the camera-style board X/Y, and the audit of the many remaining numeric fields.

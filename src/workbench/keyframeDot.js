@@ -10,7 +10,8 @@
 import { h } from './ui.js';
 import { showMenu } from './menu.js';
 import { param } from './params.js';
-import { valueAt, laneFor, keyNear, setKey, removeKey, clearLane, EASE_NAMES } from '../process/keyframes.js';
+import { valueAt, laneFor, keyNear, setKey, removeKey, clearLane, sameValue, EASE_NAMES } from '../process/keyframes.js';
+import { setFieldDecorator } from './ui.js';
 
 let host = null;
 export const setKeyframeHost = app => { host = app; };
@@ -22,7 +23,7 @@ let hovered = null;   // the dot of the field the pointer is over (for the I key
 function read(address) {
   const take = host?.player?.take || null, p = param(address), t = host?.player?.t ?? 0;
   const lane = take ? laneFor(take, address) : null;
-  return { take, p, lane, t, key: lane ? keyNear(lane, t) : null, cur: p?.get?.(), laneValue: lane ? valueAt(lane.keys, t) : null };
+  return { take, p, lane, t, key: lane ? keyNear(lane, t - lane.start) : null, cur: p?.get?.(), laneValue: lane ? valueAt(lane.keys, t - lane.start) : null };
 }
 
 function toggle(address, on) {
@@ -30,9 +31,11 @@ function toggle(address, on) {
   if (!p) return;
   const tk = take || host._tlEnsureTake?.();
   if (!tk) return;
-  if (key && on !== true) removeKey(tk, address, t); else if (!key && on !== false) setKey(tk, address, t, cur);
+  let made = false;
+  if (key && on !== true) removeKey(tk, address, t); else if (!key && on !== false) { made = !laneFor(tk, address); setKey(tk, address, t, cur, 'ease', p.label); }
   host.player.applied?.delete(address);
-  host.timelineEdited?.();
+  (host._tlKeysEdited || host.timelineEdited)?.();
+  if (made) host._tlFit?.();   // (a first keyframe: show the whole take, so the new row can be seen)
 }
 
 /** The dot for an address. `show(v)` writes a value the lane drives into the field beside it. */
@@ -42,9 +45,9 @@ export function keyframeDot(address, { show = null } = {}) {
     if (!btn.isConnected) return;
     const { lane, key, cur, laneValue, p } = read(address);
     btn.disabled = !p;
-    const dirty = lane && key == null && cur != null && laneValue != null && Math.abs(cur - laneValue) > ((p?.step || 0.01) / 2);
+    const dirty = lane && key == null && cur != null && laneValue != null && !sameValue(cur, laneValue, (p?.step || 0.01) / 2);
     btn.className = `wb-kf${lane ? ' anim' : ''}${key ? ' key' : ''}${dirty ? ' dirty' : ''}`;
-    if (lane && show && laneValue != null && !btn.matches(':active')) show(laneValue);
+    if (lane && show && laneValue != null && !btn.matches(':active') && !sameValue(cur, laneValue, 0)) show(laneValue);
   };
   btn.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); toggle(address); paint(); });
   btn.addEventListener('contextmenu', ev => {
@@ -54,8 +57,8 @@ export function keyframeDot(address, { show = null } = {}) {
       { label: 'Keyframe' },
       { label: 'Insert keyframe', keys: 'I', run: () => { toggle(address, true); paint(); } },
       { label: 'Delete keyframe', keys: '⌥I', disabled: !key, run: () => { toggle(address, false); paint(); } },
-      { label: 'Interpolation', disabled: !key, items: EASE_NAMES.map(n => ({ label: n, active: key?.ease === n, run: () => { key.ease = n; host.timelineEdited?.(); paint(); } })) },
-      { label: 'Clear all keyframes', disabled: !lane, run: () => { clearLane(host.player.take, address); host.player.applied?.delete(address); host.timelineEdited?.(); paint(); } }
+      { label: 'Interpolation', disabled: !key, items: EASE_NAMES.map(n => ({ label: n, active: key?.ease === n, run: () => { key.ease = n; (host._tlKeysEdited || host.timelineEdited)?.(); paint(); } })) },
+      { label: 'Clear all keyframes', disabled: !lane, run: () => { clearLane(host.player.take, address); host.player.applied?.delete(address); (host._tlKeysEdited || host.timelineEdited)?.(); paint(); } }
     ], ev.clientX, ev.clientY);
   });
   btn._toggle = on => { toggle(address, on); paint(); };
@@ -76,6 +79,8 @@ export function withDot(field, address) {
   wrap.addEventListener('pointerleave', () => { if (hovered === dot) hovered = null; });
   return wrap;
 }
+
+setFieldDecorator(withDot);
 
 // I over a field keys it (Alt+I removes): in the capture phase, before the Eyedropper's I.
 if (typeof window !== 'undefined') window.addEventListener('keydown', ev => {

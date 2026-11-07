@@ -92,7 +92,7 @@ export function createTake({ title = 'Take', baseline, clips = [] } = {}) {
 
 export const duration = take => Math.max(0, ...take.clips.map(c => c.start + c.dur));
 export const TRACKS = ['comp', 'title', 'say', 'draw', 'action', 'camera', 'media', 'audio'];
-export const TRACK_NAMES = { comp: 'Comps', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', media: 'Media', audio: 'Audio' };
+export const TRACK_NAMES = { comp: 'Comps', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', media: 'Media', audio: 'Audio', auto: 'Automation' };
 const OLD_TRACKS = ['title', 'say', 'draw', 'action', 'camera', 'audio'];   // (the six every take had before tracks started empty)
 
 /**
