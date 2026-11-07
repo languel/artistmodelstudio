@@ -31,6 +31,8 @@ import { AssetStore } from '../assets/assetStore.js';
 import { AssetPanel } from '../ui/AssetPanel.js';
 import { MediathequePanel } from '../ui/MediathequePanel.js';
 import * as mediaClips from './mediaClips.js';
+import { installParams } from './params.js';
+import { setKeyframeHost } from './keyframeDot.js';
 import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
 import { icon, brushIcon, sculptIcon, nodeIcon } from './icons.js';
@@ -1516,6 +1518,8 @@ export class Workbench {
     this.requests = new RequestLog(this);
     this.speaker = new Speaker(this);
     this.player = new TakePlayer(this);
+    installParams(this);
+    setKeyframeHost(this);
     this.score = new ScorePlayer(this);   // plays marks with `play` on the transport
     try { this.scoreView = { ...SCORE_LOOK, names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { ...SCORE_LOOK, names: false }; }
     this.scoreOverlay = new ScoreOverlay(this);   // and shows them: travelers, lit events

@@ -166,3 +166,18 @@ Each phase ends with something visible and a check in the browser; each is one o
 1. Phase 1 spike: `renderCamera` for a board target and a locked shot, two cameras and a cut; Program board fed from it; compare against what the Program board shows now.
 2. Phase 2 spike: the registry and the diamond on **three** different kinds of field (a Properties number, a board panel slider, a sketch control) keyed and played back; this tests whether one wrapper really fits.
 3. Phase 4 spike (parallel, independent): step a p5 sketch N frames with a seed and a time shim; render 50 frames; verify two runs match. This decides how much of section 5.2 is real.
+
+## 11. Keyframe dot spike: result (7 Nov 2026)
+
+Built as a spike on `main` (not a finished feature): `src/process/keyframes.js` (lane model, interpolation, tests), `src/workbench/params.js` (address registry: `board:`, `mark:`, `ctl:`), `src/workbench/keyframeDot.js` (the diamond, `withDot`, the I key), automation applied by `TakePlayer.applyAutomation`, `BoardFrames.setCtl/getCtl`, styles `.wb-kf`.
+
+**Result: one wrapper fits three very different fields.** The same dot and the same lane type drive (1) a **board's Opacity** in the Board panel, (2) a **mark's Opacity** in Properties › Look, and (3) a **sketch control** in the board code panel's control strip (`ctl:<board>.<name>`), all keyed at 0 and 2 s: values at 1 s are exactly half-way (board 0.65, mark 0.55, control 3.5 with the default ease), the same while playing (990 ms: 0.66, 0.56, 3.45), and the sketch's code is untouched (the lane overrides the live value only).
+
+States seen: hollow, animated (filled), keyframe here (bright), changed-not-keyed (warm); the field follows its lane (shows 0.2 at 3 s). Not yet: the right-click menu and the I key were written but not exercised by hand; Auto-key, record, the curve editor and the Timeline lane drawing are not built (lanes show as an `auto` row).
+
+**Findings that change the plan**
+1. **Code values fight automation.** The board frames re-send a sketch's control values from its code on every document update, which reset an automated control within 200 ms. Fixed with an `automated` set: a control a lane drives is skipped by that sync. Any other place that pushes values from a source of truth needs the same rule (Phase 3 must audit them).
+2. **Automation writes into the document (transiently).** A value set from a lane stays in the saved scene at the last frame played (as in Blender). Options for Phase 2: restore the keyed "rest" values when the take closes, or accept it and show the dot as animated when a scene is reopened. To decide.
+3. **Scrub must re-apply.** A value changed by hand, then a jump of the playhead to a time whose lane value is unchanged, must go back; `seek` clears the applied cache (playback keeps it so nothing is redrawn for nothing).
+4. **Only fields on the shared widgets get the dot** (here: three call sites changed by hand). The audit in section 9.8 is still the main cost of Phase 2: this spike wrapped three of the dozens of fields.
+5. The `auto` track needs a name, an icon and a curve view in the Timeline (it appears as a plain row labelled `auto`).

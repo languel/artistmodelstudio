@@ -318,11 +318,24 @@ export class BoardFrames {
     if (!f?.iframe || !f.running) return;
     const vals = liveValues(code);
     for (const [key, value] of Object.entries(vals)) {
+      if (this.automated?.has(`${id}.${key}`)) continue;   // (a lane owns it: the code's value is only its default)
       if (f.vals && JSON.stringify(f.vals[key]) === JSON.stringify(value)) continue;
       (f.vals ||= {})[key] = value;
       try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'ctl', key, value }, '*'); } catch { /* gone */ }
       this.app.outputs?.ctl(id, key, value, f.token);
     }
+  }
+  /** A running sketch's control, now (what automation reads). */
+  getCtl(id, key) { const f = this.frames.get(id); const v = f?.vals?.[key]; if (v !== undefined) return v; const c = liveValues(this.app.store.doc.boards?.find(b => b.id === id)?.code || ''); return c[key]; }
+  /** Set a running sketch's control without touching its code (automation: the code keeps its default). */
+  setCtl(id, key, value) {
+    const f = this.frames.get(id);
+    if (!f?.iframe || !f.running) return false;
+    if (f.vals && JSON.stringify(f.vals[key]) === JSON.stringify(value)) return true;
+    (f.vals ||= {})[key] = value;
+    try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'ctl', key, value }, '*'); } catch { /* gone */ }
+    this.app.outputs?.ctl(id, key, value, f.token);
+    return true;
   }
   /** Ask a board's sketch to pass H and Shift+H to the studio (Perform's controls), or not. */
   /** Tell every running sketch whether the boards are being presented (its arrow keys then step the presentation). */

@@ -4,6 +4,7 @@
  * the reason ("why"), and who made it.
  */
 import { h, row, numberField, selectField, section, esc } from '../ui.js';
+import { withDot } from '../keyframeDot.js';
 import { icon } from '../icons.js';
 import { rangeInput, paintRange } from '../rangeInput.js';
 import { colorField } from '../colorPicker.js';
@@ -88,7 +89,7 @@ export function mountProperties(el, app, { compact = false } = {}) {
       }));
     }
     else el.append(brushSection(e.role, e.realize, realize => patchAll({ realize }, 'brush'), app.store.doc));
-    el.append(lookSection(e, patch => patchAll(patch, 'look')));
+    el.append(lookSection(e, patch => patchAll(patch, 'look'), e.id ? `mark:${e.id}.opacity` : null));
     if (e.role !== 'note' && e.role !== 'image') {
       // Several marks: the controls of the first, applied to every selected mark that has the same Play parts (a traveler's tail on all the travelers).
       const kinds = m => Object.keys(m.play || {}).filter(k => k !== 'in').sort().join(',');
@@ -203,7 +204,7 @@ export function mountProperties(el, app, { compact = false } = {}) {
       row('Height', numberField({ value: b.height, min: 40, max: 10000, step: 10, def: 1000, onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { height: Math.round(v) }); } })),
       row('Redraw', numberField({ value: rateOf(b), min: 0, max: 60, step: 1, def: 0, title: 'Runs a second for a board that follows a source (each with fresh randomness); 0: once per new frame of the source', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { rate: Math.round(v) }); } })),
       row('Paper', colorField(b.ground, v => app.store.updateBoard(b.id, { ground: v }), { title: 'Paper', fallback: '#f3efe6', app })),
-      row('Opacity', numberField({ value: opacityOf(b), min: 0, max: 1, step: 0.05, def: 1, title: 'How much of the board shows over what is under it (boards are layers: later ones are above)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { opacity: v }); } })),
+      row('Opacity', withDot(numberField({ value: opacityOf(b), min: 0, max: 1, step: 0.05, def: 1, title: 'How much of the board shows over what is under it (boards are layers: later ones are above)', onChange: (v, { final }) => { if (final) app.store.updateBoard(b.id, { opacity: v }); } }), `board:${b.id}.opacity`)),
       row('Blend', blendField(blendOf(b), v => app.store.updateBoard(b.id, { blend: v }), '', BOARD_BLENDS)),
       h('div', { class: 'wb-muted wb-small' }, `${marksOf(app.store.doc, b.id).length} marks${!app.embed && trainBoard(app.store.doc) === b.id ? ' · models learn from this board' : ''}`)));
     // Media: the same controls as the player board (play / pause, frame steps, the timeline, speed),
@@ -358,9 +359,9 @@ export function mountProperties(el, app, { compact = false } = {}) {
 }
 
 /** Opacity and blend mode: every element has them, on top of its brush. */
-function lookSection(e, onChange) {
+function lookSection(e, onChange, address = null) {
   return section('Look', true,
-    row('Opacity', numberField({ value: e.opacity ?? 1, min: 0, max: 1, step: 0.05, def: 1, title: 'The whole element’s opacity (on top of the brush’s own)', onChange: v => onChange({ opacity: v }) })),
+    row('Opacity', withDot(numberField({ value: e.opacity ?? 1, min: 0, max: 1, step: 0.05, def: 1, title: 'The whole element’s opacity (on top of the brush’s own)', onChange: v => onChange({ opacity: v }) }), address)),
     row('Blend', blendField(e.blend, v => onChange({ blend: v }), 'How the element mixes with what is under it')),
     row('Path', pathField(e.path === 'straight' ? 'straight' : 'smooth', v => onChange({ path: v === 'straight' ? 'straight' : undefined })), 'Smooth: a curve through the points. Straight: straight segments between them'));
 }

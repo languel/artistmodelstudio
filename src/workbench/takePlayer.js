@@ -8,6 +8,8 @@
 import { docAt, duration, touch, flatClips } from '../process/take.js';
 import { boardById, MAIN } from '../process/boards.js';
 import { boardLive } from './boardSource.js';
+import { lanesOf, valueAt } from '../process/keyframes.js';
+import { param } from './params.js';
 import { advanceTransportPlaybackTime } from '../time/transport.js';
 import { normalizeTransport, loopRange, inOutRange } from '../time/sceneTransport.js';
 
@@ -78,6 +80,7 @@ export class TakePlayer {
   load(take) {
     this.pause();
     this.take = take;
+    this.applied = null;
     touch(take);
     this.t = 0;
     this.render();
@@ -213,6 +216,8 @@ export class TakePlayer {
     for (const a of this.audios?.values() || []) a.pause();
     for (const v of this.videos?.values() || []) v.pause();
     this.videos?.clear();
+    this.applied = null;
+    if (this.app.frames) this.app.frames.automated = null;
     for (const l of this.boardLives?.values() || []) l.stop?.();
     this.boardLives?.clear();
     this.take = null;
@@ -222,14 +227,14 @@ export class TakePlayer {
   }
 
   /** The take was edited: redraw at the same time. */
-  changed() { if (this.take) { touch(this.take); this.render(); this.emit(); } }
+  changed() { if (this.take) { this.applied = null; touch(this.take); this.render(); this.emit(); } }
 
   // (without a take the timeline has no end: you can seek and play past the drawn length)
   /** Where the playhead is right now (ms): `t` is as of its last tick, up to a frame or a timer old. Sound wants this one. */
   position() { return this.playing ? this.t + (performance.now() - (this.at ?? performance.now())) * this.rate : this.t; }
 
   // (past a take's end too: that is where the next thing goes; playing from there starts it over)
-  seek(t) { this.t = Math.max(0, Number.isFinite(t) ? t : this.duration); this.at = performance.now(); this.render(); this.syncAudio(); if (!this.playing) this.scrubCursor(); this.emit(); }
+  seek(t) { this.t = Math.max(0, Number.isFinite(t) ? t : this.duration); this.applied = null; /* a jump re-applies every lane: a value changed by hand goes back */ this.at = performance.now(); this.render(); this.syncAudio(); if (!this.playing) this.scrubCursor(); this.emit(); }
 
   /** The selection frames recorded with the interactions: the marks selected at this moment get a dashed frame, as they did when they were picked. */
   drawSelection(ctx, tf, doc) {
@@ -316,8 +321,25 @@ export class TakePlayer {
   pause() { this.playing = false; cancelAnimationFrame(this.raf); clearInterval(this.timer); this.syncAudio(); this.scrubCursor(); this.emit(); }
   toggle() { this.playing ? this.pause() : this.play(); }
 
+  /** Automation: every parameter with a lane takes its value at the playhead (only when it differs, so nothing is redrawn for nothing). */
+  applyAutomation() {
+    if (!this.take) return;
+    this.applied ||= new Map();
+    const lanes = lanesOf(this.take);
+    if (this.app.frames) this.app.frames.automated = new Set(lanes.filter(l => l.address.startsWith('ctl:')).map(l => l.address.slice(4)));   // (sketch controls a lane drives)
+    for (const lane of lanes) {
+      const v = valueAt(lane.keys, this.t);
+      if (v == null || this.applied.get(lane.address) === v) continue;
+      const p = param(lane.address);
+      if (!p) continue;
+      p.set(v);
+      this.applied.set(lane.address, v);
+    }
+  }
+
   render() {
     if (!this.take) return;
+    this.applyAutomation();
     const cv = this.app.canvas;
     const doc = docAt(this.take, this.t);
     cv.previewDoc = this.composing ? null : doc;   // (a take with no recording leaves the canvas live)

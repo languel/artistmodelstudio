@@ -336,6 +336,7 @@ export function mountTimeline(root, app) {
     return P().take;
   };
   /** Clips made elsewhere (a board's clip) come in at the playhead. */
+  app._tlEnsureTake = ensureTake;
   app._tlAddClip = clip => {
     const take = ensureTake();
     let start = Math.round(P().t);

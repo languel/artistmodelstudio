@@ -47,7 +47,7 @@ export function mountBoardCode(root, app) {
     if (live) timer = setTimeout(run, 250);
   } });
   // Sliders beside the preview: here the board is the preview, so they sit above the code.
-  strip.append(controlStrip(editor));
+  strip.append(controlStrip(editor, { address: c => (id && c.live && c.name && ['p5', 'three'].includes(kindOf()) ? `ctl:${id}.${c.name}` : null) }));
 
   // Snippets: a dropdown like the kind's. Choosing one starts the board from it (undo brings the code back); a board saves as
   // a snippet under its own name.
