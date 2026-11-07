@@ -1125,6 +1125,7 @@ export class Workbench {
         { label: 'Add to playlist', hint: 'This board (or the selected boards): the media they show, or the boards themselves', run: () => { const ids = this.canvas.boardSet.has(id) && this.canvas.boardSet.size > 1 ? [...this.canvas.boardSet] : [id]; this.playlistMenu(ids.map(i => this.playlistItemForBoard(boardById(this.store.doc, i))), x, y, b); } },
         this.playableSource(b) ? { label: 'Clip', hint: 'The range between the player’s in and out points, as a clip', items: [
           { label: 'Keep as a clip in Assets', hint: 'A reference with its own in and out (the credit comes along); nothing is stored', run: () => mediaClips.boardToAssets(this, b).catch(err => this.log(err.message, 'error')) },
+          { label: 'Export as a file…', hint: 'Cut the range into an MP4, WebM or GIF (ffmpeg in the browser; the credit goes into the file)', items: ['mp4', 'webm', 'gif'].map(f => ({ label: f.toUpperCase(), run: () => mediaClips.boardSpec(this, b).then(sp => mediaClips.exportFile(this, sp, f)).catch(err => this.log(`Export: ${err.message}`, 'error')) })) },
           { label: 'Put on the Timeline', hint: 'A media clip at the playhead (a reference to the video, so the take stays small)', run: () => mediaClips.boardToTimeline(this, b).catch(err => this.log(err.message, 'error')) }
         ] } : null,
         this.playableSource(b) ? { label: this.playerShown(b) ? 'Hide media controls' : 'Show media controls', hint: 'The player under the board: play, step, scrub, speed', run: () => this.togglePlayer(b) } : null,
@@ -1584,6 +1585,7 @@ export class Workbench {
       store: this.assetStore,
       onOpen: a => this.openAsset(a),
       log: (m, l) => this.log(m, l),
+      onExportClip: (a, x, y) => mediaClips.exportMenu(this, () => mediaClips.assetSpec(this, a), x, y),
       onPlaylist: (a, x, y) => this.playlistMenu([this.playlistItemForAsset(a)], x, y),
       onSelect: a => { this.selectedAsset = a?.id || null; if (a) { this.canvas.select([]); this.canvas.selectBoard(null); } this.emit('asset'); },
       onPlace: a => { const c = this.canvas; this.placeAsset(a.id, c.toWorld(c.w / 2, c.h / 2)).catch(err => this.log(err.message, 'error')); },

@@ -336,7 +336,8 @@ export function mountProperties(el, app, { compact = false } = {}) {
         row('Opacity', numberField({ value: c.opacity ?? 1, min: 0, max: 1, step: 0.05, def: 1, onChange: v => set({ opacity: v }) })),
         row('Volume', numberField({ value: c.volume ?? 0, min: 0, max: 1, step: 0.05, def: 0, title: 'Its sound (muted by default)', onChange: v => set({ volume: v }) })),
         row('Fit', selectField([['contain', 'Contain'], ['cover', 'Cover']], c.fit || 'contain', v => set({ fit: v }))),
-        c.credit ? h('div', { class: 'wb-muted wb-small', title: 'Kept with the clip, and added to exports' }, c.credit) : null));
+        c.credit ? h('div', { class: 'wb-muted wb-small', title: 'Kept with the clip, and added to exports' }, c.credit) : null,
+        (() => { const b = h('button', { class: 'wb-btn', title: 'Cut this clip into an MP4, WebM or GIF (ffmpeg in the browser)' }, 'Export as a file…'); b.addEventListener('click', ev => { const r = b.getBoundingClientRect(); import('../mediaClips.js').then(m => m.exportMenu(app, () => m.clipSpec(app, c), r.left, r.bottom)); }); return b; })()));
     }
     if (c.track === 'audio') el.append(section('Audio', true, h('div', { class: 'wb-small' }, c.label || 'audio')));
   };

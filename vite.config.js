@@ -227,7 +227,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['p5.brush/standalone', 'p5'],
-    exclude: ['@huggingface/transformers']
+    exclude: ['@huggingface/transformers', '@ffmpeg/ffmpeg', '@ffmpeg/util']
   },
   // Workers are modules (the narration worker loads Kokoro with a dynamic import).
   worker: { format: 'es' },

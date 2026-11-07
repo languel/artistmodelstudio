@@ -84,3 +84,47 @@ export async function boardToAssets(app, board, title = null) {
   app.log(`Kept “${title}” in Assets (a reference: ${s.toFixed(1)}–${e.toFixed(1)} s).`);
   return asset;
 }
+
+// ---- export as a file (ffmpeg.wasm) ---------------------------------------------------------------
+
+/** What to cut for a board's clip, an asset, or a media clip of a take: { url | blob, in, out, label, credit }. */
+export async function boardSpec(app, board) {
+  const c = boardClip(app, board);
+  if (!c) throw new Error('This board has no clip');
+  const parent = c.asset ? await app.assetStore.get(c.asset).catch(() => null) : null;
+  return { url: c.def.url, in: c.in, out: c.out, label: board.title || parent?.title || 'clip', credit: parent?.meta?.mediatheque?.credit || [c.def.meta?.artist, c.def.meta?.license].filter(Boolean).join(', ') };
+}
+export async function assetSpec(app, a) {
+  if (a.meta?.stream) { const c = await mediaClipFromAsset(app, a); return { url: c.url, in: c.in, out: c.out, label: a.title, credit: c.credit }; }
+  if (a.blob && (a.kind === 'video' || /^video\//.test(a.blob.type))) { const c = await mediaClipFromAsset(app, a); return { blob: a.blob, in: c.in, out: c.out, label: a.title, credit: c.credit }; }
+  throw new Error('Only a clip or a video can be exported as a file');
+}
+export async function clipSpec(app, c) {
+  if (c.url) return { url: c.url, in: c.in || 0, out: c.out, label: c.label || 'clip', credit: c.credit || '' };
+  const a = c.asset ? await app.assetStore.get(c.asset).catch(() => null) : null;
+  if (!a?.blob) throw new Error('The video of this clip is not available');
+  return { blob: a.blob, in: c.in || 0, out: c.out, label: c.label || a.title, credit: c.credit || '' };
+}
+
+/** Cut a spec into a file in the chosen format and save it (the credit goes into the file's metadata). */
+export async function exportFile(app, spec, format, opts = {}) {
+  const { cutMedia, FORMATS } = await import('../media/ffmpegRunner.js');
+  const { download } = await import('./ui.js');
+  let last = -1;
+  app.log(`Exporting “${spec.label}” (${(spec.out - spec.in).toFixed(1)} s) as ${FORMATS[format].label}…`);
+  const r = await cutMedia({
+    ...spec, start: spec.in, end: spec.out, format, title: spec.label, credit: spec.credit, ...opts,
+    onStatus: t => app.log(t),
+    onProgress: p => { const q = Math.floor(p * 4); if (q > last && q < 4) { last = q; app.log(`  ${q * 25}%`); } }
+  });
+  const name = `${String(spec.label).replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'clip'}.${FORMATS[format].ext}`;
+  download(r.blob, name, r.type);
+  app.log(`Saved ${name} (${(r.blob.size / 1048576).toFixed(1)} MB)${spec.credit ? `. Credit: ${spec.credit}` : ''}.`);
+  return r;
+}
+
+/** A menu of formats for a spec, at (x, y). */
+export async function exportMenu(app, getSpec, x, y) {
+  const { showMenu } = await import('./menu.js'), { FORMATS } = await import('../media/ffmpegRunner.js');
+  showMenu([{ label: 'Export as a file' }, ...Object.entries(FORMATS).map(([f, s]) => ({ label: s.label, run: async () => { try { await exportFile(app, await getSpec(), f); } catch (err) { app.log(`Export: ${err.message}`, 'error'); } } }))], x, y);
+}

@@ -23,7 +23,8 @@ const KIND_TIPS = { process: 'Process document (workbench)', snippet: 'A board\'
 const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', snippet: 'Snippets', frame: 'Stop-motion frames', walkthrough: 'Walkthroughs', script: 'Scripts', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee', stream: 'Streams' };
 
 export class AssetPanel {
-  constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect, onPlaylist, log }) {
+  constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect, onPlaylist, onExportClip, log }) {
+    this.onExportClip = onExportClip;
     this.log = log;
     this.onSelect = onSelect;
     this.onPlaylist = onPlaylist;
@@ -257,6 +258,7 @@ export class AssetPanel {
       if (canOpen) head.append(btn('', a.program?.type === 'ams-process' || a.program?.actions ? 'Open as the drawing (replaces the canvas; Undo brings yours back)' : 'Open', () => this.onOpen?.(a), 'arrowRight'));
       if (this.onPlace && a.kind !== 'dataset' && a.kind !== 'walkthrough') head.append(btn('', 'Place on the canvas (a drawing comes in as a group; a picture as a layer)', () => this.onPlace(a), 'squaresPlus'));
       if (this.onPlaylist && (a.kind === 'stream' || /^(video|image)\//.test(a.blob?.type || ''))) head.append(btn('', 'Add to a playlist', ev => { const r = ev.currentTarget.getBoundingClientRect(); this.onPlaylist(a, r.left, r.bottom); }, 'plus'));
+      if (this.onExportClip && (a.kind === 'stream' || a.kind === 'video' || /^video\//.test(a.blob?.type || ''))) head.append(btn('', 'Export as a file: its range as MP4, WebM or GIF (ffmpeg in the browser)', ev => { const r = ev.currentTarget.getBoundingClientRect(); this.onExportClip(a, r.left, r.bottom); }, 'arrowDownTray'));
       if (a.blob?.type?.startsWith('image/')) head.append(btn('', 'Use as the reference under the artboard', () => this.onUseAsReference?.(a), 'photo'));
     }
     pane.replaceChildren(head);
