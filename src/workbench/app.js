@@ -32,6 +32,7 @@ import { AssetPanel } from '../ui/AssetPanel.js';
 import { MediathequePanel } from '../ui/MediathequePanel.js';
 import * as mediaClips from './mediaClips.js';
 import { installParams } from './params.js';
+import { boardShot, camerasOf, cameraById, addCamera, cameraSource } from './camera.js';
 import { setKeyframeHost } from './keyframeDot.js';
 import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
@@ -1609,7 +1610,7 @@ export class Workbench {
   /** Make the Program board if there is none (a 16:9 board, black, showing the `timeline` source); go to it. */
   async ensureProgramBoard({ go = false } = {}) {
     const have = this.programBoard();
-    if (have) { if (go) this.goToBoard(have.id, { animate: true }); return have; }
+    if (have) { this.setBoardLive?.(have.id, true); if (go) this.goToBoard(have.id, { animate: true }); return have; }   // (a reopened scene: its monitor runs again)
     if (!this.sources.def('timeline')) await this.sources.add({ kind: 'timeline', name: 'timeline' });
     const at = boardById(this.store.doc, MAIN) || { x: 0, y: 0, width: 800, height: 600 };
     const b = this.store.addBoard({ title: 'Program', x: Math.round(at.x + at.width + 80), y: Math.round(at.y), width: 640, height: 360, ground: '#000', adopt: false });
@@ -1624,8 +1625,45 @@ export class Workbench {
   async boardsToTimeline(ids) {
     for (const id of ids) {
       const b = boardById(this.store.doc, id); if (!b) continue;
-      await this.addMediaClip(mediaClips.boardAsClip(b));
+      await this.addMediaClip(boardShot(b, null));   // (a shot: the camera looks at the board)
     }
+  }
+
+  /** The Insert menu's camera items: a shot on any board, a cut to the view on screen, a new camera, a board for a camera. */
+  shotMenuItems() {
+    const take = this.player.take, cams = take ? camerasOf(take) : [];
+    return [
+      { label: 'Shot on a board', items: boardsOf(this.store.doc).filter(b => !['frame', 'code', 'playlist'].includes(b.kind)).map(b => ({ label: b.title, run: () => this.boardsToTimeline([b.id]) })) },
+      { label: 'Cut to the current view', hint: 'A shot of what the canvas shows now, at the playhead', run: () => this.shotFromView() },
+      { label: 'New camera', run: () => this.newCamera() },
+      cams.length ? { label: 'Board for a camera', hint: 'A board that shows one camera (source(\'camera-1\')): a second monitor', items: cams.map(c => ({ label: c.name, run: () => this.cameraBoard(c.id) })) } : null
+    ].filter(Boolean);
+  }
+
+  async shotFromView() {
+    const r = this.canvas.viewRect(0), rect = [Math.round(r[0]), Math.round(r[1]), Math.round(r[2] - r[0]), Math.round(r[3] - r[1])];
+    await this.addMediaClip({ track: 'shot', start: 0, dur: 5000, target: { rect }, dx: 0, dy: 0, z: 1, label: 'View', fx: {} });
+  }
+
+  newCamera() {
+    const take = this._tlEnsureTake?.(); if (!take) return null;
+    const cam = addCamera(take);
+    this.player.changed(); this.log(`${cam.name} added (${cam.w}×${cam.h}). Shots choose their camera in Properties.`);
+    return cam;
+  }
+
+  /** A board that shows one camera's picture (its own source), made once. */
+  async cameraBoard(camId) {
+    const take = this.player.take; if (!take) return null;
+    const cam = cameraById(take, camId), name = cameraSource(cam);
+    if (!this.sources.def(name)) await this.sources.add({ kind: 'timeline', cameraId: cam.id, name });
+    const have = boardsOf(this.store.doc).find(b => b.source === name);
+    if (have) { this.setBoardLive?.(have.id, true); this.goToBoard(have.id, { animate: true }); return have; }
+    const at = this.programBoard() || boardById(this.store.doc, MAIN);
+    const b = this.store.addBoard({ title: cam.name, x: Math.round(at.x), y: Math.round(at.y + at.height + 80), width: 640, height: Math.round(640 * cam.h / cam.w), ground: '#000', adopt: false });
+    this.setBoardSource(b.id, name, 1, 'contain'); this.setBoardLive(b.id, true);
+    this.goToBoard(b.id, { animate: true });
+    return b;
   }
 
   /** A media clip (a moment of a video, by reference) goes on the Timeline's media track at the playhead. */
@@ -1635,7 +1673,7 @@ export class Workbench {
     for (let i = 0; i < 20 && !this._tlAddClip; i++) await new Promise(r => setTimeout(r, 50));
     if (!this._tlAddClip) throw new Error('The Timeline is not open');
     this._tlAddClip(clip);
-    this.log(`“${clip.label}” (${(clip.in).toFixed(1)}–${(clip.out).toFixed(1)} s) is on the Timeline.`);
+    this.log(clip.track === 'shot' ? `Shot “${clip.label}” is on the Timeline.` : `“${clip.label}” (${(clip.in ?? 0).toFixed(1)}–${(clip.out ?? 0).toFixed(1)} s) is on the Timeline.`);
   }
 
   async openAsset(a) {
@@ -1870,7 +1908,7 @@ export class Workbench {
     // shows it, or a live mark's brush that read it a moment ago. Paused, it keeps its last frame.
     // A lazy stream wakes when a board showing it is live, on screen and big (not in a zoomed-out overview).
     this.sources.lazyWanted = name => boardsOf(this.store.doc).some(b => (b.source === name || b.maskWith?.source === name) && this.isBoardActive(b.id, b) && b.width * this.canvas.cam.z >= 240);
-    this.sources.wanted = name => readRecently(name, 1500) || boardsOf(this.store.doc).some(b => (b.source === name || b.maskWith?.source === name || (b.follow && reads(b.code, name))) && this.isBoardActive(b.id, b));
+    this.sources.wanted = name => readRecently(name, 1500) || (this.sources.def(name)?.kind === 'timeline' && Boolean(this.player?.take)) || boardsOf(this.store.doc).some(b => (b.source === name || b.maskWith?.source === name || (b.follow && reads(b.code, name))) && this.isBoardActive(b.id, b));
     const reads = (code, name) => new RegExp(`\\b(source|fit)\\(\\s*['"\`]${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`).test(code || '');
     this.sources.on(name => {
       if (!name) { this.renderChrome(); return; }

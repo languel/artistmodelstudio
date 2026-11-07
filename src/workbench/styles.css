@@ -1397,3 +1397,5 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-ctl-row.kf-key { background: color-mix(in srgb, #f2c14e 28%, transparent); border-radius: 4px; }
 .wb-ctl-row.kf-dirty { background: color-mix(in srgb, #e8884a 32%, transparent); border-radius: 4px; }
 .wb-tl-autokey.on { color: #f2c14e; }
+
+.wb-tl-clip.t-shot { background: #e6c9a8; }

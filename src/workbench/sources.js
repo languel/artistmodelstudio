@@ -104,7 +104,7 @@ export class Sources {
     if (d.kind === 'camera') e.live = await LiveSource.webcam();
     else if (d.kind === 'mic') e.live = await micLive();
     else if (d.kind === 'board') e.live = boardLive(this.app, d.boardId);   // a board's picture, live
-    else if (d.kind === 'timeline') e.live = timelineLive(this.app);   // the sequence at the playhead
+    else if (d.kind === 'timeline') e.live = timelineLive(this.app, d.cameraId || null);   // the sequence at the playhead
     else if (d.kind === 'url' && isVideoUrl(d)) e.live = await LiveSource.video(d.url, { crossOrigin: true });   // streamed
     else {
       const a = d.kind === 'url' ? { blob: await fetch(d.url).then(r => { if (!r.ok) throw new Error(`The address answered ${r.status}`); return r.blob(); }) } : await this.app.assetStore.get(d.assetId);
@@ -151,6 +151,10 @@ export class Sources {
   /** The current full-size frame (for underlays and previews). */
   view(name) { const e = this.entries.get(name); return e?.live?.canvas || e?.still || null; }
 
+  /** A camera is looking at a board that shows this source: it starts (if lazy) and keeps running for a moment. */
+  seeCamera(name) { (this.seen ||= new Map()).set(name, performance.now()); }
+  seenByCamera(name) { return performance.now() - (this.seen?.get(name) || 0) < 1500; }
+
   tick() {
     const now = performance.now(), dt = Math.min(0.25, (now - this.last) / 1000);
     this.last = now;
@@ -159,7 +163,7 @@ export class Sources {
     if (document.hidden) return;
     let changed = false;
     // Lazy streams (from a list of clips) start only when a board showing them is on screen and big enough.
-    for (const d of this.defs) if (d.lazy === true && !this.entries.has(d.name) && this.lazyWanted?.(d.name) && !this.waking?.has(d.name)) this.wake(d);
+    for (const d of this.defs) if (d.lazy === true && !this.entries.has(d.name) && (this.lazyWanted?.(d.name) || this.seenByCamera(d.name)) && !this.waking?.has(d.name)) this.wake(d);
     // ...and lets go again after half a minute unseen (the stream is closed; it starts again at its in point when wanted).
     for (const d of this.defs) {
       const e = d.lazy === true && this.entries.get(d.name);
@@ -173,7 +177,7 @@ export class Sources {
       // Paused while nothing live needs it (this.wanted, set by the app): it keeps its last frame.
       const kept = this.keep.get(e.def.name);
       if (kept) for (const k of kept) e.want.set(k, now);
-      const want = Boolean(kept?.size) || (this.wanted ? this.wanted(e.def.name) : true);
+      const want = Boolean(kept?.size) || this.seenByCamera(e.def.name) || (this.wanted ? this.wanted(e.def.name) : true);
       if (Boolean(e.paused) === want) { e.paused = !want; changed = true; }
       if (!want) continue;
       e.live.tick(dt);

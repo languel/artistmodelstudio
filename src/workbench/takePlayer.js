@@ -8,6 +8,7 @@
 import { docAt, duration, touch, flatClips } from '../process/take.js';
 import { boardById, MAIN } from '../process/boards.js';
 import { boardLive } from './boardSource.js';
+import { camerasOf, cameraById, shotAt, renderCamera, viewFor, releaseCameras } from './camera.js';
 import { lanesOf, valueAt } from '../process/keyframes.js';
 import { param } from './params.js';
 import { advanceTransportPlaybackTime } from '../time/transport.js';
@@ -164,7 +165,9 @@ export class TakePlayer {
 
   /** What a composing take adds over the live canvas: its media, captions and title cards (unless a Program board shows the sequence). */
   drawLive(ctx, tf, W, H) {
-    if (!this.take || !this.composing || this.app.programBoard?.()) return;
+    if (!this.take || !this.composing) return;
+    this.drawViewfinders(ctx, tf);
+    if (this.app.programBoard?.()) return;
     this.drawMedia(ctx, this.artboardRect(tf, null));
     const dpr = this.app.canvas.dpr || 1;
     drawCaptions(ctx, this.take, this.t, Math.round(W * dpr), Math.round(H * dpr));
@@ -183,13 +186,40 @@ export class TakePlayer {
   onProgramDirty(fn) { (this.programListeners ||= new Set()).add(fn); return () => this.programListeners.delete(fn); }
 
   /** The sequence as a picture on a canvas of its own (black ground, the media and captions): the Timeline source, the Program board. */
-  drawProgram(ctx, W, H) {
+  drawProgram(ctx, W, H, cameraId = null) {
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-    this.syncMedia(flatClips(this.take));
-    this.drawMedia(ctx, { X: 0, Y: 0, W, H });
-    drawCaptions(ctx, this.take, this.t, W, H);
+    // The camera: the shot active now (the one that started last for the Program, or this camera's own), shown contained.
+    const shot = shotAt(this.take, this.t, cameraId);
+    if (shot) {
+      const cam = cameraById(this.take, shot.camera), off = (this.camCanvases ||= new Map()).get(cam.id) || (() => { const c = document.createElement('canvas'); this.camCanvases.set(cam.id, c); return c; })();
+      if (off.width !== cam.w || off.height !== cam.h) { off.width = cam.w; off.height = cam.h; }
+      renderCamera(this.app, shot, this.t, off.getContext('2d'), cam.w, cam.h);
+      const k = Math.min(W / cam.w, H / cam.h); ctx.drawImage(off, (W - cam.w * k) / 2, (H - cam.h * k) / 2, cam.w * k, cam.h * k);
+    }
+    if (!cameraId) {   // (the media and captions belong to the Program, not to one camera)
+      this.syncMedia(flatClips(this.take));
+      this.drawMedia(ctx, { X: 0, Y: 0, W, H });
+      drawCaptions(ctx, this.take, this.t, W, H);
+    }
     ctx.restore();
+  }
+
+  /** The cameras' frames on the live canvas: a coloured outline where each camera is looking now (the shot active for it). */
+  drawViewfinders(ctx, tf) {
+    if (!this.take) return;
+    for (const cam of camerasOf(this.take)) {
+      const shot = shotAt(this.take, this.t, cam.id);
+      if (!shot) continue;
+      const r = viewFor(this.app.store.doc, shot, this.t, cam.w, cam.h).rect;
+      const x = tf.x + r.x * tf.scale, y = tf.y + r.y * tf.scale, w = r.w * tf.scale, h = r.h * tf.scale, live = shotAt(this.take, this.t)?.camera === cam.id;
+      ctx.save();
+      ctx.strokeStyle = cam.color; ctx.lineWidth = live ? 2.5 : 1.5; ctx.setLineDash(live ? [] : [6, 4]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.setLineDash([]); ctx.fillStyle = cam.color; ctx.font = '11px ui-sans-serif, system-ui, sans-serif'; ctx.textBaseline = 'bottom';
+      ctx.fillText(`${cam.name}${live ? ' · on air' : ''}`, x + 4, y - 3);
+      ctx.restore();
+    }
   }
 
   /** Draw the media clips under the playhead into a rectangle of the screen. */
@@ -217,6 +247,7 @@ export class TakePlayer {
     for (const v of this.videos?.values() || []) v.pause();
     this.videos?.clear();
     this.applied = null;
+    releaseCameras(); this.camCanvases = null;
     if (this.app.frames) this.app.frames.automated = null;
     for (const l of this.boardLives?.values() || []) l.stop?.();
     this.boardLives?.clear();

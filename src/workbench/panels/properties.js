@@ -5,6 +5,7 @@
  */
 import { h, row, numberField, selectField, section, esc } from '../ui.js';
 import { withDot } from '../keyframeDot.js';
+import { camerasOf } from '../camera.js';
 import { icon } from '../icons.js';
 import { rangeInput, paintRange } from '../rangeInput.js';
 import { colorField } from '../colorPicker.js';
@@ -329,6 +330,31 @@ export function mountProperties(el, app, { compact = false } = {}) {
       row('Center x', numberField({ value: +(c.cx ?? 0.5).toFixed(3), min: -1, max: 2, step: 0.01, def: 0.5, onChange: v => set({ cx: v }) })),
       row('Center y', numberField({ value: +(c.cy ?? 0.5).toFixed(3), min: -1, max: 2, step: 0.01, def: 0.5, onChange: v => set({ cy: v }) }))));
     if (c.track === 'action') el.append(section('Action', true, h('div', { class: 'wb-small' }, c.label || c.name), h('pre', { class: 'wb-ref' }, JSON.stringify(c.args || {}, null, 1).slice(0, 800))));
+    if (c.track === 'shot') {
+      const take = app.player.take, cams = take ? camerasOf(take) : [], cam = cams.find(x => x.id === c.camera) || cams[0];
+      const boards = boardsOf(app.store.doc).filter(b => !['frame', 'code', 'playlist'].includes(b.kind));
+      const tg = c.target?.rect ? 'rect' : c.target?.board || 'main';
+      const pose = (label, get, put, step = 0.05, min = -10, max = 10) => row(label, numberField({ value: +(get() ?? 0).toFixed(3), min, max, step, def: label === 'Zoom' ? 1 : 0, onChange: v => put(v) }));
+      const moving = Boolean(c.to), P = () => ({ dx: c.dx || 0, dy: c.dy || 0, z: c.z || 1 });
+      const nameInput = h('input', { class: 'wb-inline', value: cam?.name || '', title: 'Rename this camera' });
+      nameInput.addEventListener('change', () => { if (cam && nameInput.value.trim()) { cam.name = nameInput.value.trim(); edited(); } });
+      nameInput.addEventListener('keydown', e => e.stopPropagation());
+      el.append(section('Shot', true,
+        row('Camera', selectField(cams.map(x => [x.id, x.name]), cam?.id, v => set({ camera: v }))),
+        row('Name', nameInput),
+        row('Looks at', selectField([...boards.map(b => [b.id, b.title]), ['rect', 'A region…']], tg, v => {
+          if (v === 'rect') { const r = app.canvas.viewRect(0); set({ target: { rect: [Math.round(r[0]), Math.round(r[1]), Math.round(r[2] - r[0]), Math.round(r[3] - r[1])] } }); }
+          else set({ target: { board: v } });
+        }, 'What the camera frames: a whole board, or a region of the canvas')),
+        tg === 'rect' ? h('button', { class: 'wb-btn', title: 'Use what the canvas shows now as this shot’s region', onclick: () => { const r = app.canvas.viewRect(0); set({ target: { rect: [Math.round(r[0]), Math.round(r[1]), Math.round(r[2] - r[0]), Math.round(r[3] - r[1])] } }); } }, 'Frame the current view') : null,
+        pose('Zoom', () => c.z ?? 1, v => set({ z: v || 1 }), 0.05, 0.05, 40),
+        pose('Shift x', () => c.dx, v => set({ dx: v }), 0.02),
+        pose('Shift y', () => c.dy, v => set({ dy: v }), 0.02),
+        h('label', { class: 'wb-check', title: 'The shot moves: it ends at another pose' }, (() => { const i = h('input', { type: 'checkbox' }); i.checked = moving; i.addEventListener('change', () => set({ to: i.checked ? { ...P() } : undefined })); return i; })(), ' Move to another pose'),
+        moving ? pose('To zoom', () => c.to.z ?? 1, v => set({ to: { ...c.to, z: v || 1 } }), 0.05, 0.05, 40) : null,
+        moving ? pose('To shift x', () => c.to.dx, v => set({ to: { ...c.to, dx: v } }), 0.02) : null,
+        moving ? pose('To shift y', () => c.to.dy, v => set({ to: { ...c.to, dy: v } }), 0.02) : null));
+    }
     if (c.track === 'media') {
       const speed = () => (c.speed > 0 ? c.speed : 1), retime = () => { c.dur = Math.round(((c.out || 0) - (c.in || 0)) / speed() * 1000); };
       el.append(section('Media', true,

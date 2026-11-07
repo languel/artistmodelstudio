@@ -3,9 +3,10 @@
  * captions) on a canvas, live. A board that shows it is the **Program** board: the monitor of the sequence,
  * and what outputs (pin, window, full screen) and other boards (source('timeline')) take it from.
  */
+import { onCameraDirty } from './camera.js';
 export const TIMELINE_W = 1280, TIMELINE_H = 720;
 
-export function timelineLive(app) {
+export function timelineLive(app, cameraId = null) {
   const canvas = document.createElement('canvas');
   canvas.width = TIMELINE_W; canvas.height = TIMELINE_H;
   const live = { kind: 'timeline', canvas, ready: true, version: 0, rate: 1, dirty: true, tick() {
@@ -14,11 +15,11 @@ export function timelineLive(app) {
     // Redraw while it plays or the playhead moved, and when something it shows changed (a frame decoded, an edit).
     if (!live.dirty && !p.playing && p.t === live.t) return;
     live.dirty = false; live.t = p.t; live.had = true;
-    p.drawProgram(canvas.getContext('2d'), TIMELINE_W, TIMELINE_H);
+    p.drawProgram(canvas.getContext('2d'), TIMELINE_W, TIMELINE_H, cameraId);
     live.version++;
   } , stop() { live.ready = false; live.off?.(); } };
   Object.assign(live, { setLoop() {}, setRange() {}, setVolume() {}, setRate() {}, position: () => null, hasAudio: () => false });
-  const o1 = app.player?.on?.(() => { live.dirty = true; }), o2 = app.player?.onProgramDirty?.(() => { live.dirty = true; });
-  live.off = () => { o1?.(); o2?.(); };
+  const o1 = app.player?.on?.(() => { live.dirty = true; }), o2 = app.player?.onProgramDirty?.(() => { live.dirty = true; }), o3 = onCameraDirty(() => { live.dirty = true; });
+  live.off = () => { o1?.(); o2?.(); o3?.(); };
   return live;
 }

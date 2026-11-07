@@ -8,6 +8,7 @@ import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
 import { clipWords } from '../../process/clipWords.js';
 import { mediaClipFromAsset } from '../mediaClips.js';
+import { camerasOf } from '../camera.js';
 import { autoKey, setAutoKey } from '../keyframeDot.js';
 import { duration, summarize, touch, flatClips, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
 import { showMenu } from '../menu.js';
@@ -21,7 +22,7 @@ import { waveFor, fromPeaks, drawWave } from '../waveform.js';
 import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, rulerTicks, autoGrid, gridLayer, timeLabel, editPoints, nextEdit, MAX_CONTENT_PX } from '../../time/timelineView.js';
 
 const AUDIO_CLIP_H = 33;
-const TRACK_LABEL = { comp: 'Composition', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', media: 'Media', audio: 'Audio', auto: 'Automation' };
+const TRACK_LABEL = { comp: 'Composition', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', shot: 'Shot', media: 'Media', audio: 'Audio', auto: 'Automation' };
 const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`; };
 const RULER_NAMES = { time: 'Minutes and seconds', beats: 'Bars, beats and sixteenths', frames: 'Frames' };
 /** The clips' colours in the navigator (as the lanes have them). */
@@ -344,6 +345,7 @@ export function mountTimeline(root, app) {
   app._tlFit = () => { fitZoom(); drawBar(); };
   app._tlAddClip = clip => {
     const take = ensureTake();
+    if (clip.track === 'shot' && !clip.camera) clip.camera = camerasOf(take)[0].id;   // (the first camera unless one was chosen)
     let start = Math.round(P().t);
     // A clip added on top of another goes after it: clips put in one by one make a sequence.
     for (let again = true; again;) { again = false; for (const o of take.clips) if (o.track === clip.track && start < o.start + o.dur && start + clip.dur > o.start) { start = o.start + o.dur; again = true; } }
@@ -362,6 +364,7 @@ export function mountTimeline(root, app) {
       { label: 'Camera keyframe (current view)', run: () => add({ track: 'camera', start: t, dur: 800, ...viewNow() }) },
       { label: 'Hold (2 s from here)', hint: 'Push everything after the playhead 2 s later', disabled: !P().take?.clips.length, run: () => { for (const c of P().take.clips) if (c.start >= t) c.start += 2000; edited(); } },
       '-',
+      ...app.shotMenuItems(),
       { label: 'Program board', hint: 'A board that shows the sequence (the monitor): pin it, open it in a window or full screen from its menu › Output', run: () => app.ensureProgramBoard({ go: true }) },
       { label: 'Audio file…', hint: 'A sound or voiceover (played in the standalone player)', run: pickAudio },
       { label: 'Voice the narration', hint: 'Turns the Narration clips into sound on the Audio track, in the narrator voice (Palette: Narration engine)', run: voiceNarration }
