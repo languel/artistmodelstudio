@@ -1,11 +1,17 @@
 # Plan: the camera, automation and render (the studio metaphor)
 
-Written 7 Nov 2026. Status: a plan, nothing here is built except where it says so. It follows the Timeline work of 6–7 Nov (media clips, board clips, the Program board, ffmpeg export), which built a *video switcher*. This plan replaces that metaphor with the one the project is really after: **Lotte Reiniger's studio, at the scale of AMS**: a camera over a stack of planes, shooting one frame at a time, with puppets and parameters moved by hand and recorded.
+Written 7 Nov 2026; decisions of the author added the same day (section 0). Status: a plan, nothing here is built except where it says so. It follows the Timeline work of 6–7 Nov (media clips, board clips, the Program board, ffmpeg export), which built a *video switcher*. This plan replaces that metaphor with the one the project is really after: **Lotte Reiniger's studio, at the scale of AMS**: a camera over a stack of planes, shooting one frame at a time, with puppets and parameters moved by hand and recorded.
+
+## 0. Decisions (author, 7 Nov 2026)
+
+1. **Several cameras from the start.** The camera list is part of Phase 1, and shots name their camera.
+2. **Multiplane parallax is in scope**, as part of the first automation phase (a board's depth is a parameter like any other, so a camera move can shift planes at different rates).
+3. **One consistent way to automate any parameter, like Blender's keyframe dot.** Every parameter that can be animated shows the same small control next to it, wherever it appears (Properties, board and mark panels, camera, sketch controls, effects). One lane type, one gesture. Drawing (a mark being drawn on) is expressed through the same lanes where it can be (a `reveal` value), and the recorded History/Drawing clips stay as they are for compatibility (see 4.5).
 
 ## 1. Goal
 
 1. A **camera** that looks at the canvas world (any board, frame or region), moves, and cuts from one thing to another.
-2. **Automation recorded for anything**: marks, boards, code-sketch parameters. Arm a lane, move a control, play it back.
+2. **Automation for anything, in one consistent way**: marks, boards, cameras, effects, code-sketch parameters. A keyframe dot beside every parameter; or arm a lane and move the control; play it back.
 3. A **render**: step the timeline frame by frame, apply the automation, photograph what the camera sees, encode to a file. Deterministic: the same scene renders the same film.
 4. Keep what already works: clips of video and stills, per-scene timelines, the Mediathèque, ffmpeg export.
 
@@ -26,8 +32,9 @@ What the current build is, in these terms: the **Program board** is the camera's
 ## 3. The camera
 
 ### 3.1 Objects
-- **Camera** (per scene): `{ id, name, w, h, fps }`: the frame it shoots (default 1280×720, 25 fps from the scene transport). One by default, more allowed (a second camera for an insert, a different aspect).
+- **Camera** (per scene, any number): `{ id, name, w, h, fps, depthRange? }`: the frame it shoots (default 1280×720, 25 fps from the scene transport). A new scene has one (*Camera 1*); add more for an insert, a different aspect, a second angle on the same set. Each camera has its own viewfinder frame on the canvas (own colour) and its own output: the Program board shows the **active camera**, and any other camera can be shown on a board of its own (`source('camera:<name>')`).
 - **Shot**: a clip on the Camera track: `{ track: 'camera', camera, start, dur, target, move }`.
+  - `camera`: which camera takes the shot. Shots of different cameras on the same time make a **multi-camera** edit: the **Program** cut (a track of `cut` clips choosing the active camera over time, like a switcher) is what the Program board and the render use. Recording a live switch by hand writes these clips.
   - `target`: `{ board: id }` (frame the whole board), `{ frame: id }`, or `{ rect: [x, y, w, h] }` in world units.
   - `move`: optional keyframes `[{ t (0..1 of the shot), cx, cy, z, rot, ease }]` relative to the target. No keyframes = a locked-off shot.
   - A **cut** is two shots touching. A **dissolve** is two overlapping with `fx.fade` (the existing clip fade).
@@ -44,26 +51,46 @@ The camera's frame is drawn by one function `renderCamera(app, camera, t) → ca
 ### 3.4 Footage moves into the world
 A video or still clip is a **board with a source** (this already exists: Assets › double-click, `placeSource`). To put it in the film you aim the camera at it. The media track stays for the plain-edit case ("▶ Timeline" on a card): it creates the board *and* a shot at the playhead, so the NLE-style workflow keeps working and is just the simplest use of the camera. Media clips that exist in saved takes keep playing over the Program picture as today (compatibility), and are converted on request.
 
-## 4. Automation
+## 4. Automation: one consistent way (the keyframe dot)
 
-### 4.1 What can be automated
-Anything with an **address**. An address is a string `scope:id.property`:
-- mark: `mark:<id>.opacity`, `.x`, `.y`, `.rotation`, `.scale`, stroke width, colour channels
-- board: `board:<id>.x|y|opacity|width|height`, effect and mask parameters
-- camera: `camera:<id>.cx|cy|z|rot`
+### 4.1 The control
+Every automatable parameter, wherever it is shown, gets the same small **diamond (◆) beside it**, drawn by one shared helper that wraps the common field widgets (`numberField`, `rangeInput`, `selectField`, colour and toggle fields in `src/workbench/ui.js`, the sketch control widgets in `codeParams.js`). A parameter has one of these states, shown by the diamond:
+
+| State | Look | Meaning |
+|---|---|---|
+| Not animated | hollow, dim | a plain value |
+| Animated | filled, muted colour | has keyframes; the field shows the value at the playhead and cannot drift |
+| Keyframe here | filled, bright | there is a keyframe exactly at the playhead |
+| Changed, not keyed | filled outline, warm | you changed the value at a time with no key (Blender's orange): press the diamond to key it |
+| Recording | red | armed: changes while the transport runs are written |
+
+Gestures (the same everywhere):
+- **Click** the diamond: insert a keyframe at the playhead with the current value (on a keyed frame: remove it).
+- **Hover a field and press I**: insert; **Alt+I**: remove. (The Timeline already uses hover for its keys.)
+- **Right-click** the diamond or the field: Insert, Delete, Clear all keyframes, **Show in Timeline**, Copy/Paste keyframes, Interpolation (constant, linear, ease, bezier), Add to the armed lane set.
+- **Typing or dragging a field on an animated parameter** at a time without a key shows the warm "changed" state; with *Auto-key* on (a button in the Timeline bar, like Blender's record dot) it writes the key at once.
+- **Show in Timeline** reveals the parameter's lane (and groups lanes under the thing that owns them: board › property, mark › property, camera › property).
+
+### 4.2 What can be automated
+Anything with an **address**: `scope:id.property`:
+- mark: opacity, x, y, rotation, scale, stroke width, colour channels, `reveal` (0..1: how much of the stroke is drawn)
+- board: x, y, width, height, opacity, blend (stepped), `depth` (parallax), effect and mask parameters
+- camera: `cx, cy, z, rot` and the shot target's blend between two targets (a rack from one board to another)
 - sketch control: `ctl:<boardId>.<name>` for the parameters codeParams.js finds (`/* 0..1 */` numbers, `params: {…}`), which a sketch already receives live (`f.vals` in `boardFrames.js`)
 - scene: tempo, transport values
 
-A registry `src/process/params.js` resolves an address to `{ get(), set(v), range, kind }`. Each scope registers its resolver; unknown addresses are kept in the take and ignored on playback (a take stays valid if a mark is deleted).
+A registry `src/process/params.js` resolves an address to `{ get(), set(v), range, kind: 'float' | 'int' | 'bool' | 'enum' | 'color' | 'vec2', step? }`. Each scope registers its resolver. **The field widgets read the registry** (that is how the diamond knows what it is beside, and what a keyframe stores). Addresses use stable ids, never indexes; an address that no longer resolves is kept in the take and ignored on playback.
 
-### 4.2 Lanes and recording
-- A take gets **automation lanes**: `{ track: 'auto', address, points: [[t, v, ease]] }` stored as a clip with `dur`.
-- **Arm** a lane (or "record what I touch": arm the scene), press play or record, and every change to an automatable value made by the hand is written as points. Points are thinned (Ramer–Douglas–Peucker on the curve, tolerance by range) so a slider drag is tens of points, not thousands.
-- Edit in the timeline: lanes draw as curves; drag points, change ease; the existing clip operations (move, split, copy) apply to the lane as a clip.
-- Playback: each frame `set(address, value(t))`. While playing, a lane owns its value; touching the control mid-playback records over it (overdub) if armed, else it is ignored until stop.
+### 4.3 Lanes and keyframes
+One lane type: `{ track: 'auto', address, keys: [{ t, v, ease }] }`, a clip with `dur` like any other: move, split, copy, mute and fade work on it. Value kinds interpolate by kind (floats and vectors by the chosen curve, colours in a perceptual space, bool/enum held). Lanes draw as curves in the Timeline (a curve editor: drag keys, tangents, ease presets); several lanes can be shown overlaid.
 
-### 4.3 Relation to History and Interactions
-History records *drawing* (diffs of marks) and Interactions records *clicks*. Automation records *continuous values*. They share the clock (`liveClock.js`). A drag of a mark can still be a History entry; if the mark's position is also an automation address, the user chooses (a setting): record drawing (default, as now) or record motion.
+### 4.4 Recording and playback
+- **Insert by dot or I** is the precise way. **Record** is the live way: arm a lane (or *Record what I touch*), press play, move the control: every change is written as keys, thinned (Ramer–Douglas–Peucker, tolerance by range) so a slider drag is tens of keys.
+- Playback: each frame `set(address, value(t))`, for animated parameters only. While playing, a lane owns its value; touching the control mid-playback records over it if armed (overdub) and is otherwise reverted at the next frame (the field shows the lane's value, with the warm state).
+- Scrubbing and stepping evaluate the lanes at the playhead (so Properties always shows the value at the playhead).
+
+### 4.5 Drawing, History and the one lane type
+The author asked for one consistent way for *any* parameter. So: a mark being drawn on is the parameter `mark:<id>.reveal`; a mark's movement is its transform parameters; a stroke whose points are edited over time is keyed on its vertices only if asked (`mark:<id>.points`, a *path* lane, off by default). The existing **recorded Drawing clips** (History diffs revealed over time) and **Interactions** stay as they are, so no take is invalidated; the Timeline offers *Convert to lanes* (a draw clip becomes `reveal` keys). A setting says what a drag of a mark records: drawing (as now) or motion.
 
 ## 5. Render
 
@@ -97,27 +124,25 @@ Per-scene, as today: the take belongs to the scene; cameras live in the take.
 
 Each phase ends with something visible and a check in the browser; each is one or two commits.
 
-**Phase 1: the camera (no automation yet).**
-- `renderCamera`, shots with targets, locked-off and keyframed moves, the camera frame in the world, "Cut to here", old camera clips as main-board shots, Program board fed by the camera, board clip becomes "shot at this board".
+**Phase 1: cameras (several), no automation yet.**
+- `renderCamera`, the camera list (add, rename, colour, size), shots with targets, locked-off shots, the camera frame in the world, "Cut to here", the Program cut track (active camera over time), old camera clips as main-board shots, Program board fed by the active camera, any camera on a board of its own, board clip becomes "shot at this board".
 - The "▶ Timeline" card button makes a board+shot (the NLE path keeps working).
-- Check: three boards, three shots with a pan between two of them, plays on the Program board, pins to a window.
+- Check: two cameras on the same set, a cut between them, a locked shot of each of three boards, plays on the Program board, pins to a window.
 
-**Phase 2: automation for boards, marks and the camera.**
-- `params.js` registry; lanes; arm/record; curves in the timeline; playback; thinning.
-- Check: record a board sliding and fading, play it back identically; record a camera drift; a mark's rotation.
+**Phase 2: the keyframe system (the dot) and parallax.**
+- `params.js` registry; the shared diamond wrapper on the field widgets; keys, lanes, the curve editor, auto-key, record, thinning, convert drawing to lanes; camera moves become keyframes on the camera parameters; board `depth` and parallax in `renderCamera`.
+- Check: the diamond appears beside the same parameters in Properties, the board panel and the camera; key a board sliding and fading, a camera pan, a mark's `reveal`; a three-plane parallax move; play identically twice.
 
-**Phase 3: automation for sketch parameters.**
-- `ctl:` addresses from codeParams; push values into running sketch frames without a rebuild; record a slider move on a p5 sketch.
-- Check: a sketch parameter recorded while the sketch runs, replayed, identical on two runs.
+**Phase 3: sketch parameters.**
+- `ctl:` addresses from codeParams, the diamond on sketch control widgets in the editor and on exported controls; values pushed into running sketch frames without a rebuild; record a slider move.
+- Check: a sketch parameter keyed with the dot and recorded live; replayed, identical on two runs.
 
 **Phase 4: the render.**
-- Stepper and time shim for sketch frames; offscreen capture; ffmpeg encode; the render dialog; cancel and progress; PNG sequence.
-- Check: render a 10 s scene with a moving camera, a video clip, a sketch with an automated parameter; the file is the right length and two renders are frame-identical (compare hashes of frames 0, 100, last).
+- Stepper and time shim for sketch frames; offscreen capture; ffmpeg encode; the render dialog (camera or Program cut, range, size, fps, format); cancel and progress; PNG sequence.
+- Check: render a 10 s scene with two cameras and a cut, a moving plane, a video clip and a sketch with a keyed parameter; the right length; two renders frame-identical (hash frames 0, 100, last).
 
 **Phase 5: the Reiniger pieces.**
-- Multiplane parallax: per-board depth so a camera move shifts planes at different rates (`z` on a board, applied in `renderCamera`).
-- Puppet-style animation: stop-motion board as a *source of poses* the camera can shoot; onion skin through the camera.
-- Several cameras, a switcher (live cut by hand, recorded as shots).
+- Stop-motion board as a source of poses the camera shoots; onion skin through the camera; live switching between cameras recorded as cuts; lightbox (a board that lights what is behind it); per-camera depth of field if wanted.
 
 ## 8. What we keep, change, drop
 
@@ -133,9 +158,11 @@ Each phase ends with something visible and a check in the browser; each is one o
 4. **Real-time vs recorded values** while playing: a clear rule (4.2) and a visible state on the lane (armed, playing, overdubbing).
 5. **Camera on the canvas vs the main artboard**: old takes assume the artboard; the main-board shot keeps them identical.
 6. **Cross-origin video frames** in a render need CORS-clean media (the Mediathèque is; some streams are not). Frames that cannot be read are reported, not skipped silently.
-7. Questions for the author: one camera or many from the start? Is parallax in scope for Phase 5 or a later plan? Should automation of *drawing* (a mark's points over time, as the History track does) and automation of *values* share a lane type?
+7. Resolved by the author (section 0): several cameras; parallax in scope (Phase 2); one lane type with a keyframe dot everywhere. Still open: the exact look and keys of the dot (this plan proposes Blender's: click, I, Alt+I, right-click); whether *path* lanes (per-vertex keys) are worth building at all; whether auto-key is on by default (proposed: off).
+8. **A shared wrapper is only as consistent as the fields that use it.** Today panels build fields in several ways (`ui.js` helpers, hand-made inputs, CodeMirror widgets). Phase 2 begins with an audit of where parameters appear and moves them onto the shared widgets, so the dot is not missing in half the panels.
 
 ## 10. First steps (if approved)
 
-1. Phase 1 spike: `renderCamera` for a board target and a locked shot; Program board fed from it; compare against what the Program board shows now.
-2. Phase 4 spike (parallel, independent): step a p5 sketch N frames with a seed and a time shim; render 50 frames; verify two runs match. This decides how much of section 5.2 is real.
+1. Phase 1 spike: `renderCamera` for a board target and a locked shot, two cameras and a cut; Program board fed from it; compare against what the Program board shows now.
+2. Phase 2 spike: the registry and the diamond on **three** different kinds of field (a Properties number, a board panel slider, a sketch control) keyed and played back; this tests whether one wrapper really fits.
+3. Phase 4 spike (parallel, independent): step a p5 sketch N frames with a seed and a time shim; render 50 frames; verify two runs match. This decides how much of section 5.2 is real.
