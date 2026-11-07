@@ -953,6 +953,8 @@ export function mountTimeline(root, app) {
       ...[1, 2].map(n => ({ label: `${n} beat${n === 1 ? '' : 's'}`, run: () => { setLength(c, n * beatMs()); edited(); } }))
     ] },
     '-',
+    { label: 'Split at the playhead', keys: 'X', run: splitAtPlayhead },
+    { label: 'Ripple delete', hint: 'Delete it and close the gap on its track', keys: '⇧⌫', run: () => rippleDelete(pickedClips().length ? pickedClips() : [c]) },
     { label: 'Go to start', run: () => seekShow(c.start) },
     { label: 'Zoom to the clip', keys: 'F', run: () => fitClip(c) },
     { label: 'Show code', hint: 'This clip as clip({ … }): edit and apply', run: () => app.openCode?.('clip', c) },
@@ -964,7 +966,31 @@ export function mountTimeline(root, app) {
   ].filter(Boolean);
   const deleteClips = list => { const t = P().take, gone = new Set(list); t.clips = t.clips.filter(x2 => !gone.has(x2)); select(null); edited(); };
   const deleteClip = c => deleteClips([c]);
+  /** Delete and close the gap: later clips on the same tracks move earlier by the clip's length (an editor's ripple delete). */
+  const rippleDelete = list => {
+    const t = P().take; if (!t || !list.length) return;
+    const gone = new Set(list);
+    for (const c of [...list].sort((a, b) => b.start - a.start)) for (const o of t.clips) if (!gone.has(o) && laneOf(o) === laneOf(c) && o.start >= c.start + c.dur - 1) o.start = Math.max(0, o.start - c.dur);
+    t.clips = t.clips.filter(x2 => !gone.has(x2)); select(null); edited();
+  };
+  /** Cut at the playhead (an editor's razor): the picked clips under it, else every clip under it. Media clips keep their moment of the source. */
+  const splitAtPlayhead = () => {
+    const take = P().take, t = Math.round(P().t); if (!take) return 0;
+    const under = c => c.track !== 'comp' && t > c.start + 20 && t < c.start + c.dur - 20;
+    const hit = pickedClips().filter(under), targets = hit.length ? hit : take.clips.filter(under);   // (the picked clips under the playhead, else every clip under it)
+    for (const c of targets) {
+      const first = t - c.start, k = { ...structuredClone(c), id: clipId(), start: t, dur: c.dur - first };
+      if (c.track === 'media') { const cut = (c.in || 0) + first / 1000 * (c.speed > 0 ? c.speed : 1); k.in = cut; c.out = cut; }
+      else if (c.track === 'audio') k.offset = (c.offset || 0) + first;
+      c.dur = first;
+      take.clips.push(k);
+    }
+    if (targets.length) { edited(); app.log(`Split ${targets.length} clip${targets.length === 1 ? '' : 's'} at ${fmt(t)}.`); }
+    else app.log('Put the playhead over a clip to split it (X).');
+    return targets.length;
+  };
   app.timelineEdited = edited;
+  app.splitAtPlayhead = splitAtPlayhead;
 
   // Drop from Assets: sound → an audio clip, text → narration, a drawing → a drawing clip that reveals it.
   const blobURL = blob => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
@@ -1147,6 +1173,7 @@ export function mountTimeline(root, app) {
     if (document.querySelector('.wb-menu, .wb-dialog')?.isConnected && !tl.contains(ev.target)) return;   // (a menu or dialog has the keys)
     const take = () => { ev.preventDefault(); ev.stopPropagation(); };
     if (ev.key === ' ' && !(ev.shiftKey || ev.altKey || ev.metaKey || ev.ctrlKey)) { take(); P().toggle(); return; }
+    if ((ev.key === 'Delete' || ev.key === 'Backspace') && ev.shiftKey && selected && !R()?.recording) { take(); rippleDelete(pickedClips().length ? pickedClips() : [selected]); return; }
     if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !R()?.recording) { take(); deleteClips(pickedClips().length ? pickedClips() : [selected]); return; }
     if (ev.key === 'Escape' && compStack.length && !(ev.metaKey || ev.ctrlKey || ev.altKey)) { take(); exitComp(); return; }
     if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && /^[gG]$/.test(ev.key) && P().take && !R()?.recording) { take(); if (ev.shiftKey) ungroup(selected); else group(); return; }

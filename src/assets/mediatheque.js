@@ -54,7 +54,8 @@ const abs = (base, p) => (p ? (/^https?:/.test(p) ? p : base + p) : null);
 /** Absolute addresses of a record's files. */
 function resolve(base, x) {
   // `url` is the stable primary (media.<ext>, original.gif or clips/<nn>.webm); a base override swaps its origin.
-  const rel = x.media || '';
+  // A GIF is also published as video (media.mp4): that plays on a timeline and knows its length.
+  const rel = (x.kind === 'animation' && x.video_media) || x.media || '';
   return { url: abs(base, rel.split('#')[0]), thumb: abs(base, x.thumb), poster: abs(base, x.poster), proxy: abs(base, x.proxy), original: abs(base, x.original), page: `${base}site/index.html#/${x.id}` };
 }
 
@@ -107,7 +108,7 @@ export async function addToAssets(store, r, { copy = false } = {}) {
     if (had) await store.remove(id);
     asset = await store.add(blob, { id, title: r.title, kind: r.kind === 'image' ? 'import' : 'video', folder, tags, meta: { ...meta, file: r.abs.url.split('/').pop(), type: blob.type } });
   } else {
-    if (had && !had.meta?.mediatheque?.copy) return had;
+    if (had && !had.meta?.mediatheque?.copy && had.meta?.stream?.page === r.abs.url) return had;
     if (had) await store.remove(id);
     asset = await store.addStream({ id, title: r.title, page: r.abs.url, quality: null, start: null, end: null, note: r.summary || '', license: r.rights?.license, artist: (r.creators || []).join(', '), folder });
     await store.update(id, { tags, meta: { ...asset.meta, ...meta } });

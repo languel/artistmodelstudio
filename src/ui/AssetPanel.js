@@ -23,8 +23,8 @@ const KIND_TIPS = { process: 'Process document (workbench)', snippet: 'A board\'
 const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', snippet: 'Snippets', frame: 'Stop-motion frames', walkthrough: 'Walkthroughs', script: 'Scripts', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee', stream: 'Streams' };
 
 export class AssetPanel {
-  constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect, onPlaylist, onExportClip, log }) {
-    this.onExportClip = onExportClip;
+  constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect, onPlaylist, onExportClip, onTimeline, log }) {
+    this.onExportClip = onExportClip; this.onTimeline = onTimeline;
     this.log = log;
     this.onSelect = onSelect;
     this.onPlaylist = onPlaylist;
@@ -71,7 +71,7 @@ export class AssetPanel {
       </div>`;
     // Mediathèque: a second view of Assets, offered only while the archive answers.
     const mtBtn = container.querySelector('#assets-mt'), mtPane = container.querySelector('#assets-mt-pane'), panel = container.querySelector('.assets-panel');
-    this.mt = new MediathequePanel({ store: this.store, onOpen: a => this.onOpen?.(a), log: this.log });
+    this.mt = new MediathequePanel({ store: this.store, onOpen: a => this.onOpen?.(a), onTimeline: a => this.onTimeline?.(a), log: this.log });
     const mineBtn = container.querySelector('#assets-tab-mine'), tabs = container.querySelector('#assets-tabs');
     const showMt = on => { panel.classList.toggle('mt-on', on); mtBtn.classList.toggle('on', on); mineBtn.classList.toggle('on', !on); mtPane.hidden = !on; if (on && !mtPane.firstChild) this.mt.render(mtPane); ls('ams_assets_mt', on ? '1' : '0'); };
     mtBtn.addEventListener('click', () => showMt(true)); mineBtn.addEventListener('click', () => showMt(false));
@@ -191,6 +191,7 @@ export class AssetPanel {
         <div class="asset-tags" title="Double-click to edit tags (comma separated)">${a.tags?.length ? a.tags.map(t => `<span class="asset-tag">#${esc(t)}</span>`).join('') : '<span class="asset-tag muted">#</span>'}${this.query && a.folder !== this.folder ? `<span class="asset-folder">${esc(a.folder || '/')}</span>` : ''}</div>
         <div class="variant-card-footer">
           <div class="asset-actions">
+            ${this.onTimeline && (a.kind === 'stream' || a.kind === 'video' || /^(video|image)\//.test(a.blob?.type || '')) ? '<button class="btn-micro" data-act="tl" title="Add to the Timeline: at the playhead, after what is there">▶ Timeline</button>' : ''}
             <button class="btn-micro btn-icon-only" data-act="open" title="Preview (above)">${icon('expand', 'icon-sm')}</button>
             <button class="btn-micro btn-icon-only" data-act="ref" title="Use as reference">${icon('photo', 'icon-sm')}</button>
             <button class="btn-micro btn-icon-only" data-act="export" title="Export">${icon('arrowDownTray', 'icon-sm')}</button>
@@ -225,6 +226,7 @@ export class AssetPanel {
       }));
       card.querySelector('.variant-thumb-wrap').addEventListener('dblclick', () => this.onOpen?.(asset));
       card.querySelector('[data-act="open"]').addEventListener('click', () => this.preview(id, true));
+      card.querySelector('[data-act="tl"]')?.addEventListener('click', () => this.onTimeline?.(asset));
       card.querySelector('[data-act="ref"]').addEventListener('click', () => this.onUseAsReference?.(asset));
       card.querySelector('[data-act="export"]').addEventListener('click', () => this.onExport?.(asset));
       card.querySelector('[data-act="delete"]').addEventListener('click', () => this.deleteAssets(this.sel.has(id) ? [...this.sel] : [id]));

@@ -1585,6 +1585,7 @@ export class Workbench {
       store: this.assetStore,
       onOpen: a => this.openAsset(a),
       log: (m, l) => this.log(m, l),
+      onTimeline: async a => { try { await this.addMediaClip(await mediaClips.mediaClipFromAsset(this, a)); } catch (err) { this.log(`Timeline: ${err.message}`, 'error'); } },
       onExportClip: (a, x, y) => mediaClips.exportMenu(this, () => mediaClips.assetSpec(this, a), x, y),
       onPlaylist: (a, x, y) => this.playlistMenu([this.playlistItemForAsset(a)], x, y),
       onSelect: a => { this.selectedAsset = a?.id || null; if (a) { this.canvas.select([]); this.canvas.selectBoard(null); } this.emit('asset'); },

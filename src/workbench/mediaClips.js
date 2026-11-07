@@ -12,6 +12,9 @@ import { resolveMediaUrl } from './mediaUrl.js';
 export async function mediaClipFromAsset(app, a, { start = 0, in: t0 = null, out: t1 = null } = {}) {
   const s = a.meta?.stream, mt = a.meta?.mediatheque;
   let url = null, duration = a.meta?.duration || null;
+  const isStill = a.kind !== 'stream' && /^image\//.test(a.blob?.type || '') || a.meta?.mediatheque?.type === 'item' && /\.(webp|jpe?g|png)(\?|$)/i.test(s?.page || '');
+  if (isStill && !a.blob) { const m = await resolveMediaUrl(s.page); return stillClip(a, m.url, start); }
+  if (isStill) return stillClip(a, null, start);
   if (s) { const m = await resolveMediaUrl(s.page, { quality: s.quality || '480' }); url = m.url; duration = m.duration || duration; t0 ??= s.start ?? null; t1 ??= s.end ?? null; }
   else if (a.blob) duration = duration || await probeDuration(a.blob);
   else throw new Error('This asset has no video');
@@ -23,6 +26,12 @@ export async function mediaClipFromAsset(app, a, { start = 0, in: t0 = null, out
     id: clipId(), track: 'media', start, dur: Math.round((t1 - t0) * 1000), url, asset: a.id, in: t0, out: t1, speed: 1, fit: 'contain', opacity: 1,
     label: a.title, credit: mt?.credit || [a.meta?.artist, a.meta?.license].filter(Boolean).join(', ') || null, fx: {}
   };
+}
+
+/** A picture on the timeline: a clip of 5 s that holds it (stretch it like any clip). */
+function stillClip(a, url, start) {
+  const mt = a.meta?.mediatheque;
+  return { id: clipId(), track: 'media', still: true, start, dur: 5000, url, asset: a.id, in: 0, out: 5, speed: 1, fit: 'contain', opacity: 1, label: a.title, credit: mt?.credit || [a.meta?.artist, a.meta?.license].filter(Boolean).join(', ') || null, fx: {} };
 }
 
 const probeDuration = src => new Promise(res => {

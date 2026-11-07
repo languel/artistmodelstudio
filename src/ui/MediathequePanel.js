@@ -11,7 +11,8 @@ const fmt = s => (s == null ? '' : s < 60 ? `${s.toFixed(s < 10 ? 1 : 0)} s` : `
 
 export class MediathequePanel {
   /** onOpen(asset): what to do with an item once added (the app's openAsset). */
-  constructor({ store, onOpen, log }) {
+  constructor({ store, onOpen, onTimeline, log }) {
+    this.onTimeline = onTimeline;
     this.store = store; this.onOpen = onOpen; this.log = log || (() => {});
     this.records = []; this.query = ''; this.kind = 'all'; this.clips = null; this.pd = false; this.tags = []; this.sel = null;
     this.have = new Set();
@@ -80,6 +81,7 @@ export class MediathequePanel {
         </div>
         <div class="variant-card-footer">
           <div class="asset-actions">
+ <button class="btn-micro" data-act="tl" title="Add to the Timeline: at the playhead, after what is there">▶ Timeline</button>
             <button class="btn-micro btn-icon-only" data-act="add" title="Add to Assets as a reference (the address only; nothing is stored)">${icon('plus', 'icon-sm')}</button>
             <button class="btn-micro btn-icon-only" data-act="copy" title="Add a copy to Assets (the file is kept; works offline)">${icon('arrowDownTray', 'icon-sm')}</button>
             <button class="btn-micro btn-icon-only" data-act="page" title="Open its page in the archive">${icon('arrowRight', 'icon-sm')}</button>
@@ -102,6 +104,7 @@ export class MediathequePanel {
         catch (err) { this.log(`Mediathèque: ${err.message}`, 'error'); }
         finally { card.classList.remove('busy'); }
       };
+      card.querySelector('[data-act="tl"]').addEventListener('click', run(async () => { const a = await addToAssets(this.store, r); await this.onTimeline?.(a); return a; }));
       card.querySelector('[data-act="add"]').addEventListener('click', run(() => addToAssets(this.store, r), a => `“${a.title}” is in Assets (a reference to the archive).`));
       card.querySelector('[data-act="copy"]').addEventListener('click', run(() => addToAssets(this.store, r, { copy: true }), a => `“${a.title}” is in Assets (a copy).`));
       card.querySelector('[data-act="page"]').addEventListener('click', ev => { ev.stopPropagation(); window.open(r.abs.page, '_blank', 'noopener'); });

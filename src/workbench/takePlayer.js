@@ -112,7 +112,8 @@ export class TakePlayer {
       if (c.track !== 'media' || !(c.url || c.asset)) continue;
       const key = c.url || c.asset;
       let v = this.videos.get(c.id);
-      if (!v || v.srcKey !== key) { v?.pause(); v = this.makeVideo(c, key); this.videos.set(c.id, v); }
+      if (!v || v.srcKey !== key) { v?.pause?.(); v = this.makeVideo(c, key); this.videos.set(c.id, v); }
+      if (c.still) continue;   // (a picture holds: nothing to play or seek)
       const speed = c.speed > 0 ? c.speed : 1, want = (c.in || 0) + (this.t - c.start) / 1000 * speed;
       const inside = !c.muted && this.t >= c.start && this.t < c.start + c.dur;
       v.muted = !(c.volume > 0); v.volume = Math.min(1, c.volume || 0);
@@ -122,10 +123,16 @@ export class TakePlayer {
         else { if (!v.paused) v.pause(); if (Math.abs(v.currentTime - want) > 0.04) v.currentTime = want; }   // (scrubbing: show the frame)
       } else if (!v.paused) v.pause();
     }
-    for (const [id, v] of this.videos) if (!flat.some(c => c.id === id && c.track === 'media')) { v.pause(); v.removeAttribute('src'); v.load(); this.videos.delete(id); }
+    for (const [id, v] of this.videos) if (!flat.some(c => c.id === id && c.track === 'media')) { v.pause?.(); v.removeAttribute('src'); v.load?.(); this.videos.delete(id); }
   }
 
   makeVideo(c, key) {
+    if (c.still) {
+      const im = new Image(); im.srcKey = key; im.crossOrigin = 'anonymous';
+      im.onload = () => this.app.canvas.invalidate();
+      if (c.url) im.src = c.url; else this.app.assetStore.get(c.asset).then(a => { if (a?.blob && im.srcKey === key) im.src = URL.createObjectURL(a.blob); }).catch(() => {});
+      return im;
+    }
     const v = document.createElement('video');
     v.srcKey = key; v.preload = 'auto'; v.playsInline = true; v.crossOrigin = 'anonymous'; v.loop = false;
     const redraw = () => this.app.canvas.invalidate();
@@ -165,8 +172,9 @@ export class TakePlayer {
     for (const c of flatClips(this.take)) {
       if (c.track !== 'media' || c.muted || this.t < c.start || this.t >= c.start + c.dur) continue;
       const v = this.videos.get(c.id);
-      if (!v || v.readyState < 2 || !v.videoWidth) continue;
-      const k = (c.fit === 'cover' ? Math.max : Math.min)(W / v.videoWidth, H / v.videoHeight), w = v.videoWidth * k, h = v.videoHeight * k;
+      const vw = v?.videoWidth || v?.naturalWidth, vh = v?.videoHeight || v?.naturalHeight;
+      if (!v || !vw || (v.readyState != null && v.readyState < 2)) continue;
+      const k = (c.fit === 'cover' ? Math.max : Math.min)(W / vw, H / vh), w = vw * k, h = vh * k;
       const fade = c.fx?.fade || 0, e = Math.min(this.t - c.start, c.start + c.dur - this.t), a = (c.opacity ?? 1) * (fade ? Math.min(1, e / fade) : 1);
       ctx.save();
       ctx.beginPath(); ctx.rect(X, Y, W, H); ctx.clip();
