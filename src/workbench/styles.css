@@ -1344,3 +1344,25 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--wb-
 .wb-tl-playhead .wb-tl-now { position: absolute; left: 8px; top: 30px; min-width: 120px; max-width: min(46vw, 420px); padding: 4px 8px; border-radius: 6px; background: color-mix(in srgb, var(--wb-panel) 92%, transparent); border: 1px solid var(--wb-line); box-shadow: var(--wb-shadow); font-size: 11px; line-height: 1.35; pointer-events: none; z-index: 5; }
 .wb-tl-now-line.muted { opacity: 0.7; }
 .wb-tl-now-line + .wb-tl-now-line { margin-top: 2px; }
+
+/* Mediathèque view of Assets */
+.assets-panel.mt-on #assets-grid, .assets-panel.mt-on #assets-crumbs, .assets-panel.mt-on #assets-preview,
+.assets-panel.mt-on .assets-toolbar > :not(#assets-mt):not(.assets-zoom) { display: none; }
+#assets-mt.on { background: var(--wb-panel-2); outline: 1px solid var(--wb-line); }
+.mt-pane { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
+.mt-pane[hidden] { display: none; }
+.mt-bar { display: flex; gap: 4px; align-items: center; }
+.mt-bar select { height: var(--ctl); background: var(--wb-panel-2); border: 1px solid var(--wb-line); border-radius: var(--radius); }
+.mt-bar .btn-micro.on, .mt-tag.on { background: var(--wb-panel-2); outline: 1px solid var(--wb-muted); }
+.mt-tags { display: flex; flex-wrap: wrap; gap: 3px; max-height: 3.4em; overflow: hidden; }
+.mt-tag { background: none; border: 0; color: var(--wb-muted); font-size: 11px; padding: 0 3px; border-radius: 3px; cursor: pointer; }
+.mt-grid { overflow: auto; min-height: 0; flex: 1; }
+.mt-card .variant-thumb-wrap { position: relative; }
+.mt-card.busy { opacity: .6; pointer-events: none; }
+.mt-dur, .mt-rights { position: absolute; bottom: 3px; font-size: 10px; padding: 0 4px; border-radius: 3px; background: rgba(0,0,0,.6); color: #fff; }
+.mt-dur { right: 3px; } .mt-rights { left: 3px; } .mt-rights.pd { background: rgba(30,110,60,.75); }
+.mt-have { display: none; color: var(--wb-muted); font-size: 11px; }
+.mt-card.have .mt-have { display: inline; }
+.mt-foot { font-size: 11px; color: var(--wb-muted); }
+.mt-foot a { color: inherit; }
+.mt-grid { --card: 150px; }

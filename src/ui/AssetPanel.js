@@ -12,6 +12,8 @@ import { renderToCanvas } from '../process/render.js';
 import { normalizeDocument } from '../process/document.js';
 import { docAt } from '../process/take.js';
 import { rangeInput } from '../workbench/rangeInput.js';
+import { MediathequePanel } from './MediathequePanel.js';
+import { loadCatalog, onMediathequeChange, state as mtState } from '../assets/mediatheque.js';
 
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return null; };
 
@@ -21,7 +23,8 @@ const KIND_TIPS = { process: 'Process document (workbench)', snippet: 'A board\'
 const KINDS = { all: 'All', process: 'Processes', take: 'Takes', audio: 'Audio', text: 'Text', snippet: 'Snippets', frame: 'Stop-motion frames', walkthrough: 'Walkthroughs', script: 'Scripts', dataset: 'Datasets', variation: 'Variations', painting: 'Paintings', import: 'Imports', klee: 'Klee', stream: 'Streams' };
 
 export class AssetPanel {
-  constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect, onPlaylist }) {
+  constructor({ store, onUseAsReference, onExport, onOpen, onPlace, onSelect, onPlaylist, log }) {
+    this.log = log;
     this.onSelect = onSelect;
     this.onPlaylist = onPlaylist;
     this.onOpen = onOpen;
@@ -49,6 +52,7 @@ export class AssetPanel {
             ${icon('search', 'icon-sm')}<input id="assets-q" type="search" placeholder="Search" spellcheck="false" />
           </label>
           <select id="assets-kind" title="Kind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+          <button id="assets-mt" class="btn-micro" hidden title="Mediathèque: the public archive of film, GIFs and images (only shown while it is reachable). Add items as references or copies.">▦</button>
           <button id="assets-new-folder" class="btn-micro btn-icon-only" title="New folder here">${icon('folderPlus', 'icon-sm')}</button>
           <button id="assets-import-files" class="btn-micro btn-icon-only" title="Import files: images, SVG, audio, text, JSON (drawings and takes come back as themselves). Or drop files here.">${icon('arrowUpTray', 'icon-sm')}</button>
           <button id="assets-import" class="btn-micro btn-icon-only" title="Import a folder (subfolders are kept; a sources.json supplies titles)">${icon('folder', 'icon-sm')}</button>
@@ -59,7 +63,17 @@ export class AssetPanel {
         <div class="assets-preview" id="assets-preview"></div>
         <div class="assets-crumbs" id="assets-crumbs"></div>
         <div class="assets-grid" id="assets-grid"></div>
+        <div class="mt-pane" id="assets-mt-pane" hidden></div>
       </div>`;
+    // Mediathèque: a second view of Assets, offered only while the archive answers.
+    const mtBtn = container.querySelector('#assets-mt'), mtPane = container.querySelector('#assets-mt-pane'), panel = container.querySelector('.assets-panel');
+    this.mt = new MediathequePanel({ store: this.store, onOpen: a => this.onOpen?.(a), log: this.log });
+    const showMt = on => { panel.classList.toggle('mt-on', on); mtBtn.classList.toggle('on', on); mtPane.hidden = !on; if (on && !mtPane.firstChild) this.mt.render(mtPane); ls('ams_assets_mt', on ? '1' : '0'); };
+    mtBtn.addEventListener('click', () => showMt(!panel.classList.contains('mt-on')));
+    const sync = () => { mtBtn.hidden = mtState.status !== 'ok'; if (mtState.status === 'offline' && panel.classList.contains('mt-on')) showMt(false); };
+    onMediathequeChange(sync);
+    loadCatalog().then(() => { sync(); if (mtState.status === 'ok' && ls('ams_assets_mt') === '1') showMt(true); });
+    window.addEventListener('online', () => loadCatalog({ force: true }));
     // Card size.
     const zoom = rangeInput({ min: 64, max: 260, step: 2, value: Number(ls('ams_assets_zoom')) || 140, title: 'Card size' });
     const applyZoom = () => { container.querySelector('#assets-grid').style.setProperty('--card', `${zoom.value}px`); container.querySelector('.assets-panel').classList.toggle('compact', Number(zoom.value) < 110); };

@@ -29,6 +29,7 @@ import { onFitReady, fitTimes } from '../process/fit.js';
 import { createZip } from '../export/zip.js';
 import { AssetStore } from '../assets/assetStore.js';
 import { AssetPanel } from '../ui/AssetPanel.js';
+import { MediathequePanel } from '../ui/MediathequePanel.js';
 import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
 import { icon, brushIcon, sculptIcon, nodeIcon } from './icons.js';
@@ -1577,6 +1578,7 @@ export class Workbench {
     this.assetPanel = new AssetPanel({
       store: this.assetStore,
       onOpen: a => this.openAsset(a),
+      log: (m, l) => this.log(m, l),
       onPlaylist: (a, x, y) => this.playlistMenu([this.playlistItemForAsset(a)], x, y),
       onSelect: a => { this.selectedAsset = a?.id || null; if (a) { this.canvas.select([]); this.canvas.selectBoard(null); } this.emit('asset'); },
       onPlace: a => { const c = this.canvas; this.placeAsset(a.id, c.toWorld(c.w / 2, c.h / 2)).catch(err => this.log(err.message, 'error')); },
@@ -2411,6 +2413,7 @@ export class Workbench {
 
   /** Drop from Assets: pictures become image layers; saved drawings come in as a group of their marks. */
   async placeAsset(id, at) {
+    if (id.startsWith('mediatheque:')) await MediathequePanel.pending;   // dragged from the archive: the reference is being made
     const a = await this.assetStore.get(id);
     if (!a) throw new Error('Asset not found');
     // Dropped on a playlist board: into the list (not a new board).
