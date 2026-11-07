@@ -48,12 +48,15 @@ export class AssetPanel {
     this.container = container;
     container.innerHTML = `
       <div class="assets-panel">
+        <div class="assets-tabs" id="assets-tabs" hidden>
+          <button id="assets-tab-mine" class="on" title="Your assets">My assets</button>
+          <button id="assets-mt" title="The Mediathèque: a public archive of film, GIFs and images. Add items as references or copies.">Mediathèque</button>
+        </div>
         <div class="assets-toolbar">
           <label class="assets-search" title="Words match title, tags, kind, folder and artist; #tag matches a tag exactly">
             ${icon('search', 'icon-sm')}<input id="assets-q" type="search" placeholder="Search" spellcheck="false" />
           </label>
           <select id="assets-kind" title="Kind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
-          <button id="assets-mt" class="btn-micro" hidden title="Mediathèque: the public archive of film, GIFs and images (only shown while it is reachable). Add items as references or copies.">▦</button>
           <button id="assets-new-folder" class="btn-micro btn-icon-only" title="New folder here">${icon('folderPlus', 'icon-sm')}</button>
           <button id="assets-import-files" class="btn-micro btn-icon-only" title="Import files: images, SVG, audio, text, JSON (drawings and takes come back as themselves). Or drop files here.">${icon('arrowUpTray', 'icon-sm')}</button>
           <button id="assets-import" class="btn-micro btn-icon-only" title="Import a folder (subfolders are kept; a sources.json supplies titles)">${icon('folder', 'icon-sm')}</button>
@@ -69,9 +72,10 @@ export class AssetPanel {
     // Mediathèque: a second view of Assets, offered only while the archive answers.
     const mtBtn = container.querySelector('#assets-mt'), mtPane = container.querySelector('#assets-mt-pane'), panel = container.querySelector('.assets-panel');
     this.mt = new MediathequePanel({ store: this.store, onOpen: a => this.onOpen?.(a), log: this.log });
-    const showMt = on => { panel.classList.toggle('mt-on', on); mtBtn.classList.toggle('on', on); mtPane.hidden = !on; if (on && !mtPane.firstChild) this.mt.render(mtPane); ls('ams_assets_mt', on ? '1' : '0'); };
-    mtBtn.addEventListener('click', () => showMt(!panel.classList.contains('mt-on')));
-    const sync = () => { mtBtn.hidden = mtState.status !== 'ok'; if (mtState.status === 'offline' && panel.classList.contains('mt-on')) showMt(false); };
+    const mineBtn = container.querySelector('#assets-tab-mine'), tabs = container.querySelector('#assets-tabs');
+    const showMt = on => { panel.classList.toggle('mt-on', on); mtBtn.classList.toggle('on', on); mineBtn.classList.toggle('on', !on); mtPane.hidden = !on; if (on && !mtPane.firstChild) this.mt.render(mtPane); ls('ams_assets_mt', on ? '1' : '0'); };
+    mtBtn.addEventListener('click', () => showMt(true)); mineBtn.addEventListener('click', () => showMt(false));
+    const sync = () => { tabs.hidden = mtState.status !== 'ok'; if (mtState.status === 'offline' && panel.classList.contains('mt-on')) showMt(false); };
     onMediathequeChange(sync);
     loadCatalog().then(() => { sync(); if (mtState.status === 'ok' && ls('ams_assets_mt') === '1') showMt(true); });
     window.addEventListener('online', () => loadCatalog({ force: true }));
