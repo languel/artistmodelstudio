@@ -352,6 +352,14 @@ export class TakePlayer {
   pause() { this.playing = false; cancelAnimationFrame(this.raf); clearInterval(this.timer); this.syncAudio(); this.scrubCursor(); this.emit(); }
   toggle() { this.playing ? this.pause() : this.play(); }
 
+  /** The values lanes give a board's sketch controls now ({ name: value }): a sketch that starts again begins with them, not with the code's. */
+  ctlValuesFor(id) {
+    if (!this.take) return null;
+    const o = {}, prefix = `ctl:${id}.`;
+    for (const lane of lanesOf(this.take)) if (lane.address.startsWith(prefix)) { const v = valueAt(lane.keys, this.t - lane.start, lane.meta); if (v != null) o[lane.address.slice(prefix.length)] = v; }
+    return Object.keys(o).length ? o : null;
+  }
+
   /** Automation: every parameter with a lane takes its value at the playhead (only when it differs, so nothing is redrawn for nothing). */
   applyAutomation() {
     if (!this.take) return;

@@ -413,7 +413,7 @@ export class BoardFrames {
     if (wanted.some(n => this.files[n] === undefined)) return;   // still reading: the sketch starts when they are here
     const files = Object.fromEntries(wanted.filter(n => this.files[n]).map(n => [n, this.files[n]]));
     if (!f.running || f.code !== inst.sig || f.size !== `${b.width}x${b.height}`) {
-      f.code = inst.sig; f.vals = { ...inst.values }; f.size = `${b.width}x${b.height}`; f.running = true; f.errors = [];
+      f.code = inst.sig; f.vals = { ...inst.values, ...(this.app.player?.ctlValuesFor?.(b.id) || {}) }; f.size = `${b.width}x${b.height}`; f.running = true; f.errors = [];
       f.iframe?.remove();
       const iframe = document.createElement('iframe');
       iframe.setAttribute('sandbox', 'allow-scripts');
