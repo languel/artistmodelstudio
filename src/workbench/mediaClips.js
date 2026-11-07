@@ -140,3 +140,8 @@ export async function exportMenu(app, getSpec, x, y) {
   const { showMenu } = await import('./menu.js'), { FORMATS } = await import('../media/ffmpegRunner.js');
   showMenu([{ label: 'Export as a file' }, ...Object.entries(FORMATS).map(([f, s]) => ({ label: s.label, run: async () => { try { await exportFile(app, await getSpec(), f); } catch (err) { app.log(`Export: ${err.message}`, 'error'); } } }))], x, y);
 }
+
+/** A board as a clip: its picture (the source under it, then its marks and effects) for a length of time, on the media track. */
+export function boardAsClip(board, { start = 0, dur = 5000 } = {}) {
+  return { id: clipId(), track: 'media', board: board.id, start, dur, in: 0, out: dur / 1000, speed: 1, fit: 'contain', opacity: 1, label: board.title || 'Board', fx: {} };
+}

@@ -1123,6 +1123,7 @@ export class Workbench {
         b.code || b.pseudo ? { label: b.codeMin ? 'Open its code on pages' : 'Minimize its code on pages', hint: 'On an exported page its code is a bar of tabs (Pseudocode, Studio, p5.js) and opens on a click', run: () => this.setBoardFlag(id, 'codeMin', !b.codeMin) } : null,
         { label: b.mask ? 'Unmask' : 'Mask to board', hint: 'Its marks are cropped to the board (a mask the size of the board); off, they may spill over its edge', run: () => this.setBoardFlag(id, 'mask', !b.mask) },
         { label: 'Add to playlist', hint: 'This board (or the selected boards): the media they show, or the boards themselves', run: () => { const ids = this.canvas.boardSet.has(id) && this.canvas.boardSet.size > 1 ? [...this.canvas.boardSet] : [id]; this.playlistMenu(ids.map(i => this.playlistItemForBoard(boardById(this.store.doc, i))), x, y, b); } },
+        { label: 'Put on the Timeline', hint: 'This board (or the selected boards) as a clip: its picture for a few seconds, one after another (the same as a video clip: trim, fade, move)', run: () => this.boardsToTimeline(this.canvas.boardSet.has(id) && this.canvas.boardSet.size > 1 ? [...this.canvas.boardSet] : [id]).catch(err => this.log(err.message, 'error')) },
         this.playableSource(b) ? { label: 'Clip', hint: 'The range between the player’s in and out points, as a clip', items: [
           { label: 'Keep as a clip in Assets', hint: 'A reference with its own in and out (the credit comes along); nothing is stored', run: () => mediaClips.boardToAssets(this, b).catch(err => this.log(err.message, 'error')) },
           { label: 'Export as a file…', hint: 'Cut the range into an MP4, WebM or GIF (ffmpeg in the browser; the credit goes into the file)', items: ['mp4', 'webm', 'gif'].map(f => ({ label: f.toUpperCase(), run: () => mediaClips.boardSpec(this, b).then(sp => mediaClips.exportFile(this, sp, f)).catch(err => this.log(`Export: ${err.message}`, 'error')) })) },
@@ -1598,9 +1599,35 @@ export class Workbench {
     this.assetPanel.render(el);
   }
 
+  /** The Program board: the board that shows the Timeline's picture (the monitor of the sequence), or null. */
+  programBoard() { return boardsOf(this.store.doc).find(b => b.source === 'timeline') || null; }   // (the board that shows the `timeline` source)
+
+  /** Make the Program board if there is none (a 16:9 board, black, showing the `timeline` source); go to it. */
+  async ensureProgramBoard({ go = false } = {}) {
+    const have = this.programBoard();
+    if (have) { if (go) this.goToBoard(have.id, { animate: true }); return have; }
+    if (!this.sources.def('timeline')) await this.sources.add({ kind: 'timeline', name: 'timeline' });
+    const at = boardById(this.store.doc, MAIN) || { x: 0, y: 0, width: 800, height: 600 };
+    const b = this.store.addBoard({ title: 'Program', x: Math.round(at.x + at.width + 80), y: Math.round(at.y), width: 640, height: 360, ground: '#000', adopt: false });
+    this.setBoardSource(b.id, 'timeline', 1, 'contain');
+    this.setBoardLive(b.id, true);
+    this.log('Program board: the Timeline\'s picture. Pin it, open it in a window or full screen from its menu › Output.');
+    if (go) this.goToBoard(b.id, { animate: true });
+    return b;
+  }
+
+  /** Boards as clips on the Timeline's media track, in order, each after the last. */
+  async boardsToTimeline(ids) {
+    for (const id of ids) {
+      const b = boardById(this.store.doc, id); if (!b) continue;
+      await this.addMediaClip(mediaClips.boardAsClip(b));
+    }
+  }
+
   /** A media clip (a moment of a video, by reference) goes on the Timeline's media track at the playhead. */
   async addMediaClip(clip) {
     this.docks.open('timeline');
+    await this.ensureProgramBoard();   // (the sequence needs a monitor)
     for (let i = 0; i < 20 && !this._tlAddClip; i++) await new Promise(r => setTimeout(r, 50));
     if (!this._tlAddClip) throw new Error('The Timeline is not open');
     this._tlAddClip(clip);

@@ -15,6 +15,7 @@ import { bodyFrom, expressionsOf } from '../process/gestures.js';
 import { isVideoUrl } from './mediaUrl.js';
 import { micLive } from './micSource.js';
 import { boardLive } from './boardSource.js';
+import { timelineLive } from './timelineSource.js';
 
 const KEY = 'ams_sources_v1';
 const SAMPLE = 256;   // the sampled frame's long side (what code reads)
@@ -103,6 +104,7 @@ export class Sources {
     if (d.kind === 'camera') e.live = await LiveSource.webcam();
     else if (d.kind === 'mic') e.live = await micLive();
     else if (d.kind === 'board') e.live = boardLive(this.app, d.boardId);   // a board's picture, live
+    else if (d.kind === 'timeline') e.live = timelineLive(this.app);   // the sequence at the playhead
     else if (d.kind === 'url' && isVideoUrl(d)) e.live = await LiveSource.video(d.url, { crossOrigin: true });   // streamed
     else {
       const a = d.kind === 'url' ? { blob: await fetch(d.url).then(r => { if (!r.ok) throw new Error(`The address answered ${r.status}`); return r.blob(); }) } : await this.app.assetStore.get(d.assetId);

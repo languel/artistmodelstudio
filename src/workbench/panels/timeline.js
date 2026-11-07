@@ -356,6 +356,7 @@ export function mountTimeline(root, app) {
       { label: 'Camera keyframe (current view)', run: () => add({ track: 'camera', start: t, dur: 800, ...viewNow() }) },
       { label: 'Hold (2 s from here)', hint: 'Push everything after the playhead 2 s later', disabled: !P().take?.clips.length, run: () => { for (const c of P().take.clips) if (c.start >= t) c.start += 2000; edited(); } },
       '-',
+      { label: 'Program board', hint: 'A board that shows the sequence (the monitor): pin it, open it in a window or full screen from its menu › Output', run: () => app.ensureProgramBoard({ go: true }) },
       { label: 'Audio file…', hint: 'A sound or voiceover (played in the standalone player)', run: pickAudio },
       { label: 'Voice the narration', hint: 'Turns the Narration clips into sound on the Audio track, in the narrator voice (Palette: Narration engine)', run: voiceNarration }
     ];

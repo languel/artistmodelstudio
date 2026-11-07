@@ -18,7 +18,7 @@ export function clipWords(c) {
     case 'draw': return `Draw: ${c.label || ''}${c.diff ? ` — ${diffWords(c.diff)}` : ''}${c.by === 'agent' ? ' (agent)' : ''}`;
     case 'action': return c.label || c.name || 'action';
     case 'camera': return `Camera${c.label ? `: ${c.label}` : ''}`;
-    case 'media': return `Media: ${c.label || ''} (${(+c.in || 0).toFixed(1)}–${(+c.out || 0).toFixed(1)} s)`;
+    case 'media': if (c.board) return `Board “${c.label || ''}” (${((c.dur || 0) / 1000).toFixed(1)} s)`; return `Media: ${c.label || ''} (${(+c.in || 0).toFixed(1)}–${(+c.out || 0).toFixed(1)} s)`;
     case 'audio': return `Audio: ${c.label || c.name || ''}`;
     case 'comp': return `Composition “${c.label || ''}” (${(c.comp?.clips || []).length} clips)`;
     default: return c.label || c.text || c.track;

@@ -329,15 +329,15 @@ export function mountProperties(el, app, { compact = false } = {}) {
     if (c.track === 'media') {
       const speed = () => (c.speed > 0 ? c.speed : 1), retime = () => { c.dur = Math.round(((c.out || 0) - (c.in || 0)) / speed() * 1000); };
       el.append(section('Media', true,
-        h('div', { class: 'wb-small' }, c.label || 'video'),
-        row('In (s)', numberField({ value: +(c.in || 0).toFixed(2), min: 0, max: 86400, step: 0.1, def: 0, title: 'Where in the source it starts', onChange: v => { set({ in: v }); retime(); edited(); } })),
-        row('Out (s)', numberField({ value: +(c.out || 0).toFixed(2), min: 0, max: 86400, step: 0.1, def: 5, title: 'Where in the source it ends', onChange: v => { set({ out: v }); retime(); edited(); } })),
-        row('Speed', numberField({ value: speed(), min: 0.1, max: 4, step: 0.05, def: 1, title: 'Plays faster or slower; the clip gets shorter or longer', onChange: v => { set({ speed: v }); retime(); edited(); } })),
+        h('div', { class: 'wb-small' }, c.board ? `Board: ${c.label}` : c.label || 'video'),
+        c.board ? null : row('In (s)', numberField({ value: +(c.in || 0).toFixed(2), min: 0, max: 86400, step: 0.1, def: 0, title: 'Where in the source it starts', onChange: v => { set({ in: v }); retime(); edited(); } })),
+        c.board ? null : row('Out (s)', numberField({ value: +(c.out || 0).toFixed(2), min: 0, max: 86400, step: 0.1, def: 5, title: 'Where in the source it ends', onChange: v => { set({ out: v }); retime(); edited(); } })),
+        c.board ? null : row('Speed', numberField({ value: speed(), min: 0.1, max: 4, step: 0.05, def: 1, title: 'Plays faster or slower; the clip gets shorter or longer', onChange: v => { set({ speed: v }); retime(); edited(); } })),
         row('Opacity', numberField({ value: c.opacity ?? 1, min: 0, max: 1, step: 0.05, def: 1, onChange: v => set({ opacity: v }) })),
-        row('Volume', numberField({ value: c.volume ?? 0, min: 0, max: 1, step: 0.05, def: 0, title: 'Its sound (muted by default)', onChange: v => set({ volume: v }) })),
+        c.board ? null : row('Volume', numberField({ value: c.volume ?? 0, min: 0, max: 1, step: 0.05, def: 0, title: 'Its sound (muted by default)', onChange: v => set({ volume: v }) })),
         row('Fit', selectField([['contain', 'Contain'], ['cover', 'Cover']], c.fit || 'contain', v => set({ fit: v }))),
         c.credit ? h('div', { class: 'wb-muted wb-small', title: 'Kept with the clip, and added to exports' }, c.credit) : null,
-        (() => { const b = h('button', { class: 'wb-btn', title: 'Cut this clip into an MP4, WebM or GIF (ffmpeg in the browser)' }, 'Export as a file…'); b.addEventListener('click', ev => { const r = b.getBoundingClientRect(); import('../mediaClips.js').then(m => m.exportMenu(app, () => m.clipSpec(app, c), r.left, r.bottom)); }); return b; })()));
+        c.board ? null : (() => { const b = h('button', { class: 'wb-btn', title: 'Cut this clip into an MP4, WebM or GIF (ffmpeg in the browser)' }, 'Export as a file…'); b.addEventListener('click', ev => { const r = b.getBoundingClientRect(); import('../mediaClips.js').then(m => m.exportMenu(app, () => m.clipSpec(app, c), r.left, r.bottom)); }); return b; })()));
     }
     if (c.track === 'audio') el.append(section('Audio', true, h('div', { class: 'wb-small' }, c.label || 'audio')));
   };

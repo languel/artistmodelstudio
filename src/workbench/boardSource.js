@@ -6,10 +6,10 @@
 import { boardById } from '../process/boards.js';
 import { renderDocument } from '../process/render.js';
 
-const SIDE = 384;
+const DEFAULT_SIDE = 384;
 
 /** A live source (the shape LiveSource has, for Sources) that draws a board of the studio's document. */
-export function boardLive(app, boardId) {
+export function boardLive(app, boardId, SIDE = DEFAULT_SIDE) {
   const canvas = document.createElement('canvas');
   const live = { kind: 'board', canvas, ready: true, version: 0, rate: 1, tick() {
     const doc = app.store.doc, b = boardById(doc, boardId);

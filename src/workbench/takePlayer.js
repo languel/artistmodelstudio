@@ -7,6 +7,7 @@
  */
 import { docAt, duration, touch, flatClips } from '../process/take.js';
 import { boardById, MAIN } from '../process/boards.js';
+import { boardLive } from './boardSource.js';
 import { advanceTransportPlaybackTime } from '../time/transport.js';
 import { normalizeTransport, loopRange, inOutRange } from '../time/sceneTransport.js';
 
@@ -109,7 +110,7 @@ export class TakePlayer {
   syncMedia(flat) {
     this.videos ||= new Map();
     for (const c of flat) {
-      if (c.track !== 'media' || !(c.url || c.asset)) continue;
+      if (c.track !== 'media' || c.board || !(c.url || c.asset)) continue;
       const key = c.url || c.asset;
       let v = this.videos.get(c.id);
       if (!v || v.srcKey !== key) { v?.pause?.(); v = this.makeVideo(c, key); this.videos.set(c.id, v); }
@@ -129,13 +130,13 @@ export class TakePlayer {
   makeVideo(c, key) {
     if (c.still) {
       const im = new Image(); im.srcKey = key; im.crossOrigin = 'anonymous';
-      im.onload = () => this.app.canvas.invalidate();
+      im.onload = () => { this.app.canvas.invalidate(); for (const f of this.programListeners || []) f(); };
       if (c.url) im.src = c.url; else this.app.assetStore.get(c.asset).then(a => { if (a?.blob && im.srcKey === key) im.src = URL.createObjectURL(a.blob); }).catch(() => {});
       return im;
     }
     const v = document.createElement('video');
     v.srcKey = key; v.preload = 'auto'; v.playsInline = true; v.crossOrigin = 'anonymous'; v.loop = false;
-    const redraw = () => this.app.canvas.invalidate();
+    const redraw = () => { this.app.canvas.invalidate(); for (const f of this.programListeners || []) f(); };   // (a frame arrived: the Program picture is stale)
     v.addEventListener('seeked', redraw); v.addEventListener('loadeddata', redraw);
     if (c.url) v.src = c.url;
     else this.app.assetStore.get(c.asset).then(a => { if (a?.blob && v.srcKey === key) v.src = URL.createObjectURL(a.blob); }).catch(() => {});
@@ -158,21 +159,43 @@ export class TakePlayer {
     return { X: tf.x + (b.x || 0) * tf.scale, Y: tf.y + (b.y || 0) * tf.scale, W: (b.width || 1000) * tf.scale, H: (b.height || 1000) * tf.scale };
   }
 
-  /** What a composing take adds over the live canvas: its media, captions and title cards. */
+  /** What a composing take adds over the live canvas: its media, captions and title cards (unless a Program board shows the sequence). */
   drawLive(ctx, tf, W, H) {
-    if (!this.take || !this.composing) return;
+    if (!this.take || !this.composing || this.app.programBoard?.()) return;
     this.drawMedia(ctx, this.artboardRect(tf, null));
     const dpr = this.app.canvas.dpr || 1;
     drawCaptions(ctx, this.take, this.t, Math.round(W * dpr), Math.round(H * dpr));
   }
 
+  /** A board's picture for a clip of it (the board as a live source, drawn larger than a source is). */
+  boardPicture(id) {
+    this.boardLives ||= new Map();
+    let live = this.boardLives.get(id);
+    if (!live) { if (!boardById(this.app.store.doc, id)) return null; live = boardLive(this.app, id, 960); this.boardLives.set(id, live); }
+    live.tick();
+    return live.canvas;
+  }
+
+  /** Something the Program picture shows changed (a video frame decoded). */
+  onProgramDirty(fn) { (this.programListeners ||= new Set()).add(fn); return () => this.programListeners.delete(fn); }
+
+  /** The sequence as a picture on a canvas of its own (black ground, the media and captions): the Timeline source, the Program board. */
+  drawProgram(ctx, W, H) {
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    this.syncMedia(flatClips(this.take));
+    this.drawMedia(ctx, { X: 0, Y: 0, W, H });
+    drawCaptions(ctx, this.take, this.t, W, H);
+    ctx.restore();
+  }
+
   /** Draw the media clips under the playhead into a rectangle of the screen. */
   drawMedia(ctx, { X, Y, W, H }) {
-    if (!this.take || !this.videos?.size) return;
+    if (!this.take) return;
     for (const c of flatClips(this.take)) {
       if (c.track !== 'media' || c.muted || this.t < c.start || this.t >= c.start + c.dur) continue;
-      const v = this.videos.get(c.id);
-      const vw = v?.videoWidth || v?.naturalWidth, vh = v?.videoHeight || v?.naturalHeight;
+      const v = c.board ? this.boardPicture(c.board) : this.videos?.get(c.id);
+      const vw = v?.videoWidth || v?.naturalWidth || v?.width, vh = v?.videoHeight || v?.naturalHeight || v?.height;
       if (!v || !vw || (v.readyState != null && v.readyState < 2)) continue;
       const k = (c.fit === 'cover' ? Math.max : Math.min)(W / vw, H / vh), w = vw * k, h = vh * k;
       const fade = c.fx?.fade || 0, e = Math.min(this.t - c.start, c.start + c.dur - this.t), a = (c.opacity ?? 1) * (fade ? Math.min(1, e / fade) : 1);
@@ -190,6 +213,8 @@ export class TakePlayer {
     for (const a of this.audios?.values() || []) a.pause();
     for (const v of this.videos?.values() || []) v.pause();
     this.videos?.clear();
+    for (const l of this.boardLives?.values() || []) l.stop?.();
+    this.boardLives?.clear();
     this.take = null;
     this.app.canvas.previewDoc = null;
     this.app.canvas.invalidate();
