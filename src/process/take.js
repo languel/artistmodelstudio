@@ -7,6 +7,7 @@
  *   title    a title card over the picture
  *   action   a tool call (label only; the effect is in the draw clips)
  *   camera   a view keyframe: { cx, cy, z } (artboard center and zoom; z = 1 shows the artboard)
+ *   media    a moment of a video or stream, by reference: { url, asset?, in, out (s of the source), speed, fit, opacity, label, credit }
  *   audio    a sound (src), later
  *   comp     a composition (as in After Effects): clips grouped into one, with a timeline of their own
  *            { comp: { tracks, clips }, rate } — its clips' times are its own (from 0); `rate` plays it
@@ -90,8 +91,8 @@ export function createTake({ title = 'Take', baseline, clips = [] } = {}) {
 }
 
 export const duration = take => Math.max(0, ...take.clips.map(c => c.start + c.dur));
-export const TRACKS = ['comp', 'title', 'say', 'draw', 'action', 'camera', 'audio'];
-export const TRACK_NAMES = { comp: 'Comps', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
+export const TRACKS = ['comp', 'title', 'say', 'draw', 'action', 'camera', 'media', 'audio'];
+export const TRACK_NAMES = { comp: 'Comps', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', media: 'Media', audio: 'Audio' };
 const OLD_TRACKS = ['title', 'say', 'draw', 'action', 'camera', 'audio'];   // (the six every take had before tracks started empty)
 
 /**

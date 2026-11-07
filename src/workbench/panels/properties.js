@@ -326,6 +326,18 @@ export function mountProperties(el, app, { compact = false } = {}) {
       row('Center x', numberField({ value: +(c.cx ?? 0.5).toFixed(3), min: -1, max: 2, step: 0.01, def: 0.5, onChange: v => set({ cx: v }) })),
       row('Center y', numberField({ value: +(c.cy ?? 0.5).toFixed(3), min: -1, max: 2, step: 0.01, def: 0.5, onChange: v => set({ cy: v }) }))));
     if (c.track === 'action') el.append(section('Action', true, h('div', { class: 'wb-small' }, c.label || c.name), h('pre', { class: 'wb-ref' }, JSON.stringify(c.args || {}, null, 1).slice(0, 800))));
+    if (c.track === 'media') {
+      const speed = () => (c.speed > 0 ? c.speed : 1), retime = () => { c.dur = Math.round(((c.out || 0) - (c.in || 0)) / speed() * 1000); };
+      el.append(section('Media', true,
+        h('div', { class: 'wb-small' }, c.label || 'video'),
+        row('In (s)', numberField({ value: +(c.in || 0).toFixed(2), min: 0, max: 86400, step: 0.1, def: 0, title: 'Where in the source it starts', onChange: v => { set({ in: v }); retime(); edited(); } })),
+        row('Out (s)', numberField({ value: +(c.out || 0).toFixed(2), min: 0, max: 86400, step: 0.1, def: 5, title: 'Where in the source it ends', onChange: v => { set({ out: v }); retime(); edited(); } })),
+        row('Speed', numberField({ value: speed(), min: 0.1, max: 4, step: 0.05, def: 1, title: 'Plays faster or slower; the clip gets shorter or longer', onChange: v => { set({ speed: v }); retime(); edited(); } })),
+        row('Opacity', numberField({ value: c.opacity ?? 1, min: 0, max: 1, step: 0.05, def: 1, onChange: v => set({ opacity: v }) })),
+        row('Volume', numberField({ value: c.volume ?? 0, min: 0, max: 1, step: 0.05, def: 0, title: 'Its sound (muted by default)', onChange: v => set({ volume: v }) })),
+        row('Fit', selectField([['contain', 'Contain'], ['cover', 'Cover']], c.fit || 'contain', v => set({ fit: v }))),
+        c.credit ? h('div', { class: 'wb-muted wb-small', title: 'Kept with the clip, and added to exports' }, c.credit) : null));
+    }
     if (c.track === 'audio') el.append(section('Audio', true, h('div', { class: 'wb-small' }, c.label || 'audio')));
   };
 

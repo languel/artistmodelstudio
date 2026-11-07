@@ -29,6 +29,7 @@ export class TakePlayer {
       let marker = false; try { marker = localStorage.getItem('ams_pen_marker') === '1'; } catch { /* ignore */ }
       if (marker && !app.guide?.following) drawPen(ctx, app.canvas.previewDoc, tf);
       const dpr = app.canvas.dpr || 1;   // (drawCaptions works in device pixels, with no transform: on a sharp screen the view's CSS size is only a fraction of it)
+      this.drawMedia(ctx, tf, app.canvas.previewDoc);
       drawCaptions(ctx, this.take, this.t, Math.round(W * dpr), Math.round(H * dpr));
       this.drawSelection(ctx, tf, app.canvas.previewDoc);
       // A quiet label: this is a recording, not the drawing (Esc or any tool goes back).
@@ -96,11 +97,66 @@ export class TakePlayer {
       } else if (!a.paused) a.pause();
     }
     for (const [id, a] of this.audios) if (!flat.some(c => c.id === id)) { a.pause(); this.audios.delete(id); }
+    this.syncMedia(flat);
+  }
+
+  /**
+   * Media clips (moments of a video, by reference) follow the playhead like sounds, and show in the picture: each is a
+   * hidden <video> kept at the clip's moment (playing with the take, seeked when scrubbed) and drawn over the artboard.
+   */
+  syncMedia(flat) {
+    this.videos ||= new Map();
+    for (const c of flat) {
+      if (c.track !== 'media' || !(c.url || c.asset)) continue;
+      const key = c.url || c.asset;
+      let v = this.videos.get(c.id);
+      if (!v || v.srcKey !== key) { v?.pause(); v = this.makeVideo(c, key); this.videos.set(c.id, v); }
+      const speed = c.speed > 0 ? c.speed : 1, want = (c.in || 0) + (this.t - c.start) / 1000 * speed;
+      const inside = !c.muted && this.t >= c.start && this.t < c.start + c.dur;
+      v.muted = !(c.volume > 0); v.volume = Math.min(1, c.volume || 0);
+      if (inside) {
+        v.playbackRate = Math.max(0.0625, Math.min(4, speed * this.rate));
+        if (this.playing) { if (v.paused) { v.currentTime = want; v.play().catch(() => {}); } else if (Math.abs(v.currentTime - want) > 0.3) v.currentTime = want; }
+        else { if (!v.paused) v.pause(); if (Math.abs(v.currentTime - want) > 0.04) v.currentTime = want; }   // (scrubbing: show the frame)
+      } else if (!v.paused) v.pause();
+    }
+    for (const [id, v] of this.videos) if (!flat.some(c => c.id === id && c.track === 'media')) { v.pause(); v.removeAttribute('src'); v.load(); this.videos.delete(id); }
+  }
+
+  makeVideo(c, key) {
+    const v = document.createElement('video');
+    v.srcKey = key; v.preload = 'auto'; v.playsInline = true; v.crossOrigin = 'anonymous'; v.loop = false;
+    const redraw = () => this.app.canvas.invalidate();
+    v.addEventListener('seeked', redraw); v.addEventListener('loadeddata', redraw);
+    if (c.url) v.src = c.url;
+    else this.app.assetStore.get(c.asset).then(a => { if (a?.blob && v.srcKey === key) v.src = URL.createObjectURL(a.blob); }).catch(() => {});
+    return v;
+  }
+
+  /** Draw the media clips under the playhead over the artboard (tf: the view's transform). */
+  drawMedia(ctx, tf, doc) {
+    if (!this.take || !this.videos?.size || !doc?.artboard) return;
+    const ab = doc.artboard, X = tf.x, Y = tf.y, W = ab.width * tf.scale, H = ab.height * tf.scale;
+    for (const c of flatClips(this.take)) {
+      if (c.track !== 'media' || c.muted || this.t < c.start || this.t >= c.start + c.dur) continue;
+      const v = this.videos.get(c.id);
+      if (!v || v.readyState < 2 || !v.videoWidth) continue;
+      const k = (c.fit === 'cover' ? Math.max : Math.min)(W / v.videoWidth, H / v.videoHeight), w = v.videoWidth * k, h = v.videoHeight * k;
+      const fade = c.fx?.fade || 0, e = Math.min(this.t - c.start, c.start + c.dur - this.t), a = (c.opacity ?? 1) * (fade ? Math.min(1, e / fade) : 1);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(X, Y, W, H); ctx.clip();
+      ctx.globalAlpha = Math.max(0, Math.min(1, a));
+      if (c.blend && c.blend !== 'normal') ctx.globalCompositeOperation = c.blend;
+      try { ctx.drawImage(v, X + (W - w) / 2, Y + (H - h) / 2, w, h); } catch { /* not decodable yet */ }
+      ctx.restore();
+    }
   }
 
   close() {
     this.pause();
     for (const a of this.audios?.values() || []) a.pause();
+    for (const v of this.videos?.values() || []) v.pause();
+    this.videos?.clear();
     this.take = null;
     this.app.canvas.previewDoc = null;
     this.app.canvas.invalidate();

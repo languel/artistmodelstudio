@@ -7,6 +7,7 @@ import { askConfirm, askText } from '../dialog.js';
 import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
 import { clipWords } from '../../process/clipWords.js';
+import { mediaClipFromAsset } from '../mediaClips.js';
 import { duration, summarize, touch, flatClips, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
 import { showMenu } from '../menu.js';
 import { TimelineUndo } from '../timelineUndo.js';
@@ -19,7 +20,7 @@ import { waveFor, fromPeaks, drawWave } from '../waveform.js';
 import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, rulerTicks, autoGrid, gridLayer, timeLabel, editPoints, nextEdit, MAX_CONTENT_PX } from '../../time/timelineView.js';
 
 const AUDIO_CLIP_H = 33;
-const TRACK_LABEL = { comp: 'Composition', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', audio: 'Audio' };
+const TRACK_LABEL = { comp: 'Composition', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', media: 'Media', audio: 'Audio' };
 const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`; };
 const RULER_NAMES = { time: 'Minutes and seconds', beats: 'Bars, beats and sixteenths', frames: 'Frames' };
 /** The clips' colours in the navigator (as the lanes have them). */
@@ -334,6 +335,8 @@ export function mountTimeline(root, app) {
     if (!P().take) { P().load(fresh(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(app.store.doc)) }))); fitZoom(); drawBar(); }
     return P().take;
   };
+  /** Clips made elsewhere (a board's clip) come in at the playhead. */
+  app._tlAddClip = clip => { const take = ensureTake(); take.clips.push({ ...clip, start: Math.round(P().t) }); edited(); select(take.clips[take.clips.length - 1]); drawBar(); };
   /** Add a track of a kind (from the bar's button and the track names' menu). */
   const trackItems = () => [{ label: 'Add a track' }, ...TRACKS.map(k => ({ label: TRACK_NAMES[k], run: () => { addTrack(ensureTake(), k); drawLanes(); commit('track'); } }))];
   const addItems = () => {
@@ -1017,6 +1020,7 @@ export function mountTimeline(root, app) {
     }
     const id = ev.dataTransfer.getData('text/asset-id');
     if (!id) return;
+    if (id.startsWith('mediatheque:')) await (await import('../../ui/MediathequePanel.js')).MediathequePanel.pending;   // dragged from the archive: its reference is being made
     const a = await app.assetStore.get(id);
     if (!a) return;
     if (!P().take) P().load(fresh(createTake({ title: 'Untitled take', baseline: JSON.parse(JSON.stringify(app.store.doc)) })));
@@ -1024,7 +1028,10 @@ export function mountTimeline(root, app) {
     const take = P().take;
     const row = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('.wb-tl-row');
     const onRow = kind => (row?.dataset.kind === kind ? { lane: row.dataset.track } : {});
-    if (a.kind === 'audio') {
+    if (a.kind === 'stream' || a.kind === 'video' || /^video\//.test(a.blob?.type || '')) {
+      try { const clip = await mediaClipFromAsset(app, a, { start: t }); take.clips.push({ ...clip, ...onRow('media') }); }
+      catch (err) { app.log(`Could not put “${a.title}” on the timeline: ${err.message}`, 'error'); return; }
+    } else if (a.kind === 'audio') {
       const src = await blobURL(a.blob);
       let dur = a.meta?.duration;
       if (!dur) { const au = new Audio(src); await new Promise(res => { au.onloadedmetadata = res; au.onerror = res; }); dur = Math.round((au.duration || 5) * 1000); }

@@ -30,6 +30,7 @@ import { createZip } from '../export/zip.js';
 import { AssetStore } from '../assets/assetStore.js';
 import { AssetPanel } from '../ui/AssetPanel.js';
 import { MediathequePanel } from '../ui/MediathequePanel.js';
+import * as mediaClips from './mediaClips.js';
 import { DockManager } from './dock.js';
 import { CanvasView, TOOL_KEYS } from './canvasView.js';
 import { icon, brushIcon, sculptIcon, nodeIcon } from './icons.js';
@@ -1122,6 +1123,10 @@ export class Workbench {
         b.code || b.pseudo ? { label: b.codeMin ? 'Open its code on pages' : 'Minimize its code on pages', hint: 'On an exported page its code is a bar of tabs (Pseudocode, Studio, p5.js) and opens on a click', run: () => this.setBoardFlag(id, 'codeMin', !b.codeMin) } : null,
         { label: b.mask ? 'Unmask' : 'Mask to board', hint: 'Its marks are cropped to the board (a mask the size of the board); off, they may spill over its edge', run: () => this.setBoardFlag(id, 'mask', !b.mask) },
         { label: 'Add to playlist', hint: 'This board (or the selected boards): the media they show, or the boards themselves', run: () => { const ids = this.canvas.boardSet.has(id) && this.canvas.boardSet.size > 1 ? [...this.canvas.boardSet] : [id]; this.playlistMenu(ids.map(i => this.playlistItemForBoard(boardById(this.store.doc, i))), x, y, b); } },
+        this.playableSource(b) ? { label: 'Clip', hint: 'The range between the player’s in and out points, as a clip', items: [
+          { label: 'Keep as a clip in Assets', hint: 'A reference with its own in and out (the credit comes along); nothing is stored', run: () => mediaClips.boardToAssets(this, b).catch(err => this.log(err.message, 'error')) },
+          { label: 'Put on the Timeline', hint: 'A media clip at the playhead (a reference to the video, so the take stays small)', run: () => mediaClips.boardToTimeline(this, b).catch(err => this.log(err.message, 'error')) }
+        ] } : null,
         this.playableSource(b) ? { label: this.playerShown(b) ? 'Hide media controls' : 'Show media controls', hint: 'The player under the board: play, step, scrub, speed', run: () => this.togglePlayer(b) } : null,
         { label: this.captureOf(id) ? `Stop being a source (${this.captureOf(id).name})` : 'Use as a source', hint: 'Its picture (what is under it, then its marks), live, as a source other boards read by name', run: () => this.setBoardCapture(id) },
         { label: b.perf ? 'Hide performance' : 'Show performance', hint: 'A line under it: runs a second, code time, source fps (measured only while shown)', run: () => this.setBoardFlag(id, 'perf', !b.perf) }
@@ -1588,6 +1593,15 @@ export class Workbench {
         : download(a.blob, `${a.title}.png`, a.blob.type))
     });
     this.assetPanel.render(el);
+  }
+
+  /** A media clip (a moment of a video, by reference) goes on the Timeline's media track at the playhead. */
+  async addMediaClip(clip) {
+    this.docks.open('timeline');
+    for (let i = 0; i < 20 && !this._tlAddClip; i++) await new Promise(r => setTimeout(r, 50));
+    if (!this._tlAddClip) throw new Error('The Timeline is not open');
+    this._tlAddClip(clip);
+    this.log(`“${clip.label}” (${(clip.in).toFixed(1)}–${(clip.out).toFixed(1)} s) is on the Timeline.`);
   }
 
   async openAsset(a) {
