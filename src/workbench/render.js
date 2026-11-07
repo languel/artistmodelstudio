@@ -4,13 +4,14 @@
  * (the cameras, the media, the captions) and keep the picture; then encode them with ffmpeg in the browser.
  * The same scene renders the same film: sketches run from a fixed seed on the render's clock, in steps of 1/60 s.
  *
- * Limits: no sound yet (the audio clips and narration are not mixed in); a video playing under a board is held to the
+ * Sound: the audio clips (sounds, narration) and media clips whose Volume is raised are mixed offline (renderAudio.js). Limits: a video playing under a board is held to the
  * render clock (looping over its in and out), a GIF or picture sequence is not stepped; time-driven marks follow the real
  * clock; a sketch's clock leads the render by its first few frames.
  */
 import { boardsOf } from '../process/boards.js';
 import { flatClips, duration } from '../process/take.js';
 import { startEncoder } from '../media/ffmpegRunner.js';
+import { mixTake, encodeWav } from './renderAudio.js';
 
 const settle = (v, ms = 2500) => new Promise(ok => {
   if (!v || (!v.seeking && v.readyState >= 2)) return ok();
@@ -35,7 +36,7 @@ async function seekSources(app, ms) {
  * Render the open take. opts: { range: [t0, t1] ms, fps, width, height, format: 'mp4' | 'webm', onProgress({ frame, frames, ms }), signal }.
  * Resolves { blob, type, name, frames }. Rejects with an AbortError if the signal fires (nothing is kept).
  */
-export async function renderTake(app, { range = null, fps = 25, width = 1280, height = 720, format = 'mp4', onProgress = null, onStatus = null, signal = null } = {}) {
+export async function renderTake(app, { range = null, fps = 25, width = 1280, height = 720, format = 'mp4', sound = true, onProgress = null, onStatus = null, signal = null } = {}) {
   const player = app.player, take = player.take;
   if (!take) throw new Error('There is no take to render: put something on the Timeline first');
   const t0 = range?.[0] ?? 0, t1 = range?.[1] ?? duration(take);
@@ -75,6 +76,11 @@ export async function renderTake(app, { range = null, fps = 25, width = 1280, he
       const done = i + 1, elapsed = performance.now() - t0wall;
       onProgress?.({ frame: done, frames, ms: elapsed, left: elapsed / done * (frames - done) });
     }
+    if (sound) {
+      onStatus?.('Mixing the sound…');
+      try { const mix = await mixTake(app, take, [t0, t1], { onStatus }); if (mix) await enc.setAudio(encodeWav(mix.channels, mix.sampleRate)); }
+      catch (err) { onStatus?.(`No sound: ${err.message}`); }
+    }
     onStatus?.('Encoding…');
     const out = await enc.finish(p => onProgress?.({ frame: frames, frames, encode: p }));
     ok = true;
@@ -100,13 +106,14 @@ export function openRenderDialog(app) {
   const sizeSel = sel([['1280x720', '1280 × 720'], ['1920x1080', '1920 × 1080'], ['960x540', '960 × 540'], ['640x360', '640 × 360 (a quick look)']], '1280x720');
   const fpsIn = el('input', { type: 'number', class: 'wb-num', min: 1, max: 60, value: String(settings?.fps || 25) });
   const fmtSel = sel([['mp4', 'MP4 (H.264)'], ['webm', 'WebM (VP8)']], 'mp4');
-  const status = el('div', { class: 'wb-muted wb-small', text: 'No sound yet: the audio clips are not mixed in.' });
+  const soundChk = el('input', { type: 'checkbox' }); soundChk.checked = true;
+  const status = el('div', { class: 'wb-muted wb-small', text: 'Sound: audio clips, narration and media clips with their Volume raised.' });
   const bar = el('div', { style: 'height:6px;background:var(--wb-panel-2,#2a2a2a);border-radius:3px;overflow:hidden;margin-top:6px;display:none' }, el('div', { style: 'height:100%;width:0;background:var(--wb-accent-2,#c8664f)' }));
   const go = el('button', { class: 'wb-btn', text: 'Render' }), cancel = el('button', { class: 'wb-btn', text: 'Close' });
   const row = (label, input) => el('div', { class: 'wb-row', style: 'display:flex;gap:10px;align-items:center;margin:6px 0' }, el('span', { style: 'width:70px;color:var(--wb-muted)', text: label }), input);
   const box = el('div', { style: 'position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:9999;min-width:340px;background:var(--wb-panel,#222);color:var(--wb-text,#ddd);border:1px solid var(--wb-line,#444);border-radius:8px;padding:14px 16px;box-shadow:0 12px 40px rgba(0,0,0,.5)' },
     el('div', { style: 'font-weight:600;margin-bottom:6px', text: 'Render the take as a video' }),
-    row('Range', rangeSel), row('Size', sizeSel), row('Frame rate', fpsIn), row('Format', fmtSel), status, bar,
+    row('Range', rangeSel), row('Size', sizeSel), row('Frame rate', fpsIn), row('Format', fmtSel), row('Sound', soundChk), status, bar,
     el('div', { style: 'display:flex;gap:8px;justify-content:flex-end;margin-top:10px' }, cancel, go));
   document.body.append(box);
   let ctl = null;
@@ -121,7 +128,7 @@ export function openRenderDialog(app) {
     const fill = bar.firstChild;
     try {
       const out = await renderTake(app, {
-        range, fps: Math.max(1, Math.min(60, Number(fpsIn.value) || 25)), width: w, height: h, format: fmtSel.value, signal: ctl.signal,
+        range, fps: Math.max(1, Math.min(60, Number(fpsIn.value) || 25)), width: w, height: h, format: fmtSel.value, sound: soundChk.checked, signal: ctl.signal,
         onStatus: t => { status.textContent = t; },
         onProgress: p => { if (p.encode != null) { status.textContent = `Encoding… ${Math.round(p.encode * 100)}%`; fill.style.width = `${50 + p.encode * 50}%`; } else { fill.style.width = `${(p.frame / p.frames) * 50}%`; status.textContent = `Frame ${p.frame} of ${p.frames} · about ${Math.ceil(p.left / 1000)} s left`; } }
       });
@@ -129,7 +136,7 @@ export function openRenderDialog(app) {
       const { download } = await import('./ui.js');
       download(out.blob, name, out.type);
       try { await app.assetStore.add(out.blob, { title: `${take.title || 'Render'} (render)`, kind: 'video', folder: 'Renders', tags: ['render'], meta: { file: name, type: out.type, frames: out.frames } }); } catch { /* the file was still saved */ }
-      status.textContent = `Done: ${name} (${(out.blob.size / 1048576).toFixed(1)} MB, ${out.frames} frames). Also in Assets › Renders.`;
+      status.textContent = `Done: ${name} (${(out.blob.size / 1048576).toFixed(1)} MB, ${out.frames} frames${out.sound ? ', with sound' : ''}). Also in Assets › Renders.`;
       fill.style.width = '100%';
     } catch (err) {
       status.textContent = err.name === 'AbortError' ? 'Stopped. Nothing was kept.' : `Render failed: ${err.message}`;

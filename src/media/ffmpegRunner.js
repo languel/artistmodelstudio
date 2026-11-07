@@ -15,6 +15,9 @@ export const FORMATS = {
 };
 
 let ff = null, loading = null, queue = Promise.resolve();
+/** Drop the ffmpeg instance (after a crash in its wasm): the next job loads a fresh one. */
+export function resetFfmpeg() { try { ff?.terminate?.(); } catch { /* already gone */ } ff = null; }
+export const loadFfmpeg = load;   // (for tests and tools)
 
 async function load(onStatus) {
   if (ff) return ff;
@@ -98,15 +101,17 @@ export async function startEncoder({ fps = 25, format = 'mp4', onStatus = null }
   const spec = FORMATS[format];
   if (!spec || format === 'gif') throw new Error(`Cannot render to ${format}`);
   const f = await load(onStatus);
-  let n = 0;
+  let n = 0, audio = false;
   const name = i => `r${String(i).padStart(6, '0')}.jpg`;
-  const clean = async () => { for (let i = 0; i < n; i++) { try { await f.deleteFile(name(i)); } catch { /* gone */ } } try { await f.deleteFile(`render.${spec.ext}`); } catch { /* not made */ } n = 0; };
+  const clean = async () => { for (let i = 0; i < n; i++) { try { await f.deleteFile(name(i)); } catch { /* gone */ } } try { await f.deleteFile(`render.${spec.ext}`); } catch { /* not made */ } try { await f.deleteFile('audio.wav'); } catch { /* none */ } n = 0; audio = false; };
   return {
     async add(bytes) { await f.writeFile(name(n++), bytes); },
+    /** The sound track (WAV bytes) to mux in. */
+    async setAudio(bytes) { await f.writeFile('audio.wav', bytes); audio = true; },
     get count() { return n; },
     async cancel() { await clean(); },
     async finish(onProgress = null) {
-      const frames = n;
+      const frames = n; let noSound = false;
       const run = async () => {
         const onProg = ({ progress }) => onProgress?.(Math.max(0, Math.min(1, progress)));
         f.on('progress', onProg);
@@ -114,11 +119,15 @@ export async function startEncoder({ fps = 25, format = 'mp4', onStatus = null }
         try {
           const vf = 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p';
           const codec = format === 'webm' ? ['-c:v', 'libvpx', '-b:v', '4M', '-crf', '8', '-deadline', 'realtime', '-cpu-used', '8'] : ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '20', '-movflags', '+faststart'];
-          const code = await f.exec(['-framerate', String(fps), '-i', 'r%06d.jpg', '-vf', vf, ...codec, `render.${spec.ext}`]);
+          const video = ['-framerate', String(fps), '-i', 'r%06d.jpg'];
+          const sound = format === 'webm' ? ['-c:a', 'libvorbis', '-q:a', '4'] :   /* (libopus crashes this wasm build) */ ['-c:a', 'aac', '-b:a', '160k'];
+          let code = await f.exec([...video, ...(audio ? ['-i', 'audio.wav'] : []), '-vf', vf, ...codec, ...(audio ? [...sound, '-shortest'] : []), `render.${spec.ext}`]);
+          if (code !== 0 && audio) { log += '\n(the sound could not be encoded: the film has none)'; code = await f.exec([...video, '-vf', vf, ...codec, `render.${spec.ext}`]); noSound = true; }
           if (code !== 0) throw new Error(`ffmpeg could not encode the frames: ${log.split('\n').filter(Boolean).slice(-2).join(' ')}`);
           const data = await f.readFile(`render.${spec.ext}`);
-          return { blob: new Blob([data.buffer || data], { type: spec.type }), type: spec.type, name: `render.${spec.ext}`, frames };
-        } finally { f.off('progress', onProg); f.off('log', onLog); await clean(); }
+          return { blob: new Blob([data.buffer || data], { type: spec.type }), type: spec.type, name: `render.${spec.ext}`, frames, sound: audio && !noSound };
+        } catch (err) { if (/memory access|out of bounds|abort/i.test(String(err?.message || err))) { resetFfmpeg(); throw new Error('The encoder crashed; it will start again next time. Try again, or render without sound'); } throw err;
+        } finally { try { f.off('progress', onProg); f.off('log', onLog); await clean(); } catch { /* the instance is gone */ } }
       };
       const job = queue.then(run, run); queue = job.catch(() => {}); return job;
     }
