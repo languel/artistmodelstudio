@@ -193,6 +193,21 @@ export function renderCamera(app, shot, t, ctx, W, H) {
   return v;
 }
 
+/**
+ * Onion skin through the camera: the times of the ghost frames around t, nearest first. `before`/`after` count frames,
+ * `step` is the time between them (ms); times outside [0, end] are dropped. Opacity falls off with distance.
+ */
+export function onionTimes(t, { before = 2, after = 0, step = 120, opacity = 0.32 } = {}, end = Infinity) {
+  const out = [];
+  for (let n = 1; n <= Math.max(before, after); n++) {
+    const a = opacity / n;
+    if (n <= before && t - n * step >= 0) out.push({ t: t - n * step, side: 'before', a });
+    if (n <= after && t + n * step <= end) out.push({ t: t + n * step, side: 'after', a });
+  }
+  return out;
+}
+export const ONION_TINT = { before: '#ff9a7a', after: '#7ab8ff' };
+
 /** A shot on a board (the whole board in frame), for `camera`, from `start` for `dur` ms. */
 export function boardShot(board, camera, { start = 0, dur = 5000 } = {}) {
   return { track: 'shot', ...(camera ? { camera: camera.id } : {}), start, dur, target: { board: board.id }, dx: 0, dy: 0, z: 1, label: board.title || 'Board', fx: {} };

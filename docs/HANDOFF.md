@@ -26,7 +26,7 @@ Commits on `main` from `d9a03a5` to `57f693f`, all with tests (778) and a passin
 - Dev server note: after a code edit the page reloads and an unsaved take is lost; test in one go.
 
 **Not done / next** (see camera-plan.md §7)
-1. Onion skin through the camera, depth of field, the dot on the remaining fields, and the author's bug list (Play section, notes, tool/sculpt settings, timeline clip fields; effects need stable ids), curve editor, record, auto-key on not-yet-animated parameters, parallax; Phase 3 sketch parameter audit; Phase 4 deterministic render (spike first: seed + time shim for sketches).
+1. (Onion skin through the camera is built: Timeline bar button.) Depth of field, the dot on the remaining fields, and the author's bug list (Play section, notes, tool/sculpt settings, timeline clip fields; effects need stable ids), curve editor, record, auto-key on not-yet-animated parameters, parallax; Phase 3 sketch parameter audit; Phase 4 deterministic render (spike first: seed + time shim for sketches).
 2. Media clips and board clips are not in the take's standalone player, HTML export or video render yet.
 3. The Timeline panel is small; no edge trimming; Mediathèque cards are large in a narrow dock (a compact list would help).
 4. Untested by hand: drag a card to a timeline lane, the dot's right-click menu and the I key, pinning the Program board, a choice (`a|b|c`) control keyed in a sketch. Testing in the shared browser tab changes the author's real scene: sliders rewrite sketch code, automation leaves values in the document; restore what you touch.

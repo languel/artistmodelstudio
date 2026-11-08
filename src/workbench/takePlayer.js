@@ -8,7 +8,7 @@
 import { docAt, duration, touch, flatClips } from '../process/take.js';
 import { boardById, MAIN } from '../process/boards.js';
 import { boardLive } from './boardSource.js';
-import { camerasOf, cameraById, shotAt, onAirShot, renderCamera, viewFor, releaseCameras } from './camera.js';
+import { camerasOf, cameraById, shotAt, onAirShot, renderCamera, viewFor, releaseCameras, onionTimes, ONION_TINT } from './camera.js';
 import { lanesOf, valueAt } from '../process/keyframes.js';
 import { param } from './params.js';
 import { advanceTransportPlaybackTime } from '../time/transport.js';
@@ -27,6 +27,7 @@ export class TakePlayer {
     this.rate = 1;
     this.loop = false;
     this.followCamera = true;
+    this.onion = { on: false, before: 2, after: 0, step: 120, opacity: 0.32 };   // onion skin through the camera (an editing aid, never rendered)
     this.listeners = new Set();
     app.canvas.drawLiveOverlay = (ctx, tf, W, H) => this.drawLive(ctx, tf, W, H);
     app.canvas.drawPreviewOverlay = (ctx, tf, W, H) => {
@@ -196,6 +197,7 @@ export class TakePlayer {
       if (off.width !== cam.w || off.height !== cam.h) { off.width = cam.w; off.height = cam.h; }
       renderCamera(this.app, shot, this.t, off.getContext('2d'), cam.w, cam.h);
       const k = Math.min(W / cam.w, H / cam.h); ctx.drawImage(off, (W - cam.w * k) / 2, (H - cam.h * k) / 2, cam.w * k, cam.h * k);
+      this.drawOnion(ctx, W, H, cam, cameraId);
     }
     if (!cameraId) {   // (the media and captions belong to the Program, not to one camera)
       this.syncMedia(flatClips(this.take));
@@ -203,6 +205,30 @@ export class TakePlayer {
       drawCaptions(ctx, this.take, this.t, W, H);
     }
     ctx.restore();
+  }
+
+  /**
+   * Onion skin through the camera (an editing aid, never rendered): while paused, the frames just before (warm) and
+   * after (cool) the playhead, as seen by the same camera, show faintly over the picture. Camera moves and stop-motion
+   * frames show; a parameter that is only keyframed on a board does not (the boards are posed for the playhead alone).
+   */
+  drawOnion(ctx, W, H, cam, cameraId) {
+    const o = this.onion;
+    if (!o?.on || this.playing || this.app.frames?.renderMode) return;
+    const ghosts = onionTimes(this.t, o, duration(this.take));
+    if (!ghosts.length) return;
+    const g = (this.onionCanvas ||= document.createElement('canvas'));
+    if (g.width !== cam.w || g.height !== cam.h) { g.width = cam.w; g.height = cam.h; }
+    const gc = g.getContext('2d'), k = Math.min(W / cam.w, H / cam.h);
+    for (const gh of ghosts) {
+      const shot = cameraId ? shotAt(this.take, gh.t, cameraId) : onAirShot(this.take, gh.t);
+      if (!shot || (shot.camera || cam.id) !== cam.id) continue;
+      renderCamera(this.app, shot, gh.t, gc, cam.w, cam.h);
+      gc.save(); gc.globalCompositeOperation = 'multiply'; gc.fillStyle = ONION_TINT[gh.side]; gc.fillRect(0, 0, cam.w, cam.h); gc.restore();
+      ctx.save(); ctx.globalAlpha = gh.a; ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(g, (W - cam.w * k) / 2, (H - cam.h * k) / 2, cam.w * k, cam.h * k);
+      ctx.restore();
+    }
   }
 
   /** The cameras' frames on the live canvas: a coloured outline where each camera is looking now (the shot active for it). */

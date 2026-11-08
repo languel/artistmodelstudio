@@ -63,3 +63,15 @@ describe('camera', () => {
     expect([at(0), at(900), at(1000), at(5000)]).toEqual(['A', 'A', 'B', 'C']);
   });
 });
+
+import { onionTimes } from './camera.js';
+describe('onion skin', () => {
+  it('lists ghost times before and after, nearest first, within the take', () => {
+    const g = onionTimes(300, { before: 2, after: 1, step: 100, opacity: 0.4 }, 350);
+    expect(g.map(x => [x.side, x.t])).toEqual([['before', 200], ['after', 400 > 350 ? null : 400], ['before', 100]].filter(x => x[1] != null));
+    expect(g[0].a).toBeCloseTo(0.4); expect(g[1].a).toBeCloseTo(0.2);
+  });
+  it('drops ghosts before zero', () => {
+    expect(onionTimes(50, { before: 2, step: 100 }).length).toBe(0);
+  });
+});
