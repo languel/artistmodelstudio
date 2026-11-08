@@ -131,6 +131,34 @@ function filmEncodePlugin() {
             const dir = dirOf(name);
             if (route === '/begin') { fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true }); return json(res, 200, { ok: true }); }
             if (route === '/frame') { fs.writeFileSync(path.join(dir, `f${String(Number(q('i'))).padStart(6, '0')}.jpg`), body); return json(res, 200, { ok: true }); }
+            if (route === '/page') {
+              // A standalone page: the film (a lighter encode of it) and its captions inside one HTML file.
+              const meta = JSON.parse(body.toString('utf8') || '{}'), src = path.join(out, `${name}.mp4`);
+              if (!fs.existsSync(src)) throw new Error('render the film first');
+              const lite = path.join(os.tmpdir(), `ams-film-${name}-lite.mp4`);
+              const p = spawn('ffmpeg', ['-y', '-i', src, '-vf', 'scale=1280:-2', '-c:v', 'libx264', '-preset', 'medium', '-crf', '25', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', lite], { stdio: ['ignore', 'ignore', 'pipe'] }); let err = '';
+              p.stderr.on('data', d => { err = (err + d).slice(-800); });
+              p.on('close', code => {
+                try {
+                  if (code !== 0) throw new Error(`ffmpeg stopped (${code}): ${err}`);
+                  const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+                  const b64 = fs.readFileSync(lite).toString('base64'), vtt = Buffer.from(meta.vtt || 'WEBVTT\n', 'utf8').toString('base64');
+                  const chapters = (meta.chapters || []).map(c => `<button data-t="${Number(c.t) / 1000}">${esc(c.title)}</button>`).join('');
+                  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(meta.title)}</title>
+<style>:root{color-scheme:dark}body{margin:0;background:#111;color:#e8e4da;font:15px/1.5 system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+main{width:min(1100px,96vw);padding:18px 0 40px}h1{font:600 20px/1.2 system-ui;margin:0 0 4px}p{margin:0 0 14px;color:#a9a396}
+video{width:100%;background:#000;border-radius:6px;display:block}nav{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+nav button{background:#1d1c1a;color:#e8e4da;border:1px solid #3a3731;border-radius:5px;padding:5px 10px;cursor:pointer;font:inherit}nav button:hover{border-color:#c8664f}
+small{display:block;margin-top:18px;color:#7d776b}</style></head><body><main><h1>${esc(meta.title)}</h1><p>${esc(meta.summary)}</p>
+<video id="v" controls playsinline preload="metadata"><source src="data:video/mp4;base64,${b64}" type="video/mp4"><track kind="subtitles" srclang="en" label="English" default src="data:text/vtt;base64,${vtt}"></video>
+<nav id="n">${chapters}</nav><small>${esc(meta.credit)}</small></main>
+<script>const v=document.getElementById('v');document.getElementById('n').addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;v.currentTime=Number(t.dataset.t);v.play()});</script></body></html>`;
+                  fs.mkdirSync(out, { recursive: true }); const file = path.join(out, `${name}.html`); fs.writeFileSync(file, html); fs.rmSync(lite, { force: true });
+                  json(res, 200, { ok: true, url: `/exports/film/${name}.html`, file, size: fs.statSync(file).size });
+                } catch (e) { json(res, 500, { error: e.message }); }
+              });
+              return;
+            }
             if (route === '/audio') { fs.writeFileSync(path.join(dir, 'audio.wav'), body); return json(res, 200, { ok: true }); }
             if (route === '/finish') {
               const fps = Math.max(1, Math.min(60, Number(q('fps')) || 25)), format = q('format') === 'webm' ? 'webm' : 'mp4', hasAudio = fs.existsSync(path.join(dir, 'audio.wav'));

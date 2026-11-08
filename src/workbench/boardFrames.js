@@ -182,7 +182,7 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
       const c = document.querySelector('canvas');
       (c && c.width > 0 ? createImageBitmap(c) : Promise.resolve(null)).then(bm => parent.postMessage({ amsFrame: token, type: 'advanced', id: d.id, bitmap: bm }, '*', bm ? [bm] : []));
     })();
-    if (d.type === 'ctl') { ctlVals[d.key] = params[d.key] = d.value; try { ctlSet[d.key]?.(d.value); } catch { /* the sketch's own error */ } }
+    if (d.type === 'ctl') { ctlVals[d.key] = params[d.key] = d.value; try { ctlSet[d.key]?.(d.value); if (typeof window.isLooping === 'function' && typeof window.redraw === 'function' && !window.isLooping()) window.redraw(); /* (a p5 sketch that draws once draws again with the new value) */ } catch { /* the sketch's own error */ } }
     if (d.type === 'input' && d.ev) { try { replay(d.ev); } catch { /* an event the sketch cannot take */ } }
     if (d.type === 'run') { if (d.on && held) { const q = held; held = null; q.forEach(cb => raf0(cb)); } else if (!d.on && !held) held = []; }
     if (d.type === 'reply') { const p = pending.get(d.id); if (p) { pending.delete(d.id); d.error ? p.fail(new Error(d.error)) : p.ok(d.result); } }

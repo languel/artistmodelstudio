@@ -54,6 +54,29 @@ function wrapLines(ctx, text, maxW) {
   return out;
 }
 
+/**
+ * A block of code over the picture (a title clip with `code: { lines, mark: [from, to], side }`): the marked lines are lit on a
+ * warm bar, the rest dimmed, so what the voice is talking about is what the eye lands on. It takes `side` (left by default)
+ * of the frame and leaves the rest of the picture clear.
+ */
+export function drawCode(ctx, c, a, W, H) {
+  const { lines = [], mark = [0, 0], side = 'left' } = c.code, unit = Math.min(W, H);
+  const fs = Math.round(unit * (W / H > 1.5 ? 0.034 : 0.03)), lh = fs * 1.45, pad = fs * 0.9, w = W * (side === 'full' ? 0.9 : 0.52);
+  ctx.save(); ctx.globalAlpha = a; ctx.font = `${fs}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  const rows = Math.min(lines.length, Math.max(4, Math.floor((H * 0.6 - pad * 2) / lh))), h = rows * lh + pad * 2, x = side === 'right' ? W - w - W * 0.03 : side === 'full' ? W * 0.05 : W * 0.03, y = H * 0.12;
+  ctx.fillStyle = 'rgba(16,15,14,0.88)'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, fs * 0.6) : ctx.rect(x, y, w, h); ctx.fill();
+  const first = Math.max(0, Math.min(lines.length - rows, Math.floor((mark[0] + mark[1]) / 2 - rows / 2)));
+  for (let i = 0; i < rows; i++) {
+    const n = first + i, line = lines[n] ?? '', lit = n >= mark[0] && n <= mark[1], yy = y + pad + i * lh;
+    if (lit) { ctx.fillStyle = 'rgba(200,102,79,0.30)'; ctx.fillRect(x + fs * 0.3, yy - lh * 0.1, w - fs * 0.6, lh); }
+    ctx.fillStyle = /^\s*\/\//.test(line) ? (lit ? '#9bb08a' : '#6f7f62') : lit ? '#f3efe6' : '#8c887d';
+    let text = line.replace(/\t/g, '  '); while (text.length > 2 && ctx.measureText(text).width > w - pad * 2) text = text.slice(0, -2) + '…';
+    ctx.fillText(text, x + pad, yy);
+  }
+  if (c.code.note) { ctx.globalAlpha = a * 0.9; ctx.font = `600 ${Math.round(fs * 0.8)}px Inter, system-ui, sans-serif`; ctx.fillStyle = '#e0a58f'; ctx.fillText(c.code.note, x + pad * 0.4, y - fs * 1.35); }
+  ctx.restore();
+}
+
 /** Narration as a caption at the bottom; title cards over the whole frame. */
 export function drawCaptions(ctx, take, t, W, H) {
   const unit = Math.min(W, H);
@@ -61,6 +84,7 @@ export function drawCaptions(ctx, take, t, W, H) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   for (const c of activeAt(take, 'title', t)) {
     const a = fadeOf(c, t);
+    if (c.code) { drawCode(ctx, c, a, W, H); continue; }
     ctx.globalAlpha = a * 0.82; ctx.fillStyle = '#141312'; ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = a; ctx.fillStyle = '#f3efe6'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `600 ${Math.round(unit * 0.055)}px Inter, system-ui, sans-serif`;
