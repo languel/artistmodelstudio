@@ -22,6 +22,7 @@ import { BRUSHES as BR, brushSource, compileBrush, saveLibraryBrush, deleteLibra
 import { allPalettes, savePalette, deletePalette, paletteFromImage, toHex, nameOf } from './palettes.js';
 import { buildCommands, slashCommands, rank, contextOf } from './palette.js';
 import { intentCommand } from './intents.js';
+import filmsDoc from '../../docs/films.md?raw';
 import { SHOW, revealScore, SessionRecorder, summarize, READ_ONLY } from './showActions.js';
 
 const S = (properties = {}, required = []) => ({ type: 'object', properties, required });
@@ -473,7 +474,7 @@ export function workbenchTools(app) {
       if (a.action === 'state') return { recording: I.capturing, steps: I.entries.length };
       return { recording: I.capturing, steps: I.steps() };
     } },
-    { name: 'ams_timeline', description: 'Takes on the timeline: action "list" (takes in Assets), "open" {id}, "play", "pause", "seek" {ms}, "summary" (a short-form cut of the open take, saved), "walkthrough" (make a live walkthrough from it), "export" {format: html | project | video | json, rate}.', inputSchema: S({ action: str('list | open | play | pause | seek | summary | walkthrough | export'), id: str('Take asset id'), ms: num('Time in ms'), format: str('html | project | video | json'), rate: num('Video speed') }, ['action']), run: async (a) => {
+    { name: 'ams_timeline', description: 'Takes on the timeline: action "list" (takes in Assets), "open" {id}, "play", "pause", "seek" {ms}, "summary" (a short-form cut of the open take, saved), "walkthrough" (make a live walkthrough from it), "export" {format: html | project | video | json, rate}. For cameras, shots, cuts and rendering a take frame by frame see ams_camera; for keyframes ams_keys; for whole films and explainers ams_film.', inputSchema: S({ action: str('list | open | play | pause | seek | summary | walkthrough | export'), id: str('Take asset id'), ms: num('Time in ms'), format: str('html | project | video | json'), rate: num('Video speed') }, ['action']), run: async (a) => {
       const p = app.player;
       if (a.action === 'list') return (await app.assetStore.all()).filter(x => x.kind === 'take').map(x => ({ id: x.id, title: x.title, seconds: Math.round((x.meta?.duration || 0) / 1000), clips: x.meta?.clips }));
       if (a.action === 'open') { await app.openTake(a.id); return { open: p.take.title, seconds: Math.round(p.duration / 1000) }; }
@@ -490,6 +491,57 @@ export function workbenchTools(app) {
         ({ html: m.downloadHTML, project: m.downloadProject, json: m.downloadJSON }[a.format || 'html'] || m.downloadHTML)(p.take);
         return { exported: a.format || 'html' };
       }
+      throw new Error('Unknown action');
+    } },
+    // Films, cameras and keyframes: the camera system (docs/films.md, docs/camera-plan.md) for agents that make films and explainers.
+    { name: 'ams_film', description: 'Films and explainers made on the camera system. A film is data (beats: a board, a camera pose, narration, a code card, keyframed sketch controls) that becomes a take on the Timeline and renders to MP4 and a standalone page. action "guide" returns the format and how to write one; "list" the films that exist; "check" {name | spec} lists problems (missing boards, code anchors) without building; "open" {name | spec} builds its lesson scene, its own boards and its take on the Timeline (voiced, nothing rendered); "render" {name | spec, width?, height?, crf?} also makes exports/film/<id>.mp4, .html, .vtt, .notes.md and .take.json (needs the dev server, takes minutes). `spec` is the film object itself (JSON).', inputSchema: S({ action: { type: 'string', enum: ['guide', 'list', 'check', 'open', 'render'] }, name: str('A film in examples/films: moon, silhouette, threejs, pointillism, condense'), spec: { type: 'object', description: 'A film description (see action "guide")' }, width: num('render width, default 1920'), height: num('render height, default 1080'), crf: num('H.264 quality, default 20 (lower is better)') }, ['action']), run: async (a) => {
+      const F = await import('./film.js'), { FILMS } = await import('../../examples/films/index.js');
+      if (a.action === 'guide') return { guide: filmsDoc };
+      if (a.action === 'list') return { films: await Promise.all(Object.entries(FILMS).map(async ([name, load]) => { const f = await load(); return { name, id: f.id, title: f.title, beats: f.beats.length, lesson: f.lesson || null }; })) };
+      const film = a.spec || (FILMS[a.name] ? await FILMS[a.name]() : null);
+      if (!film?.beats?.length) throw new Error(`Give a film: name (${Object.keys(FILMS).join(', ')}) or a spec with beats`);
+      if (!film.id) film.id = String(film.title || 'film').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'film';
+      if (a.action === 'check') { await F.ensureLesson(app, film); await F.ensureBoards(app, film); return { problems: F.checkFilm(app, film) }; }
+      if (a.action === 'open') { const b = await F.showFilm(app, film, { onStatus: t => app.log(t) }); return { title: film.title, seconds: Math.round(b.total / 1000), beats: film.beats.length, chapters: b.chapters }; }
+      if (a.action === 'render') { const r = await F.makeFilm(app, film, { width: a.width || 1920, height: a.height || 1080, crf: a.crf || 20 }); return r; }
+      throw new Error('Unknown action');
+    } },
+    { name: 'ams_camera', description: 'Cameras and shots on the open take (a take is made if none is open). action "list" returns the cameras, shots, cuts and keyframe lanes; "add_camera" {name?, w?, h?} (a vertical short is 1080×1920); "set_camera" {id, name?, w?, h?}; "shot" {board (title or id) | rect [x,y,w,h], camera?, start, dur, pose {z, dx, dy}, to {z, dx, dy} (it moves there), focus, blur (depth of field)}; "cut" {camera, at, until?} puts that camera on air; "render" {range [t0,t1], fps, width, height, format mp4|webm, sound, name} renders the take frame by frame (cameras, keyframes, sketches, media, voice) and returns where it went. Times are ms.', inputSchema: S({ action: { type: 'string', enum: ['list', 'add_camera', 'set_camera', 'shot', 'cut', 'render'] }, id: str('camera id'), name: str('camera or file name'), w: num('camera width'), h: num('camera height'), board: str('a board title or id'), rect: { type: 'array', items: { type: 'number' }, description: '[x, y, w, h] of the canvas' }, camera: str('camera id'), start: num('ms'), dur: num('ms'), at: num('ms'), until: num('ms'), pose: { type: 'object' }, to: { type: 'object' }, focus: num('board depth that is sharp'), blur: num('aperture, 0 is off'), range: { type: 'array', items: { type: 'number' } }, fps: num('frames a second'), width: num('output width'), height: num('output height'), format: str('mp4 or webm'), sound: bool('mix the voice and sound (default true)') }, ['action']), run: async (a) => {
+      const C = await import('./camera.js'), { clipId, flatClips, touch, duration: dur } = await import('../process/take.js');
+      const take = app._tlEnsureTake?.(); if (!take) throw new Error('The timeline is not available');
+      const cams = C.camerasOf(take), refresh = () => { touch(take); app._tlKeysEdited?.(); };
+      const board = ref => { const b = boardById(doc(), ref) || boardsOf(doc()).find(x => String(x.title).toLowerCase() === String(ref).toLowerCase() && !['frame', 'markdown', 'code'].includes(x.kind)); if (!b) throw new Error(`No board “${ref}”`); return b; };
+      if (a.action === 'list') {
+        const clips = flatClips(take);
+        return { cameras: cams, shots: clips.filter(c => c.track === 'shot').map(c => ({ id: c.id, camera: c.camera, start: c.start, dur: c.dur, target: c.target, pose: { z: c.z, dx: c.dx, dy: c.dy }, to: c.to, focus: c.focus, blur: c.blur, label: c.label })), cuts: clips.filter(c => c.track === 'cut').map(c => ({ camera: c.camera, start: c.start, dur: c.dur })), lanes: clips.filter(c => c.track === 'auto').map(c => ({ address: c.address, keys: c.keys })), seconds: Math.round(dur(take) / 1000) };
+      }
+      if (a.action === 'add_camera') { const c = C.addCamera(take, a.name || null); if (a.w) c.w = a.w; if (a.h) c.h = a.h; refresh(); return c; }
+      if (a.action === 'set_camera') { const c = cams.find(x => x.id === a.id); if (!c) throw new Error(`No camera ${a.id}`); for (const k of ['name', 'w', 'h']) if (a[k] != null) c[k] = a[k]; refresh(); return c; }
+      if (a.action === 'shot') {
+        const cam = cams.find(x => x.id === a.camera) || cams[0], start = a.start ?? 0, d = a.dur ?? 5000;
+        const shot = a.board ? C.boardShot(board(a.board), cam, { start, dur: d }) : { track: 'shot', camera: cam.id, start, dur: d, target: { rect: a.rect }, dx: 0, dy: 0, z: 1, label: 'View', fx: {} };
+        if (!a.board && !a.rect) throw new Error('A shot needs a board or a rect');
+        Object.assign(shot, { id: clipId(), ...(a.pose || {}), ...(a.to ? { to: a.to } : {}), ...(a.focus != null ? { focus: a.focus } : {}), ...(a.blur != null ? { blur: a.blur } : {}) });
+        take.clips.push(shot); refresh(); return { id: shot.id, start, dur: d };
+      }
+      if (a.action === 'cut') { const cam = cams.find(x => x.id === a.camera); if (!cam) throw new Error(`No camera ${a.camera}`); const t = a.at ?? 0, c = C.cutTo(take, cam.id, t, a.until ?? Math.max(dur(take), t + 1000)); refresh(); return { id: c.id, camera: cam.id, at: t }; }
+      if (a.action === 'render') {
+        const { renderTake } = await import('./render.js'), cam = cams[0];
+        const out = await renderTake(app, { range: a.range || null, fps: a.fps || cam.fps || 25, width: a.width || cam.w, height: a.height || cam.h, format: a.format || 'mp4', sound: a.sound !== false, name: a.name || 'render' });
+        if (out.url) return { url: out.url, size: out.size, frames: out.frames, sound: out.sound };
+        download(out.blob, out.name, out.type); return { downloaded: out.name, size: out.blob.size, frames: out.frames, sound: out.sound };
+      }
+      throw new Error('Unknown action');
+    } },
+    { name: 'ams_keys', description: 'Keyframes: one lane per parameter, any parameter with a diamond in the UI. Addresses: "board:<id>.opacity|depth|light|x|y|width|height", "mark:<id>.<prop>", "shot:<clip id>.z|dx|dy|focus|blur", "ctl:<board id>.<name>" (a p5 or three.js sketch control declared as `let name = 1 /* 0..1 */;`). action "list" the lanes; "set" {address, t (ms), v (number, #rrggbb, palette, choice), ease linear|ease|in|out|hold} adds or moves a key; "remove" {address, t}; "clear" {address}; "value" {address, t} the value at a time. A sketch that draws once (noLoop) redraws when a control changes, so one control `p` can be a sketch\'s whole timeline.', inputSchema: S({ action: { type: 'string', enum: ['list', 'set', 'remove', 'clear', 'value'] }, address: str('the parameter'), t: num('ms'), v: { description: 'the value' }, ease: str('linear | ease | in | out | hold') }, ['action']), run: async (a) => {
+      const K = await import('../process/keyframes.js'), take = app._tlEnsureTake?.(); if (!take) throw new Error('The timeline is not available');
+      const refresh = () => { app._tlKeysEdited?.(); };
+      if (a.action === 'list') return { lanes: K.lanesOf(take).map(c => ({ address: c.address, label: c.label, keys: c.keys })) };
+      if (!a.address) throw new Error('Give an address');
+      if (a.action === 'set') { const lane = K.setKey(take, a.address, a.t ?? 0, a.v, a.ease || 'ease'); refresh(); return { address: a.address, keys: lane.keys }; }
+      if (a.action === 'remove') { const ok = K.removeKey(take, a.address, a.t ?? 0); refresh(); return { removed: ok }; }
+      if (a.action === 'clear') { const ok = K.clearLane(take, a.address); refresh(); return { cleared: ok }; }
+      if (a.action === 'value') { const lane = K.laneFor(take, a.address); return { value: lane ? K.valueAt(lane.keys, (a.t ?? 0) - lane.start, lane.meta || null) : null }; }
       throw new Error('Unknown action');
     } },
     // Everything the keys and the command palette (Cmd+K, and / at the pointer) can do, by name: one registry, so nothing in the interface is out of reach here.

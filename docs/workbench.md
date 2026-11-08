@@ -777,6 +777,10 @@ In the Assistant, a line starting with `!` runs a studio tool by hand, with no m
 
 The first word is the tool (`ams_` optional), and a bare word after it is the action. `key=value` pairs are read as JSON where they can be. `!help` lists the tools, `!help board` shows one tool's parameters, and ↑ and ↓ recall earlier commands.
 
+## Films
+
+Lessons and explainers can be made as films on the camera system: cameras and shots on the Timeline, narration, code cards, keyframed controls, a deterministic frame by frame render with sound, an MP4 and a standalone page. Open one with the palette (`/film moon | silhouette | threejs | pointillism | condense`), or ask an agent (`ams_film`, `ams_camera`, `ams_keys`). See [films.md](films.md), [camera-plan.md](camera-plan.md) and [mcp.md](mcp.md).
+
 ## Lessons
 
 The Docs have a **Lessons** section: how lessons work, then one topic for each of *Pointillism and Expressionism, by sampling*, *Diffusion models*, *Painterly, fading strokes* and *Taking a line for a walk*. A topic has **Build the scene** (and **As p5.js**) and **Take the tour**. `src/workbench/lessons.js` lists the lessons and builds them (`buildLesson(app, id, { language })`); `/lesson` in the palette uses it too.

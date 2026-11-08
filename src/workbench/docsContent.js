@@ -230,6 +230,12 @@ A board can be shown **through** something: Properties → *Mask*, the board's m
       h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Effect'), h('th', {}, 'Parameters'), h('th', {}, 'What it does'))),
         h('tbody', {}, ...Object.entries(FX).map(([id, d]) => h('tr', {}, h('td', {}, h('code', {}, id)), h('td', {}, d.params.length ? d.params.map(p => `${p.key} ${p.min}–${p.max}`).join(', ') : d.stops ? 'stops' : ''), h('td', {}, d.doc))))))),
 
+    T('films', 'Lessons', 'Films and explainers', 'Make a film from a recording or a topic: cameras, shots, narration, keyframes, a frame by frame render with sound.', () => prose(`
+A **film** is a take on the Timeline made of **shots**: a camera looking at a board or a region for a stretch of time, with its own zoom and shifts (a pose that can move), cuts between cameras, narration, titles, and keyframes on any parameter (the diamond beside a field). **Summary** makes a first cut of a recorded take (waiting capped, retakes dropped, narration at reading pace); split (X) and delete (ripple) edit it; a second camera of 1080 × 1920 makes the vertical short from the same take. **Render** plays the take frame by frame (cameras, keys, sketches, media, voice) and mixes the sound, to MP4 or WebM.
+
+**Depth of field:** a shot has *Focus* (the board depth that is sharp) and *Blur*; key Focus for a pull focus. **Lightbox:** a board with *Light* lights the boards above it. **Onion skin** (Timeline bar) shows the frames around the playhead through the camera while paused.
+
+A film can also be **data** (beats with a board, a camera pose, narration, a code card, a control moved by keys). \`/film moon | silhouette | threejs | pointillism | condense\` opens one on the Timeline (add \`render\` for the MP4 and a standalone page; needs the dev server). Agents make them with \`ams_film\`, \`ams_camera\` and \`ams_keys\`. See \`docs/films.md\`.`)),
     T('lessons-how', 'Lessons', 'Lessons as scenes', 'A lecture is a scene of slides: diagrams and examples as boards with code, notes, links, a bibliography.', () => h('div', {},
       prose(`
 A **lesson** is a scene of 16:9 **frames** (slides). Each frame holds boards: a cover, an intro per section, then one frame per example with the **drawing** beside its **notes** (the idea, and folded pseudocode and code), and a bibliography. Boards link with \`[[titles]]\`; present the frames in order, or step with the arrow keys. The titles of the boards inside a frame are hidden (the frame carries it); a board that runs keeps its ▶.

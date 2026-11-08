@@ -34,3 +34,7 @@ AMS is a drawing studio. The page is **1000 × 1000** units, x to the right, y d
 ## Checking your work
 
 `ams_requests {action: "list", problems: true}` shows requests that failed or were undone. `src/workbench/assistEval.js` holds 16 tasks with checkers on the resulting drawing; run `(await import('/src/workbench/assistEval.js')).run(app, { mode: 'quick' | 'model', use: 'say' | 'alt' })`.
+
+## Films, cameras and keyframes
+
+To make a film or explainer: `ams_film {action: "guide"}` returns the format (beats with a board, a camera pose, narration `say`, a `code` card, keyframed `set` of a sketch control, `cuts` to other shots or cameras); build a spec, `ams_film {action: "check", spec}`, then `{action: "open", spec}` to see it on the Timeline and `{action: "render", spec}` to make the MP4 and page (dev server). Keep films 16:9, cut every few seconds between a wide and a closer camera, and show the thing happening (a control moved by keys, a pointer in a sketch) rather than saying it. For a recording: `ams_timeline` open and `summary`, then `ams_camera` (cameras, shots, cuts, a 1080×1920 camera for a short, render) and `ams_keys` (curves on any parameter). Docs: docs/films.md.

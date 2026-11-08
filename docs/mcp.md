@@ -67,6 +67,16 @@ Image results (data URLs) come back as MCP image content, so an agent can see wh
 - `ams_view` takes `tool` (select, direct, hand, laser, board, point, line, gesture, guide, plane, circle, rect, note, brush, sculpt) and `cycle` (select, line, plane, brush, sculpt: step through that stack, as Shift+V, Shift+1, Shift+2, Shift+B and Shift+S do). `ams_wb_state` includes `shapes` and each tool's `paths`.
 - In scores, `board('Title')` makes a board (if new) and later marks land on it, in fractions of that board.
 
+## Films, cameras and keyframes (making films and explainers)
+
+Three tools drive the camera system (details in [films.md](films.md) and [camera-plan.md](camera-plan.md)):
+
+- `ams_film { action: guide | list | check | open | render, name | spec }`: a film is data (beats with a board, a camera pose, narration, a code card, keyframed sketch controls). `guide` returns the format; `check` finds missing boards and code anchors without building; `open` builds the lesson scene, the film's own sketches and its take on the Timeline (voiced, not rendered); `render` also writes `exports/film/<id>.mp4`, `.html` (the film in one page with captions and chapters), `.vtt`, `.notes.md` and `.take.json` (dev server only, takes minutes). Pass a `spec` object to make a new film; `name` opens one of `moon`, `silhouette`, `threejs`, `pointillism`, `condense`.
+- `ams_camera { action: list | add_camera | set_camera | shot | cut | render }`: cameras (a vertical short is a 1080×1920 camera), shots (a camera over a stretch of time on a board or a region, with a pose that can move, and focus and blur for depth of field), cuts (which camera is on air), and a frame by frame render of the open take.
+- `ams_keys { action: list | set | remove | clear | value, address }`: keyframes on any parameter: `board:<id>.opacity|depth|light|x|y|width|height`, `mark:<id>.<prop>`, `shot:<clip>.z|dx|dy|focus|blur`, `ctl:<board>.<name>` (a sketch control declared `let name = 1 /* 0..1 */;`).
+
+For a recording turned into a shorter film: `ams_timeline {action: "open"}` the take, `{action: "summary"}` for a first cut, then `ams_camera` for shots and a vertical camera, `ams_keys` for curves, `ams_camera {action: "render"}` for the MP4. The slash command `/film <name> [render]` does the same for the films that exist.
+
 ## The agent as engine
 
 Engine **Agent (MCP)** makes the agent the model.
