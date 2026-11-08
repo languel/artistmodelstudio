@@ -9,6 +9,7 @@ export const FILM = {
   title: 'The Moon',
   summary: 'A paper figure on a dune watches the moon rise, stands, reaches for it, and cannot. A silhouette film in thirteen seconds, made with Artist Model Studio.',
   credit: 'Puppet, set and film: the silhouette lesson, Artist Model Studio. Made in homage to Lotte Reiniger; no frame of her work is used.',
+  lesson: 'reiniger',
   camera: { w: 1024, h: 768 },
   fps: 25,
   voice: false,

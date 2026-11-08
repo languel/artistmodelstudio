@@ -339,7 +339,7 @@ export class BoardFrames {
     if (f?.iframe && b) { f.code = null; this.refresh(f, b); } else this.canvas.invalidate();
   }
   /** The pixel ratio a board is shown at: its zoom times the screen's, between 1 and 4. */
-  pixelRatioFor() { return Math.min(4, Math.max(1, this.canvas.cam.z * (window.devicePixelRatio || 1))); }
+  pixelRatioFor() { if (this.renderMode) return 2; /* (a render draws sketches sharp enough for a camera that comes close) */ return Math.min(4, Math.max(1, this.canvas.cam.z * (window.devicePixelRatio || 1))); }
   /** Send a running sketch the values its controls now have in `code` (the ones that changed), and the same to its windows. */
   ctl(id, code) {
     const f = this.frames.get(id);

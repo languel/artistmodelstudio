@@ -61,19 +61,31 @@ function wrapLines(ctx, text, maxW) {
  */
 export function drawCode(ctx, c, a, W, H) {
   const { lines = [], mark = [0, 0], side = 'left' } = c.code, unit = Math.min(W, H);
-  const fs = Math.round(unit * (W / H > 1.5 ? 0.034 : 0.03)), lh = fs * 1.45, pad = fs * 0.9, w = W * (side === 'full' ? 0.9 : 0.52);
-  ctx.save(); ctx.globalAlpha = a; ctx.font = `${fs}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
-  const rows = Math.min(lines.length, Math.max(4, Math.floor((H * 0.6 - pad * 2) / lh))), h = rows * lh + pad * 2, x = side === 'right' ? W - w - W * 0.03 : side === 'full' ? W * 0.05 : W * 0.03, y = H * 0.12;
-  ctx.fillStyle = 'rgba(16,15,14,0.88)'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, fs * 0.6) : ctx.rect(x, y, w, h); ctx.fill();
-  const first = Math.max(0, Math.min(lines.length - rows, Math.floor((mark[0] + mark[1]) / 2 - rows / 2)));
-  for (let i = 0; i < rows; i++) {
-    const n = first + i, line = lines[n] ?? '', lit = n >= mark[0] && n <= mark[1], yy = y + pad + i * lh;
+  const w = W * (side === 'full' ? 0.9 : 0.54), x = side === 'right' ? W - w - W * 0.03 : side === 'full' ? W * 0.05 : W * 0.03;
+  ctx.save(); ctx.globalAlpha = a; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  const MONO = px => `${px}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+  // The biggest type that shows every line whole: long lines wrap (never cut), and the block keeps to the height of the frame.
+  const build = fs => {
+    const pad = fs * 0.9, chars = Math.max(8, Math.floor((w - pad * 2) / (fs * 0.602))), rows = [];
+    lines.forEach((raw, n) => {
+      const line = raw.replace(/\t/g, '  '), ind = /^\s*/.exec(line)[0].length;
+      let rest = line, first = true;
+      do { const room = chars - (first ? 0 : ind + 2); let cut = rest.length > room ? rest.lastIndexOf(' ', room) : rest.length; if (cut <= (first ? ind : 0) + 1) cut = Math.min(rest.length, room); rows.push({ text: (first ? '' : ' '.repeat(ind + 2)) + rest.slice(0, cut).trimEnd(), n }); rest = rest.slice(cut).trimStart(); first = false; } while (rest.length);
+    });
+    return { fs, pad, rows, h: rows.length * fs * 1.45 + pad * 2 };
+  };
+  let fs = Math.round(unit * 0.046), L = build(fs);
+  while (L.h > H * 0.74 && fs > unit * 0.02) { fs -= 1; L = build(fs); }
+  const { pad, rows } = L, lh = fs * 1.45, y = Math.max(H * 0.1, (H - L.h) / 2 - H * 0.02);
+  ctx.fillStyle = 'rgba(16,15,14,0.9)'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, L.h, fs * 0.6) : ctx.rect(x, y, w, L.h); ctx.fill();
+  ctx.font = MONO(fs);
+  rows.forEach((r, i) => {
+    const lit = r.n >= mark[0] && r.n <= mark[1], yy = y + pad + i * lh;
     if (lit) { ctx.fillStyle = 'rgba(200,102,79,0.30)'; ctx.fillRect(x + fs * 0.3, yy - lh * 0.1, w - fs * 0.6, lh); }
-    ctx.fillStyle = /^\s*\/\//.test(line) ? (lit ? '#9bb08a' : '#6f7f62') : lit ? '#f3efe6' : '#8c887d';
-    let text = line.replace(/\t/g, '  '); while (text.length > 2 && ctx.measureText(text).width > w - pad * 2) text = text.slice(0, -2) + '…';
-    ctx.fillText(text, x + pad, yy);
-  }
-  if (c.code.note) { ctx.globalAlpha = a * 0.9; ctx.font = `600 ${Math.round(fs * 0.8)}px Inter, system-ui, sans-serif`; ctx.fillStyle = '#e0a58f'; ctx.fillText(c.code.note, x + pad * 0.4, y - fs * 1.35); }
+    ctx.fillStyle = /^\s*\/\//.test(r.text) ? (lit ? '#9bb08a' : '#6f7f62') : lit ? '#f3efe6' : '#9a968b';
+    ctx.fillText(r.text, x + pad, yy);
+  });
+  if (c.code.note) { ctx.globalAlpha = a * 0.95; ctx.font = `600 ${Math.round(fs * 0.85)}px Inter, system-ui, sans-serif`; ctx.fillStyle = '#e0a58f'; ctx.fillText(c.code.note, x + pad * 0.4, y - fs * 1.5); }
   ctx.restore();
 }
 
@@ -95,7 +107,7 @@ export function drawCaptions(ctx, take, t, W, H) {
   const says = activeAt(take, 'say', t);
   if (says.length) {
     const c = says[says.length - 1], a = fadeOf(c, t);
-    const fs = Math.round(unit * 0.03), pad = fs * 0.8, maxW = W * 0.84;
+    const fs = Math.round(unit * (W / H > 1.5 ? 0.026 : 0.03)), pad = fs * 0.8, maxW = W * (W / H > 1.5 ? 0.9 : 0.84);
     ctx.font = `${fs}px Inter, system-ui, sans-serif`;
     const lines = wrapLines(ctx, c.text, maxW - pad * 2);
     const w = Math.min(maxW, Math.max(...lines.map(l => ctx.measureText(l).width)) + pad * 2), h = lines.length * fs * 1.35 + pad * 1.4;

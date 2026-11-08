@@ -129,6 +129,14 @@ function slashAll(app) {
     { name: 'midi', args: '<seconds>', doc: 'Export the score as a MIDI file: what it plays over that many seconds (the loop range, if marked), at the scene’s tempo', run: arg => app.exportMidi(arg).catch(err => app.log(`MIDI file: ${err.message}`, 'error')) },
     { name: 'samples', args: '', doc: 'A new scene with the stock samples (Assets › Samples), each as a source on its own board with a player', run: () => app.buildSamplesScene().then(n => app.log(`Samples: ${n} boards.`)).catch(err => app.log(`Samples: ${err.message}`, 'error')) },
     { name: 'stopmotion', args: '', doc: 'A new stop-motion board beside the active board, photographing it a frame at a time (Alt+Enter takes a frame)', run: () => { app.newStopmotion(); } },
+    { name: 'film', args: 'moon | silhouette | threejs | pointillism | condense [render]', doc: 'Open a film made for the camera system: its lesson as a scene and the film as a take on the Timeline (shots, narration, keyframes), ready to scrub and edit. Add “render” to make the MP4 and the page too (needs the dev server)', run: arg => import('../../examples/films/index.js').then(async ({ FILMS }) => {
+      const [name, mode] = String(arg || '').trim().split(/\s+/), load = FILMS[name];
+      if (!load) { app.log(`Films: ${Object.keys(FILMS).join(', ')}.`); return; }
+      const film = await load(), F = await import('./film.js');
+      if (mode === 'render') { const r = await F.makeFilm(app, film); app.log(`Film: ${r.mp4} (${(r.size / 1048576).toFixed(0)} MB), page ${r.page}.`); return; }
+      const built = await F.showFilm(app, film, { onStatus: t => app.log(t) });
+      app.log(`Film “${film.title}”: ${(built.total / 1000).toFixed(0)} s on the Timeline, ${film.beats.length} beats.`);
+    }).catch(err => app.log(`Film: ${err.message}`, 'error')) },
     { name: 'lesson', args: 'sampling [p5 | expl] | sampling-expl | diffusion | threejs | reiniger', doc: 'Build a lesson as a new scene of frames: its boards from code, with Markdown notes and links (sampling: pointillism and expressionism; p5: p5.js sketches; expl: barebones p5.js sketches. diffusion: diffusion models. threejs: three.js for body and sound, with live three.js boards)', run: arg => import('./lessons.js').then(m => {
       const isDiff = /diffusion/i.test(arg || ''), isRein = /reiniger|silhouette/i.test(arg || ''), isThree = !isRein && /three/i.test(arg || '');
       const isExpl = /expl/i.test(arg || '');

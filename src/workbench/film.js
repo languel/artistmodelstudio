@@ -19,7 +19,7 @@
 import { boardsOf, boardById } from '../process/boards.js';
 import { createTake, touch, clipId } from '../process/take.js';
 import { setKey } from '../process/keyframes.js';
-import { camerasOf, boardShot } from './camera.js';
+import { camerasOf, addCamera, boardShot } from './camera.js';
 
 const dataUrl = blob => new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(blob); });
 const norm = s => String(s || '').trim().toLowerCase();
@@ -57,7 +57,9 @@ export async function buildFilm(app, film, { onStatus = null } = {}) {
   const voices = await voiceBeats(app, film, onStatus);
   const take = app._tlEnsureTake();
   take.clips = []; delete take.tracks; delete take.cameras; take.title = film.title;
-  const cam = camerasOf(take)[0]; cam.w = film.camera?.w || 1280; cam.h = film.camera?.h || 720; cam.fps = film.fps || 25;
+  const cams = camerasOf(take), cam = cams[0]; cam.w = film.camera?.w || 1920; cam.h = film.camera?.h || 1080; cam.fps = film.fps || 25;
+  const camN = n => { while (cams.length < n) { const c = addCamera(take); c.w = cam.w; c.h = cam.h; c.fps = cam.fps; } return cams[Math.max(0, n - 1)]; };
+  for (const [i, spec] of (film.cameras || []).entries()) { const c = camN(i + 1); if (spec.w) c.w = spec.w; if (spec.h) c.h = spec.h; if (spec.name) c.name = spec.name; }
   const lead = film.lead ?? 250, laid = [], chapters = [];
   let cursor = 0;
   film.beats.forEach((b, i) => {
@@ -67,13 +69,17 @@ export async function buildFilm(app, film, { onStatus = null } = {}) {
     laid.push({ start, dur }); cursor = start + dur;
     if (b.chapter) chapters.push({ t: start, title: b.chapter });
     const clips = take.clips;
-    // the picture
+    // the picture: one shot, or several cut one after another (`cuts`: [{ at: 0..1 of the beat, board, rect, pose, to, camera, label }])
     if (b.board || b.rect) {
-      const board = b.board ? findBoard(doc, b.board) : null;
-      if (b.board && !board) throw new Error(`Beat ${i + 1}: there is no board “${b.board}”`);
-      const shot = board ? boardShot(board, cam, { start, dur }) : { track: 'shot', camera: cam.id, start, dur, target: { rect: b.rect }, dx: 0, dy: 0, z: 1, label: 'View', fx: {} };
-      Object.assign(shot, { id: clipId(), ...(b.pose || {}), ...(b.to ? { to: { ...b.to } } : {}), ...(b.focus != null ? { focus: b.focus } : {}), ...(b.blur != null ? { blur: b.blur } : {}), label: b.label || shot.label });
-      clips.push(shot);
+      const parts = [{ at: 0, ...b }, ...(b.cuts || [])].map((c, k, all) => ({ ...c, from: start + Math.round(dur * (c.at || 0)), until: start + Math.round(dur * (all[k + 1]?.at ?? 1)) }));
+      for (const [k, c] of parts.entries()) {
+        const ref = c.board || b.board, board = ref ? findBoard(doc, ref) : null, camX = camN(c.camera || b.camera || 1);
+        if (ref && !board) throw new Error(`Beat ${i + 1}: there is no board “${ref}”`);
+        const dur2 = c.until - c.from;
+        const shot = board ? boardShot(board, camX, { start: c.from, dur: dur2 }) : { track: 'shot', camera: camX.id, start: c.from, dur: dur2, target: { rect: c.rect || b.rect }, dx: 0, dy: 0, z: 1, label: 'View', fx: {} };
+        Object.assign(shot, { id: clipId(), ...(c.pose || {}), ...(c.to ? { to: { ...c.to } } : {}), ...(c.focus != null ? { focus: c.focus } : {}), ...(c.blur != null ? { blur: c.blur } : {}), label: c.label || (k ? `${b.label || shot.label} ${k + 1}` : b.label || shot.label) });
+        take.clips.push(shot);
+      }
     }
     // the words
     if (b.say || b.caption) {
@@ -122,6 +128,33 @@ export function checkFilm(app, film) {
   return errs;
 }
 
+/** Notes to write against: every beat with its start time, chapter, board, narration and code. */
+export function filmNotes(film, built) {
+  const ts = ms => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const rows = film.beats.map((b, i) => {
+    const at = built.beats[i];
+    return [`### ${ts(at.start)} · beat ${i + 1}${b.chapter ? ` · ${b.chapter}` : ''}`, `${b.board ? `Board: ${b.board}` : b.rect ? 'A region of the canvas' : 'Card'} · ${((at.dur) / 1000).toFixed(1)} s${b.cuts?.length ? ` · ${b.cuts.length + 1} shots` : ''}`, b.say ? `> ${b.say}` : b.caption ? `> (caption) ${b.caption}` : '', b.code ? `Code: ${b.code.from}${b.code.to ? ` … ${b.code.to}` : ''}` : '', (b.set || []).length ? `Moves: ${b.set.map(x => `${x.name} ${x.from ?? ''}→${x.to}`).join(', ')}` : '', '', '*Your notes:*', '', ''].filter((x, k) => x !== '' || k > 3).join('\n');
+  });
+  return `# ${film.title}\n\n${film.summary}\n\nOpen it in the studio: \`/film ${film.id.replace(/-explainer$/, '')}\` (the scene and the take on the Timeline). Times are where each beat starts in the finished film.\n\n${rows.join('\n')}\n`;
+}
+
+/** Save beside the film: its captions (.vtt), notes to write against (.notes.md) and the take (.take.json, voices left in Assets). Dev server only. → the captions text */
+export async function saveFilmFiles(film, built) {
+  const vtt = vttOf(built.take), put = (file, body) => fetch(`/__film/save?file=${film.id}.${file}`, { method: 'POST', body });
+  const plain = JSON.parse(JSON.stringify(built.take)); for (const c of plain.clips) if (c.src) c.src = '(voice: see Assets › Narration)';
+  await put('vtt', vtt); await put('notes.md', filmNotes(film, built)); await put('take.json', JSON.stringify(plain));
+  return vtt;
+}
+
+/** Lay the film out in the studio without rendering it: its scene, its own boards, and its take on the Timeline (what \`/film name\` does). */
+export async function showFilm(app, film, { onStatus = null } = {}) {
+  await ensureLesson(app, film, onStatus);
+  await ensureBoards(app, film);
+  const built = await buildFilm(app, film, { onStatus });
+  app.docks?.open?.('timeline');
+  return built;
+}
+
 /** WebVTT for the say clips of a take. */
 export function vttOf(take) {
   const ts = ms => { const s = ms / 1000, h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${(s % 60).toFixed(3).padStart(6, '0')}`; };
@@ -138,7 +171,7 @@ export async function ensureBoards(app, film) {
   const st = app.store; let added = false;
   for (const spec of film.boards || []) {
     if (findBoard(st.doc, spec.title)?.kind === spec.kind) { st.updateBoard(findBoard(st.doc, spec.title).id, { code: spec.code }); continue; }
-    const all = boardsOf(st.doc), x = Math.max(...all.map(b => b.x + b.width)) + 240, y = Math.min(...all.map(b => b.y));
+    const all = boardsOf(st.doc), x = Math.max(...all.map(b => b.x + b.width)) + (film.boardGap ?? 240), y = Math.min(...all.map(b => b.y));
     const b = st.addBoard({ title: spec.title, x, y, width: spec.width || 800, height: spec.height || 600, ground: spec.ground || '#f3efe6', adopt: false });
     st.updateBoard(b.id, { kind: spec.kind, code: spec.code, hideLabel: true }); added = true;
   }
@@ -162,8 +195,7 @@ export async function makeFilm(app, film, { width = 1920, height = 1080, crf = 2
   const built = await buildFilm(app, film, { onStatus });
   const { renderTake } = await import('./render.js');
   const out = await renderTake(app, { range: [0, built.total], fps: film.fps || 25, width, height, format: 'mp4', sound: true, name: film.id, server: true, crf, onStatus, onProgress, signal });
-  const vtt = vttOf(built.take);
-  await fetch(`/__film/save?file=${film.id}.vtt`, { method: 'POST', body: vtt });
+  const vtt = await saveFilmFiles(film, built);
   let pageInfo = null;
   if (page) {
     onStatus?.('Making the page…');

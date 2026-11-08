@@ -13,6 +13,7 @@ export const FILM = {
   title: 'The silhouette film, made in code',
   summary: 'How a paper film is made, and how the same method runs in a browser: a lightbox, cut paper, hinges, a puppet, a set, a camera, a walk, and the look of film. About four minutes.',
   credit: 'Pictures and code: the silhouette lesson, Artist Model Studio (originals). Lotte Reiniger and The Adventures of Prince Achmed (1926) are cited, not shown.',
+  lesson: 'reiniger',
   camera: { w: 1280, h: 960 },
   fps: 25,
   beats: [
@@ -35,7 +36,7 @@ export const FILM = {
     { board: T.puppet, chapter: 'The puppet', pose: RIGHT, to: { ...RIGHT, z: 1.5 },
       say: 'Fourth, the puppet. A head in profile, a body, arms and legs: about fourteen pieces, each hinged to its parent. Move the body and everything hanging from it moves too.',
       code: { board: T.puppet, from: 'This puppet is a stick figure', to: 'its far end', note: 'pieces hinged to pieces', before: 0, after: 4 }, hold: 800 },
-    { board: T.set, chapter: 'A set in layers', pose: { z: 1, dx: 0, dy: 0 }, to: { z: 1, dx: 0.12, dy: 0 },
+    { board: T.set, chapter: 'A set in layers', pose: { z: 1, dx: 0, dy: 0 }, to: { z: 1, dx: 0.05, dy: 0 },
       say: 'Fifth, a set, in layers. Hills behind, reeds in front, the puppet between them. Each layer is another sheet of paper at another depth.',
       code: { board: T.set, from: 'the set: layers of cut paper', to: 'foreground grasses', note: 'sheets at different depths', before: 0, after: 1, side: 'left' }, hold: 800 },
     { board: T.cams, chapter: 'Two cameras', pose: { z: 1, dx: 0, dy: 0 }, to: { z: 1.2, dx: -0.1, dy: 0 },

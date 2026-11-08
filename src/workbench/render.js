@@ -71,6 +71,7 @@ export async function renderTake(app, { range = null, fps = 25, width = 1280, he
     }
     onStatus?.('Starting the sketches…');
     await app.frames.beginRender(sketchIds);
+    if (sketchIds.length) await new Promise(r => setTimeout(r, 1500));   // (a sketch that loads a model or a picture has it by the first frame)
     onStatus?.('Loading the encoder…');
     const useServer = server ?? await serverEncoderAvailable();
     enc = useServer ? await startServerEncoder({ fps, format, name, crf, onStatus }) : await startEncoder({ fps, format, onStatus });
