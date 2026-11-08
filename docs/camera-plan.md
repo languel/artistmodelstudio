@@ -228,3 +228,7 @@ Built: an **onion skin button** in the Timeline bar (editing aid, session settin
 ### Depth of field (8 Nov)
 
 Built: a shot has **Focus** (the board depth that is sharp) and **Blur** (aperture, 0 = off), both with the keyframe dot, so a pull-focus is two keys. In `renderCamera` a board at depth d gets `blurPx(d, focus, blur, H)` of canvas blur (`ctx.filter`), growing with its distance from the focal plane and scaled to the camera height, so previews and renders agree. Checked in the browser at the same board depth: focus 0 vs focus 2 gave edge energy 4594 vs 11056. Limits: needs a browser with canvas `filter` (Chrome, Firefox; Safari draws sharp); the blur is per board, not per object inside a board; sketch boards blur like any other.
+
+### Lightbox lights other boards (8 Nov)
+
+Built: a board with Light above 0 now lights the boards painted after it (above it in the stack) that overlap it: each is painted on a layer and darkened toward the lightbox's edges by the same radial falloff (`lightOthers`), so a coloured plane over a lightbox is bright in the middle and dim at the rim, as under a real lightbox; silhouettes (black) stay black. Checked in the browser: a board over a lightbox, light 0 → 1, dimmed 16% in the middle and 27% near the rim. Limits: only boards above it in stack order are lit, by the light's own rectangle (no spill past it, no shadows, no colour); the light does not follow depth or parallax separately from the board.

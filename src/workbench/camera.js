@@ -129,6 +129,16 @@ function lightFalloff(ctx, x, y, w, h, light) {
   ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = g; ctx.fillRect(x, y, w, h); ctx.restore();
 }
 
+/**
+ * A lightbox lights the boards above it: over the part of `ctx` inside the lightbox rectangle (x, y, w, h), what is already
+ * drawn (a board painted on a transparent layer) darkens toward the edges, by the same falloff the lightbox has itself.
+ */
+export function lightOthers(ctx, x, y, w, h, light) {
+  const g = ctx.createRadialGradient(x + w / 2, y + h / 2, Math.min(w, h) * 0.12, x + w / 2, y + h / 2, Math.hypot(w, h) / 2);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${(0.7 * Math.min(1, light)).toFixed(3)})`);
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = g; ctx.fillRect(x, y, w, h); ctx.restore();
+}
+
 /** Where a board is seen from a view centred on (cx, cy): a board `depth` behind the focal plane moves and scales by 1/(1+depth) about that centre. */
 export function parallaxRect(b, cx, cy) {
   const f = 1 / (1 + Math.max(-0.9, b.depth || 0));
@@ -179,6 +189,8 @@ export function renderCamera(app, shot, t, ctx, W, H) {
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   if (!shot) { ctx.restore(); return null; }
   const doc = app.store.doc, v = viewFor(doc, shot, t, W, H);
+  const lights = [];   // lightboxes drawn so far (screen rectangles): they light the boards painted after them
+  let layer = null;
   for (const b of boardsOf(doc)) {
     if (b.kind === 'frame' || b.kind === 'code' || b.kind === 'playlist' || b.hidden || (b.kind === 'player' && b.hidden)) continue;
     if (b.source && app.sources.def(b.source)?.kind === 'timeline') continue;   // (a board that shows the sequence is not in it: no feedback)
@@ -190,14 +202,23 @@ export function renderCamera(app, shot, t, ctx, W, H) {
     if (b.maskWith?.source) app.sources.seeCamera?.(b.maskWith.source);
     const pic = b.kind === 'p5' || b.kind === 'three' ? sketchPicture(app, b) : b.kind === 'stopmotion' ? stopmotionPicture(app, b, t) : drawingPicture(app, b, v.k);
     if (!pic || !(pic.width || pic.naturalWidth)) continue;
+    const sx = (bx - v.x0) * v.k, sy = (by - v.y0) * v.k, sw = bw * v.k, sh = bh * v.k;
+    // A board that is over a lightbox is painted on a layer first, so the light can darken it toward the lightbox's edges.
+    const lit = b.light > 0 ? [] : lights.filter(l => sx < l.x + l.w && sx + sw > l.x && sy < l.y + l.h && sy + sh > l.y);
+    let layerCtx = null;
+    if (lit.length) { layer ||= document.createElement('canvas'); if (layer.width !== W || layer.height !== H) { layer.width = W; layer.height = H; } layerCtx = layer.getContext('2d'); layerCtx.setTransform(1, 0, 0, 1, 0, 0); layerCtx.clearRect(0, 0, W, H); }
+    const paint = c => {
+      // (a stop-motion frame is fitted whole into its board)
+      if (b.kind === 'stopmotion') { const w = pic.width, h = pic.height, k = Math.min(sw / w, sh / h); c.fillStyle = '#101010'; c.fillRect(sx, sy, sw, sh); c.drawImage(pic, sx + (sw - w * k) / 2, sy + (sh - h * k) / 2, w * k, h * k); }
+      else c.drawImage(pic, sx, sy, sw, sh);
+    };
     ctx.save();
     ctx.globalAlpha = opacityOf(b);
     const dof = blurPx(b.depth, shot.focus, shot.blur, H); if (dof) ctx.filter = `blur(${dof.toFixed(1)}px)`;
     const bl = blendOf(b); if (bl !== 'normal') ctx.globalCompositeOperation = COMPOSITE[bl] || bl;
-    // (a stop-motion frame is fitted whole into its board)
-    if (b.kind === 'stopmotion') { const w = pic.width, h = pic.height, k = Math.min(bw * v.k / w, bh * v.k / h); ctx.fillStyle = '#101010'; ctx.fillRect((bx - v.x0) * v.k, (by - v.y0) * v.k, bw * v.k, bh * v.k); ctx.drawImage(pic, (bx - v.x0) * v.k + (bw * v.k - w * k) / 2, (by - v.y0) * v.k + (bh * v.k - h * k) / 2, w * k, h * k); }
-    else ctx.drawImage(pic, (bx - v.x0) * v.k, (by - v.y0) * v.k, bw * v.k, bh * v.k);
-    if (b.light > 0) lightFalloff(ctx, (bx - v.x0) * v.k, (by - v.y0) * v.k, bw * v.k, bh * v.k, b.light);
+    if (layerCtx) { paint(layerCtx); for (const l of lit) lightOthers(layerCtx, l.x, l.y, l.w, l.h, l.light); ctx.drawImage(layer, 0, 0); }
+    else paint(ctx);
+    if (b.light > 0) { lightFalloff(ctx, sx, sy, sw, sh, b.light); lights.push({ x: sx, y: sy, w: sw, h: sh, light: b.light }); }
     ctx.restore();
   }
   ctx.restore();
