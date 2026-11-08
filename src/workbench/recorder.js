@@ -67,12 +67,23 @@ export class Recorder {
       od.poll = setInterval(() => this.stepPoll(), 16);
       od.onBoard = () => { if (adv.board) this.stepFrame(); };
       app.on('board', od.onBoard);
-    } else this.offPlayer = p.on(() => { if (this.od && !p.playing) this.stopOverdub(); });
+    } else this.offPlayer = p.on(() => { const od = this.od; if (!od) return; if (p.playing) od.held = false; else if (!od.held) this.stopOverdub(); });   // (a pause held with Alt+End keeps recording armed)
     app.emit('recording', true);
     const how = adv ? `stepping a frame ${[adv.end && 'at the end of an action', adv.start && 'at the start of an action', adv.board && 'when the board changes'].filter(Boolean).join(', ')}` : p.loop ? 'looping: each pass adds to the last' : p.inOut ? 'In to Out' : 'from the playhead';
     app.log(`Recording onto the Timeline (${how}): grab, push, smooth or draw; Space or the record button stops.`);
     p.render();
     if (!adv && !p.playing) p.play();
+  }
+
+  /** Alt+R: start recording onto the Timeline, or stop (and save). */
+  toggleRecord() { if (this.take) return this.stop(); if (this.od) return this.stopOverdub(); return this.startOverdub(); }
+
+  /** Alt+End: pause or resume the transport while recording stays on (stepping: a frame on). Not recording: play / pause. */
+  togglePlay() {
+    const od = this.od, p = this.app.player;
+    if (!od) return p.toggle();
+    if (od.step) return this.stepFrame();
+    if (p.playing) { od.held = true; p.pause(); } else { od.held = false; p.play(); }
   }
 
   async stopOverdub() {
