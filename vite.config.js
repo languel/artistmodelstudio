@@ -3,6 +3,7 @@ import { defineConfig } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import os from 'node:os';
 
 // Dev-only endpoint so probe/distill pages can write results to disk:
 // root "seeds" -> fixtures/seeds/<set>/, "distill" -> training/<set>/data/, "report" -> training/<set>/reports/.
@@ -93,6 +94,60 @@ function renderVideoPlugin() {
           return;
         }
         json(res, 404, { error: 'Unknown route.' });
+      });
+    }
+  };
+}
+
+
+/**
+ * Dev-only film encoder: the studio sends the frames of a deterministic render (src/workbench/render.js) one by one, and the
+ * sound as a WAV, and the machine's own ffmpeg makes the film: faster and larger than the browser's, and 1080p is no trouble.
+ *   POST /__film/begin?name=   POST /__film/frame?name=&i=   POST /__film/audio?name=   POST /__film/finish?name=&fps=&format=
+ *   POST /__film/save?file=    (any file into exports/film/: the HTML page, the captions)
+ * Output lands in exports/film/ (git-ignored, not watched).
+ */
+function filmEncodePlugin() {
+  const out = path.resolve('exports/film');
+  const ok = n => /^[a-z0-9][a-z0-9._-]*$/i.test(n || '');
+  const dirOf = name => path.join(os.tmpdir(), 'ams-film', name);
+  return {
+    name: 'ams-film-encode',
+    apply: 'serve',
+    configureServer(server) {
+      const json = (res, code, body) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(body)); };
+      server.middlewares.use('/__film', (req, res) => {
+        if (req.method !== 'POST') return json(res, 405, { error: 'POST only' });
+        const url = new URL(req.url, 'http://x'), q = k => url.searchParams.get(k), name = q('name');
+        const chunks = []; req.on('data', c => chunks.push(c));
+        req.on('end', () => {
+          try {
+            const body = Buffer.concat(chunks), route = url.pathname;
+            if (route === '/save') {
+              const file = q('file'); if (!ok(file)) throw new Error('bad file name');
+              fs.mkdirSync(out, { recursive: true }); fs.writeFileSync(path.join(out, file), body); return json(res, 200, { ok: true, url: `/exports/film/${file}`, size: body.length });
+            }
+            if (!ok(name)) throw new Error('bad name');
+            const dir = dirOf(name);
+            if (route === '/begin') { fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true }); return json(res, 200, { ok: true }); }
+            if (route === '/frame') { fs.writeFileSync(path.join(dir, `f${String(Number(q('i'))).padStart(6, '0')}.jpg`), body); return json(res, 200, { ok: true }); }
+            if (route === '/audio') { fs.writeFileSync(path.join(dir, 'audio.wav'), body); return json(res, 200, { ok: true }); }
+            if (route === '/finish') {
+              const fps = Math.max(1, Math.min(60, Number(q('fps')) || 25)), format = q('format') === 'webm' ? 'webm' : 'mp4', hasAudio = fs.existsSync(path.join(dir, 'audio.wav'));
+              fs.mkdirSync(out, { recursive: true });
+              const file = `${name}.${format}`, target = path.join(out, file);
+              const codec = format === 'webm' ? ['-c:v', 'libvpx-vp9', '-crf', '28', '-b:v', '0'] : ['-c:v', 'libx264', '-preset', 'medium', '-crf', String(Number(q('crf')) || 20), '-pix_fmt', 'yuv420p', '-movflags', '+faststart'];
+              const sound = format === 'webm' ? ['-c:a', 'libopus', '-b:a', '128k'] : ['-c:a', 'aac', '-b:a', '192k'];
+              const args = ['-y', '-framerate', String(fps), '-i', path.join(dir, 'f%06d.jpg'), ...(hasAudio ? ['-i', path.join(dir, 'audio.wav')] : []), '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', ...codec, ...(hasAudio ? [...sound, '-shortest'] : []), target];
+              const p = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] }); let err = '';
+              p.stderr.on('data', d => { err = (err + d).slice(-1500); });
+              p.on('error', e => json(res, 500, { error: `ffmpeg: ${e.message}` }));
+              p.on('close', code => { fs.rmSync(dir, { recursive: true, force: true }); if (code === 0) json(res, 200, { ok: true, url: `/exports/film/${file}`, file: target, size: fs.statSync(target).size, sound: hasAudio }); else json(res, 500, { error: `ffmpeg stopped (${code}): ${err.split('\n').filter(Boolean).slice(-2).join(' ')}` }); });
+              return;
+            }
+            json(res, 404, { error: 'unknown route' });
+          } catch (err) { json(res, 400, { error: err.message }); }
+        });
       });
     }
   };
@@ -212,7 +267,7 @@ function llmProxyPlugin() {
 export default defineConfig({
   // GitHub Pages serves the site under /<repo>/ (the deploy workflow sets BASE_PATH); locally it is /.
   base: process.env.BASE_PATH || '/',
-  plugins: [probeSavePlugin(), amsRelayPlugin(), llmProxyPlugin(), renderVideoPlugin()],
+  plugins: [probeSavePlugin(), amsRelayPlugin(), llmProxyPlugin(), renderVideoPlugin(), filmEncodePlugin()],
   server: {
     port: 3000,
     // Files written to exports/ (pages, reports, sketches) are outputs: writing them must not reload the studio.

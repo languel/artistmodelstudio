@@ -2052,7 +2052,7 @@ export class Workbench {
   }
 
   /** Live and on screen: a board whose processes run now. */
-  isBoardActive(id, b = boardById(this.store.doc, id)) { return Boolean(b) && this.isBoardLive(id) && (this.canvas.boardOnScreen(b, 0) || Boolean(this.outputs?.wants(id))); }
+  isBoardActive(id, b = boardById(this.store.doc, id)) { return Boolean(b) && (Boolean(this.frames?.renderWants?.has(id)) || this.isBoardLive(id) && (this.canvas.boardOnScreen(b, 0) || Boolean(this.outputs?.wants(id)))); }
 
   setBoardLive(id, on) {
     this.store.change(on ? 'board live' : 'board paused', d => {

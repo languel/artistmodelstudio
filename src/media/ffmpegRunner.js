@@ -133,3 +133,33 @@ export async function startEncoder({ fps = 25, format = 'mp4', onStatus = null }
     }
   };
 }
+
+
+/**
+ * The same encoder as startEncoder, but the frames go to the dev server, whose own ffmpeg makes the film (/__film in
+ * vite.config.js): quicker, with no memory limit, and fit for 1080p. Only where the studio is served by `npm run dev`;
+ * `serverEncoderAvailable()` says. Resolves like startEncoder's, plus { url, size } of the file the server wrote.
+ */
+export async function serverEncoderAvailable() {
+  try { const r = await fetch('/__film/save?file=ping.txt', { method: 'POST', body: 'ok' }); return r.ok; } catch { return false; }
+}
+export async function startServerEncoder({ fps = 25, format = 'mp4', name = 'render', crf = 20, onStatus = null } = {}) {
+  const q = (route, extra = '') => `/__film/${route}?name=${encodeURIComponent(name)}${extra}`;
+  const post = async (url, body) => { const r = await fetch(url, { method: 'POST', body }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `The film server answered ${r.status}`); return j; };
+  await post(q('begin'));
+  let n = 0, audio = false;
+  const pending = new Set();
+  return {
+    async add(bytes) { const i = n++, p = post(q('frame', `&i=${i}`), bytes).finally(() => pending.delete(p)); pending.add(p); if (pending.size >= 8) await Promise.race(pending); },
+    async setAudio(bytes) { await Promise.all(pending); await post(q('audio'), bytes); audio = true; },
+    get count() { return n; },
+    async cancel() { /* the server clears the frames on the next begin */ },
+    async finish(onProgress = null) {
+      await Promise.all(pending); onStatus?.('Encoding on the server…'); onProgress?.(0.1);
+      const j = await post(q('finish', `&fps=${fps}&format=${format}&crf=${crf}`));
+      onProgress?.(1);
+      const blob = await (await fetch(j.url)).blob();
+      return { blob, type: format === 'webm' ? 'video/webm' : 'video/mp4', name: `${name}.${format}`, frames: n, sound: audio, url: j.url, size: j.size };
+    }
+  };
+}

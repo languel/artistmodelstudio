@@ -10,7 +10,8 @@
  */
 import { boardsOf } from '../process/boards.js';
 import { flatClips, duration } from '../process/take.js';
-import { startEncoder } from '../media/ffmpegRunner.js';
+import { targetRect } from './camera.js';
+import { startEncoder, startServerEncoder, serverEncoderAvailable } from '../media/ffmpegRunner.js';
 import { mixTake, encodeWav } from './renderAudio.js';
 
 const settle = (v, ms = 2500) => new Promise(ok => {
@@ -19,6 +20,17 @@ const settle = (v, ms = 2500) => new Promise(ok => {
   const t = setTimeout(done, ms);
   v.addEventListener('seeked', done); v.addEventListener('loadeddata', done);
 });
+
+/** The sketch boards the take's cameras can see (a shot's target rectangle meets them), so a scene of many sketches runs only the ones in the film. */
+export function sketchesSeen(app, take) {
+  const doc = app.store.doc, sketches = boardsOf(doc).filter(b => (b.kind === 'p5' || b.kind === 'three') && !b.hidden), seen = new Set();
+  for (const c of flatClips(take)) {
+    if (c.track !== 'shot') continue;
+    const r = targetRect(doc, c), pad = Math.max(r.w, r.h) * 0.6 / Math.max(0.2, c.z || 1);
+    for (const b of sketches) if (b.x < r.x + r.w + pad && b.x + b.width > r.x - pad && b.y < r.y + r.h + pad && b.y + b.height > r.y - pad) seen.add(b.id);
+  }
+  return [...seen];
+}
 
 /** Hold every video source under a board to the render clock: its in point plus the time, looping over its range. */
 async function seekSources(app, ms) {
@@ -36,7 +48,7 @@ async function seekSources(app, ms) {
  * Render the open take. opts: { range: [t0, t1] ms, fps, width, height, format: 'mp4' | 'webm', onProgress({ frame, frames, ms }), signal }.
  * Resolves { blob, type, name, frames }. Rejects with an AbortError if the signal fires (nothing is kept).
  */
-export async function renderTake(app, { range = null, fps = 25, width = 1280, height = 720, format = 'mp4', sound = true, onProgress = null, onStatus = null, signal = null } = {}) {
+export async function renderTake(app, { range = null, fps = 25, width = 1280, height = 720, format = 'mp4', sound = true, name = 'render', server = null, crf = 20, onProgress = null, onStatus = null, signal = null } = {}) {
   const player = app.player, take = player.take;
   if (!take) throw new Error('There is no take to render: put something on the Timeline first');
   const t0 = range?.[0] ?? 0, t1 = range?.[1] ?? duration(take);
@@ -45,7 +57,7 @@ export async function renderTake(app, { range = null, fps = 25, width = 1280, he
   player.pause();
   const cv = document.createElement('canvas'); cv.width = Math.round(width); cv.height = Math.round(height);
   const ctx = cv.getContext('2d');
-  const sketchIds = boardsOf(app.store.doc).filter(b => (b.kind === 'p5' || b.kind === 'three') && !b.hidden).map(b => b.id);
+  const sketchIds = sketchesSeen(app, take);
   // Videos under boards are held to the render clock; remember how they were to give them back.
   const heldSources = [...app.sources.entries.values()].filter(e => e.live?.video).map(e => ({ e, speed: e.def?.speed }));
   for (const h of heldSources) app.sources.update?.(h.e.def.name, { speed: 0 });
@@ -60,7 +72,8 @@ export async function renderTake(app, { range = null, fps = 25, width = 1280, he
     onStatus?.('Starting the sketches…');
     await app.frames.beginRender(sketchIds);
     onStatus?.('Loading the encoder…');
-    enc = await startEncoder({ fps, format, onStatus });
+    const useServer = server ?? await serverEncoderAvailable();
+    enc = useServer ? await startServerEncoder({ fps, format, name, crf, onStatus }) : await startEncoder({ fps, format, onStatus });
     onStatus?.('Rendering…');
     const t0wall = performance.now();
     for (let i = 0; i < frames; i++) {
