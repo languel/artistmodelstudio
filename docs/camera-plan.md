@@ -224,3 +224,7 @@ Built: explicit **cut clips** (`onAirShot`, `cutTo`, tested) and **live camera s
 ### Onion skin through the camera (8 Nov)
 
 Built: an **onion skin button** in the Timeline bar (editing aid, session setting `player.onion`: 2 frames before, 0 after, 120 ms apart, 0.32 opacity falling with distance). While the transport is paused, `drawProgram` also draws the same camera at the nearby times (`onionTimes`, tested), tinted warm (before) and cool (after) and blended lightly over the picture; it is off while playing and never in a render. Checked in the browser: a panning shot at 1 s changes 56% of a 320×180 Program frame with the skin on; playing gives an identical picture with it on or off. Limits: camera moves and stop-motion frames ghost; a parameter keyframed only on a board does not (the boards are posed for the playhead alone); the count, spacing and opacity have no controls yet.
+
+### Depth of field (8 Nov)
+
+Built: a shot has **Focus** (the board depth that is sharp) and **Blur** (aperture, 0 = off), both with the keyframe dot, so a pull-focus is two keys. In `renderCamera` a board at depth d gets `blurPx(d, focus, blur, H)` of canvas blur (`ctx.filter`), growing with its distance from the focal plane and scaled to the camera height, so previews and renders agree. Checked in the browser at the same board depth: focus 0 vs focus 2 gave edge energy 4594 vs 11056. Limits: needs a browser with canvas `filter` (Chrome, Firefox; Safari draws sharp); the blur is per board, not per object inside a board; sketch boards blur like any other.

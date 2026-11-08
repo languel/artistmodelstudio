@@ -75,3 +75,13 @@ describe('onion skin', () => {
     expect(onionTimes(50, { before: 2, step: 100 }).length).toBe(0);
   });
 });
+
+import { blurPx } from './camera.js';
+describe('depth of field', () => {
+  it('is sharp with no aperture or on the focal plane, and grows with distance from it', () => {
+    expect(blurPx(2, 0, 0, 720)).toBe(0);
+    expect(blurPx(1, 1, 1, 720)).toBe(0);
+    expect(blurPx(2, 0, 1, 720)).toBeGreaterThan(blurPx(1, 0, 1, 720));
+    expect(blurPx(1, 3, 1, 720)).toBeCloseTo(blurPx(5, 3, 1, 720) / 1, 0);
+  });
+});

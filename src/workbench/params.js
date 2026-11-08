@@ -81,9 +81,10 @@ export function installParams(app) {
   registerScope('shot', (id, prop) => {
     const clip = () => app.player?.take?.clips.find(c => c.id === id);
     const c = clip();
-    if (!c || !['z', 'dx', 'dy'].includes(prop)) return null;
-    const def = prop === 'z' ? 1 : 0;
-    return { get: () => clip()?.[prop] ?? def, set: v => { const k = clip(); if (k) k[prop] = prop === 'z' ? Math.max(0.05, v) : v; }, min: prop === 'z' ? 0.05 : -10, max: prop === 'z' ? 40 : 10, step: 0.01, label: `${c.label || 'Shot'} · ${prop === 'z' ? 'Zoom' : prop === 'dx' ? 'Shift x' : 'Shift y'}` };
+    if (!c || !['z', 'dx', 'dy', 'focus', 'blur'].includes(prop)) return null;
+    const def = prop === 'z' ? 1 : 0, dof = prop === 'focus' || prop === 'blur';
+    const names = { z: 'Zoom', dx: 'Shift x', dy: 'Shift y', focus: 'Focus', blur: 'Blur' };
+    return { get: () => clip()?.[prop] ?? def, set: v => { const k = clip(); if (k) k[prop] = prop === 'z' ? Math.max(0.05, v) : prop === 'blur' ? Math.max(0, v) : v; }, min: prop === 'z' ? 0.05 : prop === 'blur' ? 0 : dof ? -0.9 : -10, max: prop === 'z' ? 40 : dof ? (prop === 'blur' ? 5 : 20) : 10, step: dof ? 0.05 : 0.01, label: `${c.label || 'Shot'} · ${names[prop]}` };
   });
   registerScope('ctl', (id, prop) => {
     const f = app.frames?.frames.get(id);

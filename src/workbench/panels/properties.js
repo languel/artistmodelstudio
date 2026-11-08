@@ -356,6 +356,8 @@ export function mountProperties(el, app, { compact = false } = {}) {
         pose('Zoom', () => c.z ?? 1, v => set({ z: v || 1 }), 0.05, 0.05, 40, 'z'),
         pose('Shift x', () => c.dx, v => set({ dx: v }), 0.02, -10, 10, 'dx'),
         pose('Shift y', () => c.dy, v => set({ dy: v }), 0.02, -10, 10, 'dy'),
+        pose('Focus', () => c.focus ?? 0, v => set({ focus: v }), 0.05, -0.9, 20, 'focus'),
+        pose('Blur', () => c.blur ?? 0, v => set({ blur: Math.max(0, v) }), 0.05, 0, 5, 'blur'),
         h('label', { class: 'wb-check', title: 'The shot moves: it ends at another pose' }, (() => { const i = h('input', { type: 'checkbox' }); i.checked = moving; i.addEventListener('change', () => set({ to: i.checked ? { ...P() } : undefined })); return i; })(), ' Move to another pose'),
         moving ? pose('To zoom', () => c.to.z ?? 1, v => set({ to: { ...c.to, z: v || 1 } }), 0.05, 0.05, 40) : null,
         moving ? pose('To shift x', () => c.to.dx, v => set({ to: { ...c.to, dx: v } }), 0.02) : null,

@@ -98,6 +98,16 @@ export function viewFor(doc, shot, t, W, H) {
 
 const COMPOSITE = { add: 'lighter' };
 
+/**
+ * Depth of field: the blur (in pixels of a camera H pixels tall) a board at depth `depth` gets when the shot focuses on
+ * depth `focus` with aperture `blur` (0 = everything sharp). Grows with the distance from the focal plane.
+ */
+export function blurPx(depth, focus, blur, H) {
+  if (!(blur > 0)) return 0;
+  const px = Math.abs((depth || 0) - (focus || 0)) * blur * 14 * (H / 720);
+  return px < 0.4 ? 0 : Math.min(60, px);
+}
+
 /** The frame of a stop-motion board for time t of the film (frames at its fps, over its range, looping), as a bitmap; null until it has loaded. */
 export function stopmotionPicture(app, b, t) {
   const SM = app.stopmotion; if (!SM) return null;
@@ -182,6 +192,7 @@ export function renderCamera(app, shot, t, ctx, W, H) {
     if (!pic || !(pic.width || pic.naturalWidth)) continue;
     ctx.save();
     ctx.globalAlpha = opacityOf(b);
+    const dof = blurPx(b.depth, shot.focus, shot.blur, H); if (dof) ctx.filter = `blur(${dof.toFixed(1)}px)`;
     const bl = blendOf(b); if (bl !== 'normal') ctx.globalCompositeOperation = COMPOSITE[bl] || bl;
     // (a stop-motion frame is fitted whole into its board)
     if (b.kind === 'stopmotion') { const w = pic.width, h = pic.height, k = Math.min(bw * v.k / w, bh * v.k / h); ctx.fillStyle = '#101010'; ctx.fillRect((bx - v.x0) * v.k, (by - v.y0) * v.k, bw * v.k, bh * v.k); ctx.drawImage(pic, (bx - v.x0) * v.k + (bw * v.k - w * k) / 2, (by - v.y0) * v.k + (bh * v.k - h * k) / 2, w * k, h * k); }
