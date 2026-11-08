@@ -218,7 +218,8 @@ export function mountTimeline(root, app) {
       ...takes.map(a => h('option', { value: a.id }, `${a.title} · ${fmt(a.meta?.duration || 0)}`)));
     sel.addEventListener('change', async () => { const a = takes.find(x => x.id === sel.value); if (a) openTake(a); sel.blur(); });
     // Shift+click the name: rename the take (Enter keeps it)
-    sel.addEventListener('mousedown', ev => { if (!ev.shiftKey || !take) return; ev.preventDefault(); renameTake(); });
+    // Shift+click the name: renamed in place, over the name (as a board's or a scene's), Enter keeps it, Esc puts it back.
+    sel.addEventListener('mousedown', ev => { if (!ev.shiftKey || !take) return; ev.preventDefault(); renameTakeInPlace(sel.getBoundingClientRect(), take); });
     const st = S();
     const ruler = h('select', { class: 'wb-select wb-tl-ruler-mode', title: 'What the ruler shows' }, ...RULERS.map(r => h('option', { value: r, selected: r === st.ruler, title: RULER_NAMES[r] }, { time: 's', beats: '♩', frames: 'f' }[r])));
     ruler.addEventListener('change', () => { p.setSettings({ ruler: ruler.value }); ruler.blur(); });
@@ -271,13 +272,16 @@ export function mountTimeline(root, app) {
       take ? h('button', { class: 'wb-icon-btn', title: 'Close the take (back to your drawing)', html: icon('close'), onclick: () => { leaveComps(); P().close(); select(null); drawBar(); drawLanes(); } }) : null].filter(Boolean));
   };
 
-  const renameTake = async () => {
-    const take = P()?.take; if (!take) return;
-    const v = await askText('Name of the take', take.title || '');
-    if (v == null || !v.trim()) return;
-    take.title = v.trim();
-    if (take.assetId) { try { await app.assetStore.update(take.assetId, { title: take.title }); } catch { /* the name stays on the open take */ } }
+  const renameTo = async (take, title) => {
+    take.title = title;
+    if (take.assetId) { try { await app.assetStore.update(take.assetId, { title }); } catch { /* the name stays on the open take */ } }
     loadTakes(); drawBar();
+  };
+  /** The take's name, edited where it is shown (a field over the Takes menu). */
+  const renameTakeInPlace = (r, take) => {
+    const el = h('span', { class: 'wb-board-rename', style: { left: `${r.left}px`, top: `${r.top}px`, minWidth: `${Math.max(120, r.width)}px` } }, take.title || '');
+    document.body.append(el);
+    editInPlace(el, v => renameTo(take, v), take.title || '', () => el.remove());
   };
   // Delete the open take: a saved one leaves Assets (its Recordings folder); an unsaved one is just dropped. The drawing is never touched.
   const deleteTake = async () => {
