@@ -398,3 +398,8 @@ Instead of one model for everything, stay in the Liquid ecosystem and give each 
 
 ## 8 Nov: films
 Onion skin through the camera, depth of field (shot Focus/Blur), the lightbox that lights boards above it, and the film system: see `docs/films.md`. Four films were made as a test (moon, silhouette, three.js, pointillism: 4:3, low-res, static; the author's notes: keep 16:9, sharper, more camera, show how a thing happens) and a new explainer, `condense`, applies them. Next: the author's notes on the films and the bug list.
+
+## 8 Nov: recording a morph
+
+The user could not record grab/push/smooth onto marks already drawn: the take's picture replaced the canvas while recording (pointer ring and live edits hidden, nothing recorded). Now the canvas stays the live drawing while recording onto the transport and the recorder keeps it in step with the take (`Recorder.frame/follow`, called from `TakePlayer.render`); gestures on existing marks are sampled a frame at a time (`sample: true` draw clips) and shift later frames by what they moved, so passes layer. `settings.advance` ({start, end, board}, the record button's right-click menu) steps the playhead on actions instead of the clock. Tests in `recorder.test.js`; verified in the dev server with the Smooth tool. Not done: only point positions layer (other property edits are single clips); a gesture is noticed on the next frame (it starts from the take's state, so no first move is lost); the History/Interactions live tracks are untouched by sampling.
+

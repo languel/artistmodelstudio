@@ -152,6 +152,9 @@ export class TakePlayer {
    * A take of titles, narration, sound and media (nothing recorded: no drawing, no camera) is put together on the
    * Timeline while the canvas stays yours: you can still draw and edit. A take with a recording shows its own picture.
    */
+  /** Recording onto this take: the canvas stays the live drawing (the recorder keeps it in step with the take). */
+  get overdubbing() { return Boolean(this.recording && this.app.recorder?.overdubbing); }
+
   get composing() {
     if (!this.take || this.recording) return false;
     return !flatClips(this.take).some(c => !c.muted && (c.track === 'draw' || c.track === 'camera'));   // (the History track is muted: it does not make a take a recording)
@@ -166,7 +169,7 @@ export class TakePlayer {
 
   /** What a composing take adds over the live canvas: its media, captions and title cards (unless a Program board shows the sequence). */
   drawLive(ctx, tf, W, H) {
-    if (!this.take || !this.composing) return;
+    if (!this.take || !(this.composing || this.overdubbing)) return;
     this.drawViewfinders(ctx, tf);
     if (this.app.programBoard?.()) return;
     this.drawMedia(ctx, this.artboardRect(tf, null));
@@ -408,11 +411,12 @@ export class TakePlayer {
   render() {
     if (!this.take) return;
     this.applyAutomation();
-    const cv = this.app.canvas;
-    const doc = docAt(this.take, this.t);
-    cv.previewDoc = this.composing ? null : doc;   // (a take with no recording leaves the canvas live)
+    const cv = this.app.canvas, od = this.overdubbing;
+    if (od) this.app.recorder.frame(this.t);   // (the live drawing follows the take; a gesture in progress is sampled)
+    const doc = od ? null : docAt(this.take, this.t);
+    cv.previewDoc = od || this.composing ? null : doc;   // (a take with no recording leaves the canvas live; so does recording onto one: the tools work on the drawing)
     // Follow the take's camera keyframes, if it has any.
-    if (!this.composing && this.followCamera && flatClips(this.take).some(c => c.track === 'camera')) {
+    if (!od && !this.composing && this.followCamera && flatClips(this.take).some(c => c.track === 'camera')) {
       const tf = frameTransform(this.take, this.t, cv.w, cv.h, doc);
       cv.cam = { x: tf.x, y: tf.y, z: tf.scale };
     }

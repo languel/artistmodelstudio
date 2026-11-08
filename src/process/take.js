@@ -227,13 +227,14 @@ function drawIndex(take) {
 export function touch(take) { take.rev = (take.rev || 0) + 1; return take; }
 
 /** The document at time t (ms): finished changes applied, changes in progress revealed. */
-export function docAt(take, t) {
+export function docAt(take, t, { settled = false } = {}) {
   const { draws, before, final } = drawIndex(take);
   if (!draws.length) return take.baseline;
   let i = draws.findIndex(c => c.start > t);
   if (i < 0) i = draws.length;
   // Everything that started before t: the last one may still be revealing; earlier ones in progress too.
   let doc = i === draws.length ? final : before[i];
+  if (settled) return doc;   // (nothing drawn on: every change that has started is whole)
   const live = [];
   for (let j = 0; j < i; j++) {
     const c = draws[j], end = c.start + c.dur;

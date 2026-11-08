@@ -66,3 +66,5 @@ Open design question for both: reuse by **embedding AMS** (iframe, Poliplan-styl
 - Drag path timing against History stroke timing is only verified logically.
 - Pointer shapes (ring, crosshair, dot) have not been looked at on screen.
 - Unsaved takes are lost on reload; only saved takes (Assets) persist.
+
+- Recording onto a take (overdub) keeps the live drawing in step with the take (`Recorder.frame`, called by the player's render): gestures on existing marks are sampled as `sample: true` draw clips a frame long, later frames shift by what the gesture moved, and `settings.advance` ({start, end, board}) steps the playhead on actions instead of the clock. Only point positions are layered; other property changes are single clips.
