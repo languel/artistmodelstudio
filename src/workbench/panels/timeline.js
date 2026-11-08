@@ -279,7 +279,9 @@ export function mountTimeline(root, app) {
   };
   /** The take's name, edited where it is shown (a field over the Takes menu). */
   const renameTakeInPlace = (r, take) => {
-    const el = h('span', { class: 'wb-board-rename', style: { left: `${r.left}px`, top: `${r.top}px`, minWidth: `${Math.max(120, r.width)}px` } }, take.title || '');
+    // (the field takes the Takes menu's own box, type and colours, so the name sits where the menu's name sat)
+    const cs = getComputedStyle(document.querySelector('.wb-tl-take') || document.body);
+    const el = h('span', { class: 'wb-board-rename', style: { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, boxSizing: 'border-box', lineHeight: `${r.height}px`, padding: cs.padding, font: cs.font, color: cs.color, background: cs.backgroundColor, borderRadius: cs.borderRadius, whiteSpace: 'nowrap', overflow: 'hidden', display: 'flex', alignItems: 'center' } }, take.title || '');
     document.body.append(el);
     editInPlace(el, v => renameTo(take, v), take.title || '', () => el.remove());
   };
