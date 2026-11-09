@@ -14,6 +14,7 @@ import { camerasOf, onAirShot } from '../camera.js';
 import { autoKey, setAutoKey, recording, setRecordAuto } from '../keyframeDot.js';
 import { valueAt, EASE_NAMES } from '../../process/keyframes.js';
 import { signalMenu } from '../soundSignals.js';
+import { hasSource, trimStart, trimEnd, slip, slide, rippleTrimStart, rippleTrimEnd, setFade, fadesOf, crossfade, nextToJoin, laneClips } from '../../process/clipEdit.js';
 import { signalAtTake } from '../soundSource.js';
 import { duration, summarize, touch, flatClips, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
 import { showMenu } from '../menu.js';
@@ -26,7 +27,6 @@ import { RULERS, FPS_CHOICES, QUANT_CHOICES, SNAP_CHOICES, snapStep, timeContext
 import { waveFor, fromPeaks, drawWave } from '../waveform.js';
 import { clampPps, zoomAt, fitRange, reveal, centerOn, visibleRange, rulerTicks, autoGrid, gridLayer, timeLabel, editPoints, nextEdit, MAX_CONTENT_PX } from '../../time/timelineView.js';
 
-const AUDIO_CLIP_H = 33;
 const TRACK_LABEL = { comp: 'Composition', title: 'Titles', say: 'Narration', draw: 'Drawing', action: 'Actions', camera: 'Camera', shot: 'Shot', cut: 'Cut', media: 'Media', audio: 'Audio', auto: 'Automation' };
 const fmt = ms => { const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`; };
 const RULER_NAMES = { time: 'Minutes and seconds', beats: 'Bars, beats and sixteenths', frames: 'Frames' };
@@ -79,6 +79,7 @@ export function mountTimeline(root, app) {
   const bar = h('div', { class: 'wb-tl-bar' });
   const labels = h('div', { class: 'wb-tl-labels' });
   const lanes = h('div', { class: 'wb-tl-lanes', tabIndex: 0 });
+  let editTool = 'select';   // select | cut | ripple | slip | slide: what dragging and clicking a clip does (the glyphs in the bar)
   const vzBar = h('div', { class: 'wb-tl-vzbar' });
   const body = h('div', { class: 'wb-tl-body' }, labels, lanes, vzBar);
   // The navigator: the whole timeline in a strip, with the view as a window on it.
@@ -266,6 +267,7 @@ export function mountTimeline(root, app) {
       h('button', { class: 'wb-icon-btn', title: 'New take: an empty one (Shift+click: starting from the drawing as it is)', disabled: Boolean(rec), onclick: newTake, html: NEW_TAKE_SVG }),
       h('button', { class: 'wb-icon-btn', title: 'Insert at the playhead: a title card, a line of narration, a camera keyframe, a hold, a sound (a take is started if there is none)', disabled: Boolean(rec), onclick: e => showMenu(addItems(), e.clientX, e.clientY), html: INSERT }),
       h('button', { class: 'wb-icon-btn', title: 'Add a track', disabled: Boolean(rec), onclick: e => showMenu(trackItems(), e.clientX, e.clientY), html: ADD_TRACK }),
+      ...toolButtons(),
       take?.original
         ? h('button', { class: 'wb-icon-btn', title: 'Back to the take this summary was made from (the summary is discarded unless saved)', onclick: () => { const o = take.original; P().load(o); select(null); fitZoom(); drawBar(); drawLanes(); }, html: icon('undo') })
         : h('button', { class: 'wb-icon-btn', title: 'Summary: a short cut of this take (narration kept, the drawing brisk, analysis and waiting sped through, a hold at the end)', disabled: !take || Boolean(take.summaryOf) || /\(summary\)$/.test(take.title), onclick: makeSummary, html: SUMMARY }),
@@ -275,6 +277,17 @@ export function mountTimeline(root, app) {
       take ? h('button', { class: 'wb-icon-btn', title: take.assetId ? 'Delete this take from Assets (the drawing is not touched)' : 'Throw this take away (it is not saved)', html: icon('trash'), onclick: deleteTake }) : null,
       take ? h('button', { class: 'wb-icon-btn', title: 'Close the take (back to your drawing)', html: icon('close'), onclick: () => { leaveComps(); P().close(); select(null); drawBar(); drawLanes(); } }) : null].filter(Boolean));
   };
+
+  // The editing tools: what a click or a drag on a clip does (drawn small; hover for what each is).
+  const TOOLS = [
+    ['select', 'Select: click, drag to move, drag the edges to trim', '<path d="M6 4l12 7-5 1.5L10.5 18z" fill="currentColor" stroke="none"/>'],
+    ['cut', 'Cut: click a clip where you want it cut (X cuts at the playhead)', '<path d="M12 3v18" stroke-dasharray="2.5 2.5"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>'],
+    ['ripple', 'Ripple: drag the edge of a clip; the clips after it move by what you take or give', '<path d="M5 5v14"/><path d="M9 12h11M16 8l4 4-4 4"/>'],
+    ['slip', 'Slip: drag a sound or video clip to change what it shows, without moving it', '<rect x="4" y="7" width="16" height="10" rx="2"/><path d="M8 12h8M10.5 9.5L8 12l2.5 2.5M13.5 9.5L16 12l-2.5 2.5"/>'],
+    ['slide', 'Slide: drag a clip between its neighbours; they give way, so the whole stays as long', '<path d="M3 6v12M21 6v12"/><rect x="9" y="8" width="6" height="8" rx="1.5"/><path d="M5.5 12H8M16 12h2.5"/>']
+  ];
+  const toolButtons = () => TOOLS.map(([id, title, path]) => h('button', { class: `wb-icon-btn wb-tl-tool${editTool === id ? ' on' : ''}`, title, 'data-tool': id, html: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`, onclick: () => { editTool = id; lanes.dataset.tool = id; drawBar(); } }));
+  lanes.dataset.tool = editTool;
 
   const renameTo = async (take, title) => {
     take.title = title;
@@ -984,7 +997,7 @@ export function mountTimeline(root, app) {
     for (const n of [...el.querySelectorAll('.wb-tl-mark')]) n.remove();
     for (const m of c.marks || []) {
       const flag = h('span', { class: `wb-tl-mark k-${m.kind || 'note'}${m.end != null ? ' span' : ''}`, 'data-mark': m.id, style: { left: `${x(m.at)}px`, ...(m.end != null ? { width: `${Math.max(4, x(m.end - m.at))}px` } : {}) }, title: `${MARK_LABEL[m.kind] || 'Note'} · ${fmt(c.start + m.at)}${m.by ? ` · ${m.by}` : ''}\n${m.text || '(empty)'}\nClick to go there; drag to move; double-click to edit; right-click for more` });
-      const edit = async () => { const v = await askText(MARK_LABEL[m.kind] || 'Note', m.text); if (v !== null) { remember?.(); setMark(c, m.id, { text: v }); edited(); } };
+      const edit = () => editNote(c, m);
       flag.addEventListener('pointerdown', ev => {
         if (ev.button !== 0) return;
         ev.stopPropagation();
@@ -1012,12 +1025,27 @@ export function mountTimeline(root, app) {
       el.append(flag);
     }
   };
-  /** A mark on a clip at the playhead (or `at` ms into it): asks for the note, then keeps it. */
-  const noteOn = async (c, at, kind = 'note') => {
-    const v = await askText(MARK_LABEL[kind], '');
-    if (v === null) return null;
+  /**
+   * Write a note in place: a small field opens at its flag, over the Timeline (not inside the clip, which would cut it off); Enter keeps it,
+   * Esc or a click away leaves it as it was (a new note with no words is not kept).
+   */
+  const editNote = (c, m) => {
+    const flag = lanes.querySelector(`.wb-tl-clip[data-id="${CSS.escape(c.id)}"] .wb-tl-mark[data-mark="${CSS.escape(m.id)}"]`);
+    const r = (flag || lanes.querySelector(`.wb-tl-clip[data-id="${CSS.escape(c.id)}"]`))?.getBoundingClientRect(), box = lanes.getBoundingClientRect();
+    if (!r) return;
+    const field = h('span', { class: `wb-tl-notefield k-${m.kind || 'note'}`, 'data-placeholder': `${MARK_LABEL[m.kind] || 'Note'}…`, style: { left: `${r.left - box.left + lanes.scrollLeft + 2}px`, top: `${r.top - box.top + lanes.scrollTop}px` } });
+    lanes.append(field);
+    editInPlace(field, v => { remember?.(); setMark(c, m.id, { text: v }); edited(); }, m.text || '', () => {
+      field.remove();
+      if (!(m.text || '').trim() && (c.marks || []).includes(m)) { removeMark(c, m.id); edited(); }   // (nothing written: no note)
+    });
+  };
+  /** A mark on a clip at the playhead (or `at` ms into it), with its field open to write the note. */
+  const noteOn = (c, at, kind = 'note') => {
     remember?.();
-    const m = addMark(c, at, v, kind); edited(); return m;
+    const m = addMark(c, at, '', kind); edited();
+    editNote(c, m);
+    return m;
   };
   /** M: a note on the clip under the playhead (the picked clip if it is under it, else the top one). */
   const noteAtPlayhead = (kind = 'note') => {
@@ -1038,6 +1066,75 @@ export function mountTimeline(root, app) {
       edited(); drawLanes();
       app.log(r.segments.length ? `Speech to text: ${r.segments.length} line${r.segments.length === 1 ? '' : 's'}${r.notes ? ' as notes' : ''}${r.clips.length ? `${r.notes ? ' and' : ''} on the Transcript track` : ''}.` : 'No speech found in that clip.');
     } catch (err) { app.log(`Speech to text failed: ${err.message || err}`); }
+  };
+  /** The fades of a sound or a moment of video: a shaded corner and a handle to drag, on each side. */
+  const paintFades = (el, c) => {
+    for (const n of [...el.querySelectorAll('.wb-tl-fadeshade, .wb-tl-fadeh')]) n.remove();
+    const f = fadesOf(c);
+    for (const side of ['in', 'out']) {
+      const len = f[side], wpx = x(len);
+      if (len > 0) el.append(h('span', { class: `wb-tl-fadeshade ${side}${(side === 'in' ? c.fx?.xfadeIn : c.fx?.xfadeOut) ? ' x' : ''}`, style: { width: `${wpx}px` } }));
+      const hd = h('span', { class: `wb-tl-fadeh ${side}`, style: side === 'in' ? { left: `${wpx}px` } : { right: `${wpx}px` }, title: `Fade ${side}${len ? ` · ${(len / 1000).toFixed(2)} s` : ''}: drag to set it${(side === 'in' ? c.fx?.xfadeIn : c.fx?.xfadeOut) ? ' (a crossfade)' : ''}` });
+      hd.addEventListener('pointerdown', ev => {
+        if (ev.button !== 0) return;
+        ev.stopPropagation(); ev.preventDefault();
+        remember?.();
+        const x0 = ev.clientX, f0 = fadesOf(c)[side];
+        const mv = e2 => { setFade(c, side, f0 + ((e2.clientX - x0) / pps) * 1000 * (side === 'in' ? 1 : -1)); paintFades(el, c); };
+        const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); edited(); };
+        window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+      });
+      el.append(hd);
+    }
+  };
+  /**
+   * The editing tools on a clip (the glyphs in the bar), and the trim handle on its left edge. Returns whether it took the press.
+   *   cut     a click cuts the clip there
+   *   ripple  an edge drag trims it and every later clip on the track moves with it
+   *   slip    a drag slides what a sound or video shows under the clip, which stays where it is
+   *   slide   a drag moves the clip between its neighbours, which give way
+   *   (the left handle trims the start of the clip whichever tool; with ripple it ripples)
+   */
+  const editDrag = (c, el, ev) => {
+    const take = P().take, onTrim = ev.target.classList.contains('wb-tl-trim'), onGrip = ev.target.classList.contains('wb-tl-grip');
+    if (editTool === 'cut' && !onTrim && !onGrip) {
+      const t = Math.round(pointerMs(ev));
+      if (t > c.start + 20 && t < c.start + c.dur - 20 && c.track !== 'comp') { cutClip(c, t); edited(); app.log(`Cut at ${fmt(t)}.`); }
+      return true;
+    }
+    const kind = onTrim ? 'head' : onGrip && editTool === 'ripple' ? 'tail' : editTool === 'slip' && hasSource(c) && !onGrip ? 'slip' : editTool === 'slide' && !onGrip ? 'slide' : null;
+    if (!kind) return false;
+    const list = laneClips(take, c), keep = list.map(k => [k, { start: k.start, dur: k.dur, offset: k.offset, in: k.in, out: k.out, marks: k.marks && k.marks.map(m => ({ ...m })), fx: k.fx }]);
+    const restore = () => { for (const [k, o] of keep) { k.start = o.start; k.dur = o.dur; k.offset = o.offset; k.in = o.in; k.out = o.out; if (o.marks) k.marks = o.marks.map(m => ({ ...m })); else delete k.marks; if (o.offset === undefined) delete k.offset; if (o.in === undefined) delete k.in; if (o.out === undefined) delete k.out; } };
+    const x0 = ev.clientX, sl0 = lanes.scrollLeft, s0 = c.start, d0 = c.dur;
+    const move = e2 => {
+      const dt = ((e2.clientX - x0 + lanes.scrollLeft - sl0) / pps) * 1000, q = e2.shiftKey || e2.altKey ? 0 : gridStep(S(), pps) * 1000, on = v => (q ? Math.round(v / q) * q : Math.round(v));
+      restore();
+      if (kind === 'head') (editTool === 'ripple' ? rippleTrimStart : (t, k, v) => trimStart(k, v))(take, c, on(s0 + dt));
+      else if (kind === 'tail') rippleTrimEnd(take, c, on(s0 + d0 + dt));
+      else if (kind === 'slip') slip(c, -Math.round(dt));
+      else slide(take, c, on(s0 + dt) - s0);
+      for (const [k] of keep) { const ke = lanes.querySelector(`.wb-tl-clip[data-id="${CSS.escape(k.id)}"]`); if (ke) { ke.style.left = `${x(k.start)}px`; ke.style.width = `${Math.max(6, x(k.dur))}px`; } }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      if (keep.some(([k, o]) => k.start !== o.start || k.dur !== o.dur || k.offset !== o.offset || k.in !== o.in)) edited(); else drawLanes();
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    return true;
+  };
+  const FADE_LENGTHS = [250, 500, 1000, 2000];
+  /** The Transition menu of a sound or video clip: fades, and a crossfade with the clip after it. */
+  const transitionItems = c => {
+    const take = P().take, next = take ? nextToJoin(take, c) : null, f = fadesOf(c);
+    const set = (side, ms) => { remember?.(); setFade(c, side, ms); edited(); drawLanes(); };
+    const lens = side => [{ label: 'None', active: !f[side], run: () => set(side, 0) }, ...FADE_LENGTHS.map(ms => ({ label: `${ms / 1000} s`, active: f[side] === ms, run: () => set(side, ms) }))];
+    return [
+      { label: 'Fade in', items: lens('in') },
+      { label: 'Fade out', items: lens('out') },
+      { label: 'Crossfade with the next clip', hint: next ? 'The two overlap, and the first fades out as the second comes in (equal power for sound)' : 'There is no clip right after this one on its track', disabled: !next, items: FADE_LENGTHS.map(ms => ({ label: `${ms / 1000} s`, run: () => { remember?.(); const o = crossfade(c, next, ms); edited(); drawLanes(); app.log(o ? `Crossfade of ${(o / 1000).toFixed(2)} s.` : 'Those clips are too far apart to crossfade.'); } })) },
+      { label: 'Remove the fades', disabled: !f.in && !f.out, run: () => { remember?.(); setFade(c, 'in', 0); setFade(c, 'out', 0); delete c.fx.xfadeIn; delete c.fx.xfadeOut; edited(); drawLanes(); } }
+    ];
   };
   let ctxAt = 0;   // (where on the clip the last right-click was, in ms)
   const clipEl = (c, readOnly = false) => {
@@ -1060,9 +1157,9 @@ export function mountTimeline(root, app) {
       el.prepend(cv);
       if (c.view === 'spec' && c.src) {
         // The spectrogram (audioAnalysis.js): time across, low pitch at the bottom; made once per sound, so it shows when it is ready.
-        analyseSrc(c.src).then(an => { if (an && cv.isConnected) drawSpectrogram(cv, an, { from: c.offset || 0, to: (c.offset || 0) + (c.dur || an.duration), width: w - 2, height: AUDIO_CLIP_H - 2 }); });
+        analyseSrc(c.src).then(an => { if (an && cv.isConnected) drawSpectrogram(cv, an, { from: c.offset || 0, to: (c.offset || 0) + (c.dur || an.duration), width: w - 2, height: 64, fluid: true }); });
       } else {
-        const paint = wave => { if (wave) drawWave(cv, wave, { from: 0, to: (c.dur || wave.duration) / 1000, width: w - 2, height: AUDIO_CLIP_H - 2 }); };
+        const paint = wave => { if (wave) drawWave(cv, wave, { from: 0, to: (c.dur || wave.duration) / 1000, width: w - 2, height: 64, fluid: true }); };
         // (painted at once, before the clip is in the page: a clip that already has its decoded wave is never painted again)
         paint(c.wave || fromPeaks(c.peaks, c.dur));
         if (!c.wave && c.src) waveFor(c.src).then(wave => { if (wave) { c.wave = wave; if (cv.isConnected) paint(wave); } });
@@ -1070,12 +1167,14 @@ export function mountTimeline(root, app) {
     }
     if (c.marks?.length) paintMarks(el, c);
     if (readOnly) return el;
+    if (c.track === 'audio' || (c.track === 'media' && !c.board)) { el.append(h('span', { class: 'wb-tl-trim', title: 'Drag to trim the start: the sound or picture stays where it is (with Ripple, the clips after it follow)' })); paintFades(el, c); }
     el.addEventListener('pointerdown', ev => {
       if (ev.button !== 0) return;
       ev.stopPropagation();
       // Shift, Ctrl or ⌘-click picks several (no drag); a picked clip drags the others with it.
       if (ev.metaKey || ev.ctrlKey || ev.shiftKey) { select(c, { toggle: true }); return; }
       if (!picked.has(c.id)) select(c); else { selected = c; app.selectedClip = c; app.emit('clip-select', c); }
+      if ((ev.target.classList.contains('wb-tl-trim') || editTool !== 'select') && editDrag(c, el, ev)) return;
       const grip = ev.target.classList.contains('wb-tl-grip');
       // Alt-drag: copies stay where the clips were, and the clips move (a click without a drag copies nothing).
       const dup = ev.altKey && !grip ? pickedClips().map(o => {
@@ -1163,6 +1262,7 @@ export function mountTimeline(root, app) {
     ] } : null,
     c.marks?.length ? { label: `Notes (${c.marks.length})`, items: c.marks.map(m => ({ label: `${fmt(c.start + m.at)} · ${(m.text || '').slice(0, 40) || '(empty)'}`, run: () => seekShow(c.start + m.at) })) } : null,
     '-',
+    c.track === 'audio' || (c.track === 'media' && !c.board) ? { label: 'Transition', hint: 'Fades in and out, and a crossfade with the clip after', items: transitionItems(c) } : null,
     { label: 'Split at the playhead', keys: 'X', run: splitAtPlayhead },
     { label: 'Ripple delete', hint: 'Delete it and close the gap on its track', keys: '⇧⌫', run: () => rippleDelete(pickedClips().length ? pickedClips() : [c]) },
     { label: 'Go to start', run: () => seekShow(c.start) },
@@ -1184,18 +1284,22 @@ export function mountTimeline(root, app) {
     t.clips = t.clips.filter(x2 => !gone.has(x2)); select(null); edited();
   };
   /** Cut at the playhead (an editor's razor): the picked clips under it, else every clip under it. Media clips keep their moment of the source. */
+  /** Cut a clip in two at take time `t`: the second part is a clip of its own, showing what comes after. Notes and fades go to the part they are on. */
+  const cutClip = (c, t) => {
+    const take = P().take, first = t - c.start, k = { ...structuredClone(c), id: clipId(), start: t, dur: c.dur - first };
+    delete k.marks; const later = splitMarks(c, first); if (later.length) k.marks = later;   // (the notes go with the part they are on)
+    if (c.track === 'media') { const cut = (c.in || 0) + first / 1000 * (c.speed > 0 ? c.speed : 1); k.in = cut; c.out = cut; }
+    else if (c.track === 'audio') k.offset = (c.offset || 0) + first;
+    c.dur = first;
+    if (c.track === 'audio' || c.track === 'media') { setFade(c, 'out', 0); setFade(k, 'in', 0); }   // (the cut is not a fade: the first part keeps its fade in, the second its fade out)
+    take.clips.push(k);
+    return k;
+  };
   const splitAtPlayhead = () => {
     const take = P().take, t = Math.round(P().t); if (!take) return 0;
     const under = c => c.track !== 'comp' && t > c.start + 20 && t < c.start + c.dur - 20;
     const hit = pickedClips().filter(under), targets = hit.length ? hit : take.clips.filter(under);   // (the picked clips under the playhead, else every clip under it)
-    for (const c of targets) {
-      const first = t - c.start, k = { ...structuredClone(c), id: clipId(), start: t, dur: c.dur - first };
-      delete k.marks; const later = splitMarks(c, first); if (later.length) k.marks = later;   // (the notes go with the part they are on)
-      if (c.track === 'media') { const cut = (c.in || 0) + first / 1000 * (c.speed > 0 ? c.speed : 1); k.in = cut; c.out = cut; }
-      else if (c.track === 'audio') k.offset = (c.offset || 0) + first;
-      c.dur = first;
-      take.clips.push(k);
-    }
+    for (const c of targets) cutClip(c, t);
     if (targets.length) { edited(); app.log(`Split ${targets.length} clip${targets.length === 1 ? '' : 's'} at ${fmt(t)}.`); }
     else app.log('Put the playhead over a clip to split it (X).');
     return targets.length;

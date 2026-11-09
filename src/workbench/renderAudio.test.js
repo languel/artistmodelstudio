@@ -24,7 +24,7 @@ describe('render sound', () => {
     expect(Object.keys(by).sort()).toEqual(['a', 'b', 'm']);
     expect(by.a.when).toBe(0); expect(by.a.offset).toBeCloseTo(0.5 + 0.5);    // began 0.5 s before the range: starts 0.5 s in, plus its own 0.5 s offset
     expect(by.a.dur).toBeCloseTo(3.5);                                          // 1.5 s to 5 s of the range
-    expect(by.a.fade).toBeCloseTo(0.25);
+    expect(by.a.fadeIn).toBe(0); expect(by.a.fadeOut).toBeCloseTo(0.25);   // (the range begins inside it: no fade in; it ends with the range: its fade out)
     expect(by.b.gain).toBe(0.5); expect(by.b.offset).toBeCloseTo(1.5);
     expect(by.m.when).toBeCloseTo(0.5); expect(by.m.rate).toBe(2); expect(by.m.offset).toBe(10); expect(by.m.gain).toBe(0.8);
   });

@@ -224,9 +224,9 @@ const PALETTE = (() => {   // dark → violet → red → orange → pale yellow
 })();
 
 /** Paint [from, to] ms of the sound as a spectrogram: time across, low pitch at the bottom. */
-export function drawSpectrogram(canvas, an, { from = 0, to = an?.duration, width, height } = {}) {
+export function drawSpectrogram(canvas, an, { from = 0, to = an?.duration, width, height, fluid = false } = {}) {
   const W = Math.max(1, Math.round(width)), H = Math.max(2, Math.round(height)), dpr = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); canvas.style.width = `${W}px`; canvas.style.height = `${H}px`;
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); canvas.style.width = `${W}px`; if (!fluid) canvas.style.height = `${H}px`;
   const g = canvas.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0);
   const w = canvas.width, h = canvas.height, img = g.createImageData(w, h), span = Math.max(1, to - from);
   if (an?.n) {

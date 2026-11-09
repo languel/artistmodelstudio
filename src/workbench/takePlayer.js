@@ -6,6 +6,7 @@
  * `loop` (on or off) is this session's. Anything that plays in time (a score) listens to `t`.
  */
 import { docAt, duration, touch, flatClips } from '../process/take.js';
+import { fadeGain } from '../process/clipEdit.js';
 import { boardById, MAIN } from '../process/boards.js';
 import { boardLive } from './boardSource.js';
 import { camerasOf, cameraById, shotAt, onAirShot, renderCamera, viewFor, releaseCameras, onionTimes, ONION_TINT } from './camera.js';
@@ -98,6 +99,7 @@ export class TakePlayer {
       let a = this.audios.get(c.id);
       if (!a || a.srcKey !== c.src) { a?.pause(); a = new Audio(c.src); a.srcKey = c.src; a.preload = 'auto'; this.audios.set(c.id, a); }
       const inside = !c.muted && this.t >= c.start && this.t < c.start + c.dur;
+      a.volume = Math.max(0, Math.min(1, (c.volume ?? 1) * fadeGain(c, this.t)));   // (its fades; a crossfade with equal power)
       if (this.playing && inside) {
         const want = (this.t - c.start) / 1000 + (c.offset || 0) / 1000;
         a.playbackRate = Math.min(4, this.rate);
@@ -122,7 +124,7 @@ export class TakePlayer {
       if (c.still) continue;   // (a picture holds: nothing to play or seek)
       const speed = c.speed > 0 ? c.speed : 1, want = (c.in || 0) + (this.t - c.start) / 1000 * speed;
       const inside = !c.muted && this.t >= c.start && this.t < c.start + c.dur;
-      v.muted = !(c.volume > 0); v.volume = Math.min(1, c.volume || 0);
+      v.muted = !(c.volume > 0); v.volume = Math.max(0, Math.min(1, (c.volume || 0) * fadeGain(c, this.t)));
       if (inside) {
         v.playbackRate = Math.max(0.0625, Math.min(4, speed * this.rate));
         if (this.playing) { if (v.paused) { v.currentTime = want; v.play().catch(() => {}); } else if (Math.abs(v.currentTime - want) > 0.3) v.currentTime = want; }
@@ -254,13 +256,13 @@ export class TakePlayer {
   /** Draw the media clips under the playhead into a rectangle of the screen. */
   drawMedia(ctx, { X, Y, W, H }) {
     if (!this.take) return;
-    for (const c of flatClips(this.take)) {
-      if (c.track !== 'media' || c.muted || this.t < c.start || this.t >= c.start + c.dur) continue;
+    for (const c of flatClips(this.take).filter(k => k.track === 'media').sort((a, b) => a.start - b.start)) {   // (the one that starts later is on top: a crossfade comes in over the other)
+      if (c.muted || this.t < c.start || this.t >= c.start + c.dur) continue;
       const v = c.board ? this.boardPicture(c.board) : this.videos?.get(c.id);
       const vw = v?.videoWidth || v?.naturalWidth || v?.width, vh = v?.videoHeight || v?.naturalHeight || v?.height;
       if (!v || !vw || (v.readyState != null && v.readyState < 2)) continue;
       const k = (c.fit === 'cover' ? Math.max : Math.min)(W / vw, H / vh), w = vw * k, h = vh * k;
-      const fade = c.fx?.fade || 0, e = Math.min(this.t - c.start, c.start + c.dur - this.t), a = (c.opacity ?? 1) * (fade ? Math.min(1, e / fade) : 1);
+      const a = (c.opacity ?? 1) * fadeGain(c, this.t, { visual: true });   // (fades in and out, and a crossfade: src/process/clipEdit.js)
       ctx.save();
       ctx.beginPath(); ctx.rect(X, Y, W, H); ctx.clip();
       ctx.globalAlpha = Math.max(0, Math.min(1, a));

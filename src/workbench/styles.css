@@ -518,6 +518,18 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-clip.sel { border-color: var(--wb-text); box-shadow: 0 0 0 1px var(--wb-text); }
 .wb-tl-cliptext { pointer-events: none; }
 .wb-tl-grip { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
+.wb-tl-trim { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; z-index: 2; }
+.wb-tl-trim:hover, .wb-tl-grip:hover { background: color-mix(in srgb, var(--wb-text) 22%, transparent); }
+.wb-tl-fadeshade { position: absolute; top: 0; bottom: 0; background: rgba(0,0,0,.26); pointer-events: none; z-index: 1; }
+.wb-tl-fadeshade.in { left: 0; clip-path: polygon(0 0, 100% 0, 0 100%); }
+.wb-tl-fadeshade.out { right: 0; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.wb-tl-fadeshade.x { background: rgba(120,60,180,.32); }
+.wb-tl-fadeh { position: absolute; top: 1px; width: 7px; height: 7px; margin: 0 -3px; border-radius: 2px; background: var(--wb-text); opacity: 0; cursor: ew-resize; z-index: 4; }
+.wb-tl-fadeh.out { margin: 0 -3px 0 0; }
+.wb-tl-clip:hover .wb-tl-fadeh, .wb-tl-clip.sel .wb-tl-fadeh { opacity: .75; }
+.wb-tl-lanes[data-tool="cut"] .wb-tl-clip { cursor: crosshair; }
+.wb-tl-lanes[data-tool="slip"] .wb-tl-clip.t-audio, .wb-tl-lanes[data-tool="slip"] .wb-tl-clip.t-media { cursor: ew-resize; }
+.wb-tl-lanes[data-tool="slide"] .wb-tl-clip { cursor: col-resize; }
 .wb-tl-clip.t-title { background: #c9c1b4; }
 .wb-tl-clip.t-say { background: #e7d8a8; }
 .wb-tl-clip.t-draw { background: #b9c6b0; }
@@ -560,7 +572,7 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-playhead.live { box-shadow: 0 0 0 1px color-mix(in srgb, var(--wb-accent-2) 40%, transparent); }
 
 .wb-tl-lanes.drop { outline: 1px dashed color-mix(in srgb, var(--wb-select) 70%, transparent); outline-offset: -2px; }
-.wb-tl-wave { position: absolute; left: 1px; top: 1px; pointer-events: none; }
+.wb-tl-wave { position: absolute; left: 1px; top: 1px; height: calc(100% - 2px); pointer-events: none; }
 .wb-tl-sig { position: absolute; left: 1px; top: 1px; height: calc(100% - 2px); pointer-events: none; }
 .wb-tl-clip.t-auto.orphan { opacity: 0.45; }
 .wb-tl-mark { --mk: #2f6fdf; position: absolute; top: 0; bottom: 0; width: 10px; margin-left: -1px; z-index: 3; cursor: pointer; }
@@ -570,6 +582,10 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 .wb-tl-mark.k-instruction { --mk: #7b3fd0; }
 .wb-tl-mark.span { background: color-mix(in srgb, var(--mk) 22%, transparent); border-bottom: 2px solid var(--mk); box-sizing: border-box; }
 .wb-tl-mark:hover::before { width: 3px; }
+.wb-tl-notefield { --mk: #2f6fdf; position: absolute; z-index: 30; min-width: 180px; max-width: 420px; box-sizing: border-box; padding: 3px 8px; border-radius: 6px; font: 12px/18px inherit; white-space: nowrap; overflow: hidden; background: var(--wb-panel, #262626); color: var(--wb-text); border: 1px solid var(--mk); box-shadow: 0 4px 14px rgba(0,0,0,.35); cursor: text; outline: none; }
+.wb-tl-notefield.k-feedback { --mk: #e0702a; }
+.wb-tl-notefield.k-instruction { --mk: #7b3fd0; }
+.wb-tl-notefield:empty::before { content: attr(data-placeholder); opacity: .5; }
 .wb-tl-row[data-kind="audio"], .wb-tl-labels > .wb-tl-label[data-kind="audio"] { height: calc(40px * var(--tl-vz, 1)); }
 .wb-tl-row[data-kind="audio"] .wb-tl-clip { height: calc(33px * var(--tl-vz, 1)); }
 .wb-tl-row[data-kind="audio"] .wb-tl-cliptext { position: relative; font-size: 9.5px; line-height: 12px; opacity: 0.8; }

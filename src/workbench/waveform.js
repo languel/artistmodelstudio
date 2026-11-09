@@ -49,13 +49,13 @@ export function fromPeaks(peaks, durationMs) {
 
 /**
  * Paint [from, to] (seconds of the sound) across `canvas`, which is `width`×`height` CSS pixels.
- * colors: { peak, body, line }
+ * colors: { peak, body, line }; fluid: leave the height to the stylesheet (the picture is drawn at `height` and stretched to fit)
  */
-export function drawWave(canvas, wave, { from = 0, to = wave?.duration / 1000, width, height, colors = {} } = {}) {
+export function drawWave(canvas, wave, { from = 0, to = wave?.duration / 1000, width, height, colors = {}, fluid = false } = {}) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const W = Math.max(1, Math.round(width)), H = Math.max(2, Math.round(height));
   canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
-  canvas.style.width = `${W}px`; canvas.style.height = `${H}px`;
+  canvas.style.width = `${W}px`; if (!fluid) canvas.style.height = `${H}px`;   // (fluid: the page gives it its height, so it fills a clip of any height)
   const g = canvas.getContext('2d');
   g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
   const mid = H / 2, amp = H / 2 - 1;

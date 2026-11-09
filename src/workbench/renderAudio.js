@@ -3,6 +3,7 @@
  * one stereo track for the range being rendered. Done offline (an OfflineAudioContext), so it takes no real time and is the
  * same each time. Clips start, trim and fade as on the Timeline (`offset`, `rate`/`speed`, `fx.fade`, `volume`, mute).
  */
+import { fadesOf } from '../process/clipEdit.js';
 import { flatClips } from '../process/take.js';
 
 export const SAMPLE_RATE = 48000;
@@ -21,7 +22,7 @@ export function encodeWav(channels, sampleRate = SAMPLE_RATE) {
 
 /**
  * What to play, as plain data: [{ key, src|blob, when (s from the range start), offset (s into the sound), dur (s of the
- * timeline it fills), rate, gain, fade (s) }]. Pure, so it can be checked without audio.
+ * timeline it fills), rate, gain, fadeIn, fadeOut (s), xin, xout (a crossfade: equal power) }]. Pure, so it can be checked without audio.
  */
 export function soundPlan(take, [t0, t1], assetUrl = () => null) {
   const out = [];
@@ -33,7 +34,9 @@ export function soundPlan(take, [t0, t1], assetUrl = () => null) {
     if (!src) continue;
     const skip = Math.max(0, t0 - c.start) / 1000;              // the clip began before the range: start inside it
     const when = Math.max(0, c.start - t0) / 1000, dur = (Math.min(c.start + c.dur, t1) - Math.max(c.start, t0)) / 1000;
-    out.push({ key: c.asset ? `${c.track}:${c.asset}` : src, src, offset: offset + skip * rate, when, dur, rate, gain, fade: (c.fx?.fade || 0) / 1000, clip: c.id });
+    // (a fade belongs to the clip's own edge: it is left out when the range starts or ends inside the clip)
+    const f = fadesOf(c);
+    out.push({ key: c.asset ? `${c.track}:${c.asset}` : src, src, offset: offset + skip * rate, when, dur, rate, gain, fadeIn: c.start >= t0 ? f.in / 1000 : 0, fadeOut: c.start + c.dur <= t1 ? f.out / 1000 : 0, xin: Boolean(c.fx?.xfadeIn), xout: Boolean(c.fx?.xfadeOut), clip: c.id });
   }
   return out;
 }
@@ -55,8 +58,13 @@ export async function mixTake(app, take, range, { onStatus = null } = {}) {
       if (!buf) { onStatus?.('Mixing the sound…'); buf = await ctx.decodeAudioData(await (await fetch(p.src)).arrayBuffer()); cache.set(p.key, buf); }
       const src = ctx.createBufferSource(), g = ctx.createGain();
       src.buffer = buf; src.playbackRate.value = p.rate;
-      g.gain.setValueAtTime(p.fade > 0 ? 0 : p.gain, p.when);
-      if (p.fade > 0) { g.gain.linearRampToValueAtTime(p.gain, p.when + Math.min(p.fade, p.dur / 2)); g.gain.setValueAtTime(p.gain, Math.max(p.when, p.when + p.dur - p.fade)); g.gain.linearRampToValueAtTime(0, p.when + p.dur); }
+      // (fades: a straight line, or for a crossfade a quarter sine, so two sounds that cross do not dip in the middle)
+      let fi = p.fadeIn || 0, fo = p.fadeOut || 0;
+      if (fi + fo > p.dur) { const k = p.dur / (fi + fo); fi *= k; fo *= k; }
+      const ramp = (from, to, at, len, power) => g.gain.setValueCurveAtTime(Float32Array.from({ length: 33 }, (_, i) => { const u = i / 32, w = power ? Math.sin(u * Math.PI / 2) : u; return p.gain * (from + (to - from) * (power && to < from ? 1 - Math.sin((1 - u) * Math.PI / 2) : w)); }), at, len);
+      g.gain.setValueAtTime(fi > 0 ? 0 : p.gain, p.when);
+      if (fi > 0) ramp(0, 1, p.when, fi, p.xin);
+      if (fo > 0) { g.gain.setValueAtTime(p.gain, Math.max(p.when + fi, p.when + p.dur - fo) - 1e-4); ramp(1, 0, p.when + p.dur - fo, fo, p.xout); }
       src.connect(g).connect(ctx.destination);
       src.start(p.when, Math.min(p.offset, Math.max(0, buf.duration - 0.001)), p.dur * p.rate);   // (duration is in the sound's own time)
       used++;
