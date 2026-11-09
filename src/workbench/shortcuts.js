@@ -49,6 +49,7 @@ export function defaultCommands(app) {
     cmd('sculpt.weaker', 'Tools', 'Sculpt strength down', ['{'], () => app.setSculpt({ strength: app.sculpt.strength - 0.1 })),
     cmd('sculpt.stronger', 'Tools', 'Sculpt strength up', ['}'], () => app.setSculpt({ strength: app.sculpt.strength + 0.1 })),
     cmd('timeline.split', 'Timeline', 'Split the clips at the playhead (the picked ones, else all under it)', ['x'], () => app.splitAtPlayhead?.()),
+    cmd('timeline.note', 'Timeline', 'A note on the clip under the playhead (a marker for feedback or an instruction for generating)', ['m'], () => app.addNoteAtPlayhead?.()),
     cmd('edit.undo', 'Edit', 'Undo', ['mod+z'], () => app.store.undo()),
     cmd('edit.redo', 'Edit', 'Redo', ['mod+shift+z'], () => app.store.redo()),
     cmd('edit.selectAll', 'Edit', 'Select all', ['mod+a'], () => app.canvas.select(app.store.doc.elements.filter(el => app.canvas.editable(el)).map(el => el.id))),

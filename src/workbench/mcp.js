@@ -493,6 +493,25 @@ export function workbenchTools(app) {
       }
       throw new Error('Unknown action');
     } },
+    { name: 'ams_notes', description: 'Annotations on the open take: markers with notes kept on clips (feedback, instructions for generating, plain notes; speech turned to text lands here too). action "list" {kind?, track?, text?} returns every note with its clip and take time; "text" the same as lines for reading; "add" {clip (id) | at (ms: the first clip under that take time), offset? (ms into the clip), text, kind note | feedback | instruction}; "edit" {id, text?, kind?, offset?}; "delete" {id}. Times are ms. An "instruction" note is for you to act on: read the list, do what it says, then delete it or change it to a note.', inputSchema: S({ action: str('list | text | add | edit | delete'), id: str('Note id (edit, delete)'), clip: str('Clip id (add)'), at: num('Take time in ms (add, on the clip under it)'), offset: num('ms from the start of the clip'), text: str('The note, or a word to find (list)'), kind: str('note | feedback | instruction'), track: str('Only the clips on this track (list)') }, ['action']), run: async (a) => {
+      const M = await import('../process/marks.js'), { touch, flatClips } = await import('../process/take.js');
+      const take = app.player?.take; if (!take) throw new Error('No take open: ams_timeline {action: "open", id}');
+      touch(take);   // (what the timeline holds may have been edited since the clips were last read)
+      const refresh = () => { touch(take); app._tlKeysEdited?.(); app.timelineEdited?.(); };
+      const owner = id => { for (const c of flatClips(take)) if ((c.marks || []).some(m => m.id === id)) return M.findClip(take, c.id); return null; };
+      if (a.action === 'list') return { notes: M.marksOf(take, { kind: a.kind, track: a.track, text: a.text }) };
+      if (a.action === 'text') return { text: M.marksText(take, { kind: a.kind, track: a.track, text: a.text }) };
+      if (a.action === 'add') {
+        let c = a.clip ? M.findClip(take, a.clip) : null;
+        if (!c && a.at != null) c = flatClips(take).filter(x => x.track !== 'comp' && a.at >= x.start && a.at <= x.start + x.dur).map(x => M.findClip(take, x.id))[0];
+        if (!c) throw new Error('Give a clip id, or a take time (at) that falls on a clip');
+        const off = a.offset != null ? a.offset : a.at != null ? a.at - c.start : 0;
+        const m = M.addMark(c, off, a.text || '', a.kind || 'note', { by: 'agent' }); refresh(); return { id: m.id, clip: c.id, at: m.at, kind: m.kind };
+      }
+      if (a.action === 'edit') { const c = owner(a.id); if (!c) throw new Error(`No note ${a.id}`); const m = M.setMark(c, a.id, { text: a.text, kind: a.kind, at: a.offset }); refresh(); return m; }
+      if (a.action === 'delete') { const c = owner(a.id); if (!c) throw new Error(`No note ${a.id}`); M.removeMark(c, a.id); refresh(); return { deleted: a.id }; }
+      throw new Error('Unknown action');
+    } },
     // Films, cameras and keyframes: the camera system (docs/films.md, docs/camera-plan.md) for agents that make films and explainers.
     { name: 'ams_film', description: 'Films and explainers made on the camera system. A film is data (beats: a board, a camera pose, narration, a code card, keyframed sketch controls) that becomes a take on the Timeline and renders to MP4 and a standalone page. action "guide" returns the format and how to write one; "list" the films that exist; "check" {name | spec} lists problems (missing boards, code anchors) without building; "open" {name | spec} builds its lesson scene, its own boards and its take on the Timeline (voiced, nothing rendered); "render" {name | spec, width?, height?, crf?} also makes exports/film/<id>.mp4, .html, .vtt, .notes.md and .take.json (needs the dev server, takes minutes). `spec` is the film object itself (JSON).', inputSchema: S({ action: { type: 'string', enum: ['guide', 'list', 'check', 'open', 'render'] }, name: str('A film in examples/films: moon, silhouette, threejs, pointillism, condense'), spec: { type: 'object', description: 'A film description (see action "guide")' }, width: num('render width, default 1920'), height: num('render height, default 1080'), crf: num('H.264 quality, default 20 (lower is better)') }, ['action']), run: async (a) => {
       const F = await import('./film.js'), { FILMS } = await import('../../examples/films/index.js');

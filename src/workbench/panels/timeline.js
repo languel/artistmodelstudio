@@ -4,6 +4,7 @@
  * right-click for more. The selected clip's properties are in Properties.
  */
 import { askConfirm, askText } from '../dialog.js';
+import { addMark, setMark, removeMark, splitMarks, MARK_KINDS, MARK_LABEL } from '../../process/marks.js';
 import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
 import { clipWords } from '../../process/clipWords.js';
@@ -934,6 +935,59 @@ export function mountTimeline(root, app) {
       el.append(key);
     }
   };
+  /**
+   * Annotations: a flag for each mark on the clip (src/process/marks.js), coloured by what it is for. Drag it to move it, click to go
+   * there, double-click to edit the note, right-click for its kind and Delete. A stretch (speech turned to text) is a bar with the flag at its start.
+   */
+  const paintMarks = (el, c) => {
+    for (const n of [...el.querySelectorAll('.wb-tl-mark')]) n.remove();
+    for (const m of c.marks || []) {
+      const flag = h('span', { class: `wb-tl-mark k-${m.kind || 'note'}${m.end != null ? ' span' : ''}`, 'data-mark': m.id, style: { left: `${x(m.at)}px`, ...(m.end != null ? { width: `${Math.max(4, x(m.end - m.at))}px` } : {}) }, title: `${MARK_LABEL[m.kind] || 'Note'} · ${fmt(c.start + m.at)}${m.by ? ` · ${m.by}` : ''}\n${m.text || '(empty)'}\nClick to go there; drag to move; double-click to edit; right-click for more` });
+      const edit = async () => { const v = await askText(MARK_LABEL[m.kind] || 'Note', m.text); if (v !== null) { remember?.(); setMark(c, m.id, { text: v }); edited(); } };
+      flag.addEventListener('pointerdown', ev => {
+        if (ev.button !== 0) return;
+        ev.stopPropagation();
+        const x0 = ev.clientX, a0 = m.at; let moved = false;
+        const mv = e2 => {
+          const d = ((e2.clientX - x0) / pps) * 1000;
+          if (!moved && Math.abs(e2.clientX - x0) < 3) return;
+          if (!moved) { moved = true; remember?.(); }
+          setMark(c, m.id, { at: a0 + d }); flag.style.left = `${x(m.at)}px`;
+        };
+        const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); if (moved) edited(); else seekShow(c.start + m.at); };
+        window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+      });
+      flag.addEventListener('dblclick', ev => { ev.stopPropagation(); edit(); });
+      flag.addEventListener('contextmenu', ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        showMenu([
+          { label: MARK_LABEL[m.kind] || 'Note' },
+          { label: 'Edit', run: edit },
+          { label: 'Kind', items: MARK_KINDS.map(k => ({ label: MARK_LABEL[k], active: m.kind === k, run: () => { remember?.(); setMark(c, m.id, { kind: k }); edited(); } })) },
+          { label: 'Go to', run: () => seekShow(c.start + m.at) },
+          { label: 'Delete', run: () => { remember?.(); removeMark(c, m.id); edited(); } }
+        ], ev.clientX, ev.clientY);
+      });
+      el.append(flag);
+    }
+  };
+  /** A mark on a clip at the playhead (or `at` ms into it): asks for the note, then keeps it. */
+  const noteOn = async (c, at, kind = 'note') => {
+    const v = await askText(MARK_LABEL[kind], '');
+    if (v === null) return null;
+    remember?.();
+    const m = addMark(c, at, v, kind); edited(); return m;
+  };
+  /** M: a note on the clip under the playhead (the picked clip if it is under it, else the top one). */
+  const noteAtPlayhead = (kind = 'note') => {
+    const take = P().take, t = Math.round(P().t); if (!take) return;
+    const under = c => c.track !== 'comp' && t >= c.start && t <= c.start + c.dur;
+    const c = pickedClips().find(under) || take.clips.find(under);
+    if (!c) { app.log('Put the playhead over a clip to add a note (M).'); return; }
+    noteOn(c, t - c.start, kind);
+  };
+  app.addNoteAtPlayhead = noteAtPlayhead;
+  let ctxAt = 0;   // (where on the clip the last right-click was, in ms)
   const clipEl = (c, readOnly = false) => {
     const w = Math.max(6, x(c.dur || 0));
     const rate = c.rate > 0 ? c.rate : 1;
@@ -957,6 +1011,7 @@ export function mountTimeline(root, app) {
       paint(c.wave || fromPeaks(c.peaks, c.dur));
       if (!c.wave && c.src) waveFor(c.src).then(wave => { if (wave) { c.wave = wave; if (cv.isConnected) paint(wave); } });
     }
+    if (c.marks?.length) paintMarks(el, c);
     if (readOnly) return el;
     el.addEventListener('pointerdown', ev => {
       if (ev.button !== 0) return;
@@ -1008,7 +1063,7 @@ export function mountTimeline(root, app) {
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
     });
     el.addEventListener('dblclick', async () => { if (c.track === 'comp') { enterComp(c); return; } if (c.track === 'say' || c.track === 'title') { const v = await askText(c.track === 'say' ? 'Narration' : 'Title', c.text); if (v !== null) { c.text = v; edited(); } } else P().seek(c.start); });
-    el.addEventListener('contextmenu', ev => { ev.preventDefault(); if (!picked.has(c.id)) select(c); showMenu(clipMenu(c), ev.clientX, ev.clientY); });
+    el.addEventListener('contextmenu', ev => { ev.preventDefault(); ctxAt = Math.max(0, Math.round(pointerMs(ev) - c.start)); if (!picked.has(c.id)) select(c); showMenu(clipMenu(c), ev.clientX, ev.clientY); });
     return el;
   };
   const drawLabel = c => { const d = c.diff || {}; const n = (d.add || []).length, u = (d.update || []).length, r = (d.remove || []).length; return `${c.label || 'change'}${n ? ` +${n}` : ''}${u ? ` ~${u}` : ''}${r ? ` −${r}` : ''}`; };
@@ -1024,6 +1079,9 @@ export function mountTimeline(root, app) {
       ...[0.5, 1, 2, 4, 8].map(n => ({ label: n === 0.5 ? 'Half a bar' : `${n} bar${n === 1 ? '' : 's'}`, run: () => { setLength(c, n * barMs()); edited(); } })),
       ...[1, 2].map(n => ({ label: `${n} beat${n === 1 ? '' : 's'}`, run: () => { setLength(c, n * beatMs()); edited(); } }))
     ] },
+    '-',
+    c.track !== 'comp' ? { label: 'Add a note here', hint: 'A marker on the clip with a note: feedback, or an instruction for generating (M adds one at the playhead)', items: MARK_KINDS.map(k => ({ label: MARK_LABEL[k], run: () => noteOn(c, ctxAt, k) })) } : null,
+    c.marks?.length ? { label: `Notes (${c.marks.length})`, items: c.marks.map(m => ({ label: `${fmt(c.start + m.at)} · ${(m.text || '').slice(0, 40) || '(empty)'}`, run: () => seekShow(c.start + m.at) })) } : null,
     '-',
     { label: 'Split at the playhead', keys: 'X', run: splitAtPlayhead },
     { label: 'Ripple delete', hint: 'Delete it and close the gap on its track', keys: '⇧⌫', run: () => rippleDelete(pickedClips().length ? pickedClips() : [c]) },
@@ -1052,6 +1110,7 @@ export function mountTimeline(root, app) {
     const hit = pickedClips().filter(under), targets = hit.length ? hit : take.clips.filter(under);   // (the picked clips under the playhead, else every clip under it)
     for (const c of targets) {
       const first = t - c.start, k = { ...structuredClone(c), id: clipId(), start: t, dur: c.dur - first };
+      delete k.marks; const later = splitMarks(c, first); if (later.length) k.marks = later;   // (the notes go with the part they are on)
       if (c.track === 'media') { const cut = (c.in || 0) + first / 1000 * (c.speed > 0 ? c.speed : 1); k.in = cut; c.out = cut; }
       else if (c.track === 'audio') k.offset = (c.offset || 0) + first;
       c.dur = first;

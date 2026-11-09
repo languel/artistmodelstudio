@@ -561,6 +561,13 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 
 .wb-tl-lanes.drop { outline: 1px dashed color-mix(in srgb, var(--wb-select) 70%, transparent); outline-offset: -2px; }
 .wb-tl-wave { position: absolute; left: 1px; top: 1px; pointer-events: none; }
+.wb-tl-mark { --mk: #2f6fdf; position: absolute; top: 0; bottom: 0; width: 10px; margin-left: -1px; z-index: 3; cursor: pointer; }
+.wb-tl-mark::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--mk); }
+.wb-tl-mark::after { content: ''; position: absolute; left: 2px; top: 0; width: 8px; height: 8px; background: var(--mk); clip-path: polygon(0 0, 100% 0, 0 100%); }
+.wb-tl-mark.k-feedback { --mk: #e0702a; }
+.wb-tl-mark.k-instruction { --mk: #7b3fd0; }
+.wb-tl-mark.span { background: color-mix(in srgb, var(--mk) 22%, transparent); border-bottom: 2px solid var(--mk); box-sizing: border-box; }
+.wb-tl-mark:hover::before { width: 3px; }
 .wb-tl-row[data-kind="audio"], .wb-tl-labels > .wb-tl-label[data-kind="audio"] { height: calc(40px * var(--tl-vz, 1)); }
 .wb-tl-row[data-kind="audio"] .wb-tl-clip { height: calc(33px * var(--tl-vz, 1)); }
 .wb-tl-row[data-kind="audio"] .wb-tl-cliptext { position: relative; font-size: 9.5px; line-height: 12px; opacity: 0.8; }
