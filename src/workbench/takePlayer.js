@@ -9,7 +9,7 @@ import { docAt, duration, touch, flatClips } from '../process/take.js';
 import { boardById, MAIN } from '../process/boards.js';
 import { boardLive } from './boardSource.js';
 import { camerasOf, cameraById, shotAt, onAirShot, renderCamera, viewFor, releaseCameras, onionTimes, ONION_TINT } from './camera.js';
-import { lanesOf, valueAt } from '../process/keyframes.js';
+import { lanesOf, laneValue } from '../process/keyframes.js';
 import { param } from './params.js';
 import { advanceTransportPlaybackTime } from '../time/transport.js';
 import { normalizeTransport, loopRange, inOutRange } from '../time/sceneTransport.js';
@@ -385,7 +385,7 @@ export class TakePlayer {
   ctlValuesFor(id) {
     if (!this.take) return null;
     const o = {}, prefix = `ctl:${id}.`;
-    for (const lane of lanesOf(this.take)) if (lane.address.startsWith(prefix)) { const v = valueAt(lane.keys, this.t - lane.start, lane.meta); if (v != null) o[lane.address.slice(prefix.length)] = v; }
+    for (const lane of lanesOf(this.take)) if (lane.address.startsWith(prefix)) { const v = laneValue(lane, this.t - lane.start, lane.meta); if (v != null) o[lane.address.slice(prefix.length)] = v; }
     return Object.keys(o).length ? o : null;
   }
 
@@ -398,7 +398,7 @@ export class TakePlayer {
     this.applying = true;   // (the dots wait: a parameter set a moment before another is not 'changed')
     try {
       for (const lane of lanes) {
-        const v = valueAt(lane.keys, this.t - lane.start, lane.meta);
+        const v = laneValue(lane, this.t - lane.start, lane.meta);
         if (v == null || JSON.stringify(this.applied.get(lane.address)) === JSON.stringify(v)) continue;
         const p = param(lane.address);
         if (!p) continue;

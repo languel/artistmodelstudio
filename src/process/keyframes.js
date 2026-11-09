@@ -4,7 +4,7 @@
  * ('board:board2.opacity', 'mark:abc.opacity', 'ctl:board3.speed'; see params.js). Values are numbers here;
  * between keys they follow the earlier key's ease; before the first and after the last key they hold.
  */
-import { clipId, flatClips, addTrack } from './take.js';
+import { clipId, flatClips, addTrack, duration } from './take.js';
 
 const EASES = {
   linear: u => u,
@@ -47,6 +47,43 @@ export function valueAt(keys, t, meta = null) {
   return mix(a.v, b.v, (EASES[a.ease] || EASES.linear)(u), meta);
 }
 
+// ---- following a sound ----------------------------------------------------------------------------------------------------
+// A lane can have no keys and `follow: { signal, lo, hi, release? }` instead: its parameter moves with a signal of the take's sound
+// (level, pitch, clarity, bass, mid, treble, onset, centroid, fft0..fft63, band0..band7: 0..1, from src/workbench/audioAnalysis.js) between lo (silence) and hi (full). `release`
+// (ms) lets the value fall slowly after a peak (an attack that is at once, a release that is not). It depends only on the time, so a
+// frame by frame render gives the same value every time.
+let signalOf = null;   // (name, take time ms) → 0..1, set by the app
+export const setSignalProvider = fn => { signalOf = fn; };
+export const SOUND_SIGNALS = ['level', 'pitch', 'clarity', 'bass', 'mid', 'treble', 'onset', 'centroid'];
+/** A signal name: a named one, fft0..fft63 (one band of the spectrum) or band0..band7 (eight groups of bands). */
+export const isSoundSignal = n => SOUND_SIGNALS.includes(n) || /^fft(\d|[1-5]\d|6[0-3])$/.test(n) || /^band[0-7]$/.test(n);
+/** The value a following lane gives at take time `at` (ms), or null when there is nothing to follow it with. */
+export function followValue(follow, at) {
+  if (!follow || !signalOf) return null;
+  const rel = Math.max(0, follow.release || 0), step = Math.max(20, rel / 3);
+  let v = signalOf(follow.signal, at) || 0;
+  if (rel) for (let k = 1; k <= 8; k++) { const t = at - k * step; if (t < 0) break; v = Math.max(v, (signalOf(follow.signal, t) || 0) * Math.pow(0.5, k * step / rel)); }
+  const lo = follow.lo ?? 0, hi = follow.hi ?? 1;
+  return lo + (hi - lo) * Math.max(0, Math.min(1, v));
+}
+/** A lane's value at t (ms from the lane's start): from its keys, or from the sound it follows. */
+export function laneValue(lane, t, meta = null) {
+  return lane?.follow ? followValue(lane.follow, t + (lane.start || 0)) : valueAt(lane?.keys, t, meta);
+}
+/**
+ * Make a parameter follow a signal of the sound: a lane with no keys (any keys it had are dropped). `range` is { lo, hi, release }.
+ * Returns the lane.
+ */
+export function followSound(take, address, signal, { lo = 0, hi = 1, release = signal === 'onset' ? 150 : 0 } = {}, label = null) {
+  if (!isSoundSignal(signal)) throw new Error(`signal is one of ${SOUND_SIGNALS.join(', ')}, fft0..fft63 or band0..band7`);
+  let lane = laneFor(take, address);
+  const name = `${label || address} ← ${signal}`;
+  if (!lane) { lane = { id: clipId(), track: 'auto', address, start: 0, dur: 1000, keys: [], fx: {}, label: name, lane: addTrack(take, 'auto', name).id }; take.clips.push(lane); }
+  lane.keys = []; lane.label = name; lane.follow = { signal, lo, hi, ...(release ? { release } : {}) };
+  lane.dur = Math.max(1000, duration(take));
+  return lane;
+}
+
 /** Whether two parameter values are the same (numbers within `tol`). */
 export const sameValue = (a, b, tol = 0.005) => (typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) <= tol : JSON.stringify(a) === JSON.stringify(b));
 
@@ -65,6 +102,7 @@ export const keyNear = (lane, t, tol = 20) => (lane?.keys || []).find(k => Math.
 export function setKey(take, address, t, v, ease = 'ease', label = null, meta = null) {
   let lane = laneFor(take, address);
   if (!lane) { lane = { id: clipId(), track: 'auto', address, start: 0, dur: 1000, keys: [], fx: {}, label: label || address, ...(meta ? { meta } : {}), lane: addTrack(take, 'auto', label || address).id }; take.clips.push(lane); }   // (each parameter gets a row of its own, named for it)
+  if (lane.follow) { delete lane.follow; lane.dur = 1000; }   // (a key says: by hand, from here)
   t = Math.max(0, Math.round(t - lane.start));   // (keys are from the lane's start, so moving the lane moves them)
   const near = keyNear(lane, t);
   if (near) { near.v = v; near.t = t; } else lane.keys.push({ t, v, ease });

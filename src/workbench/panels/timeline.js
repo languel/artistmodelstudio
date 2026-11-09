@@ -13,6 +13,8 @@ import { mediaClipFromAsset } from '../mediaClips.js';
 import { camerasOf, onAirShot } from '../camera.js';
 import { autoKey, setAutoKey, recording, setRecordAuto } from '../keyframeDot.js';
 import { valueAt, EASE_NAMES } from '../../process/keyframes.js';
+import { signalMenu } from '../soundSignals.js';
+import { signalAtTake } from '../soundSource.js';
 import { duration, summarize, touch, flatClips, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
 import { showMenu } from '../menu.js';
 import { TimelineUndo } from '../timelineUndo.js';
@@ -943,7 +945,18 @@ export function mountTimeline(root, app) {
     const cv = h('canvas', { class: 'wb-tl-sig' }); el.prepend(cv);
     analyseSrc(src).then(an => { if (an && cv.isConnected) drawSignal(cv, an, c.derived.name, { from: c.derived.offset || 0, dur: c.dur, width: Math.max(4, x(c.dur || 0) - 2), height: 36 }); });
   };
-  const SIGNAL_LABEL = { level: 'Loudness', bass: 'Bass', mid: 'Mid', treble: 'Treble', onset: 'Onsets', centroid: 'Brightness' };
+  /** A lane that makes its parameter follow the sound (keyframes.js followSound): the signal it follows, drawn over its length. */
+  const paintFollow = (el, c) => {
+    const take = P().take, cv = h('canvas', { class: 'wb-tl-sig' }); el.prepend(cv);
+    el.classList.add('follow');
+    Promise.all(flatClips(take).filter(k => k.track === 'audio' && k.src).map(k => analyseSrc(k.src))).then(() => {
+      if (!cv.isConnected) return;
+      const W = Math.max(4, Math.round(x(c.dur || 0)) - 2), H = 36, g = (cv.width = W, cv.height = H, cv.style.width = `${W}px`, cv.getContext('2d'));
+      g.fillStyle = 'rgba(40,30,36,0.5)';
+      for (let i = 0; i < W; i++) { const v = signalAtTake(take, c.follow.signal, c.start + (i / W) * (c.dur || 0)), hh = Math.max(v > 0.01 ? 1 : 0, v * (H - 2)); g.fillRect(i, H - 1 - hh, 1, hh); }
+    });
+  };
+  const SIGNAL_LABEL = { level: 'Loudness', pitch: 'Pitch', bass: 'Bass', mid: 'Mid', treble: 'Treble', onset: 'Onsets', centroid: 'Brightness' };
   /** An analysis lane for a sound: a track of its own that follows the audio clip (and reads from code as source('sound')). */
   const addSignalLane = (c, name) => {
     const take = P().take; if (!take) return;
@@ -1040,7 +1053,7 @@ export function mountTimeline(root, app) {
         el.append(h('span', { class: `wb-tl-compbit t-${k.track}`, style: { left: `${x(k.start / rate)}px`, width: `${Math.max(2, x((k.dur || 0) / rate))}px` } }));
       }
     }
-    if (c.track === 'auto') { if (c.derived) paintDerived(el, c); else paintLane(el, c); }
+    if (c.track === 'auto') { if (c.derived) paintDerived(el, c); else if (c.follow) paintFollow(el, c); else paintLane(el, c); }
     if (c.track === 'audio') {
       // The waveform: real min/max slices, drawn for the width the clip has now (a rough one from the old peaks shows until the sound is decoded).
       const cv = h('canvas', { class: 'wb-tl-wave' });
@@ -1125,6 +1138,17 @@ export function mountTimeline(root, app) {
     ] },
     '-',
     c.track !== 'comp' ? { label: 'Add a note here', hint: 'A marker on the clip with a note: feedback, or an instruction for generating (M adds one at the playhead)', items: MARK_KINDS.map(k => ({ label: MARK_LABEL[k], run: () => noteOn(c, ctxAt, k) })) } : null,
+    c.track === 'auto' && c.follow ? { label: 'Follows the sound', hint: 'The signal it follows (loudness, pitch, the FFT…), and its range and release (ms: how slowly it falls after a peak)', items: [
+      ...signalMenu(c.follow.signal, n => { remember?.(); c.follow = { ...c.follow, signal: n }; c.label = String(c.label || '').replace(/ ← .*$/, '') + ` ← ${n}`; edited(); drawLanes(); }),
+      '-',
+      { label: 'Range and release…', run: async () => {
+        const f = c.follow, v = await askText('Low, high and release in ms (the value at silence, at full, and how slowly it falls)', `${f.lo} ${f.hi} ${f.release || 0}`);
+        if (v === null) return;
+        const [lo, hi, rel] = v.split(/[\s,]+/).map(Number);
+        if (!Number.isFinite(lo) || !Number.isFinite(hi)) { app.log('Give two numbers, the low and the high value (and a release in ms).'); return; }
+        remember?.(); c.follow = { signal: f.signal, lo, hi, ...(rel > 0 ? { release: rel } : {}) }; edited();
+      } }
+    ] } : null,
     c.track === 'audio' && c.src ? { label: 'Sound', hint: 'See the sound as a spectrogram, put its loudness, bands or onsets on lanes of their own, or mark where things start (code reads the same as source(\'sound\'))', items: [
       { label: c.view === 'spec' ? 'Show the waveform' : 'Show the spectrogram', run: () => { if (c.view === 'spec') delete c.view; else c.view = 'spec'; edited(); drawLanes(); } },
       '-',

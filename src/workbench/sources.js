@@ -16,7 +16,8 @@ import { isVideoUrl } from './mediaUrl.js';
 import { micLive } from './micSource.js';
 import { boardLive } from './boardSource.js';
 import { timelineLive } from './timelineSource.js';
-import { soundLive } from './soundSource.js';
+import { soundLive, signalAtTake } from './soundSource.js';
+import { setSignalProvider } from '../process/keyframes.js';
 
 const KEY = 'ams_sources_v1';
 const SAMPLE = 256;   // the sampled frame's long side (what code reads)
@@ -29,6 +30,7 @@ export class Sources {
     this.keep = new Map();      // name → kinds of landmarks something outside code needs (gestures)
     try { this.defs = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { this.defs = []; }
     setSourceProvider((name, rect, fit) => this.sampler(name, rect, fit));
+    setSignalProvider((signal, t) => signalAtTake(app.player?.take, signal, t));   // (lanes that follow the sound)
     this.last = performance.now();
     // A timer, not rAF: sources keep sampling in a background tab (a live board keeps redrawing).
     this.timer = setInterval(() => this.tick(), 33);
@@ -297,12 +299,15 @@ export class Sources {
       get level() { return e.live?.kind === 'mic' || e.live?.kind === 'sound' ? e.live.level : 0; },
       bands: n => (e.live?.kind === 'mic' || e.live?.kind === 'sound' ? e.live.bands(n) : new Array(n || 8).fill(0)),
       // The sound source (the take's sound at the playhead) also knows: onset (a hit just happened), bass, mid, treble, centroid (brightness),
-      // spectrum(n) and signal(name); all 0..1 (0 for any other source).
+      // pitch, clarity, pitchHz, spectrum(n) (the FFT) and signal(name: also fft0..fft63, band0..band7); all 0..1 except pitchHz (0 for any other source).
       get onset() { return e.live?.kind === 'sound' ? e.live.onset : 0; },
       get bass() { return e.live?.kind === 'sound' ? e.live.bass : 0; },
       get mid() { return e.live?.kind === 'sound' ? e.live.mid : 0; },
       get treble() { return e.live?.kind === 'sound' ? e.live.treble : 0; },
       get centroid() { return e.live?.kind === 'sound' ? e.live.centroid : 0; },
+      get pitch() { return e.live?.kind === 'sound' ? e.live.pitch : 0; },       // the note, 0..1 on a log scale (60 Hz to 1 kHz); holds through a gap
+      get clarity() { return e.live?.kind === 'sound' ? e.live.clarity : 0; },   // how sure it is there is one pitch (0..1)
+      get pitchHz() { return e.live?.kind === 'sound' ? e.live.pitchHz : 0; },   // the frequency now (0 when there is none)
       spectrum: n => (e.live?.kind === 'sound' ? e.live.spectrum(n) : new Array(n || 64).fill(0)),
       signal: nm => (e.live?.kind === 'sound' ? e.live.signal(nm) : nm === 'level' && e.live?.kind === 'mic' ? e.live.level : 0),
       pixels: (w, h) => {

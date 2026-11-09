@@ -10,7 +10,8 @@
 import { h } from './ui.js';
 import { showMenu } from './menu.js';
 import { param } from './params.js';
-import { valueAt, laneFor, keyNear, setKey, removeKey, clearLane, sameValue, thinKeys, keyHere, EASE_NAMES } from '../process/keyframes.js';
+import { signalMenu } from './soundSignals.js';
+import { valueAt, laneValue, followSound, laneFor, keyNear, setKey, removeKey, clearLane, sameValue, thinKeys, keyHere, EASE_NAMES } from '../process/keyframes.js';
 import { setFieldDecorator } from './ui.js';
 
 let host = null;
@@ -54,7 +55,7 @@ let hovered = null;   // the dot of the field the pointer is over (for the I key
 function read(address, fallback) {
   const take = host?.player?.take || null, p = param(address), t = host?.player?.t ?? 0;
   const lane = take ? laneFor(take, address) : null;
-  return { take, p, lane, t, key: lane ? keyNear(lane, t - lane.start) : null, cur: p?.get?.() ?? fallback, laneValue: lane ? valueAt(lane.keys, t - lane.start, lane.meta) : null };
+  return { take, p, lane, t, key: lane ? keyNear(lane, t - lane.start) : null, cur: p?.get?.() ?? fallback, laneValue: lane ? laneValue(lane, t - lane.start, lane.meta) : null };
 }
 
 /** Write the value at the playhead as a key (a recording): makes the lane if needed. */
@@ -77,6 +78,18 @@ function toggle(address, on, opts = {}) {
   host.player.applied?.delete(address);
   (host._tlKeysEdited || host.timelineEdited)?.();
   if (made) host._tlFit?.();   // (a first keyframe: show the whole take, so the new row can be seen)
+}
+
+/** Make a number parameter follow a signal of the Timeline's sound (src/process/keyframes.js followSound). */
+function follow(address, signal, fallback) {
+  const { p, cur } = read(address, fallback), tk = host.player.take || host._tlEnsureTake?.();
+  if (!p || !tk) return;
+  if (typeof cur !== 'number') { host.log?.('Only a number can follow the sound.'); return; }
+  const fin = Number.isFinite, wide = !fin(p.min) || !fin(p.max) || p.max - p.min > 1e4;
+  const lo = wide ? cur : p.min, hi = wide ? cur + (Math.abs(cur) || 1) : p.max;
+  followSound(tk, address, signal, { lo, hi }, p.label);
+  host.player.applied?.delete(address);
+  (host._tlKeysEdited || host.timelineEdited)?.(); host._tlFit?.();
 }
 
 /** The dot for an address. `show(v)` writes a value the lane drives into the field beside it. */
@@ -109,7 +122,8 @@ export function keyframeDot(address, { show = null, fallback, options } = {}) {
       { label: 'Insert keyframe', keys: 'I', run: () => { toggle(address, true, { fallback, options }); paint(); } },
       { label: 'Delete keyframe', keys: '⌥I', disabled: !key, run: () => { toggle(address, false, { fallback, options }); paint(); } },
       { label: 'Interpolation', disabled: !key, items: EASE_NAMES.map(n => ({ label: n, active: key?.ease === n, run: () => { key.ease = n; (host._tlKeysEdited || host.timelineEdited)?.(); paint(); } })) },
-      { label: 'Clear all keyframes', disabled: !lane, run: () => { clearLane(host.player.take, address); host.player.applied?.delete(address); (host._tlKeysEdited || host.timelineEdited)?.(); paint(); } }
+      { label: 'Follow the sound', hint: 'The parameter moves with the Timeline\'s sound: its loudness, pitch, spectrum (FFT), onsets or brightness (between its lowest and highest value; the range and release are in the lane\'s menu)', items: signalMenu(lane?.follow?.signal, n => { follow(address, n, fallback); paint(); }) },
+      { label: lane?.follow ? 'Stop following the sound' : 'Clear all keyframes', disabled: !lane, run: () => { clearLane(host.player.take, address); host.player.applied?.delete(address); (host._tlKeysEdited || host.timelineEdited)?.(); paint(); } }
     ], ev.clientX, ev.clientY);
   });
   btn._toggle = on => { toggle(address, on, { fallback, options }); paint(); };

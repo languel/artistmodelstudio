@@ -64,3 +64,39 @@ describe('thinning a recording', () => {
     expect(thinKeys([{ t: 0, v: 'a' }, { t: 1, v: 'b' }, { t: 2, v: 'c' }], 1)).toBe(0);
   });
 });
+
+import { setSignalProvider, followSound, followValue, laneValue as laneValueOf, isSoundSignal } from './keyframes.js';
+
+describe('a parameter that follows the sound', () => {
+  const fake = (name, t) => (name === 'level' ? Math.min(1, t / 1000) : name === 'onset' ? (t === 1000 ? 1 : 0) : 0);
+  it('moves between lo and hi with the signal, and gives nothing without a provider', () => {
+    setSignalProvider(null);
+    expect(followValue({ signal: 'level', lo: 2, hi: 6 }, 500)).toBeNull();
+    setSignalProvider(fake);
+    expect(followValue({ signal: 'level', lo: 2, hi: 6 }, 500)).toBeCloseTo(4);
+    expect(followValue({ signal: 'level', lo: 2, hi: 6 }, 5000)).toBeCloseTo(6);
+    expect(followValue({ signal: 'bass', lo: 2, hi: 6 }, 500)).toBeCloseTo(2);
+  });
+  it('lets a peak fall away over the release time, and never looks before the start', () => {
+    setSignalProvider(fake);
+    const f = { signal: 'onset', lo: 0, hi: 1, release: 150 };
+    expect(followValue(f, 1000)).toBeCloseTo(1);
+    expect(followValue(f, 1100)).toBeGreaterThan(0.4); expect(followValue(f, 1100)).toBeLessThan(0.9);
+    expect(followValue(f, 1400)).toBeLessThan(followValue(f, 1100));
+    expect(followValue(f, 0)).toBe(0);
+  });
+  it('makes a lane with no keys, and a key turns it back into an ordinary lane', () => {
+    setSignalProvider(fake);
+    const tk = take();
+    const lane = followSound(tk, 'ctl:b1.size', 'level', { lo: 1, hi: 3 }, 'Size');
+    expect(lane.keys).toEqual([]); expect(lane.follow.signal).toBe('level'); expect(lane.label).toBe('Size ← level');
+    expect(laneValueOf(lane, 500)).toBeCloseTo(2);
+    expect(() => followSound(tk, 'ctl:b1.size', 'nope')).toThrow(/signal is one of/);
+    setKey(tk, 'ctl:b1.size', 200, 5);
+    expect(lane.follow).toBeUndefined(); expect(laneValueOf(lane, 200)).toBe(5);
+  });
+  it('knows the signal names', () => {
+    expect(['level', 'pitch', 'clarity', 'fft0', 'fft63', 'band7'].every(isSoundSignal)).toBe(true);
+    expect(['fft64', 'band8', 'volume', ''].some(isSoundSignal)).toBe(false);
+  });
+});

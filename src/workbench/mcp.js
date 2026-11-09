@@ -518,7 +518,7 @@ export function workbenchTools(app) {
       if (a.action === 'delete') { const c = owner(a.id); if (!c) throw new Error(`No note ${a.id}`); M.removeMark(c, a.id); refresh(); return { deleted: a.id }; }
       throw new Error('Unknown action');
     } },
-    { name: 'ams_audio', description: 'Listen to the sounds on the open take. action "list" returns the audio clips; "analyse" {clip} returns its length, loudness, tempo guess, the times (ms) of its onsets (drum hits, plucks, syllables), how loud bass, mid and treble are, and its loudest and quietest second; "signal" {name, at} the value (0..1) of level | bass | mid | treble | onset | centroid at a take time; "lane" {clip, name} puts that signal on a track of its own; "view" {clip, as: waveform | spectrogram}; "onsets" {clip} marks each onset as a note on the clip (see ams_notes). Sketches read the same as source(\'sound\').level, .bands(n), .onset, .bass, .mid, .treble (add it with ams_source or the Sources panel). Times are ms.', inputSchema: S({ action: str('list | analyse | signal | lane | view | onsets'), clip: str('Audio clip id'), name: str('level | bass | mid | treble | onset | centroid'), at: num('Take time in ms (signal)'), as: str('waveform | spectrogram (view)') }, ['action']), run: async (a) => {
+    { name: 'ams_audio', description: 'Listen to the sounds on the open take. action "list" returns the audio clips; "analyse" {clip} returns its length, loudness, tempo guess, the times (ms) of its onsets (drum hits, plucks, syllables), how loud bass, mid and treble are, and its loudest and quietest second; "signal" {name, at} the value (0..1) of level | pitch | clarity | bass | mid | treble | onset | centroid | band0..band7 | fft0..fft63 (the FFT) at a take time; "lane" {clip, name} puts that signal on a track of its own; "view" {clip, as: waveform | spectrogram}; "onsets" {clip} marks each onset as a note on the clip (see ams_notes). Sketches read the same as source(\'sound\').level, .bands(n), .onset, .bass, .mid, .treble (add it with ams_source or the Sources panel). Times are ms.', inputSchema: S({ action: str('list | analyse | signal | lane | view | onsets'), clip: str('Audio clip id'), name: str('level | pitch | clarity | bass | mid | treble | onset | centroid | band0..band7 | fft0..fft63'), at: num('Take time in ms (signal)'), as: str('waveform | spectrogram (view)') }, ['action']), run: async (a) => {
       const A = await import('./audioAnalysis.js'), M = await import('../process/marks.js'), T = await import('../process/take.js');
       const take = app.player?.take; if (!take) throw new Error('No take open: ams_timeline {action: "open", id}');
       T.touch(take);
@@ -526,7 +526,7 @@ export function workbenchTools(app) {
       const audio = () => T.flatClips(take).filter(c => c.track === 'audio' && c.src);
       if (a.action === 'list') return { clips: audio().map(c => ({ id: c.id, label: c.label, start: c.start, dur: c.dur, view: c.view || 'waveform' })) };
       if (a.action === 'signal') {
-        if (!A.SIGNALS.includes(a.name)) throw new Error(`name is one of ${A.SIGNALS.join(', ')}`);
+        if (!A.isSignal(a.name)) throw new Error(`name is one of ${A.SIGNALS.join(', ')}, fft0..fft63 or band0..band7`);
         let v = 0; for (const c of audio()) { if (a.at < c.start || a.at >= c.start + c.dur) continue; const an = await A.analyseSrc(c.src); v = Math.max(v, A.signalAt(an, a.name, (c.offset || 0) + a.at - c.start)); }
         return { name: a.name, at: a.at, value: +v.toFixed(3) };
       }
@@ -536,7 +536,7 @@ export function workbenchTools(app) {
       const from = c.offset || 0, ons = A.onsetsOf(an).filter(t => t >= from && t <= from + c.dur);
       if (a.action === 'onsets') { c.marks = (c.marks || []).filter(m => m.by !== 'analysis'); if (!c.marks.length) delete c.marks; for (const t of ons.slice(0, 500)) M.addMark(c, t - from, 'onset', 'note', { by: 'analysis' }); refresh(); return { marked: Math.min(500, ons.length), tempo: A.tempoOf(an) }; }
       if (a.action === 'lane') {
-        if (!A.SIGNALS.includes(a.name)) throw new Error(`name is one of ${A.SIGNALS.join(', ')}`);
+        if (!A.isSignal(a.name)) throw new Error(`name is one of ${A.SIGNALS.join(', ')}, fft0..fft63 or band0..band7`);
         const label = `${c.label || 'Sound'} · ${a.name}`;
         take.clips.push({ id: T.clipId(), track: 'auto', address: `signal:${c.id}.${a.name}`, start: c.start, dur: c.dur, keys: [], fx: {}, label, derived: { clip: c.id, name: a.name, offset: from }, lane: T.addTrack(take, 'auto', label).id });
         refresh(); return { lane: label };
@@ -589,15 +589,16 @@ export function workbenchTools(app) {
       }
       throw new Error('Unknown action');
     } },
-    { name: 'ams_keys', description: 'Keyframes: one lane per parameter, any parameter with a diamond in the UI. Addresses: "board:<id>.opacity|depth|light|x|y|width|height", "mark:<id>.<prop>", "shot:<clip id>.z|dx|dy|focus|blur", "ctl:<board id>.<name>" (a p5 or three.js sketch control declared as `let name = 1 /* 0..1 */;`). action "list" the lanes; "set" {address, t (ms), v (number, #rrggbb, palette, choice), ease linear|ease|in|out|hold} adds or moves a key; "remove" {address, t}; "clear" {address}; "value" {address, t} the value at a time. A sketch that draws once (noLoop) redraws when a control changes, so one control `p` can be a sketch\'s whole timeline.', inputSchema: S({ action: { type: 'string', enum: ['list', 'set', 'remove', 'clear', 'value'] }, address: str('the parameter'), t: num('ms'), v: { description: 'the value' }, ease: str('linear | ease | in | out | hold') }, ['action']), run: async (a) => {
+    { name: 'ams_keys', description: 'Keyframes: one lane per parameter, any parameter with a diamond in the UI. Addresses: "board:<id>.opacity|depth|light|x|y|width|height", "mark:<id>.<prop>", "shot:<clip id>.z|dx|dy|focus|blur", "ctl:<board id>.<name>" (a p5 or three.js sketch control declared as `let name = 1 /* 0..1 */;`). action "list" the lanes; "set" {address, t (ms), v (number, #rrggbb, palette, choice), ease linear|ease|in|out|hold} adds or moves a key; "remove" {address, t}; "clear" {address}; "value" {address, t} the value at a time; "follow" {address, signal (level | pitch | clarity | bass | mid | treble | onset | centroid | band0..band7 | fft0..fft63), lo?, hi?, release? (ms)} makes the parameter follow the Timeline\'s sound between lo (silence) and hi (full), with no keys. A sketch that draws once (noLoop) redraws when a control changes, so one control `p` can be a sketch\'s whole timeline.', inputSchema: S({ action: { type: 'string', enum: ['list', 'set', 'remove', 'clear', 'value', 'follow'] }, signal: str('the sound signal to follow'), lo: num('value at silence'), hi: num('value at full'), release: num('ms to fall after a peak'), address: str('the parameter'), t: num('ms'), v: { description: 'the value' }, ease: str('linear | ease | in | out | hold') }, ['action']), run: async (a) => {
       const K = await import('../process/keyframes.js'), take = app._tlEnsureTake?.(); if (!take) throw new Error('The timeline is not available');
       const refresh = () => { app._tlKeysEdited?.(); };
-      if (a.action === 'list') return { lanes: K.lanesOf(take).map(c => ({ address: c.address, label: c.label, keys: c.keys })) };
+      if (a.action === 'list') return { lanes: K.lanesOf(take).map(c => ({ address: c.address, label: c.label, keys: c.keys, ...(c.follow ? { follow: c.follow } : {}) })) };
       if (!a.address) throw new Error('Give an address');
       if (a.action === 'set') { const lane = K.setKey(take, a.address, a.t ?? 0, a.v, a.ease || 'ease'); refresh(); return { address: a.address, keys: lane.keys }; }
       if (a.action === 'remove') { const ok = K.removeKey(take, a.address, a.t ?? 0); refresh(); return { removed: ok }; }
       if (a.action === 'clear') { const ok = K.clearLane(take, a.address); refresh(); return { cleared: ok }; }
-      if (a.action === 'value') { const lane = K.laneFor(take, a.address); return { value: lane ? K.valueAt(lane.keys, (a.t ?? 0) - lane.start, lane.meta || null) : null }; }
+      if (a.action === 'value') { const lane = K.laneFor(take, a.address); return { value: lane ? K.laneValue(lane, (a.t ?? 0) - lane.start, lane.meta || null) : null }; }
+      if (a.action === 'follow') { const p = app.param?.(a.address); const lane = K.followSound(take, a.address, a.signal, { lo: a.lo ?? (Number.isFinite(p?.min) ? p.min : 0), hi: a.hi ?? (Number.isFinite(p?.max) ? p.max : 1), release: a.release }, p?.label); refresh(); return { address: a.address, follow: lane.follow }; }
       throw new Error('Unknown action');
     } },
     // Everything the keys and the command palette (Cmd+K, and / at the pointer) can do, by name: one registry, so nothing in the interface is out of reach here.
