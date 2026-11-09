@@ -952,9 +952,10 @@ export function mountTimeline(root, app) {
       // The waveform: real min/max slices, drawn for the width the clip has now (a rough one from the old peaks shows until the sound is decoded).
       const cv = h('canvas', { class: 'wb-tl-wave' });
       el.prepend(cv);
-      const paint = wave => { if (wave && cv.isConnected !== false) drawWave(cv, wave, { from: 0, to: (c.dur || wave.duration) / 1000, width: w - 2, height: AUDIO_CLIP_H - 2 }); };
+      const paint = wave => { if (wave) drawWave(cv, wave, { from: 0, to: (c.dur || wave.duration) / 1000, width: w - 2, height: AUDIO_CLIP_H - 2 }); };
+      // (painted at once, before the clip is in the page: a clip that already has its decoded wave is never painted again)
       paint(c.wave || fromPeaks(c.peaks, c.dur));
-      if (!c.wave && c.src) waveFor(c.src).then(wave => { if (wave) { c.wave = wave; paint(wave); } });
+      if (!c.wave && c.src) waveFor(c.src).then(wave => { if (wave) { c.wave = wave; if (cv.isConnected) paint(wave); } });
     }
     if (readOnly) return el;
     el.addEventListener('pointerdown', ev => {
