@@ -6,7 +6,7 @@
  * `loop` (on or off) is this session's. Anything that plays in time (a score) listens to `t`.
  */
 import { docAt, duration, touch, flatClips } from '../process/take.js';
-import { fadeGain } from '../process/clipEdit.js';
+import { fadeGain, transitionAt } from '../process/clipEdit.js';
 import { boardById, MAIN } from '../process/boards.js';
 import { boardLive } from './boardSource.js';
 import { camerasOf, cameraById, shotAt, onAirShot, renderCamera, viewFor, releaseCameras, onionTimes, ONION_TINT } from './camera.js';
@@ -256,8 +256,11 @@ export class TakePlayer {
   /** Draw the media clips under the playhead into a rectangle of the screen. */
   drawMedia(ctx, { X, Y, W, H }) {
     if (!this.take) return;
+    let dip = null;   // (a dip through a colour: the colour laid over everything at the end)
     for (const c of flatClips(this.take).filter(k => k.track === 'media').sort((a, b) => a.start - b.start)) {   // (the one that starts later is on top: a crossfade comes in over the other)
       if (c.muted || this.t < c.start || this.t >= c.start + c.dur) continue;
+      const tr = transitionAt(c, this.t);   // (the style of the crossfade this clip is coming in by: a dissolve, a dip, a wipe)
+      if (tr?.kind === 'dip') { dip = { a: tr.u < 0.5 ? tr.u * 2 : (1 - tr.u) * 2, color: tr.color || '#000000' }; if (tr.u < 0.5) continue; }   // (the one going out is seen until the middle, then this one)
       const v = c.board ? this.boardPicture(c.board) : this.videos?.get(c.id);
       const vw = v?.videoWidth || v?.naturalWidth || v?.width, vh = v?.videoHeight || v?.naturalHeight || v?.height;
       if (!v || !vw || (v.readyState != null && v.readyState < 2)) continue;
@@ -265,11 +268,17 @@ export class TakePlayer {
       const a = (c.opacity ?? 1) * fadeGain(c, this.t, { visual: true });   // (fades in and out, and a crossfade: src/process/clipEdit.js)
       ctx.save();
       ctx.beginPath(); ctx.rect(X, Y, W, H); ctx.clip();
+      if (tr?.kind === 'wipe') {   // (this clip is uncovered from one side, a part at a time)
+        const u = tr.u; ctx.beginPath();
+        if (tr.dir === 'left') ctx.rect(X + W * (1 - u), Y, W * u, H); else if (tr.dir === 'down') ctx.rect(X, Y, W, H * u); else if (tr.dir === 'up') ctx.rect(X, Y + H * (1 - u), W, H * u); else ctx.rect(X, Y, W * u, H);
+        ctx.clip();
+      }
       ctx.globalAlpha = Math.max(0, Math.min(1, a));
       if (c.blend && c.blend !== 'normal') ctx.globalCompositeOperation = c.blend;
       try { ctx.drawImage(v, X + (W - w) / 2, Y + (H - h) / 2, w, h); } catch { /* not decodable yet */ }
       ctx.restore();
     }
+    if (dip) { ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, dip.a)); ctx.fillStyle = dip.color; ctx.fillRect(X, Y, W, H); ctx.restore(); }
   }
 
   close() {

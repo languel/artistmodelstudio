@@ -107,3 +107,62 @@ describe('fades and crossfades', () => {
     expect(inPoint(med(0, 1000, 2))).toBe(2000);
   });
 });
+
+import { rippleDelete, slideMany, slideRange, setTransition, transitionAt, TRANSITIONS } from './clipEdit.js';
+
+describe('ripple on every track', () => {
+  it('moves the later clips of the other tracks too, and leaves the ones that overlap the cut', () => {
+    const a = aud(0, 3000), b = aud(3000, 1000), pic = med(3200, 800, 0, { lane: 'v' }), over = med(1000, 4000, 0, { lane: 'w' }), t = take(a, b, pic, over);
+    rippleTrimEnd(t, a, 2000, { all: true });
+    expect([b.start, pic.start, over.start]).toEqual([2000, 2200, 1000]);   // (the long one began before the cut: it stays)
+    const c = aud(0, 1000), d = aud(1000, 1000), e = med(1500, 500, 0, { lane: 'v' }), t2 = take(c, d, e);
+    rippleTrimEnd(t2, c, 500);
+    expect([d.start, e.start]).toEqual([500, 1500]);   // (own track only, by default)
+  });
+  it('ripple delete closes the gap on the track, or on every track', () => {
+    const a = aud(0, 1000), b = aud(1000, 1000), pic = med(1200, 500, 0, { lane: 'v' }), t = take(a, b, pic);
+    rippleDelete(t, [a], { all: true });
+    expect(t.clips.map(c => [c.id === b.id ? 'b' : 'pic', c.start])).toEqual([['b', 0], ['pic', 200]]);
+    const x = aud(0, 1000), y = aud(1000, 1000), z = med(1200, 500, 0, { lane: 'v' }), t2 = take(x, y, z);
+    rippleDelete(t2, [x]);
+    expect([y.start, z.start]).toEqual([0, 1200]);
+  });
+});
+
+describe('sliding several clips together', () => {
+  it('moves a sound and its picture on different tracks, each giving way to its own neighbours', () => {
+    const a1 = aud(0, 2000), s = aud(2000, 2000), a2 = aud(4000, 2000, 3000), v1 = med(0, 2000, 0, { lane: 'v' }), v = med(2000, 2000, 0, { lane: 'v' }), v2 = med(4000, 2000, 5, { lane: 'v' });
+    const t = take(a1, s, a2, v1, v, v2);
+    expect(slideMany(t, [s, v], 500)).toBe(500);
+    expect([a1.dur, s.start, a2.start, a2.dur, v1.dur, v.start, v2.start]).toEqual([2500, 2500, 4500, 1500, 2500, 2500, 4500]);
+  });
+  it('is held to what every track allows, and does nothing when one cannot', () => {
+    const a1 = aud(0, 2000), s = aud(2000, 2000), a2 = aud(4000, 120, 3000), v1 = med(0, 2000, 0, { lane: 'v' }), v = med(2000, 2000, 0, { lane: 'v' }), v2 = med(4000, 5000, 5, { lane: 'v' });
+    expect(slideMany(take(a1, s, a2, v1, v, v2), [s, v], 5000)).toBe(70);   // (the short one after is left 50 ms)
+    const x = aud(0, 2000), y = aud(1500, 2000);
+    expect(slideRange(take(x, y), y)).toBeNull();
+  });
+  it('two picked clips side by side slide as one', () => {
+    const a = aud(0, 1000), b = aud(1000, 1000), c = aud(2000, 1000), d = aud(3000, 1000, 2000);
+    expect(slideMany(take(a, b, c, d), [b, c], 300)).toBe(300);
+    expect([a.dur, b.start, c.start, d.start, d.dur]).toEqual([1300, 1300, 2300, 3300, 700]);
+  });
+});
+
+describe('the style of a crossfade between pictures', () => {
+  it('records a wipe or a dip on the clip coming in, and reads its progress', () => {
+    const a = med(0, 2000), b = med(2000, 2000, 1);
+    crossfade(a, b, 1000, 'wipe-left');
+    expect(b.fx.transition).toEqual({ id: 'wipe-left', kind: 'wipe', dir: 'left' });
+    const at = transitionAt(b, b.start + 250);
+    expect(at.kind).toBe('wipe'); expect(at.dir).toBe('left'); expect(at.u).toBeCloseTo(0.25);
+    expect(transitionAt(b, b.start + 1000)).toBeNull();
+    expect(fadeGain(b, b.start + 250, { visual: true })).toBe(1);   // (a wipe shows the clip whole, uncovered a part at a time)
+    setTransition(b, 'dip-black');
+    expect(b.fx.transition.color).toBe('#000000');
+    setTransition(b, 'dissolve');
+    expect(b.fx.transition).toBeUndefined();
+    expect(fadeGain(b, b.start + 250, { visual: true })).toBeCloseTo(0.25);
+    expect(TRANSITIONS.map(x => x.id)).toContain('wipe-down');
+  });
+});

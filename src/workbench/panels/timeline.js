@@ -14,7 +14,7 @@ import { camerasOf, onAirShot } from '../camera.js';
 import { autoKey, setAutoKey, recording, setRecordAuto } from '../keyframeDot.js';
 import { valueAt, EASE_NAMES } from '../../process/keyframes.js';
 import { signalMenu } from '../soundSignals.js';
-import { hasSource, trimStart, trimEnd, slip, slide, rippleTrimStart, rippleTrimEnd, setFade, fadesOf, crossfade, nextToJoin, laneClips } from '../../process/clipEdit.js';
+import { hasSource, trimStart, trimEnd, slip, slideMany, rippleTrimStart, rippleTrimEnd, rippleDelete as rippleDeleteClips, setFade, fadesOf, crossfade, nextToJoin, laneClips, TRANSITIONS, setTransition } from '../../process/clipEdit.js';
 import { signalAtTake } from '../soundSource.js';
 import { duration, summarize, touch, flatClips, clipId, TRACKS, TRACK_NAMES, readingTime, createTake, diffDocs, docAt, tracksOf, addTrack, laneOf, precompose, decompose, compLength } from '../../process/take.js';
 import { showMenu } from '../menu.js';
@@ -79,6 +79,8 @@ export function mountTimeline(root, app) {
   const bar = h('div', { class: 'wb-tl-bar' });
   const labels = h('div', { class: 'wb-tl-labels' });
   const lanes = h('div', { class: 'wb-tl-lanes', tabIndex: 0 });
+  let rippleAll = false;   // ripple edits (and Ripple delete) move the later clips of every track, so the tracks stay in step
+  let transitionStyle = 'dissolve';   // the style the next crossfade between pictures gets (src/process/clipEdit.js TRANSITIONS)
   let editTool = 'select';   // select | cut | ripple | slip | slide: what dragging and clicking a clip does (the glyphs in the bar)
   const vzBar = h('div', { class: 'wb-tl-vzbar' });
   const body = h('div', { class: 'wb-tl-body' }, labels, lanes, vzBar);
@@ -282,11 +284,12 @@ export function mountTimeline(root, app) {
   const TOOLS = [
     ['select', 'Select: click, drag to move, drag the edges to trim', '<path d="M6 4l12 7-5 1.5L10.5 18z" fill="currentColor" stroke="none"/>'],
     ['cut', 'Cut: click a clip where you want it cut (X cuts at the playhead)', '<path d="M12 3v18" stroke-dasharray="2.5 2.5"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>'],
-    ['ripple', 'Ripple: drag the edge of a clip; the clips after it move by what you take or give', '<path d="M5 5v14"/><path d="M9 12h11M16 8l4 4-4 4"/>'],
+    ['ripple', 'Ripple: drag the edge of a clip; the clips after it move by what you take or give (the button after the tools: on every track)', '<path d="M5 5v14"/><path d="M9 12h11M16 8l4 4-4 4"/>'],
     ['slip', 'Slip: drag a sound or video clip to change what it shows, without moving it', '<rect x="4" y="7" width="16" height="10" rx="2"/><path d="M8 12h8M10.5 9.5L8 12l2.5 2.5M13.5 9.5L16 12l-2.5 2.5"/>'],
-    ['slide', 'Slide: drag a clip between its neighbours; they give way, so the whole stays as long', '<path d="M3 6v12M21 6v12"/><rect x="9" y="8" width="6" height="8" rx="1.5"/><path d="M5.5 12H8M16 12h2.5"/>']
+    ['slide', 'Slide: drag a clip between its neighbours; they give way, so the whole stays as long (pick several, on different tracks, and they slide together)', '<path d="M3 6v12M21 6v12"/><rect x="9" y="8" width="6" height="8" rx="1.5"/><path d="M5.5 12H8M16 12h2.5"/>']
   ];
-  const toolButtons = () => TOOLS.map(([id, title, path]) => h('button', { class: `wb-icon-btn wb-tl-tool${editTool === id ? ' on' : ''}`, title, 'data-tool': id, html: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`, onclick: () => { editTool = id; lanes.dataset.tool = id; drawBar(); } }));
+  const rippleAllButton = () => h('button', { class: `wb-icon-btn wb-tl-tool${rippleAll ? ' on' : ''}`, title: rippleAll ? 'Ripple moves every track (on): the clips after an edit move on all tracks, so sound and picture stay in step. Click for the clip\'s own track only' : 'Ripple moves the clip\'s own track only. Click to move every track (sound and picture stay in step)', html: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16" opacity=".55"/><path d="M12 3v18"/></svg>', onclick: () => { rippleAll = !rippleAll; drawBar(); } });
+  const toolButtons = () => [...TOOLS.map(([id, title, path]) => h('button', { class: `wb-icon-btn wb-tl-tool${editTool === id ? ' on' : ''}`, title, 'data-tool': id, html: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`, onclick: () => { editTool = id; lanes.dataset.tool = id; drawBar(); } })), rippleAllButton()];
   lanes.dataset.tool = editTool;
 
   const renameTo = async (take, title) => {
@@ -1104,16 +1107,17 @@ export function mountTimeline(root, app) {
     }
     const kind = onTrim ? 'head' : onGrip && editTool === 'ripple' ? 'tail' : editTool === 'slip' && hasSource(c) && !onGrip ? 'slip' : editTool === 'slide' && !onGrip ? 'slide' : null;
     if (!kind) return false;
-    const list = laneClips(take, c), keep = list.map(k => [k, { start: k.start, dur: k.dur, offset: k.offset, in: k.in, out: k.out, marks: k.marks && k.marks.map(m => ({ ...m })), fx: k.fx }]);
+    const group = kind === 'slide' && picked.size > 1 && picked.has(c.id) ? pickedClips() : [c];   // (slide of several: the picked clips move together)
+    const list = kind === 'head' || kind === 'tail' ? (rippleAll && editTool === 'ripple' ? take.clips : laneClips(take, c)) : [...new Set((kind === 'slip' && picked.size > 1 && picked.has(c.id) ? pickedClips() : group).flatMap(g => laneClips(take, g)))], keep = list.map(k => [k, { start: k.start, dur: k.dur, offset: k.offset, in: k.in, out: k.out, marks: k.marks && k.marks.map(m => ({ ...m })), fx: k.fx }]);
     const restore = () => { for (const [k, o] of keep) { k.start = o.start; k.dur = o.dur; k.offset = o.offset; k.in = o.in; k.out = o.out; if (o.marks) k.marks = o.marks.map(m => ({ ...m })); else delete k.marks; if (o.offset === undefined) delete k.offset; if (o.in === undefined) delete k.in; if (o.out === undefined) delete k.out; } };
     const x0 = ev.clientX, sl0 = lanes.scrollLeft, s0 = c.start, d0 = c.dur;
     const move = e2 => {
       const dt = ((e2.clientX - x0 + lanes.scrollLeft - sl0) / pps) * 1000, q = e2.shiftKey || e2.altKey ? 0 : gridStep(S(), pps) * 1000, on = v => (q ? Math.round(v / q) * q : Math.round(v));
       restore();
-      if (kind === 'head') (editTool === 'ripple' ? rippleTrimStart : (t, k, v) => trimStart(k, v))(take, c, on(s0 + dt));
-      else if (kind === 'tail') rippleTrimEnd(take, c, on(s0 + d0 + dt));
-      else if (kind === 'slip') slip(c, -Math.round(dt));
-      else slide(take, c, on(s0 + dt) - s0);
+      if (kind === 'head') (editTool === 'ripple' ? rippleTrimStart : (t, k, v) => trimStart(k, v))(take, c, on(s0 + dt), { all: rippleAll });
+      else if (kind === 'tail') rippleTrimEnd(take, c, on(s0 + d0 + dt), { all: rippleAll });
+      else if (kind === 'slip') for (const g of (picked.size > 1 && picked.has(c.id) ? pickedClips() : [c])) slip(g, -Math.round(dt));
+      else slideMany(take, group, on(s0 + dt) - s0);
       for (const [k] of keep) { const ke = lanes.querySelector(`.wb-tl-clip[data-id="${CSS.escape(k.id)}"]`); if (ke) { ke.style.left = `${x(k.start)}px`; ke.style.width = `${Math.max(6, x(k.dur))}px`; } }
     };
     const up = () => {
@@ -1132,8 +1136,9 @@ export function mountTimeline(root, app) {
     return [
       { label: 'Fade in', items: lens('in') },
       { label: 'Fade out', items: lens('out') },
-      { label: 'Crossfade with the next clip', hint: next ? 'The two overlap, and the first fades out as the second comes in (equal power for sound)' : 'There is no clip right after this one on its track', disabled: !next, items: FADE_LENGTHS.map(ms => ({ label: `${ms / 1000} s`, run: () => { remember?.(); const o = crossfade(c, next, ms); edited(); drawLanes(); app.log(o ? `Crossfade of ${(o / 1000).toFixed(2)} s.` : 'Those clips are too far apart to crossfade.'); } })) },
-      { label: 'Remove the fades', disabled: !f.in && !f.out, run: () => { remember?.(); setFade(c, 'in', 0); setFade(c, 'out', 0); delete c.fx.xfadeIn; delete c.fx.xfadeOut; edited(); drawLanes(); } }
+      { label: 'Crossfade with the next clip', hint: next ? 'The two overlap, and the first fades out as the second comes in (equal power for sound)' : 'There is no clip right after this one on its track', disabled: !next, items: FADE_LENGTHS.map(ms => ({ label: `${ms / 1000} s`, run: () => { remember?.(); const o = crossfade(c, next, ms, c.track === 'media' ? transitionStyle : null); edited(); drawLanes(); app.log(o ? `Crossfade of ${(o / 1000).toFixed(2)} s.` : 'Those clips are too far apart to crossfade.'); } })) },
+      ...(c.track === 'media' ? [{ label: 'Picture transition style', hint: 'How a crossfade between pictures looks: dissolve, dip through a colour, or a wipe. It is used for the next crossfade, and changes this clip\'s own if it came in by one', items: TRANSITIONS.map(t => ({ label: t.label, active: (c.fx?.xfadeIn ? c.fx.transition?.id || 'dissolve' : transitionStyle) === t.id, run: () => { transitionStyle = t.id; if (c.fx?.xfadeIn) { remember?.(); setTransition(c, t.id); edited(); drawLanes(); } } })) }] : []),
+      { label: 'Remove the fades', disabled: !f.in && !f.out, run: () => { remember?.(); setFade(c, 'in', 0); setFade(c, 'out', 0); delete c.fx.xfadeIn; delete c.fx.xfadeOut; delete c.fx.transition; edited(); drawLanes(); } }
     ];
   };
   let ctxAt = 0;   // (where on the clip the last right-click was, in ms)
@@ -1279,11 +1284,9 @@ export function mountTimeline(root, app) {
   /** Delete and close the gap: later clips on the same tracks move earlier by the clip's length (an editor's ripple delete). */
   const rippleDelete = list => {
     const t = P().take; if (!t || !list.length) return;
-    const gone = new Set(list);
-    for (const c of [...list].sort((a, b) => b.start - a.start)) for (const o of t.clips) if (!gone.has(o) && laneOf(o) === laneOf(c) && o.start >= c.start + c.dur - 1) o.start = Math.max(0, o.start - c.dur);
-    t.clips = t.clips.filter(x2 => !gone.has(x2)); select(null); edited();
+    rippleDeleteClips(t, list, { all: rippleAll });
+    select(null); edited();
   };
-  /** Cut at the playhead (an editor's razor): the picked clips under it, else every clip under it. Media clips keep their moment of the source. */
   /** Cut a clip in two at take time `t`: the second part is a clip of its own, showing what comes after. Notes and fades go to the part they are on. */
   const cutClip = (c, t) => {
     const take = P().take, first = t - c.start, k = { ...structuredClone(c), id: clipId(), start: t, dur: c.dur - first };
