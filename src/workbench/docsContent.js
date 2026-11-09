@@ -235,6 +235,8 @@ A **film** is a take on the Timeline made of **shots**: a camera looking at a bo
 
 **Notes on clips:** right-click a clip → *Add a note here* (Note, Feedback or Instruction), or press **M** at the playhead. The flag on the clip is blue, orange or purple; click it to go there, drag to move it, double-click to edit, right-click for its kind and Delete. Notes move, copy and split with their clip, and an agent reads and leaves them with \`ams_notes\`. **Speech to text:** right-click an audio clip → *Speech to text* turns its speech into notes with a start and end, a *Transcript* track of captions (never read aloud), or both; Whisper runs on this machine (English).
 
+**Listening to a sound:** right-click an audio clip → *Sound*: a spectrogram instead of the waveform, lanes of its loudness, bass, mid, treble, onsets or brightness, and notes where each hit starts. In code, the Sources panel's speaker button adds \`sound\`: \`source('sound').level\`, \`.bands(n)\`, \`.onset\`, \`.bass\`, \`.mid\`, \`.treble\` follow the Timeline's sound at the playhead (all 0..1), so a sketch can move with the music.
+
 **Depth of field:** a shot has *Focus* (the board depth that is sharp) and *Blur*; key Focus for a pull focus. **Lightbox:** a board with *Light* lights the boards above it. **Onion skin** (Timeline bar) shows the frames around the playhead through the camera while paused.
 
 A film can also be **data** (beats with a board, a camera pose, narration, a code card, a control moved by keys). \`/film moon | silhouette | threejs | pointillism | condense\` opens one on the Timeline (add \`render\` for the MP4 and a standalone page; needs the dev server). Agents make them with \`ams_film\`, \`ams_camera\` and \`ams_keys\`. See \`docs/films.md\`.`)),

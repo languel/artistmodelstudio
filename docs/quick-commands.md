@@ -73,6 +73,8 @@ The default is the browser's when it has one. Devices come from `inputs.js` (sha
 
 Sources panel › the mic button (or `ams_source add {kind: 'mic'}`). `micSource.js` makes the microphone a source like the camera: its picture is the spectrum now (low pitches left, loud at the top, the wave drawn over it), so `source('mic').value(x, y)`, `.color(x, y)`, a board showing it, and the Sources preview all work. Sound-only extras on the sampler: `.level` (0..1) and `.bands(n)` (n loudness values, low to high). It shares the stream with dictation and lecture recording (`inputs.js`). It is not in exported sketches. The built-in browser pane of the Claude app blocks microphones: test in Chrome.
 
+**The Timeline's sound as a source** (`soundSource.js`, kind `sound`): the same sampler for what the take sounds like at the playhead, with `.onset`, `.bass`, `.mid`, `.treble`, `.centroid`, `.spectrum(n)` and `.signal(name)` besides `.level` and `.bands(n)`; analysis in `audioAnalysis.js` (64 log bands every 20 ms, onsets from spectral flux, a tempo guess from their autocorrelation). Analysis lanes on the Timeline are `auto` clips with `address: 'signal:<clip>.<name>'` and `derived: {clip, name, offset}` and no keys, so they never drive a parameter.
+
 ## Making the assistant reliable (5 Nov 2026)
 
 **The request log** (`requestLog.js`, `app.requests`, MCP `ams_requests`): each phrase typed into the `/` bar, the layer that answered (`phrase`, `command`, `model`), the model's tool calls, whether it failed and whether it was undone within 30 s (a sign it was wrong). Kept in the browser (300). `ams_requests {action: "list", problems: true}`.

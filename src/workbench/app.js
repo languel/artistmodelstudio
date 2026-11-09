@@ -2814,7 +2814,7 @@ export class Workbench {
     for (const d of this.sources.list) {
       if (!new RegExp(`(source|fit)\\(\\s*['"\`]${d.name}['"\`]`).test(b.code)) continue;
       if (d.kind === 'camera') { sources[d.name] = { kind: 'camera' }; continue; }
-      if (d.kind === 'mic') continue;   // (a microphone is not in an exported sketch)
+      if (d.kind === 'mic' || d.kind === 'sound') continue;   // (a microphone, or the Timeline's sound, is not in an exported sketch)
       const a = await this.assetStore.get(d.assetId);
       if (!a?.blob) continue;
       const t = a.blob.type, ext = t === 'image/gif' ? 'gif' : t.startsWith('video/') ? (t.split('/')[1] || 'mp4') : t === 'image/png' ? 'png' : 'jpg';

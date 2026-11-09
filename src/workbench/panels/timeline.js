@@ -4,7 +4,8 @@
  * right-click for more. The selected clip's properties are in Properties.
  */
 import { askConfirm, askText } from '../dialog.js';
-import { addMark, setMark, removeMark, splitMarks, MARK_KINDS, MARK_LABEL } from '../../process/marks.js';
+import { addMark, setMark, removeMark, splitMarks, findClip, MARK_KINDS, MARK_LABEL } from '../../process/marks.js';
+import { analyseSrc, drawSpectrogram, drawSignal, onsetsOf, tempoOf } from '../audioAnalysis.js';
 import { editInPlace, editable, h } from '../ui.js';
 import { icon } from '../icons.js';
 import { clipWords } from '../../process/clipWords.js';
@@ -935,6 +936,33 @@ export function mountTimeline(root, app) {
       el.append(key);
     }
   };
+  /** A lane that is read from a sound (an analysis lane: loudness, bass, onsets…): its curve, drawn from the audio clip it follows. */
+  const paintDerived = (el, c) => {
+    const src = findClip(P().take, c.derived.clip)?.src;
+    if (!src) { el.classList.add('orphan'); return; }
+    const cv = h('canvas', { class: 'wb-tl-sig' }); el.prepend(cv);
+    analyseSrc(src).then(an => { if (an && cv.isConnected) drawSignal(cv, an, c.derived.name, { from: c.derived.offset || 0, dur: c.dur, width: Math.max(4, x(c.dur || 0) - 2), height: 36 }); });
+  };
+  const SIGNAL_LABEL = { level: 'Loudness', bass: 'Bass', mid: 'Mid', treble: 'Treble', onset: 'Onsets', centroid: 'Brightness' };
+  /** An analysis lane for a sound: a track of its own that follows the audio clip (and reads from code as source('sound')). */
+  const addSignalLane = (c, name) => {
+    const take = P().take; if (!take) return;
+    remember?.();
+    const label = `${c.label || 'Sound'} · ${SIGNAL_LABEL[name]}`;
+    take.clips.push({ id: clipId(), track: 'auto', address: `signal:${c.id}.${name}`, start: c.start, dur: c.dur, keys: [], fx: {}, label, derived: { clip: c.id, name, offset: c.offset || 0 }, lane: addTrack(take, 'auto', label).id });
+    edited(); drawLanes();
+  };
+  /** Notes at the start of every drum hit, pluck or syllable (marks.js): the onsets of the sound under the clip. */
+  const markOnsets = async c => {
+    const an = await analyseSrc(c.src);
+    if (!an) { app.log('That sound could not be read.'); return; }
+    const from = c.offset || 0, ons = onsetsOf(an).filter(t => t >= from && t <= from + c.dur).slice(0, 500), bpm = tempoOf(an);
+    remember?.();
+    c.marks = (c.marks || []).filter(m => m.by !== 'analysis'); if (!c.marks.length) delete c.marks;
+    for (const t of ons) addMark(c, t - from, 'onset', 'note', { by: 'analysis' });
+    edited(); drawLanes();
+    app.log(`${ons.length} onset${ons.length === 1 ? '' : 's'} marked${bpm ? `; about ${bpm} beats a minute` : ''}.`);
+  };
   /**
    * Annotations: a flag for each mark on the clip (src/process/marks.js), coloured by what it is for. Drag it to move it, click to go
    * there, double-click to edit the note, right-click for its kind and Delete. A stretch (speech turned to text) is a bar with the flag at its start.
@@ -1012,15 +1040,20 @@ export function mountTimeline(root, app) {
         el.append(h('span', { class: `wb-tl-compbit t-${k.track}`, style: { left: `${x(k.start / rate)}px`, width: `${Math.max(2, x((k.dur || 0) / rate))}px` } }));
       }
     }
-    if (c.track === 'auto') paintLane(el, c);
+    if (c.track === 'auto') { if (c.derived) paintDerived(el, c); else paintLane(el, c); }
     if (c.track === 'audio') {
       // The waveform: real min/max slices, drawn for the width the clip has now (a rough one from the old peaks shows until the sound is decoded).
       const cv = h('canvas', { class: 'wb-tl-wave' });
       el.prepend(cv);
-      const paint = wave => { if (wave) drawWave(cv, wave, { from: 0, to: (c.dur || wave.duration) / 1000, width: w - 2, height: AUDIO_CLIP_H - 2 }); };
-      // (painted at once, before the clip is in the page: a clip that already has its decoded wave is never painted again)
-      paint(c.wave || fromPeaks(c.peaks, c.dur));
-      if (!c.wave && c.src) waveFor(c.src).then(wave => { if (wave) { c.wave = wave; if (cv.isConnected) paint(wave); } });
+      if (c.view === 'spec' && c.src) {
+        // The spectrogram (audioAnalysis.js): time across, low pitch at the bottom; made once per sound, so it shows when it is ready.
+        analyseSrc(c.src).then(an => { if (an && cv.isConnected) drawSpectrogram(cv, an, { from: c.offset || 0, to: (c.offset || 0) + (c.dur || an.duration), width: w - 2, height: AUDIO_CLIP_H - 2 }); });
+      } else {
+        const paint = wave => { if (wave) drawWave(cv, wave, { from: 0, to: (c.dur || wave.duration) / 1000, width: w - 2, height: AUDIO_CLIP_H - 2 }); };
+        // (painted at once, before the clip is in the page: a clip that already has its decoded wave is never painted again)
+        paint(c.wave || fromPeaks(c.peaks, c.dur));
+        if (!c.wave && c.src) waveFor(c.src).then(wave => { if (wave) { c.wave = wave; if (cv.isConnected) paint(wave); } });
+      }
     }
     if (c.marks?.length) paintMarks(el, c);
     if (readOnly) return el;
@@ -1092,6 +1125,13 @@ export function mountTimeline(root, app) {
     ] },
     '-',
     c.track !== 'comp' ? { label: 'Add a note here', hint: 'A marker on the clip with a note: feedback, or an instruction for generating (M adds one at the playhead)', items: MARK_KINDS.map(k => ({ label: MARK_LABEL[k], run: () => noteOn(c, ctxAt, k) })) } : null,
+    c.track === 'audio' && c.src ? { label: 'Sound', hint: 'See the sound as a spectrogram, put its loudness, bands or onsets on lanes of their own, or mark where things start (code reads the same as source(\'sound\'))', items: [
+      { label: c.view === 'spec' ? 'Show the waveform' : 'Show the spectrogram', run: () => { if (c.view === 'spec') delete c.view; else c.view = 'spec'; edited(); drawLanes(); } },
+      '-',
+      ...Object.entries(SIGNAL_LABEL).map(([name, label]) => ({ label: `Add a lane: ${label}`, run: () => addSignalLane(c, name) })),
+      '-',
+      { label: 'Mark the onsets', hint: 'A note where each drum hit, pluck or syllable starts; the tempo goes in the log', run: () => markOnsets(c) }
+    ] } : null,
     c.track === 'audio' && c.src ? { label: 'Speech to text', hint: 'Whisper, on this machine (English): the words with their times, as notes on the clip or as a Transcript track', items: [
       { label: 'As notes on the clip', run: () => speechToText(c, 'notes') },
       { label: 'As a Transcript track', run: () => speechToText(c, 'track') },

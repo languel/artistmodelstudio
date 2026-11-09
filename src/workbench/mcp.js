@@ -272,7 +272,7 @@ export function workbenchTools(app) {
       if (a.action === 'code') { const r = app.store.runBoardCode(b.id, a.source || '', runScript, { by: 'agent' }); if (r.error) return { error: r.error, line: r.line }; return { ok: true, marks: r.marks, logs: r.logs }; }
       return { ok: true, boards: list() };
     } },
-    { name: 'ams_source', description: 'Sources: the project\'s streams (camera, microphone, images and videos from Assets), read from code by name: source(\'cam\') gives a sampler (.level and .bands(n) for a microphone; .color(x, y), .value(x, y), .pose, .hands, .mask(x, y), .frame; fractions of the board), fit(\'cam\', { shapes, live }) redraws it as plane marks. list; add {kind: camera | mic | asset, assetId?, name?, sampling?, interval?}; remove {name}; update {name, sampling: continuous | interval | hold, interval (s), rename}; sample {name, points: [[x, y]…] (fractions), landmarks?: [pose, hands, mask]} (colors and values there, and landmarks when asked; they may take a moment the first time); frame {name} (PNG of the current frame); show {name, board?, opacity?} under a board (name "" hides it); follow {board, on} (the board\'s code re-runs on each new frame of the sources it reads).', inputSchema: S({ action: { type: 'string', enum: ['list', 'add', 'remove', 'update', 'sample', 'frame', 'show', 'follow'] }, name: str('Source name'), kind: str('camera | mic | asset'), assetId: str('Asset id'), sampling: str('continuous | interval | hold'), interval: num('Seconds between samples (interval)'), rename: str('New name'), points: { type: 'array' }, landmarks: { type: 'array', items: { type: 'string' } }, board: str('Board id or title'), opacity: num('0..1'), on: { type: 'boolean' } }, ['action']), run: async (a) => {
+    { name: 'ams_source', description: 'Sources: the project\'s streams (camera, microphone, images and videos from Assets), read from code by name: source(\'cam\') gives a sampler (.level and .bands(n) for a microphone; kind sound is the Timeline\'s sound at the playhead: .level, .bands(n), .onset, .bass, .mid, .treble, .centroid; .color(x, y), .value(x, y), .pose, .hands, .mask(x, y), .frame; fractions of the board), fit(\'cam\', { shapes, live }) redraws it as plane marks. list; add {kind: camera | mic | sound | asset, assetId?, name?, sampling?, interval?}; remove {name}; update {name, sampling: continuous | interval | hold, interval (s), rename}; sample {name, points: [[x, y]…] (fractions), landmarks?: [pose, hands, mask]} (colors and values there, and landmarks when asked; they may take a moment the first time); frame {name} (PNG of the current frame); show {name, board?, opacity?} under a board (name "" hides it); follow {board, on} (the board\'s code re-runs on each new frame of the sources it reads).', inputSchema: S({ action: { type: 'string', enum: ['list', 'add', 'remove', 'update', 'sample', 'frame', 'show', 'follow'] }, name: str('Source name'), kind: str('camera | mic | asset'), assetId: str('Asset id'), sampling: str('continuous | interval | hold'), interval: num('Seconds between samples (interval)'), rename: str('New name'), points: { type: 'array' }, landmarks: { type: 'array', items: { type: 'string' } }, board: str('Board id or title'), opacity: num('0..1'), on: { type: 'boolean' } }, ['action']), run: async (a) => {
       const S = app.sources;
       if (a.action === 'list') return { sources: S.list.map(d => ({ ...d, ready: Boolean(S.entries.get(d.name)?.data), frame: S.entries.get(d.name)?.version || 0 })) };
       if (a.action === 'add' && a.url) return { name: await app.addSourceUrl(a.url) };   // an address (a video or picture, or a Wikipedia / Commons File: page): streamed
@@ -516,6 +516,37 @@ export function workbenchTools(app) {
         return { lines: r.segments.length, notes: r.notes, transcriptClips: r.clips.length, text: r.segments.map(x => x.text).join(' ') };
       }
       if (a.action === 'delete') { const c = owner(a.id); if (!c) throw new Error(`No note ${a.id}`); M.removeMark(c, a.id); refresh(); return { deleted: a.id }; }
+      throw new Error('Unknown action');
+    } },
+    { name: 'ams_audio', description: 'Listen to the sounds on the open take. action "list" returns the audio clips; "analyse" {clip} returns its length, loudness, tempo guess, the times (ms) of its onsets (drum hits, plucks, syllables), how loud bass, mid and treble are, and its loudest and quietest second; "signal" {name, at} the value (0..1) of level | bass | mid | treble | onset | centroid at a take time; "lane" {clip, name} puts that signal on a track of its own; "view" {clip, as: waveform | spectrogram}; "onsets" {clip} marks each onset as a note on the clip (see ams_notes). Sketches read the same as source(\'sound\').level, .bands(n), .onset, .bass, .mid, .treble (add it with ams_source or the Sources panel). Times are ms.', inputSchema: S({ action: str('list | analyse | signal | lane | view | onsets'), clip: str('Audio clip id'), name: str('level | bass | mid | treble | onset | centroid'), at: num('Take time in ms (signal)'), as: str('waveform | spectrogram (view)') }, ['action']), run: async (a) => {
+      const A = await import('./audioAnalysis.js'), M = await import('../process/marks.js'), T = await import('../process/take.js');
+      const take = app.player?.take; if (!take) throw new Error('No take open: ams_timeline {action: "open", id}');
+      T.touch(take);
+      const refresh = () => { T.touch(take); app._tlKeysEdited?.(); app.timelineEdited?.(); };
+      const audio = () => T.flatClips(take).filter(c => c.track === 'audio' && c.src);
+      if (a.action === 'list') return { clips: audio().map(c => ({ id: c.id, label: c.label, start: c.start, dur: c.dur, view: c.view || 'waveform' })) };
+      if (a.action === 'signal') {
+        if (!A.SIGNALS.includes(a.name)) throw new Error(`name is one of ${A.SIGNALS.join(', ')}`);
+        let v = 0; for (const c of audio()) { if (a.at < c.start || a.at >= c.start + c.dur) continue; const an = await A.analyseSrc(c.src); v = Math.max(v, A.signalAt(an, a.name, (c.offset || 0) + a.at - c.start)); }
+        return { name: a.name, at: a.at, value: +v.toFixed(3) };
+      }
+      const c = M.findClip(take, a.clip); if (!c || c.track !== 'audio' || !c.src) throw new Error('Give the id of an audio clip: clip (ams_audio {action: "list"})');
+      if (a.action === 'view') { if (a.as === 'spectrogram') c.view = 'spec'; else delete c.view; refresh(); return { clip: c.id, view: a.as === 'spectrogram' ? 'spectrogram' : 'waveform' }; }
+      const an = await A.analyseSrc(c.src); if (!an) throw new Error('That sound could not be read.');
+      const from = c.offset || 0, ons = A.onsetsOf(an).filter(t => t >= from && t <= from + c.dur);
+      if (a.action === 'onsets') { c.marks = (c.marks || []).filter(m => m.by !== 'analysis'); if (!c.marks.length) delete c.marks; for (const t of ons.slice(0, 500)) M.addMark(c, t - from, 'onset', 'note', { by: 'analysis' }); refresh(); return { marked: Math.min(500, ons.length), tempo: A.tempoOf(an) }; }
+      if (a.action === 'lane') {
+        if (!A.SIGNALS.includes(a.name)) throw new Error(`name is one of ${A.SIGNALS.join(', ')}`);
+        const label = `${c.label || 'Sound'} · ${a.name}`;
+        take.clips.push({ id: T.clipId(), track: 'auto', address: `signal:${c.id}.${a.name}`, start: c.start, dur: c.dur, keys: [], fx: {}, label, derived: { clip: c.id, name: a.name, offset: from }, lane: T.addTrack(take, 'auto', label).id });
+        refresh(); return { lane: label };
+      }
+      if (a.action === 'analyse') {
+        const i0 = Math.floor(from / an.hop), i1 = Math.min(an.n, Math.floor((from + c.dur) / an.hop)), mean = k => { let s = 0; for (let i = i0; i < i1; i++) s += an[k][i]; return +(s / Math.max(1, i1 - i0)).toFixed(3); };
+        const sec = Math.round(1000 / an.hop), per = []; for (let i = i0; i + sec <= i1; i += sec) { let s = 0; for (let k = i; k < i + sec; k++) s += an.level[k]; per.push([i, s / sec]); }
+        const loud = per.slice().sort((x, y) => y[1] - x[1]), at = e => (e ? Math.round((e[0] * an.hop - from) / 1000) : null);
+        return { seconds: Math.round(c.dur / 1000), tempo: A.tempoOf(an), onsets: ons.map(t => Math.round(t - from)).slice(0, 300), onsetCount: ons.length, mean: { level: mean('level'), bass: mean('bass'), mid: mean('mid'), treble: mean('treble'), brightness: mean('centroid') }, loudestSecond: at(loud[0]), quietestSecond: at(loud[loud.length - 1]) };
+      }
       throw new Error('Unknown action');
     } },
     // Films, cameras and keyframes: the camera system (docs/films.md, docs/camera-plan.md) for agents that make films and explainers.

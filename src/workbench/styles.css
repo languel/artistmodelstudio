@@ -561,6 +561,8 @@ input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
 
 .wb-tl-lanes.drop { outline: 1px dashed color-mix(in srgb, var(--wb-select) 70%, transparent); outline-offset: -2px; }
 .wb-tl-wave { position: absolute; left: 1px; top: 1px; pointer-events: none; }
+.wb-tl-sig { position: absolute; left: 1px; top: 1px; height: calc(100% - 2px); pointer-events: none; }
+.wb-tl-clip.t-auto.orphan { opacity: 0.45; }
 .wb-tl-mark { --mk: #2f6fdf; position: absolute; top: 0; bottom: 0; width: 10px; margin-left: -1px; z-index: 3; cursor: pointer; }
 .wb-tl-mark::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--mk); }
 .wb-tl-mark::after { content: ''; position: absolute; left: 2px; top: 0; width: 8px; height: 8px; background: var(--mk); clip-path: polygon(0 0, 100% 0, 0 100%); }
