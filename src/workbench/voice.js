@@ -63,6 +63,16 @@ export async function transcribe(blob, onProgress) {
   return /^[\[(].*[\])]$/.test(text.trim()) ? '' : text;   // ([BLANK_AUDIO], (music)…)
 }
 
+/** 16 kHz mono samples → Whisper's chunks with times, [{ text, timestamp: [start, end] }] in seconds (none if it is silent). */
+export async function transcribeTimed(samples, onProgress) {
+  await loadWhisper(onProgress);
+  if (samples.length < 16000 * 0.3) return [];
+  let sq = 0; for (let i = 0; i < samples.length; i += 8) sq += samples[i] * samples[i];
+  if (Math.sqrt(sq / (samples.length / 8)) < 0.002) return [];   // (silence: Whisper would make words up)
+  const out = await call({ type: 'transcribe', samples, timestamps: true }, null);
+  return out.chunks || [];
+}
+
 // ---- knowing when someone has finished ---------------------------------------------------------------------------------
 const DANGLING = /\b(?:and|or|but|so|then|the|a|an|to|of|in|on|at|with|for|from|into|by|that|which|um+|uh+|er+|like|make|draw|change|set|put|add)\s*$/i;
 /** Does what was said look like a whole request (so it can be sent)? */

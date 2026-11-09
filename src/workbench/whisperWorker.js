@@ -18,8 +18,8 @@ self.onmessage = async ({ data }) => {
     }
     if (type === 'transcribe') {
       if (!asr) throw new Error('The speech model is not loaded.');
-      const out = await asr(data.samples, { chunk_length_s: 30, stride_length_s: 5, ...(data.language ? { language: data.language, task: 'transcribe' } : {}) });
-      postMessage({ type: 'resolve', requestId, text: String(out?.text || '').trim() });
+      const out = await asr(data.samples, { chunk_length_s: 30, stride_length_s: 5, ...(data.timestamps ? { return_timestamps: true } : {}), ...(data.language ? { language: data.language, task: 'transcribe' } : {}) });
+      postMessage({ type: 'resolve', requestId, text: String(out?.text || '').trim(), ...(data.timestamps ? { chunks: (out?.chunks || []).map(c => ({ text: String(c.text || ''), timestamp: Array.isArray(c.timestamp) ? [c.timestamp[0], c.timestamp[1]] : null })) } : {}) });
     }
   } catch (err) {
     postMessage({ type: 'reject', requestId, error: err?.message || String(err) });

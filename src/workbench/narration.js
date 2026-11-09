@@ -150,7 +150,7 @@ export class Narrator {
    * onLine(i, n, text) as each is made.
    */
   async audioForTake(take, { onLine } = {}) {
-    const says = (take?.clips || []).filter(c => c.track === 'say' && (c.text || '').trim());
+    const says = (take?.clips || []).filter(c => c.track === 'say' && !c.transcript && (c.text || '').trim());   // (a transcript is the words of a sound, not narration to voice)
     const out = [];
     for (let i = 0; i < says.length; i++) {
       const c = says[i], words = (c.speak || c.text).trim();

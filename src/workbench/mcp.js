@@ -493,7 +493,7 @@ export function workbenchTools(app) {
       }
       throw new Error('Unknown action');
     } },
-    { name: 'ams_notes', description: 'Annotations on the open take: markers with notes kept on clips (feedback, instructions for generating, plain notes; speech turned to text lands here too). action "list" {kind?, track?, text?} returns every note with its clip and take time; "text" the same as lines for reading; "add" {clip (id) | at (ms: the first clip under that take time), offset? (ms into the clip), text, kind note | feedback | instruction}; "edit" {id, text?, kind?, offset?}; "delete" {id}. Times are ms. An "instruction" note is for you to act on: read the list, do what it says, then delete it or change it to a note.', inputSchema: S({ action: str('list | text | add | edit | delete'), id: str('Note id (edit, delete)'), clip: str('Clip id (add)'), at: num('Take time in ms (add, on the clip under it)'), offset: num('ms from the start of the clip'), text: str('The note, or a word to find (list)'), kind: str('note | feedback | instruction'), track: str('Only the clips on this track (list)') }, ['action']), run: async (a) => {
+    { name: 'ams_notes', description: 'Annotations on the open take: markers with notes kept on clips (feedback, instructions for generating, plain notes; speech turned to text lands here too). action "list" {kind?, track?, text?} returns every note with its clip and take time; "text" the same as lines for reading; "add" {clip (id) | at (ms: the first clip under that take time), offset? (ms into the clip), text, kind note | feedback | instruction}; "edit" {id, text?, kind?, offset?}; "delete" {id}; "transcribe" {clip (an audio clip id), as: notes | track | both} turns its speech into text with times (Whisper here, English; the model downloads the first time): notes on the clip, or clips on a Transcript track. Times are ms. An "instruction" note is for you to act on: read the list, do what it says, then delete it or change it to a note.', inputSchema: S({ action: str('list | text | add | edit | delete | transcribe'), as: str('notes | track | both (transcribe)'), id: str('Note id (edit, delete)'), clip: str('Clip id (add, transcribe)'), at: num('Take time in ms (add, on the clip under it)'), offset: num('ms from the start of the clip'), text: str('The note, or a word to find (list)'), kind: str('note | feedback | instruction'), track: str('Only the clips on this track (list)') }, ['action']), run: async (a) => {
       const M = await import('../process/marks.js'), { touch, flatClips } = await import('../process/take.js');
       const take = app.player?.take; if (!take) throw new Error('No take open: ams_timeline {action: "open", id}');
       touch(take);   // (what the timeline holds may have been edited since the clips were last read)
@@ -509,6 +509,12 @@ export function workbenchTools(app) {
         const m = M.addMark(c, off, a.text || '', a.kind || 'note', { by: 'agent' }); refresh(); return { id: m.id, clip: c.id, at: m.at, kind: m.kind };
       }
       if (a.action === 'edit') { const c = owner(a.id); if (!c) throw new Error(`No note ${a.id}`); const m = M.setMark(c, a.id, { text: a.text, kind: a.kind, at: a.offset }); refresh(); return m; }
+      if (a.action === 'transcribe') {
+        const c = M.findClip(take, a.clip); if (!c) throw new Error('Give the id of an audio clip: clip');
+        const { transcribeClip } = await import('./transcribe.js');
+        const r = await transcribeClip(take, c, { as: a.as || 'notes', onStatus: t => app.log(t) }); refresh();
+        return { lines: r.segments.length, notes: r.notes, transcriptClips: r.clips.length, text: r.segments.map(x => x.text).join(' ') };
+      }
       if (a.action === 'delete') { const c = owner(a.id); if (!c) throw new Error(`No note ${a.id}`); M.removeMark(c, a.id); refresh(); return { deleted: a.id }; }
       throw new Error('Unknown action');
     } },

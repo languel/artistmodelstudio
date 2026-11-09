@@ -389,7 +389,7 @@ export function mountTimeline(root, app) {
   };
   /** Narration → sound: each Narration clip gets a voice, laid on the Audio track where it starts (again: only lines without one are made). */
   const voiceNarration = async () => {
-    const take = ensureTake(), say = take.clips.filter(c => c.track === 'say' && (c.text || '').trim());
+    const take = ensureTake(), say = take.clips.filter(c => c.track === 'say' && !c.transcript && (c.text || '').trim());
     if (!say.length) { app.log('There is no narration on this take to voice: add a Narration clip first.'); return; }
     const have = new Set(take.clips.filter(c => c.narrates).map(c => c.narrates));
     const todo = { ...take, clips: take.clips.filter(c => !have.has(c.id)) };
@@ -987,6 +987,17 @@ export function mountTimeline(root, app) {
     noteOn(c, t - c.start, kind);
   };
   app.addNoteAtPlayhead = noteAtPlayhead;
+  /** An audio clip's speech as text (src/workbench/transcribe.js): notes with a start and end, a Transcript track, or both. */
+  const speechToText = async (c, as) => {
+    const take = P().take; if (!take) return;
+    try {
+      const { transcribeClip } = await import('../transcribe.js');
+      remember?.();
+      const r = await transcribeClip(take, c, { as, onStatus: t => app.log(t) });
+      edited(); drawLanes();
+      app.log(r.segments.length ? `Speech to text: ${r.segments.length} line${r.segments.length === 1 ? '' : 's'}${r.notes ? ' as notes' : ''}${r.clips.length ? `${r.notes ? ' and' : ''} on the Transcript track` : ''}.` : 'No speech found in that clip.');
+    } catch (err) { app.log(`Speech to text failed: ${err.message || err}`); }
+  };
   let ctxAt = 0;   // (where on the clip the last right-click was, in ms)
   const clipEl = (c, readOnly = false) => {
     const w = Math.max(6, x(c.dur || 0));
@@ -1081,6 +1092,11 @@ export function mountTimeline(root, app) {
     ] },
     '-',
     c.track !== 'comp' ? { label: 'Add a note here', hint: 'A marker on the clip with a note: feedback, or an instruction for generating (M adds one at the playhead)', items: MARK_KINDS.map(k => ({ label: MARK_LABEL[k], run: () => noteOn(c, ctxAt, k) })) } : null,
+    c.track === 'audio' && c.src ? { label: 'Speech to text', hint: 'Whisper, on this machine (English): the words with their times, as notes on the clip or as a Transcript track', items: [
+      { label: 'As notes on the clip', run: () => speechToText(c, 'notes') },
+      { label: 'As a Transcript track', run: () => speechToText(c, 'track') },
+      { label: 'Both', run: () => speechToText(c, 'both') }
+    ] } : null,
     c.marks?.length ? { label: `Notes (${c.marks.length})`, items: c.marks.map(m => ({ label: `${fmt(c.start + m.at)} · ${(m.text || '').slice(0, 40) || '(empty)'}`, run: () => seekShow(c.start + m.at) })) } : null,
     '-',
     { label: 'Split at the playhead', keys: 'X', run: splitAtPlayhead },
