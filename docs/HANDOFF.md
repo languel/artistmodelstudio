@@ -1,4 +1,4 @@
-# Handoff: updated 7 November 2026 (first written 1 October)
+# Handoff: updated 10 November 2026 (first written 1 October)
 
 Where Artist Model Studio stands, how the new parts fit together, and what is next. For the features themselves see [workbench.md](workbench.md); for agents, [mcp.md](mcp.md).
 
@@ -414,6 +414,12 @@ The user could not record grab/push/smooth onto marks already drawn: the take's 
 - **Picture transitions and multi-track edits** (same files): `crossfade(a, b, ms, style)` stores `fx.transition` on the clip coming in (`TRANSITIONS`: dissolve, dip to black/white, wipe in four directions); `transitionAt` gives its progress and `takePlayer.drawMedia` draws a wipe (clip region) or a dip (colour over the picture, the new clip shown from the middle). Ripple on every track: `{ all: true }` on `rippleTrimStart/End`, `rippleDelete`, the bar toggle `rippleAll`. `slideMany` slides picked clips of several tracks together.
 - **Not done**: other picture transitions (push, iris, soft-edged wipes); ripple across tracks does not move clips that began before the edit; word-level speech timing (segments only); speech in other languages; the analysis is not saved with the take (it is recomputed, a few seconds for a long sound); a sound's analysis ignores clip speed.
 
+## 10 Nov: the eraser
+
+- **Erase** (`src/process/erase.js`, tests beside it; `CanvasView.startErase`): a third tool under Select (E; `SELECTS` in app.js). Each pointer move sweeps a round tip (`app.eraser.radius`, screen px, `ams_eraser_v1`; [ ] in Erase) from the last position: `erasePoints` puts points along segments under the tip (a quarter tip apart), drops those under it and keeps the new ends, so a line is cut cleanly; a closed line opens; a plane keeps one closed shape; a point goes; notes and images are skipped. Pieces after the first are copies with new ids. Selection limits it; locked or hidden stages and boards are skipped. One undo step (`erase`).
+- **Hold E while drawing**: a capture keydown in CanvasView sets `eraseHeld` while a stroke or erase is under way (and stops the E shortcut). The stroke's move handler commits the draft (a one-point draft is dropped, not a click path) and calls `startErase(…, { resume: tool })`, which erases everything (not the selection) and, when E is let go, starts a new stroke there. So a held-E stroke is three undo steps (draw, erase, draw).
+- **E** was the old Gesture key; `test/shortcuts.test.js` now expects it to be `tool.erase`.
+- **Not done**: a pressure-sized eraser; erasing inside notes and images; a soft (partial) eraser that thins instead of cutting.
 
 ## 17 Nov: sound synthesis lessons and the modular synth
 

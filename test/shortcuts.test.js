@@ -48,8 +48,9 @@ describe('default shortcuts', () => {
     }
   });
 
-  it('the old letters for point, line, plane, gesture and guide are free (G is the grid settings now)', () => {
-    for (const k of ['o', 'p', 'a', 'e', 'shift+o', 'shift+e', 'shift+g']) expect(byKey.has(k), k).toBe(false);
+  it('the old letters for point, line, plane, gesture and guide are free (G is the grid settings now, E the eraser)', () => {
+    for (const k of ['o', 'p', 'a', 'shift+o', 'shift+e', 'shift+g']) expect(byKey.has(k), k).toBe(false);
     expect(byKey.get('g')).toEqual(['view.gridmenu']);
+    expect(byKey.get('e')).toEqual(['tool.erase']);
   });
 });

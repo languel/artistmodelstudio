@@ -6,6 +6,7 @@ export const ICONS = {
   gate: svg('<path d="M4 18 20 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="2.4 2.2" stroke-linecap="round"/><path d="M10 8l4 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'),
   select: svg('<path d="M5 3l14 8-6 1.5L10 19z" fill="currentColor"/>'),
   direct: svg('<path d="M5 3l14 8-6 1.5L10 19z"/><rect x="15.5" y="15.5" width="4" height="4" fill="currentColor" stroke="none"/>'),
+  erase: svg('<path d="M14.5 4.5l5 5-8.5 8.5H6l-2.5-2.5z"/><path d="M9 10l5 5"/><path d="M11 19.5h9" opacity=".5"/>'),
   hand: svg('<path d="M8 13V5.5a1.5 1.5 0 013 0V12m0-1V4.5a1.5 1.5 0 013 0V12m0-1.5a1.5 1.5 0 013 0V15a6 6 0 01-6 6h-1a6 6 0 01-5-2.7L3.6 15a1.6 1.6 0 012.6-1.9L8 15"/>'),
   laser: svg('<path d="M4 19.5l3.6-2.6" opacity=".25"/><path d="M7.6 16.9l3.8-3" opacity=".5"/><path d="M11.4 13.9l3.2-3.9" opacity=".8"/><circle cx="17.5" cy="7" r="3" fill="currentColor" stroke="none"/>'),
   point: svg('<circle cx="12" cy="12" r="4" fill="currentColor"/>'),

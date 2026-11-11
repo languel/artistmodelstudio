@@ -172,6 +172,8 @@ It is kept minimal.
   - Click a mark to see its points, and drag points to move them.
   - Shift-click or a marquee selects several.
   - Double-click a segment to add a point; Delete removes points.
+- **Erase** (E, the third tool under Select): rub out what you pass over. Lines lose the points under the eraser and are cut where it crosses them (a closed line opens), planes lose a bite and stay one shape, points go; notes and images are left alone. With a selection, only the selected marks are erased. **[** and **]** set its size (shown as a ring). One undo step per stroke.
+  - **Hold E while drawing:** what you have drawn so far is kept as a mark and the pen erases (that mark too) until you let go of E, then it draws a new mark from there.
 - **Snapping:**
   - Hold Ctrl while drawing, moving or scaling to snap.
   - **Snap to** (right-click the grid button) sets how: *Grid* puts the grabbed point on a grid point (the default), *Steps* moves in whole grid steps, *Objects* snaps to the nearest point of another mark.

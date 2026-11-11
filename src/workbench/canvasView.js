@@ -12,6 +12,8 @@ import { sculptMark, SCULPTABLE, nearMark, falloff, effectiveSculpt } from '../p
 import { boardsOf, boardDoc, boardNumbers, boardAt, boardForPoints, boardsInFrame, MAIN, BLACKBOARD, opacityOf, blendOf, canvasBlend } from '../process/boards.js';
 import { closeLasso, lazyFollow, lazyCatchUp, straightEnd, effectiveLazy } from '../process/strokes.js';
 import { rdp } from '../process/sculpt.js';
+import { eraseMark, sweepTouches } from '../process/erase.js';
+import { newId } from '../process/document.js';
 import { renderDocument, nextTimed, drawOutlines } from '../process/render.js';
 import { smoothPath } from '../process/walk.js';
 import { normalizeElement, DEFAULT_REALIZE, inkOn } from '../process/document.js';
@@ -33,13 +35,14 @@ const LASER_LIFE = 1000;            // ms a laser trail takes to fade out
 const LASER_FALLBACK = '#e5484d';   // when there is no stroke color to use
 
 export class CanvasView {
-  constructor(host, store, { getTool, getStage, getDefaults, getSculpt, getLazy, getShape, onSelect, onTool, onNoteStyled, viewMode }) {
+  constructor(host, store, { getTool, getStage, getDefaults, getSculpt, getEraser, getLazy, getShape, onSelect, onTool, onNoteStyled, viewMode }) {
     this.host = host;
     this.store = store;
     this.getTool = getTool;
     this.getStage = getStage;
     this.getDefaults = getDefaults;
     this.getSculpt = getSculpt;
+    this.getEraser = getEraser;
     this.getLazy = getLazy;
     this.getShape = getShape;
     this.onSelect = onSelect;
@@ -358,6 +361,14 @@ export class CanvasView {
       ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(cx, cy); ctx.stroke(); ctx.setLineDash([]);
       if (this.rope.radius > 0) { ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(cx, cy, this.rope.radius, 0, Math.PI * 2); ctx.stroke(); }
       ctx.globalAlpha = 0.9; ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    if (this.eraserAt) {
+      const R = this.getEraser?.()?.radius || 10;
+      ctx.save();
+      ctx.strokeStyle = css.getPropertyValue('--wb-text').trim() || '#888'; ctx.globalAlpha = 0.8; ctx.lineWidth = 1;
+      ctx.fillStyle = css.getPropertyValue('--wb-panel').trim() || '#fff';
+      ctx.beginPath(); ctx.arc(this.eraserAt[0], this.eraserAt[1], R, 0, Math.PI * 2); ctx.globalAlpha = 0.35; ctx.fill(); ctx.globalAlpha = 0.8; ctx.stroke();
       ctx.restore();
     }
     if (this.brushAt) {
@@ -767,6 +778,15 @@ export class CanvasView {
         if (e.key === 'Escape') { e.stopPropagation(); this.selPoints = []; this.invalidate(); return; }
       }
     }, true);
+    // E held while drawing: the pen erases until it is let go (the E shortcut, which picks the Erase tool, is not run then).
+    const eKey = e => e.key === 'e' || e.key === 'E';
+    window.addEventListener('keydown', e => {
+      if (!eKey(e) || e.metaKey || e.ctrlKey || e.altKey || !this.pointer || !(this.strokeOn || this.erasing)) return;
+      e.preventDefault(); e.stopPropagation();
+      if (!this.eraseHeld) { this.eraseHeld = true; this.invalidate(); }
+    }, true);
+    window.addEventListener('keyup', e => { if (eKey(e) && this.eraseHeld) { this.eraseHeld = false; this.invalidate(); } }, true);
+    window.addEventListener('blur', () => { this.eraseHeld = false; });
     window.addEventListener('keydown', e => {
       if (!this.draft) return;
       if (!this.clickPath) return;
@@ -793,12 +813,13 @@ export class CanvasView {
       // Over a mark that can be moved: the move cursor (and back again).
       const over = !hd && !this.space && (h || (tool === 'play' && !this.pick && this.hitTest(wx, wy)));
       if (Boolean(over) !== Boolean(this.moveCursor)) { this.moveCursor = Boolean(over); if (over) this.canvas.style.cursor = 'move'; else if (!hd) this.updateCursor(); }
+      if (tool === 'erase' || this.eraserAt) { this.eraserAt = tool === 'erase' ? [sx, sy] : null; this.invalidate(); }
       const brush = tool === 'sculpt' || (e.shiftKey && SHIFT_SCULPT.has(tool) && this.sculptTargets(wx, wy).length);
       if (brush || this.brushAt) { this.brushAt = brush ? [sx, sy] : null; this.invalidate(); }
       this.lastLocal = [sx, sy];
       if (this.affectedShown() || this.affectedCanvas?.width) this.paintAffected();
     });
-    c.addEventListener('pointerleave', () => { this.lastLocal = null; this.paintAffected(); if (this.brushAt) { this.brushAt = null; this.invalidate(); } });
+    c.addEventListener('pointerleave', () => { this.lastLocal = null; this.paintAffected(); if (this.brushAt || this.eraserAt) { this.brushAt = null; this.eraserAt = null; this.invalidate(); } });
 
     // Drop an asset (from the Assets panel) or image files anywhere on the canvas: it becomes a layer.
     // Drop a source (from the Sources panel): a board previewing it.
@@ -910,6 +931,7 @@ export class CanvasView {
       if (tool === 'play') return this.playTool?.down(e, wx, wy);
       // Boards: their titles (and the selected board's corner) work with Select and the Board tool.
       if (tool === 'direct') return this.startDirect(e, sx, sy, wx, wy);
+      if (tool === 'erase') return this.startErase(e, wx, wy);
       if (tool === 'select' || tool === 'board') {
         const bh = this.boardHandleAt(sx, sy);
         if (bh) return this.startBoardDrag(e, bh);
@@ -1512,6 +1534,57 @@ export class CanvasView {
     window.addEventListener('pointerup', up);
   }
 
+  /**
+   * Erase: every pointer move rubs out what the tip (a circle, the eraser's radius in screen px) passes over: points go,
+   * lines lose the points under it and are cut where it crosses them, planes lose a bite (see erase.js). Only the selection,
+   * if there is one. One undo step. `resume`: the tool to go back to drawing with when E (held while drawing) is let go.
+   */
+  startErase(e, wx, wy, { resume = null } = {}) {
+    const before = JSON.stringify(this.store.doc);
+    const doc0 = this.store.doc;
+    const stageOk = el => { const st = doc0.stages.find(x => x.id === el.stage); return st && st.visible && !st.locked; };
+    const boardOk = el => { const b = el.board ? boardsOf(doc0).find(x => x.id === el.board) : null; return !b || (!b.locked && !b.hidden); };
+    const selIds = new Set(resume ? [] : [...this.selected]);   // (held while drawing: everything, the mark just drawn too)
+    let last = [wx, wy], changed = false;
+    this.pointer = true; this.erasing = true;
+    const sweep = (x0, y0, x1, y1) => {
+      const r = (this.getEraser?.()?.radius || 10) / this.cam.z, s = { ax: x0, ay: y0, bx: x1, by: y1, r };
+      const doc = this.store.doc, out = [];
+      let hit = false;
+      for (const el of doc.elements) {
+        if ((selIds.size && !selIds.has(el.id)) || el.hidden || !this.editable(el) || !stageOk(el) || !boardOk(el) || !el.points?.length || !sweepTouches(el.points, { ...s, closed: el.closed || el.role === 'plane' })) { out.push(el); continue; }
+        const res = eraseMark(el, s);
+        if (!res) { out.push(el); continue; }
+        hit = true;
+        res.pieces.forEach((pts, i) => {
+          if (!i) { el.points = pts; if (el.closed && el.role !== 'plane') delete el.closed; out.push(el); return; }
+          const c = structuredClone(el); c.id = newId(el.role); c.points = pts; delete c.label; out.push(c);
+        });
+        if (!res.pieces.length) this.selected.delete(el.id);
+      }
+      if (hit) { doc.elements = out; changed = true; this.store.derive?.(doc); this.invalidate(); }
+    };
+    const mv = ev => {
+      const [sx, sy] = this.local(ev), [x, y] = this.toWorld(sx, sy);
+      this.eraserAt = [sx, sy];
+      if (resume && !this.eraseHeld) { finish(); this.startStroke(ev, resume, x, y); return; }   // (E let go: drawing again from here)
+      sweep(last[0], last[1], x, y);
+      last = [x, y];
+      this.invalidate();
+    };
+    const finish = () => {
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+      this.pointer = false; this.erasing = false;
+      if (this.getTool() !== 'erase') this.eraserAt = null;
+      if (changed) this.store.commitFrom(before, 'erase');
+      this.invalidate();
+    };
+    const up = () => { finish(); };
+    sweep(wx, wy, wx, wy);
+    window.addEventListener('pointermove', mv);
+    window.addEventListener('pointerup', up);
+  }
+
   /** Shift-click in Select without dragging: add or remove the mark from the selection. */
   startSelectClick(e, wx, wy) {
     const hit = this.hitTest(wx, wy);
@@ -1649,7 +1722,10 @@ export class CanvasView {
     // Lazy: the pen catches up to a cursor that has stopped (see catchUp), so the line reaches the pointer.
     const CATCH_MS = 360, STILL_MS = 80;   // (a time constant: the gap closes by about two thirds in 360 ms)
     let lastMove = performance.now(), catchAt = performance.now(), catchRaf = 0;
+    this.strokeOn = true;
     const mv = ev => {
+      // E held: what has been drawn is kept as a mark, and the pen erases until E is let go (then draws a new mark from there).
+      if (this.eraseHeld && !straight) { up(null, { toErase: true }); const [ex, ey] = this.toWorld(...this.local(ev)); this.startErase(ev, ex, ey, { resume: tool }); return; }
       lastMove = performance.now();
       let [x, y] = this.toWorld(...this.local(ev));
       if (lazyOn) {
@@ -1682,14 +1758,15 @@ export class CanvasView {
       catchRaf = requestAnimationFrame(catchUp);
     };
     if (catchOn) catchRaf = requestAnimationFrame(catchUp);
-    const up = () => {
+    const up = (_ev, { toErase = false } = {}) => {
       window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
-      this.pointer = false;
+      this.pointer = false; this.strokeOn = false;
       cancelAnimationFrame(catchRaf); catchRaf = 0;
+      if (toErase && this.draft.points.length < 2) { this.draft = null; this.rope = null; this.invalidate(); return; }
       // A lazy stroke ends where the pointer is: the pen catches up on release.
       if (catchOn && this.draft && this.draft.points.length > 1) { pen = cursor; place(cursor[0], cursor[1], { ctrlKey: false, pointerType: 'mouse' }); }
       // A click without a drag starts a path made point by point (click, click, … double-click or Enter).
-      if (this.draft.points.length === 1 && tool !== 'point') { this.rope = null; this.startClickPath(role, dkey); return; }
+      if (this.draft.points.length === 1 && tool !== 'point' && !toErase) { this.rope = null; this.startClickPath(role, dkey); return; }
       let pts = this.draft.points;
       const pathMode = this.draft.path;
       this.draft = null;
@@ -1932,7 +2009,7 @@ export class CanvasView {
     if (this.placeOnce) { this.canvas.style.cursor = 'crosshair'; return; }   // (placing with one click)
     if (this.previewDoc && !this.overdub) { this.canvas.style.cursor = 'grab'; return; }   // (a take shown: it pans)
     const t = this.getTool();
-    this.canvas.style.cursor = this.space || t === 'hand' ? 'grab' : t === 'select' || t === 'direct' ? 'default' : t === 'note' ? 'text' : t === 'sculpt' ? 'none' : 'crosshair';
+    this.canvas.style.cursor = this.space || t === 'hand' ? 'grab' : t === 'select' || t === 'direct' ? 'default' : t === 'note' ? 'text' : t === 'sculpt' || t === 'erase' ? 'none' : 'crosshair';
   }
 
   /** PNG of the artboard as currently shown (picture or process view). */

@@ -120,7 +120,7 @@ const TOOLS = [
   ['point', 'Point: a mark at a place (dimension 0)', '0'], ['line', 'Line: a point that moved (dimension 1)', '1'], ['plane', 'Plane: an enclosed area (dimension 2)', '2'], null,
 ];
 /** Select and direct selection (points) share a button. */
-const SELECTS = [['select', 'Select and move', 'V'], ['direct', 'Direct: edit points (click a mark, drag its points; double-click a segment adds one; Ctrl snaps)', '⇧V']];
+const SELECTS = [['select', 'Select and move', 'V'], ['direct', 'Direct: edit points (click a mark, drag its points; double-click a segment adds one; Ctrl snaps)', '⇧V'], ['erase', 'Erase: rub out what you pass over (lines are cut where you cross them, points go; only the selection if there is one; [ ] size). Hold E while drawing to erase', 'E']];
 /** Pan and the laser pointer share a button (H; Shift+H cycles; K picks the laser). */
 const PANS = [['hand', 'Pan', 'H'], ['laser', 'Laser pointer: a trail in the stroke color that fades out and leaves no mark', 'K']];
 /**
@@ -158,6 +158,7 @@ const BRUSH_KEY = 'ams_brush_active';
 const SHAPES_KEY = 'ams_shapes_v1';
 const SHAPE_DEFAULTS = { circle: { sides: 12 }, rect: { round: 0 } };
 const SCULPT_KEY = 'ams_sculpt_v1';
+const ERASER_KEY = 'ams_eraser_v1';
 
 export class Workbench {
   /**
@@ -186,6 +187,7 @@ export class Workbench {
     // Sculpt: the current sculpt tool, brush radius (screen px), strength, and each tool's params.
     this.shapes = structuredClone(SHAPE_DEFAULTS);
     try { const s = JSON.parse(localStorage.getItem(SHAPES_KEY) || '{}'); for (const k of Object.keys(SHAPE_DEFAULTS)) Object.assign(this.shapes[k], s[k]); } catch { /* ignore */ }
+    try { this.eraser = { radius: 10, ...JSON.parse(localStorage.getItem(ERASER_KEY) || '{}') }; } catch { this.eraser = { radius: 10 }; }
     try { this.sculpt = { tool: 'push', radius: 40, strength: 0.5, params: {}, ...JSON.parse(localStorage.getItem(SCULPT_KEY) || '{}') }; } catch { this.sculpt = { tool: 'push', radius: 40, strength: 0.5, params: {} }; }
     loadSculptLibrary();
     // The active brush: the Brush tool draws with it; its params are kept per brush.
@@ -501,7 +503,7 @@ export class Workbench {
   setTool(t) {
     // (a take that is open stays open when a tool is chosen: you pick a tool to overdub onto it; the × in the Timeline is how you go back to your drawing)
     if (LINES.some(c => c[0] === t)) this.lineTool = t;
-    if (t === 'select' || t === 'direct') this.selectTool = t;
+    if (SELECTS.some(c => c[0] === t)) this.selectTool = t;
     if (PANS.some(c => c[0] === t)) this.panTool = t;
     if (PLANES.some(c => c[0] === t)) this.planeTool = t;
     if (t !== 'direct' && this.canvas) this.canvas.selPoints = [];
@@ -522,6 +524,13 @@ export class Workbench {
     Object.assign(this.shapes[tool], patch);
     try { localStorage.setItem(SHAPES_KEY, JSON.stringify(this.shapes)); } catch { /* ignore */ }
     this.emit('tool');
+  }
+
+  /** The eraser's size: { radius } in screen px, kept in the browser. */
+  setEraser(patch) {
+    this.eraser.radius = Math.max(2, Math.min(200, patch.radius ?? this.eraser.radius));
+    try { localStorage.setItem(ERASER_KEY, JSON.stringify(this.eraser)); } catch { /* ignore */ }
+    this.canvas?.invalidate(); this.emit('tool');
   }
 
   setSculpt(patch) {
@@ -1404,6 +1413,7 @@ export class Workbench {
       getStage: () => this.activeStage,
       getDefaults: r => this.defaults(r),
       getSculpt: () => this.sculpt,
+      getEraser: () => this.eraser,
       getLazy: () => this.lazy,
       getShape: t => this.shapes[t],
       onSelect: ids => { if (ids?.length) this.selectedAsset = null; this.emit('selection'); this.renderChrome(); },
