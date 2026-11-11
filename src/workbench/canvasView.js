@@ -1545,30 +1545,33 @@ export class CanvasView {
     const stageOk = el => { const st = doc0.stages.find(x => x.id === el.stage); return st && st.visible && !st.locked; };
     const boardOk = el => { const b = el.board ? boardsOf(doc0).find(x => x.id === el.board) : null; return !b || (!b.locked && !b.hidden); };
     const selIds = new Set(resume ? [] : [...this.selected]);   // (held while drawing: everything, the mark just drawn too)
+    const limited = selIds.size > 0;
     let last = [wx, wy], changed = false;
     this.pointer = true; this.erasing = true;
-    const sweep = (x0, y0, x1, y1) => {
+    const sweep = (x0, y0, x1, y1, whole = false) => {
       const r = (this.getEraser?.()?.radius || 10) / this.cam.z, s = { ax: x0, ay: y0, bx: x1, by: y1, r };
       const doc = this.store.doc, out = [];
       let hit = false;
       for (const el of doc.elements) {
-        if ((selIds.size && !selIds.has(el.id)) || el.hidden || !this.editable(el) || !stageOk(el) || !boardOk(el) || !el.points?.length || !sweepTouches(el.points, { ...s, closed: el.closed || el.role === 'plane' })) { out.push(el); continue; }
-        const res = eraseMark(el, s);
+        if ((limited && !selIds.has(el.id)) || el.hidden || !this.editable(el) || !stageOk(el) || !boardOk(el) || !el.points?.length || !sweepTouches(el.points, { ...s, closed: el.closed || el.role === 'plane' })) { out.push(el); continue; }
+        const res = whole ? { pieces: [] } : eraseMark(el, s);   // (Shift: the whole mark goes)
         if (!res) { out.push(el); continue; }
         hit = true;
         res.pieces.forEach((pts, i) => {
           if (!i) { el.points = pts; if (el.closed && el.role !== 'plane') delete el.closed; out.push(el); return; }
           const c = structuredClone(el); c.id = newId(el.role); c.points = pts; delete c.label; out.push(c);
+          // (a mark that is cut stays whole to the eraser: its pieces are selected with it, so a stroke can go on erasing them)
+          if (this.selected.has(el.id)) { selIds.add(c.id); this.selected.add(c.id); }
         });
         if (!res.pieces.length) this.selected.delete(el.id);
       }
-      if (hit) { doc.elements = out; changed = true; this.store.derive?.(doc); this.invalidate(); }
+      if (hit) { doc.elements = out; changed = true; this.store.derive?.(doc); this.onSelect?.([...this.selected]); this.invalidate(); }
     };
     const mv = ev => {
       const [sx, sy] = this.local(ev), [x, y] = this.toWorld(sx, sy);
       this.eraserAt = [sx, sy];
       if (resume && !this.eraseHeld) { finish(); this.startStroke(ev, resume, x, y); return; }   // (E let go: drawing again from here)
-      sweep(last[0], last[1], x, y);
+      sweep(last[0], last[1], x, y, ev.shiftKey);
       last = [x, y];
       this.invalidate();
     };
@@ -1580,7 +1583,7 @@ export class CanvasView {
       this.invalidate();
     };
     const up = () => { finish(); };
-    sweep(wx, wy, wx, wy);
+    sweep(wx, wy, wx, wy, e.shiftKey);
     window.addEventListener('pointermove', mv);
     window.addEventListener('pointerup', up);
   }
