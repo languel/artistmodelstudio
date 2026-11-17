@@ -10,6 +10,7 @@ export const LESSONS = [
   { id: 'reiniger', title: 'The silhouette film', summary: 'Rebuild the method behind The Adventures of Prince Achmed: a lightbox, paper, hinges, a puppet, a set in layers, two cameras and a walk, step by step in three.js (original drawings; outside material only if clearly public domain).', languages: ['studio'] },
   { id: 'synthesis', title: 'Sound synthesis, from a sine wave to a band', summary: 'Sixteen p5.sound boards, each a small instrument: waveforms, the sine, additive, envelopes, filters, LFOs, FM, a mono synth (keys and MIDI), scales and tuning, a bass line, noise, drums, a step sequencer, Euclidean rhythm, a synth with its picture, and pad, bass and drums together.', languages: ['studio'] },
   { id: 'webaudio', title: 'Web Audio: strings, bells, samples and grains', summary: 'Part B of the synthesis series, in plain Web Audio (p5 only draws): the audio graph, automation, a look-ahead scheduler, pulsars, samples written by hand, an AudioWorklet, a plucked string, struck bars and bells, a sampler, granular synthesis on the Voyager greetings, and a piece from all of it.', languages: ['studio'] },
+  { id: 'modular', title: 'Modular: patches, sequencers and scores', summary: 'Part 2 of the synthesis series, with the studio\'s own tools: the patch (modules and cables, ported from genereti), sequencers you can see, IanniX-style scores that play it, the Arecibo message as a sequencer and as a score, Timeline automation, and a composition.', languages: ['studio'] },
   { id: 'diffusion', title: 'Diffusion models: from noise to picture', summary: 'Six diagrams (forward and reverse, the schedule, training, sampling, latent space, the score) and five p5.js simulations, with a bibliography.', languages: ['studio'] }
 ];
 
@@ -22,7 +23,7 @@ export async function buildLesson(app, id = 'sampling', { language = 'studio', e
   const baseId = id.replace(/-expl$/, '');
   const [{ buildLessonScene }, lesson] = await Promise.all([
     import('../../examples/lessons/sampling/scene.js'),
-    baseId === 'diffusion' ? import('../../examples/lessons/diffusion/lesson.js').then(m => m.LESSON) : baseId === 'threejs' ? import('../../examples/lessons/threejs/lesson.js').then(m => m.LESSON) : baseId === 'reiniger' ? import('../../examples/lessons/reiniger/lesson.js').then(m => m.LESSON) : baseId === 'synthesis' ? import('../../examples/lessons/synthesis/lesson.js').then(m => m.LESSON) : baseId === 'webaudio' ? import('../../examples/lessons/webaudio/lesson.js').then(m => m.LESSON) : null
+    baseId === 'diffusion' ? import('../../examples/lessons/diffusion/lesson.js').then(m => m.LESSON) : baseId === 'threejs' ? import('../../examples/lessons/threejs/lesson.js').then(m => m.LESSON) : baseId === 'reiniger' ? import('../../examples/lessons/reiniger/lesson.js').then(m => m.LESSON) : baseId === 'synthesis' ? import('../../examples/lessons/synthesis/lesson.js').then(m => m.LESSON) : baseId === 'webaudio' ? import('../../examples/lessons/webaudio/lesson.js').then(m => m.LESSON) : baseId === 'modular' ? import('../../examples/lessons/modular/lesson.js').then(m => m.LESSON) : null
   ]);
   return buildLessonScene(app, { language, expl: isExpl, ...(lesson ? { lesson } : {}) });
 }

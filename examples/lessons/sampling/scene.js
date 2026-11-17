@@ -11,6 +11,8 @@
  *   sources { name: { file, title, commons, animated } } (files beside the lesson's scene.js, in media/),
  *   sections [{ id, title, text, diagram, label, boards: [{ id, title, w, h, ground, idea, pseudo, code (studio) | p5 (a sketch), ... }] }],
  *   bibliography [{ title, items: [[text, url]], width }]   (default: the sampling lesson's)
+ *   setup(app, ids)   (optional) run when the scene is built: ids maps each board's lesson id to its id in the scene
+ * A board with `paused: true` starts paused (a score that should not play until asked: ▶ by its title).
  */
 import { LESSON as SAMPLING, BIBLIOGRAPHY } from './lesson.js';
 import { runScript } from '../../../src/process/script.js';
@@ -126,6 +128,7 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
   const frame = (t, x, y) => { const f = st.addBoard({ title: t, width: FW, height: FH, x, y }); st.updateBoard(f.id, { kind: 'frame' }); return f; };
   const doc = (t, x, y, text, w = NW) => { const b = st.addBoard({ title: t, width: w, height: Math.min(FH - 2 * PAD, heightFor(text, w)), x, y, ground: DARK }); st.updateBoard(b.id, { kind: 'markdown', code: text, hideLabel: true }); return b; };   // (inside a frame, which carries the title)
   // A drawing inside a frame: its title is the frame's, so it is not shown again (its play button stays). The diagrams' code opens as a bar of tabs on a page.
+  const ids = {};   // lesson board id → board id in the scene (for LESSON.setup)
   const drawing = (b, x, y, sec) => {
     let id;
     if (b.id === mainId) { id = 'main'; st.updateBoard('main', { title: b.title, width: BW, height: BH, ...(b.ground ? { ground: b.ground } : {}) }); }
@@ -133,6 +136,8 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
     st.updateBoard(id, { text: b.idea, hideLabel: true, ...(b.pseudo ? { pseudo: b.pseudo } : {}), ...(sec?.diagram ? { codeMin: true } : {}) });
     if (b.reference) app.setBoardSource(id, b.source, 1, b.fit || 'cover');
     if (b.live) app.setBoardLive(id, true);
+    if (b.paused) st.change('board paused', d => { const t = id === 'main' ? d.artboard : d.boards.find(x => x.id === id); if (t) { t.paused = true; delete t.live; } });   // (as the ▶ by its title does)
+    ids[b.id] = id;
     if (b.three) st.updateBoard(id, { kind: 'three', code: formatted.get(b) || b.three });   // a three.js sketch
     else if (b.p5) st.updateBoard(id, { kind: 'p5', code: formatted.get(b) || b.p5 });   // written as a p5 sketch (a simulation)
     else if (b.code) {
@@ -202,6 +207,7 @@ export async function buildLessonScene(app, { language = 'studio', expl = false,
     }
   });
 
+  if (LESSON.setup) { try { await LESSON.setup(app, ids); } catch (err) { app.log?.(`Lesson setup: ${err.message}`, 'error'); } }
   st.change('page intro', d => { if (d.meta) delete d.meta.intro; });
   const first = st.doc.boards.find(b => b.title === LESSON.title && b.kind === 'frame');
   app.goToBoard(first?.id || 'main', { animate: true });

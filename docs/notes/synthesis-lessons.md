@@ -56,6 +56,8 @@ Checked in the harness (`?lesson=webaudio&id=<board>`): no errors, sound out, pe
 - **Automation**: every numeric setting has the studio's ◆ keyframe diamond; lanes address `patch:<module>.<setting>` (`params.js`) and change the running sound without an undo step
 - **Agents**: `ams_patch` (get, example, add, remove, connect, disconnect, settings, set, audition); `ams_keys` knows `patch:` addresses; `ams_score` mixer accepts out `patch`
 
+**Lesson** `/lesson modular` (`examples/lessons/modular/lesson.js`, built): 1.1 a patch (the scene's patch drawn); 2.1 four sequencers (patterns as dots); 3.1 a curve and planes (IanniX, channel 1 → the lead); 3.2 a beat from planes (channel 10 → the drums); 4.1 the Arecibo message as a sequencer (coloured by part); 4.2 the message as a score (397 events, a bar sweeps the 73 rows in 36 beats, channel 2 → the strings); 5.1 automation (the lane on `patch:lead.cutoff` the setup makes); 6.1 *Arecibo, played* (slower sweep and a beat). `setup` gives the scene its patch (starter + strings + reverb, sequencers uncabled), routes channels 1, 2, 10 to the Patch, tempo 100, and the lane. The score boards start paused. Checked: the scene builds; the Arecibo score's events (a chord every 0.3 s on channel 2); scores, drums and strings reach the patch; the lane moves the cutoff; the mix peaks at 0.47.
+
 Not yet: a "notes" input from scores drawn as a cable (scores reach instruments by channel), visual patching on the canvas, piano roll, genereti's circle sequencer and pattern transforms, modulation cables (LFO → parameter), saving user presets, recording from the editor, the patch in renders (`renderAudio.js` with an OfflineAudioContext).
 
 ### Plan

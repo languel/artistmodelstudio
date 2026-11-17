@@ -432,6 +432,10 @@ export class AudioPatch {
         feedback.gain.value = Math.min(0.995, Math.max(0.01, Math.pow(0.001, 1 / (Math.max(0.05, Number(s.decay) || 1) * hz(note)))));
         damp.type = "lowpass";
         damp.frequency.value = 500 + clamp(s.damping ?? 0.5, 0, 1) * 17500;
+        // A low-pass that never boosts. For a Web Audio low-pass Q is a resonance in dB: the default (1 dB) boosts ~12% near
+        // the cutoff, which inside this feedback loop is a gain over 1, and the string grew without end instead of dying
+        // away. -3.01 dB is a Butterworth (flat, no peak). Fixed in the port.
+        damp.Q.value = -3.01;
         src.connect(excite);
         excite.connect(delay);
         delay.connect(damp);
