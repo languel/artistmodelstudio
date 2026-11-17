@@ -25,7 +25,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # (onnxruntime-node, under kokoro-js, fetches a CUDA build at install; the site never uses it, and the download can 404)
+      - run: npm ci --onnxruntime-node-install-cuda=skip
       - run: npm test
       - name: Build (served under /<repo>/)
         run: npm run build
