@@ -2,7 +2,7 @@
 
 Two lessons, each a scene of frames built by the lesson builder (`examples/lessons/sampling/scene.js`) the way the sampling (pointillism) lesson is: a cover, then one board per idea, in order, each beside its notes, pseudocode and code.
 
-- **Lesson 1 · The basics**: p5.sound (part A, built), then plain Web Audio (part B)
+- **Lesson 1 · The basics**: p5.sound (part A, built), then plain Web Audio (part B, built)
 - **Lesson 2 · Modular, with the studio's own tools**: the synth ported from genereti, a node editor, visual sequencers, IanniX scores and the Timeline, ending in a full audiovisual composition
 
 ## Lesson 1A · Synthesis with p5.sound (built: `/lesson synthesis`, `examples/lessons/synthesis/lesson.js`)
@@ -32,17 +32,18 @@ Checked: each board in `experiments/synth-harness.html?id=<board>` (un-sandboxed
 
 Public domain unless noted: Edison cylinders from 1888 (*The Lost Chord*; Arthur Sullivan's message), the Voyager Golden Record's greetings in 55 languages and "Hello from the children of planet Earth", the record, its cover and NASA's key to the cover, *Mementos of Earth*, Voyager 1 in interstellar plasma (2012–13), Voyager at Jupiter (1979), InSight hearing a meteoroid hit Mars (2021), and the Arecibo message (1974; CC0 source) as a picture and as data (`arecibo-message.json`: 73 rows of 23 bits). The Golden Record's music is not public domain and is not included. The Mediathèque archive lists only video, GIFs and images; it has no sound kind yet.
 
-## Lesson 1B · Web Audio itself, and synths beyond oscillators (not p5)
+## Lesson 1B · Web Audio: strings, bells, samples and grains (built: `/lesson webaudio`, `examples/lessons/webaudio/lesson.js`)
 
-Plain Web Audio boards (`html` kind, or a new `audio` kind):
+Plain Web Audio in p5 boards: p5 only draws, so no p5.sound is loaded and each sketch pastes into the p5 editor as it is. Recordings are read with `loadBytes('name.mp3')` (in `LOADERS`, so the studio serves the sample of that name).
 
-- The graph: `AudioContext`, nodes, `AudioParam` automation (`setValueAtTime`, `linearRampToValueAtTime`, `setTargetAtTime`): the p5.sound boards again, one layer down
-- Scheduling: look-ahead ("A tale of two clocks", Chris Wilson), the same clock the score runner uses (`src/score/runner.js`, 0.2 s ahead); the sequencers of 5.1 and 5.2 again, exactly in time
-- `AudioWorklet`: writing samples yourself
-- **Physical modelling**: Karplus–Strong string, a waveguide flute, modal (struck bar) synthesis
-- **Sampling**: `AudioBuffer`, playback rate, loops, multisamples across a keyboard (the Edison and Voyager recordings as material)
-- **Granular**: grains from a buffer, density, position, spray, pitch; a cloud drawn as dots (the 55 greetings make a good cloud)
-- **Pulsars**: a pulsar is a click at a fixed period; build them from real periods (the first pulsar, PSR B1919+21, 1.337 s; Vela, 89 ms; the Crab, 33 ms, already a low hum) and hear rhythm turn into pitch at about 20 clicks a second
+1. **The graph**: 1.1 the audio graph (oscillator → gain → analyser → speakers, live values) · 1.2 automation (step, linear, exponential, target; plan against measurement)
+2. **Time**: 2.1 two clocks (a beat booked ahead on the audio clock against one played "now" from a timer; each hit's lateness plotted) · 2.2 pulsars (B1919+21, Vela, the Crab, J1748−2446ad at their real periods, each a looped buffer one period long: rhythm into pitch)
+3. **Writing samples**: 3.1 a sound is a list of numbers (sine, additive, noise, chirp, beating written into an AudioBuffer) · 3.2 an AudioWorklet (a sawtooth by hand, bit crusher and sample-and-hold; loaded from a Blob URL, which works in the sandboxed frame)
+4. **Physical models**: 4.1 a plucked string, Karplus–Strong, six guitar strings, strum, the delay line drawn · 4.2 struck objects from their modes (bar, marimba, bell, glass, drum; where you strike decides which modes sound)
+5. **Recordings**: 5.1 a sampler on the Voyager "hello" (playback rate, polyphony, reverse) · 5.2 granular synthesis on the 55 greetings (position, size, density, spray, pitch, jitter)
+6. **Together**: 6.1 *Voyager, plucked*: Karplus–Strong strings on a Euclidean rhythm, grains drifting through the greetings, the Vela pulsar as a hi-hat, all on the look-ahead clock
+
+Checked in the harness (`?lesson=webaudio&id=<board>`): no errors, sound out, peaks under 1.0. The 4.2 mode shapes are stand-ins (sines along the bar), not a bar's true shapes. Not done: a waveguide flute; multisampling across a keyboard.
 
 ## Lesson 2 · Modular, with the studio's own tools
 
