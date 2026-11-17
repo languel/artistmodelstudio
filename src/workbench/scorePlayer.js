@@ -38,11 +38,12 @@ export class ScorePlayer {
       send: (bytes, at) => {
         const r = this.router.route(bytes);
         if (!r) return;
+        if (r.to === 'patch') { this.app.patch?.midi(r.bytes, at); return; }   // the scene's modular synth (workbench/patchPlayer.js)
         const gm = this.prefs.gm && r.to !== 'midi', midi = this.midi.connected && r.to !== 'gm';
         if (gm) this.gm.send(r.bytes, at);
         if (midi) this.midi.send(r.bytes, at);
       },
-      clear: () => { this.router.reset(); this.gm.clear(); this.midi.clear?.(); }
+      clear: () => { this.router.reset(); this.gm.clear(); this.midi.clear?.(); this.app.patch?.allNotesOff(); }
     };
     this.extra = new Set();   // other outputs (a log, in tests)
     this.errors = [];
@@ -261,7 +262,7 @@ export class ScorePlayer {
   /** The worlds to draw: the runner's while it plays, else ones built just to show where things are. */
   view() {
     if (this.runner.active) return this.runner.entries;
-    const key = `${this.key()}|${JSON.stringify({ ...this.app.player.settings, mixer: 0 })}`;
+    const key = `${this.key()}|${JSON.stringify({ ...this.app.player.settings, mixer: 0, patch: 0 })}`;
     if (this.viewKey !== key) { this.viewKey = key; this.viewEntries = hasScore(this.doc()) ? buildEntries(this.doc(), this.app.player.settings, { boardFilter: b => this.plays(b) }) : []; }
     return this.viewEntries;
   }

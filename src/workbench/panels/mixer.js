@@ -10,7 +10,7 @@ import { scaleNames } from '../../score/scale.js';
 import { stripOf, anySolo, OUTS } from '../../score/mixer.js';
 
 const ROOTS = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
-const OUT_LABEL = { auto: 'Auto', gm: 'Built-in', midi: 'MIDI', both: 'Both', off: 'Off' };
+const OUT_LABEL = { auto: 'Auto', gm: 'Built-in', midi: 'MIDI', both: 'Both', patch: 'Patch', off: 'Off' };
 
 export function mountMixer(root, app) {
   const sc = () => app.score;

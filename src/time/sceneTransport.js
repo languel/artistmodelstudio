@@ -11,10 +11,12 @@
  *   snap        the Timeline's grid: 'auto' (follows the zoom), 'off', or a time ('1 beat', '0.25 beat', '1 frame'…)
  *   quant       a time ('1 beat', '1 bar', '1 s', '0.5 beat'…) that path lengths are rounded to; '' for none
  *   mixer       the channel mixer and global scale (src/score/mixer.js)
+ *   patch       the scene's modular synth: modules, cables, sequencers (src/audio/modular/patch.js)
  *   beatUnits   artboard units in one beat: a line this long takes a beat (25: one minor cell of the default grid)
  */
 import { clampTempo, normalizeTimeSignature } from './transport.js';
 import { normalizeMixer } from '../score/mixer.js';
+import { normalizePatch, EMPTY_PATCH } from '../audio/modular/patch.js';
 
 export const RULERS = Object.freeze(['time', 'beats', 'frames']);
 export const FPS_CHOICES = Object.freeze([24, 25, 30, 50, 60]);
@@ -28,6 +30,7 @@ export const DEFAULT_TRANSPORT = Object.freeze({
   quant: '',
   snap: 'auto',
   mixer: Object.freeze(normalizeMixer(null)),
+  patch: EMPTY_PATCH,
   loop: Object.freeze({ start: 0, end: 0 }),
   range: Object.freeze({ start: 0, end: 0 })
 });
@@ -46,6 +49,7 @@ export function normalizeTransport(t) {
     snap: typeof s.snap === 'string' && s.snap.length < 24 && s.snap.trim() ? s.snap.trim() : 'auto',
     quant: typeof s.quant === 'string' && s.quant.length < 24 ? s.quant.trim() : '',
     mixer: normalizeMixer(s.mixer),
+    patch: normalizePatch(s.patch),
     loop: span(s.loop),
     range: span(s.range)
   };

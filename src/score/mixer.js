@@ -5,7 +5,7 @@
  *
  *   mixer = { channels: { '1': { program, out, vol, pan, mute, solo, transpose } … }, scale: { name, root }, transpose }
  *     program    0..127 GM instrument (null: whatever the score or the synth has)
- *     out        'auto' (every output that is on) | 'gm' | 'midi' | 'both' | 'off'
+ *     out        'auto' (every output that is on) | 'gm' | 'midi' | 'both' | 'patch' (the scene's modular synth) | 'off'
  *     vol        0..127 (CC 7; null: untouched);  pan  -1..1 (CC 10; null: untouched)
  *     mute, solo, transpose (semitones)
  *   scale      the global filter: with a name, every note snaps to that scale (root 0..11); name '' is off
@@ -14,7 +14,7 @@
  */
 import { scaleName, snap } from './scale.js';
 
-export const OUTS = Object.freeze(['auto', 'gm', 'midi', 'both', 'off']);
+export const OUTS = Object.freeze(['auto', 'gm', 'midi', 'both', 'patch', 'off']);
 const num = (v, d) => (v === null || v === '' || v === undefined || !Number.isFinite(Number(v)) ? d : Number(v));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 

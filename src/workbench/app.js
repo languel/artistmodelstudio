@@ -62,6 +62,8 @@ import { Interactions } from './interactions.js';
 import { mountHistory } from './panels/history.js';
 import { TakePlayer } from './takePlayer.js';
 import { ScorePlayer } from './scorePlayer.js';
+import { PatchPlayer } from './patchPlayer.js';
+import { mountPatch } from './panels/patch.js';
 import { ScoreOverlay } from './scoreOverlay.js';
 import { PlayTool, PLAY_KINDS } from './playTool.js';
 import { openPlayPopover } from './playPopover.js';
@@ -1522,6 +1524,7 @@ export class Workbench {
     installParams(this);
     setKeyframeHost(this);
     this.score = new ScorePlayer(this);   // plays marks with `play` on the transport
+    this.patch = new PatchPlayer(this);   // the scene's modular synth (doc.transport.patch): sequencers on the transport, score channels routed to it
     try { this.scoreView = { ...SCORE_LOOK, names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { ...SCORE_LOOK, names: false }; }
     this.scoreOverlay = new ScoreOverlay(this);   // and shows them: travelers, lit events
     this.physics = new PhysicsStudio(this);   // boards with physics on: their marks fall, roll and swing (src/physics)
@@ -1582,6 +1585,7 @@ export class Workbench {
     reg('docs', 'Docs', 'help', 'right', mountDocs);   // (a question mark, last in the row)
     reg('timeline', 'Timeline', 'film', 'bottom', mountTimeline);
     reg('mixer', 'Mixer', 'mixer', 'bottom', mountMixer);
+    reg('patch', 'Patch', 'patch', 'bottom', mountPatch);
     reg('history', 'History', 'history', 'bottom', mountHistory);
     reg('log', 'Log', 'log', 'bottom', mountLog, { allowBottom: true, openByDefault: false });
   }

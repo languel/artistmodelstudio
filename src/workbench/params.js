@@ -7,6 +7,7 @@ import { boardById, MAIN } from '../process/boards.js';
 import { opacityOf } from '../process/boards.js';
 import { resolveParams } from '../process/brushes.js';
 import { findControls } from '../process/controls.js';
+import { KINDS } from '../audio/modular/patch.js';
 
 const scopes = new Map();
 export const registerScope = (scope, fn) => scopes.set(scope, fn);
@@ -85,6 +86,12 @@ export function installParams(app) {
     const def = prop === 'z' ? 1 : 0, dof = prop === 'focus' || prop === 'blur';
     const names = { z: 'Zoom', dx: 'Shift x', dy: 'Shift y', focus: 'Focus', blur: 'Blur' };
     return { get: () => clip()?.[prop] ?? def, set: v => { const k = clip(); if (k) k[prop] = prop === 'z' ? Math.max(0.05, v) : prop === 'blur' ? Math.max(0, v) : v; }, min: prop === 'z' ? 0.05 : prop === 'blur' ? 0 : dof ? -0.9 : -10, max: prop === 'z' ? 40 : dof ? (prop === 'blur' ? 5 : 20) : 10, step: dof ? 0.05 : 0.01, label: `${c.label || 'Shot'} · ${names[prop]}` };
+  });
+  // The scene's modular synth: 'patch:<module>.<setting>' (src/audio/modular/patch.js); a lane changes the running sound.
+  registerScope('patch', (id, prop) => {
+    const pp = app.patch, m = pp?.patch().modules.find(x => x.id === id), spec = KINDS[m?.kind]?.params[prop];
+    if (!m || !spec || spec.text || spec.bool) return null;
+    return { get: () => pp.liveValue(id, prop), set: v => pp.setLive(id, prop, v), min: spec.min ?? 0, max: spec.max ?? 1, step: spec.step || (spec.max - spec.min > 50 ? 1 : 0.01), label: `${m.name || m.id} · ${prop.replace(/_/g, ' ')}`, ...(spec.options ? { options: spec.options, kind: 'select' } : {}) };
   });
   registerScope('ctl', (id, prop) => {
     const f = app.frames?.frames.get(id);

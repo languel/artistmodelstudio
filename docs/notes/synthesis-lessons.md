@@ -47,6 +47,19 @@ Checked in the harness (`?lesson=webaudio&id=<board>`): no errors, sound out, pe
 
 ## Lesson 2 · Modular, with the studio's own tools
 
+### Built (first pass)
+
+- **Engine** `src/audio/modular/engine.js`: genereti's `AudioPatch` (Synth: sine, subtractive, FM, reed; Karplus; Granular; DrumKit; DrumSynth; Gain, Filter, Delay, Reverb, Distortion, Mixer, Merge, Output). `release()` takes a time, so a score's note-off lands on the audio clock. Not ported: the analysis modules (the studio has its own). Presets `presets.js`, WAV `wav.js`
+- **The patch as data** `src/audio/modular/patch.js` (tests beside it): kinds and their settings (defaults and ranges from genereti's schemas), `normalizePatch` (unknown kinds dropped, values clamped, only allowed cables, no audio loops), `toDefs` for the engine, edits (add, remove, move, connect, disconnect, setSettings, freeSlot), and four **sequencers**: Steps (note names), Drums (rows), Euclid (rings), Bits (a grid read row by row, a 1 a note of the scale: the Arecibo message). Saved in the scene as `doc.transport.patch` (normalized with the transport; excluded from the keys that rebuild score worlds)
+- **Playing** `src/workbench/patchPlayer.js` (`app.patch`): syncs the patch into the engine on every change (nothing restarts); sequencers book their steps 0.15 s ahead on the audio clock while the Timeline plays (seeks and loops start again from the playhead); scores reach the patch when a mixer channel's out is **Patch** (`src/score/mixer.js` OUTS), playing every instrument on that channel; `audition`, `record`
+- **Node editor** `src/workbench/panels/patch.js`: the **Patch** tab beside the Mixer. Add modules, drag from an output dot to a box or an input to patch, click a cable to remove it, drag a box by its title, select it to set it (presets, sliders, text), ♪ to hear it; sequencers draw their pattern and playhead, sound cables draw their sound, the Output has a meter. "Start from…": a starter patch (melody, drums, echo, mixer) and *the Arecibo message, plucked*
+- **Automation**: every numeric setting has the studio's ◆ keyframe diamond; lanes address `patch:<module>.<setting>` (`params.js`) and change the running sound without an undo step
+- **Agents**: `ams_patch` (get, example, add, remove, connect, disconnect, settings, set, audition); `ams_keys` knows `patch:` addresses; `ams_score` mixer accepts out `patch`
+
+Not yet: a "notes" input from scores drawn as a cable (scores reach instruments by channel), visual patching on the canvas, piano roll, genereti's circle sequencer and pattern transforms, modulation cables (LFO → parameter), saving user presets, recording from the editor, the patch in renders (`renderAudio.js` with an OfflineAudioContext).
+
+### Plan
+
 The modular audio comes from genereti (`~/dev/genereti`), ported rather than rewritten:
 
 - Engine: `integrations/genereti_comfy_chop/web/modular-audio.js` (`AudioPatch`), `modular.js`, `synth-presets.js`; the Python schemas in `integrations/genereti_comfy_chop/modular.py` list every operator's settings; tests in `tests/test_modular_audio.mjs`; user docs `docs/modular-audio.md`
