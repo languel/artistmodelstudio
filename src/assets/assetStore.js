@@ -303,7 +303,9 @@ export class AssetStore {
       if (done.includes(c.id)) continue;
       try {
         const blob = await (await fetch(c.url)).blob();
-        await this.add(blob, { id: `clip:${c.id}`, title: c.title, kind: 'import', folder: c.folder || 'Test clips', tags: ['clip', ...(c.tags || ['test'])], meta: { doc: c.doc, source: c.source, license: c.license, artist: c.artist, date: c.date } });
+        const audio = fileKind({ type: blob.type, name: new URL(c.url, location.href).pathname }) === 'audio';
+        if (audio) blob.kindHint = 'audio';   // a sound: a waveform card, kept as an audio asset
+        await this.add(blob, { id: `clip:${c.id}`, title: c.title, kind: audio ? 'audio' : 'import', folder: c.folder || 'Test clips', tags: ['clip', ...(c.tags || ['test'])], meta: { doc: c.doc, source: c.source, license: c.license, artist: c.artist, date: c.date } });
         done.push(c.id);
         try { localStorage.setItem(key, JSON.stringify(done)); } catch { /* storage unavailable */ }
       } catch (err) { console.warn('Could not seed', c.id, err); }

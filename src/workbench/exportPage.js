@@ -6,6 +6,7 @@
  */
 import { collectThree, threeLoader } from '../process/threeModules.js';
 import { instrument, panelOf } from '../process/controls.js';
+import { usesP5Sound, P5_SOUND_URL } from '../process/p5code.js';
 import { controlSpecs, panelScript } from './controlsPanel.js';
 export { controlSpecs };
 
@@ -65,7 +66,7 @@ export function modulePage({ kind, title, code: source, ground, version, p5Versi
     const cdn = `https://cdn.jsdelivr.net/npm/three@${version}`;
     return `${head}\n<script type="importmap">\n{ "imports": {\n  "three": "${cdn}/build/three.module.js",\n  "three/addons/": "${cdn}/examples/jsm/"\n} }\n</script>\n</head><body>\n${shim}<script type="module">\n${code.replace(/<\/script/gi, '<\\/script').trimEnd()}\n</script>\n</body></html>\n`;
   }
-  return `${head}\n<script src="https://cdn.jsdelivr.net/npm/p5@${p5Version}/lib/p5.min.js"></script>\n</head><body>\n${shim}<script>\n${code.replace(/<\/script/gi, '<\\/script').trimEnd()}\n</script>\n</body></html>\n`;
+  return `${head}\n<script src="https://cdn.jsdelivr.net/npm/p5@${p5Version}/lib/p5.min.js"></script>${usesP5Sound(code) ? `\n<script src="${P5_SOUND_URL}"></script>` : ''}\n</head><body>\n${shim}<script>\n${code.replace(/<\/script/gi, '<\\/script').trimEnd()}\n</script>\n</body></html>\n`;
 }
 
 /**

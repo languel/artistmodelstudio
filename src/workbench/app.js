@@ -93,7 +93,7 @@ import { BoardFrames } from './boardFrames.js';
 import { boardPart, scenePart, selectionPart, importPart, isPart } from '../process/parts.js';
 import { p5ToStudio, isStudioSketch, textKind, p5Size } from '../process/convert.js';
 import { sketchFromPaste } from '../process/pasteSketch.js';
-import { toP5Code, p5SketchHtml, usesMl5 } from '../process/p5code.js';
+import { toP5Code, p5SketchHtml, usesMl5, usesP5Sound } from '../process/p5code.js';
 import { readRecently } from '../process/streams.js';
 import { mountSources } from './panels/sources.js';
 import { mountGestures } from './panels/gestures.js';
@@ -2977,7 +2977,7 @@ export class Workbench {
     else if (kind === 'p5code') {
       const r = await this.p5CodeFor(b.id);
       if (!r) { this.log(`“${b.title}” has no code of its own to export (Code → Board).`); return; }
-      const files = [{ name: 'index.html', data: p5SketchHtml(b.title, this.p5Version(), { ml5: usesMl5(r.code) }) }, { name: 'sketch.js', data: r.code }];
+      const files = [{ name: 'index.html', data: p5SketchHtml(b.title, this.p5Version(), { ml5: usesMl5(r.code), sound: usesP5Sound(r.code) }) }, { name: 'sketch.js', data: r.code }];
       for (const f of r.files) files.push({ name: f.name, data: new Uint8Array(await f.data.arrayBuffer()) });
       const zip = createZip(files);
       download(new Blob([zip], { type: 'application/zip' }), `${s}-p5-code.zip`, 'application/zip');

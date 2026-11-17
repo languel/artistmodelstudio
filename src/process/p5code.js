@@ -470,15 +470,18 @@ ${missing.length ? `\n// ${missing.map(m => (m.includes('.') ? m : `${m}()`)).jo
 
 /** An index.html for a sketch (p5 from the CDN, the latest of a major version; ml5.js when it uses pose, hands or a mask). */
 export const usesMl5 = code => /\bml5\./.test(code);
+/** p5.sound (the Tone.js-based library, works with p5 1 and 2), pinned. A sketch that names its classes or calls its functions gets it. */
+export const P5_SOUND_URL = 'https://cdn.jsdelivr.net/npm/p5.sound@0.4.1/dist/p5.sound.min.js';
+export const usesP5Sound = code => /\bp5\.(Oscillator|SinOsc|TriOsc|SawOsc|SqrOsc|Envelope|Noise|LowPass|HighPass|BandPass|Biquad|Delay|Reverb|Gain|Amplitude|FFT|Panner|PitchShifter|SoundFile|AudioIn)\b|\b(userStartAudio|loadSound)\s*\(/.test(code);
 
-export function p5SketchHtml(title, version = '2', { ml5 = false } = {}) {
+export function p5SketchHtml(title, version = '2', { ml5 = false, sound = false } = {}) {
   const v = String(version) === '1' ? '1' : '2';
   return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>${String(title).replace(/</g, '&lt;')}</title>
-  <script src="https://cdn.jsdelivr.net/npm/p5@${v}/lib/p5.min.js"></script>${ml5 ? '\n  <script src="https://cdn.jsdelivr.net/npm/ml5@1/dist/ml5.min.js"></script>' : ''}
+  <script src="https://cdn.jsdelivr.net/npm/p5@${v}/lib/p5.min.js"></script>${ml5 ? '\n  <script src="https://cdn.jsdelivr.net/npm/ml5@1/dist/ml5.min.js"></script>' : ''}${sound ? `\n  <script src="${P5_SOUND_URL}"></script>` : ''}
   <style>body { margin: 0; display: grid; place-items: center; min-height: 100vh; background: #1b1c1f; }</style>
 </head>
 <body>

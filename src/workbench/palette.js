@@ -137,11 +137,11 @@ function slashAll(app) {
       const built = await F.showFilm(app, film, { onStatus: t => app.log(t) });
       app.log(`Film “${film.title}”: ${(built.total / 1000).toFixed(0)} s on the Timeline, ${film.beats.length} beats.`);
     }).catch(err => app.log(`Film: ${err.message}`, 'error')) },
-    { name: 'lesson', args: 'sampling [p5 | expl] | sampling-expl | diffusion | threejs | reiniger', doc: 'Build a lesson as a new scene of frames: its boards from code, with Markdown notes and links (sampling: pointillism and expressionism; p5: p5.js sketches; expl: barebones p5.js sketches. diffusion: diffusion models. threejs: three.js for body and sound, with live three.js boards)', run: arg => import('./lessons.js').then(m => {
-      const isDiff = /diffusion/i.test(arg || ''), isRein = /reiniger|silhouette/i.test(arg || ''), isThree = !isRein && /three/i.test(arg || '');
+    { name: 'lesson', args: 'sampling [p5 | expl] | sampling-expl | diffusion | threejs | reiniger | synthesis', doc: 'Build a lesson as a new scene of frames: its boards from code, with Markdown notes and links (sampling: pointillism and expressionism; p5: p5.js sketches; expl: barebones p5.js sketches. diffusion: diffusion models. threejs: three.js for body and sound, with live three.js boards. synthesis: sound synthesis with p5.sound)', run: arg => import('./lessons.js').then(m => {
+      const isSynth = /synth|sound/i.test(arg || ''), isDiff = /diffusion/i.test(arg || ''), isRein = /reiniger|silhouette/i.test(arg || ''), isThree = !isRein && /three/i.test(arg || '');
       const isExpl = /expl/i.test(arg || '');
       const isP5 = /p5/i.test(arg || '') && !isExpl;
-      const id = isRein ? 'reiniger' : isThree ? 'threejs' : isDiff ? 'diffusion' : isExpl ? 'sampling-expl' : 'sampling';
+      const id = isSynth ? 'synthesis' : isRein ? 'reiniger' : isThree ? 'threejs' : isDiff ? 'diffusion' : isExpl ? 'sampling-expl' : 'sampling';
       const language = isExpl ? 'expl' : isP5 ? 'p5' : 'studio';
       return m.buildLesson(app, id, { language, expl: isExpl });
     }).then(n => { if (typeof n === 'number') app.log(`The lesson is a scene: ${n} boards.`); }).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }

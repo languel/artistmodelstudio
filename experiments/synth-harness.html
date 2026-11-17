@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- Checks a synthesis-lesson sketch outside the sandbox: runs one (?id=…), with a tap on everything that reaches the speakers. -->
+<html><head><meta charset="utf-8">
+<script>
+  window.__errors = [];
+  addEventListener('error', e => __errors.push(String(e.message)));
+  addEventListener('unhandledrejection', e => __errors.push('rejection: ' + (e.reason && e.reason.message || e.reason)));
+  // every connection to the speakers also goes to an analyser
+  const orig = AudioNode.prototype.connect;
+  AudioNode.prototype.connect = function (dest, ...rest) {
+    if (dest instanceof AudioDestinationNode) {
+      const ctx = dest.context;
+      if (!ctx.__tap) { ctx.__tap = ctx.createAnalyser(); ctx.__tap.fftSize = 2048; window.__ctx = ctx; }
+      orig.call(this, ctx.__tap);
+    }
+    return orig.call(this, dest, ...rest);
+  };
+  window.__level = () => { const t = window.__ctx?.__tap; if (!t) return null; const a = new Float32Array(t.fftSize); t.getFloatTimeDomainData(a); let p = 0; for (const v of a) p = Math.max(p, Math.abs(v)); return +p.toFixed(3); };
+</script>
+<script src="/node_modules/p5/lib/p5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5.sound@0.4.1/dist/p5.sound.min.js"></script>
+<script>{ const f = p5.prototype.loadSound; p5.prototype.loadSound = function (p, ...r) { return f.call(this, /^[\w.-]+\.mp3$/.test(p) ? "/examples/media/" + p : p, ...r) } }</script>
+<style>body{margin:0;background:#000}</style>
+</head><body>
+<script type="module">
+  const { LESSON } = await import('/examples/lessons/synthesis/lesson.js');
+  const id = new URLSearchParams(location.search).get('id');
+  const b = LESSON.sections.flatMap(s => s.boards).find(b => b.id === id);
+  const s = document.createElement('script'); s.textContent = b.p5; document.body.append(s);
+  new p5();   // global mode, after the sketch's functions exist
+</script>
+</body></html>

@@ -20,6 +20,7 @@ import { boardsOf, boardKind, boardById, findBoard, MAIN, opacityOf, blendOf, cs
 import { renderMarkdown, esc } from '../process/markdown.js';
 import { renderToCanvas } from '../process/render.js';
 import { collectThree, threeLoader } from '../process/threeModules.js';
+import { usesP5Sound, P5_SOUND_URL } from '../process/p5code.js';
 import { instrument, liveValues, rewriteControl, panelOf } from '../process/controls.js';
 import { mountPanel, controlSpecs } from './controlsPanel.js';
 import { createCodeEditor } from './codeEditor.js';
@@ -68,7 +69,7 @@ async function renderMermaid(nodes, dark) {
  * studio's sources: the name before the extension is the source. So the code a student copies
  * into the p5 editor (and uploads the picture beside) runs here unchanged.
  */
-const LOADERS = ['loadImage', 'createVideo', 'createAudio', 'loadJSON', 'loadStrings', 'loadTable', 'loadBytes', 'loadFont', 'loadModel', 'loadXML'];
+const LOADERS = ['loadImage', 'createVideo', 'createAudio', 'loadSound', 'loadJSON', 'loadStrings', 'loadTable', 'loadBytes', 'loadFont', 'loadModel', 'loadXML'];
 export const filesOf = (code, kind = 'p5') => [...new Set([
   ...String(code || '').matchAll(new RegExp(`(?:${LOADERS.join('|')})\\(\\s*["'\`]([^"'\`]+)["'\`]`, 'g')),
   // three.js: loader.load('x.jpg') and loader.loadAsync('x.jpg') (TextureLoader, ImageLoader) read a picture by name too
@@ -223,7 +224,7 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   const body = kind === 'three'
     ? `${scaffold}<script>${bridge}</script><script>window.__amsFiles = ${JSON.stringify(files).replace(/</g, '\\u003c')};</script><script type="application/json" id="three-modules">${JSON.stringify(threeMods?.modules || {}).replace(/</g, '\\u003c')}</script><script type="module">${threeLoader(token)}</script>`
     : kind === 'p5'
-    ? `<script>${bridge}</script><script>${p5Source.replace(/<\/script/gi, '<\\/script')}</script><script>${fileLoader(files)}</script>${/\bml5\./.test(code) ? '<script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/ml5@1/dist/ml5.min.js"></script>' : ''}<script>${code.replace(/<\/script/gi, '<\\/script')}</script>`
+    ? `<script>${bridge}</script><script>${p5Source.replace(/<\/script/gi, '<\\/script')}</script>${usesP5Sound(code) ? `<script crossorigin="anonymous" src="${P5_SOUND_URL}"></script>` : ''}<script>${fileLoader(files)}</script>${/\bml5\./.test(code) ? '<script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/ml5@1/dist/ml5.min.js"></script>' : ''}<script>${code.replace(/<\/script/gi, '<\\/script')}</script>`
     : `<script>${bridge}</script>${code}`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>${style}</style></head><body>${body}</body></html>`;
 }
@@ -446,6 +447,7 @@ export class BoardFrames {
       const iframe = document.createElement('iframe');
       iframe.setAttribute('sandbox', 'allow-scripts');
       iframe.setAttribute('credentialless', '');
+      iframe.setAttribute('allow', 'autoplay; midi; microphone');   // sound starts on a click inside; a sketch may read a MIDI keyboard or listen to the microphone
       iframe.title = b.title;
       f.perf = Boolean(this.app.perfWanted?.(b));
       iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods, this.seeds.get(b.id) ?? null, f.vals, f.scaleSent = this.pixelRatioFor(), Boolean(this.renderMode));
