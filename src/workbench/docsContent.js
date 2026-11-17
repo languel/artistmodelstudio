@@ -461,7 +461,24 @@ The **built-in sound** is General MIDI (TinySynth: no hardware needed); **Settin
 
 Exercises: *Score: a line, a traveler, planes that sound*, and *Score: a gas that plays*. Design notes: docs/notes/paths-travelers-events.md.
 
-**Mixer and scale.** The **Mixer** tab (beside the Timeline) has the sixteen MIDI channels: choose each one's instrument (General MIDI), where it is heard (built-in sound, a MIDI port, both, or off), volume, pan, transpose, and mute or solo it. The **Scale** at the top holds every note to a scale (Off: notes play as written), so a score that wanders across the whole keyboard becomes tonal while its code stays the same. The mixer is saved with the scene.
+**Mixer and scale.** The **Mixer** tab (beside the Timeline) has the sixteen MIDI channels: choose each one's instrument (General MIDI), where it is heard (built-in sound, a MIDI port, both, the scene's Patch, or off), volume, pan, transpose, and mute or solo it. The **Scale** at the top holds every note to a scale (Off: notes play as written), so a score that wanders across the whole keyboard becomes tonal while its code stays the same. The mixer is saved with the scene.
+`)),
+    T('score-patch', 'Scores', 'The patch (a modular synth)', 'Modules and cables: instruments, effects, sequencers; scores and the Timeline play it.', () => prose(`
+The **Patch** tab (beside the Timeline and the Mixer) is the scene's own modular synth, after genereti and BespokeSynth: **modules** joined by **cables**, saved with the scene.
+
+- **Instruments** make sound when a note reaches them: **Synth** (sine, subtractive, FM, reed; envelope, filter, glide, vibrato), **Karplus** (a plucked string), **Granular**, **DrumKit**, **DrumSynth** (eight voices on the General MIDI drum notes).
+- **Effects** change it: Gain, Filter, Delay, Reverb, Distortion, Mixer, Merge; the **Output** is the speakers (with a meter).
+- **Sequencers** play notes while the Timeline plays, on its tempo and loop: **Steps** (\`C3 - Eb3 G3\`), **Drums** (\`kick 36 x...x...\`), **Euclid** (\`16 4 0 36\`: steps, hits, rotation, note), **Bits** (rows of 0 and 1, a 1 a note of the scale by its column; the Arecibo message is one).
+
+**Patching.** Add a module from the menu. Drag from the dot on the right of a box (orange: sound; gold: notes) onto another box, or onto one of its inputs, to make a cable; click a cable to take it out. Drag a box by its title. Select it to set it: presets, sliders (double-click: the default), text for patterns; ♪ plays a note on it. Sequencers draw their pattern and where they are; cables carrying sound show it.
+
+**Scores play it by channel.** In the Mixer set a channel's out to **Patch**: a score's notes on that channel play every instrument whose *channel* setting is the same (DrumKit and DrumSynth are on 10).
+
+**Automation.** Every number has a ◆: key it, and a lane moves it on the Timeline (\`patch:<module>.<setting>\`), or right-click for *Follow the sound*. Lanes change the running sound and leave the patch as it is.
+
+**Renders.** A film's sound includes the patch: its sequencers, the scores sent to it and its lanes, rendered offline with the picture.
+
+Start from *Start from…*: a starter (a melody, a beat, an echo, a mixer) or *the Arecibo message, plucked*. The lesson **Modular** (\`/lesson modular\`) goes through it all. Agents: \`ams_patch\`.
 `)),
     T('score-nodes', 'Scores', 'Nodes on paths (Midinous)', 'Notes, controllers, logic gates, LEDs, counters, switches, terminators and anchors that travelers reach on paths.', () => prose(`
 A **node** is a point that a traveler reaches on a path, after Midinous: it does what its kind does and sends the signal on down the paths that leave it. A line with nodes along it is a chain; a path drawn from one node to another is an **edge**, and it follows its nodes when you move them.

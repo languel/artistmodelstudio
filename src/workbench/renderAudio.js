@@ -46,9 +46,11 @@ export async function mixTake(app, take, range, { onStatus = null } = {}) {
   const urls = new Map();
   const assetUrl = id => urls.get(id);
   // Media clips kept as a copy in Assets have no address: make one from the blob.
-  for (const c of flatClips(take)) if (c.track === 'media' && c.asset && !c.url && c.volume > 0) { try { const a = await app.assetStore.get(c.asset); if (a?.blob) urls.set(c.asset, URL.createObjectURL(a.blob)); } catch { /* no sound from it */ } }
-  const plan = soundPlan(take, range, assetUrl);
-  if (!plan.length) { for (const u of urls.values()) URL.revokeObjectURL(u); return null; }
+  for (const c of take ? flatClips(take) : []) if (c.track === 'media' && c.asset && !c.url && c.volume > 0) { try { const a = await app.assetStore.get(c.asset); if (a?.blob) urls.set(c.asset, URL.createObjectURL(a.blob)); } catch { /* no sound from it */ } }
+  const plan = take ? soundPlan(take, range, assetUrl) : [];   // (a scene with no take may still sound: its patch)
+  const { renderPatch, patchSounds } = await import('./renderPatch.js');   // (the scene's modular synth: sequencers, scores sent to it, its lanes)
+  const withPatch = patchSounds(app.player.settings.patch);
+  if (!plan.length && !withPatch) { for (const u of urls.values()) URL.revokeObjectURL(u); return null; }
   const length = Math.ceil((range[1] - range[0]) / 1000 * SAMPLE_RATE), ctx = new OfflineAudioContext(2, Math.max(1, length), SAMPLE_RATE);
   const cache = new Map();
   let used = 0;
@@ -71,6 +73,7 @@ export async function mixTake(app, take, range, { onStatus = null } = {}) {
     } catch (err) { onStatus?.(`No sound from one clip: ${err.message}`); }
   }
   for (const u of urls.values()) URL.revokeObjectURL(u);
+  if (withPatch) { try { onStatus?.('Playing the patch…'); used += await renderPatch(app, ctx, range, take); } catch (err) { onStatus?.(`No sound from the patch: ${err.message}`); } }
   if (!used) return null;
   const done = await ctx.startRendering();
   return { channels: [done.getChannelData(0), done.getChannelData(1)], sampleRate: SAMPLE_RATE };
