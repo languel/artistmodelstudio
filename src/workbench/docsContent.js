@@ -248,8 +248,8 @@ A **lesson** is a scene of 16:9 **frames** (slides). Each frame holds boards: a 
 - **Built from data.** \`examples/lessons/<name>/lesson.js\` is sections of boards (\`code\` or \`p5\`, \`idea\`, \`pseudo\`) and a bibliography; one builder (\`buildLessonScene\`) makes the scene. \`/lesson <name>\` in the palette builds it.
 - **Code view.** On an exported page each board's code is one box with tabs (Pseudocode, Studio, p5.js); a click opens a tab, a click on the open tab minimizes it to the bar. A board's **Code** switch (Properties → Board) starts it minimized; the diagrams of a lesson do.
 - **Pages and files.** Export → Page makes the lesson one HTML file whose sketches run; Export → Scene (JSON) writes it as an \`.ams.json\` to import again. Sources the scene reads (pictures, clips) are added by name first.`),
-      prose('The lessons in this app, each with a guided tour (Getting started → Walkthroughs):'),
-      ...[['lesson-sampling', 'Pointillism and Expressionism, by sampling'], ['lesson-diffusion', 'Diffusion models: from noise to picture'], ['lesson-threejs', 'Three.js for body and sound'], ['lesson-painterly', 'Painterly, fading strokes (Klee)'], ['lesson-line-walk', 'Taking a line for a walk']]
+      prose('The lessons in this app (most with a guided tour: Getting started → Walkthroughs):'),
+      ...[['lesson-sampling', 'Pointillism and Expressionism, by sampling'], ['lesson-diffusion', 'Diffusion models: from noise to picture'], ['lesson-threejs', 'Three.js for body and sound'], ['lesson-synthesis', 'Sound synthesis (p5.sound)'], ['lesson-webaudio', 'Web Audio: strings, bells, samples and grains'], ['lesson-modular', 'Modular: patches, sequencers and scores'], ['lesson-painterly', 'Painterly, fading strokes (Klee)'], ['lesson-line-walk', 'Taking a line for a walk']]
         .map(([id, t]) => h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, t)), h('button', { class: 'wb-btn', onclick: () => app.openDocs(id) }, 'Read'))))),
 
     T('lesson-sampling', 'Lessons', 'Pointillism and Expressionism, by sampling', 'Seurat, Munch and Muybridge as sources: sample a picture, decide what to draw there.', () => h('div', {},
@@ -282,6 +282,24 @@ A diffusion model is trained to undo a simple process: adding noise to a picture
 
 The networks are replaced by the ideal denoiser, a formula for these toy data. A trained network only approximates it, and the difference is where real models go wrong. The bibliography (two frames, ids checked) runs from Sohl-Dickstein 2015 and score matching through DDPM, DDIM, the SDE view, latent diffusion, guidance and transformers. **Flow matching is the next lecture.**`),
       lessonButtons(app, 'diffusion', { tour: 'lesson-diffusion' }))),
+
+    T('lesson-synthesis', 'Lessons', 'Sound synthesis (p5.sound)', 'Part 1A of the synthesis series: eighteen boards from a sine wave to pad, bass and drums, with listening.', () => h('div', {},
+      prose(`
+Eighteen p5.js boards, each a small instrument you can read and play, one idea at a time: **waves** (four waveforms, the sine, additive synthesis), **shaping** (envelopes, filters, LFOs, FM), **notes** (a mono synth on the computer keys or a MIDI keyboard, scales and tuning with beating, a bass line), **noise and drums**, **sequencing and rhythm** (a step sequencer, Euclidean rhythms and swing), **listening** (spectrum, spectrogram, onsets; the microphone, a dropped file, or public-domain recordings from 1888 to Voyager), and **together** (a synth and its pointillist picture; pad, bass and drums). Sliders in the code change the sound as it plays. Every sketch pastes into the p5 editor with p5.sound.
+`),
+      lessonButtons(app, 'synthesis'))),
+
+    T('lesson-webaudio', 'Lessons', 'Web Audio: strings, bells, samples and grains', 'Part 1B: the engine under p5.sound, exact time, physical models, sampling and granular synthesis.', () => h('div', {},
+      prose(`
+Eleven boards in plain Web Audio (p5 only draws): the **graph** and **automation**; **time** (a look-ahead scheduler against a timer, with each hit's lateness drawn; pulsars at their real periods, rhythm turning into pitch); **writing samples** (an AudioBuffer by formula; an AudioWorklet bit crusher); **physical models** (a Karplus–Strong guitar; bars, bells, glass and drums from their modes); **recordings** (a sampler; granular synthesis on the Voyager greetings); and *Voyager, plucked*, a piece from all of it.
+`),
+      lessonButtons(app, 'webaudio'))),
+
+    T('lesson-modular', 'Lessons', 'Modular: patches, sequencers and scores', 'Part 2: the studio\'s own synth, sequencers you can see, IanniX-style scores, the Arecibo message, the Timeline.', () => h('div', {},
+      prose(`
+The **Patch** tab with its modules and cables (ported from genereti), four sequencers you can see, scores in the manner of IanniX that play the patch by channel, the **Arecibo message** as a sequencer and as a score (397 events and a sweeping bar), automation on the Timeline, and a composition. Building the scene also gives it a patch, routes the score channels to it and adds a lane. The score boards start paused: ▶ by a board's title, then Play.
+`),
+      lessonButtons(app, 'modular'))),
 
     T('lesson-threejs', 'Lessons', 'Three.js for body and sound', 'A board that runs a three.js sketch, and a ten-lesson course (its own repository) from a spinning cube to body tracking, a laser harp, costumes and paint marks.', () => h('div', {},
       prose(`
