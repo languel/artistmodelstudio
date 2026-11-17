@@ -26,12 +26,332 @@ const onButton = () => dist(mouseX, mouseY, 44, 44) < 24`;
 
 export const LESSON = {
   title: 'Sound synthesis, from a sine wave to a band',
-  subtitle: 'Waves, envelopes, filters, LFOs, FM, noise, drums, scales, sequencers, rhythm and listening, in p5.sound. Each board is a small instrument you can read.',
+  subtitle: 'What sound is (pressure, loudspeakers, the voice, the ear), then waves, envelopes, filters, LFOs, FM, noise, drums, scales, sequencers, rhythm and listening, in p5.sound. Each board is a small instrument you can read.',
   idea: 'Every sound a synthesizer makes is a few simple waves, shaped over time and filtered, then played in time. Build each part once, by itself, and a band is only the parts together.',
-  main: 'waveforms',
+  main: 'pressure',
   codePanel: true,
   sources: {},
   sections: [
+    {
+      id: 'sound',
+      title: 'What sound is',
+      label: 'Sound',
+      text: 'Before any synthesizer: what is a sound? Something moves (a loudspeaker\'s cone, a string, the folds in your throat) and pushes the air beside it. The air is squeezed, pushes the air next to it, which pushes the next: a **wave of pressure** travels away at about 343 metres a second, while each bit of air only rocks back and forth where it is. A **microphone** and a **loudspeaker** are the same machine run in opposite directions: a membrane and a coil in a magnet. So are we: the **voice** is a membrane (the vocal folds) driven by air from the lungs, and the **ear** is a membrane (the eardrum) whose movement three tiny bones carry into the cochlea, where thousands of hair cells sort it by pitch. Four boards to play with, before we draw a single wave.',
+      boards: [
+        { id: 'pressure', title: '0.1 · Sound is pressure', w: 800, h: 600, ground: '#141414',
+          idea: 'The loudspeaker on the left pushes and pulls; every dot is a grain of air. Watch the dots bunch up (**compression**: more pressure) and spread out (**rarefaction**: less) as the push travels to the right. The three red grains show the secret: each one only rocks back and forth around the same place; it is the push that travels, not the air. The gold curve below is the pressure along the room, the shape every later board draws as "a wave". Drag the cone with the mouse to push the air yourself: a single push, a slow one, a sharp one. It is slowed down about a hundred times so we can see it; ▶ plays it at the speed you would hear (pushes × 100 Hz). The distance from one squeeze to the next is the **wavelength**: speed ÷ frequency (for 150 Hz in air, 2.3 metres).',
+          pseudo: `cone position $c(t)$: pushes and pulls
+a grain resting at $x$ is moved by $c(t - x / v)$    # the push arrives later farther away
+pressure $p(x) \\propto -\\,\\partial(\\text{displacement}) / \\partial x$    # squeezed where grains crowd
+wavelength $\\lambda = v / f$`,
+          p5: `// 0.1 Sound is pressure. The cone pushes the air; each grain only rocks in place, but the push travels. Drag the cone; ▶ to hear it.
+const pushes = 1.5 /* 0.3..5 */
+const strength = 0.7 /* 0..1 */
+const SPEED = 140                              // how fast the push crosses the board, pixels a second (in air: 343 m/s)
+const AMP = 20, X0 = 120
+let grains = [], hist = [], acc = 0, t = 0, osc, on = false
+
+function setup() {
+  createCanvas(800, 600)
+  randomSeed(3)
+  for (let i = 0; i < 2600; i++) grains.push({ x: random(X0 + 10, 790), y: random(70, 330) })
+  for (const x of [270, 450, 630]) grains.push({ x, y: 200, tag: true })
+  osc = new p5.Oscillator(150, 'sine')
+  osc.node.context.lookAhead = 0              // play now: p5.sound (Tone.js) waits 0.1 s by default
+  osc.amp(0)
+}
+
+function mousePressed() { if (onButton()) { userStartAudio(); if (!osc.started) osc.start(); on = !on } }
+
+// where the cone was, a while ago: one sample every 1/60 s, newest first
+const past = seconds => hist[Math.round(seconds * 60)] ?? 0
+const moved = x => AMP * past((x - X0) / SPEED) * (1 - 0.25 * (x - X0) / 680)   // (a little weaker far away)
+
+function draw() {
+  background(20)
+  const hand = mouseIsPressed && mouseX < X0 + 20 && mouseY > 60 && mouseY < 340 && !onButton()
+  const c = hand ? constrain(map(mouseX, 40, X0, -1, 1), -1, 1) : strength * Math.sin(TWO_PI * pushes * t)
+  t += deltaTime / 1000; acc += deltaTime / 1000
+  while (acc >= 1 / 60) { hist.unshift(c); acc -= 1 / 60 }
+  if (hist.length > 600) hist.length = 600
+  osc.freq(pushes * 100, 0.05)
+  osc.amp(on && !hand ? 0.35 * strength : 0, 0.05)
+
+  // the loudspeaker: a magnet and a cone
+  const cx = X0 - 10 + AMP * c
+  noStroke(); fill(70); rect(30, 160, 40, 80, 4)
+  fill(150); quad(70, 185, cx, 75, cx, 325, 70, 215)
+  fill(hand ? '#f2c14e' : 200); rect(cx - 3, 75, 6, 250, 3)
+  // the air
+  for (const g of grains) {
+    const x = g.x + moved(g.x)
+    if (g.tag) { stroke(120); strokeWeight(1); line(g.x, g.y - 14, g.x, g.y + 14); noStroke(); fill('#c8664f'); circle(x, g.y, 10) }
+    else { noStroke(); fill(205); circle(x, g.y, 2.4) }
+  }
+  // pressure along the room
+  const y0 = 470
+  stroke(60); strokeWeight(1); line(X0, y0, 790, y0)
+  noStroke(); fill('#f2c14e')
+  for (let x = X0 + 6; x < 790; x += 4) circle(x, y0 - 3.2 * (moved(x - 3) - moved(x + 3)) * 2, 3.5)
+  fill(140); textSize(12); textAlign(LEFT)
+  text('more pressure (squeezed)', X0 + 4, y0 - 70); text('less (stretched)', X0 + 4, y0 + 80)
+  text('pressure along the room', X0 + 4, 580)
+  fill(235); textSize(16)
+  text(hand ? 'you are pushing the air' : pushes + ' pushes a second, slowed down: heard as ' + Math.round(pushes * 100) + ' Hz', 90, 50)
+  fill(140); textSize(12)
+  text('one wavelength here: ' + Math.round(SPEED / pushes) + ' px · drag the cone (left) to push by hand · red grains: they only rock in place', 90, 368)
+  playButton(on)
+}
+
+${BUTTON}` },
+
+        { id: 'transducers', title: '0.2 · Loudspeaker and microphone', w: 800, h: 600, ground: '#141414',
+          idea: 'Two machines, one idea: a light membrane joined to a coil of wire that sits around a magnet. **Loudspeaker** (left): a changing current in the coil makes it a changing magnet, the magnet pushes and pulls it, the cone moves, the air moves. **Microphone** (right): the air moves the diaphragm, the coil moves through the magnet\'s field, and that makes a current: the same signal, back as electricity. (This is a dynamic microphone; plug a dynamic mic into a speaker output and it works, weakly, as a speaker.) Choose **tone** and click ▶ to send a tone in; choose **voice** and click to let the microphone of your computer drive the left side: talk or sing, and watch your voice cross the room. The traces are the signal in and the signal out, the same shape, a moment later.',
+          pseudo: `loudspeaker: current $\\to$ coil in a magnet $\\to$ force $\\to$ cone $\\to$ air
+microphone: air $\\to$ diaphragm $\\to$ coil moves in the magnet $\\to$ current
+out$(t) \\approx$ in$(t - d / v)$    # the same signal, later`,
+          p5: `// 0.2 Loudspeaker and microphone: one machine, both ways. ▶ sends a tone; input voice lets your microphone drive it.
+const input = 'tone' /* tone|voice */
+const pushes = 2 /* 0.5..6 */
+const SPEED = 150, AMP = 12, SX = 230, MX = 590
+let hist = [], acc = 0, t = 0, osc, mic, meter, level = 0, on = false, ins = [], outs = []
+
+function setup() {
+  createCanvas(800, 600)
+  osc = new p5.Oscillator(220, 'sine')
+  osc.node.context.lookAhead = 0              // play now: p5.sound (Tone.js) waits 0.1 s by default
+  osc.amp(0)
+  mic = new p5.AudioIn(); mic.disconnect()    // the microphone never goes to the speakers (feedback)
+  meter = new p5.Amplitude(0.85); mic.connect(meter)
+}
+
+function mousePressed() {
+  userStartAudio()
+  if (input === 'voice') { if (!mic.started) mic.start(); return }
+  if (onButton()) { if (!osc.started) osc.start(); on = !on }
+}
+
+const past = s => hist[Math.round(s * 60)] ?? 0
+
+function machine(x, d, flip, label) {          // a magnet, a coil, a membrane (flip: facing left)
+  const k = flip ? -1 : 1, m = x + k * 0 + AMP * d
+  noStroke(); fill(70); rect(flip ? x + 30 : x - 70, 160, 40, 80, 4)                     // magnet
+  fill(110); textSize(11); textAlign(CENTER); text('N', flip ? x + 50 : x - 50, 186); text('S', flip ? x + 50 : x - 50, 228)
+  stroke('#c8664f'); strokeWeight(3)                                                  // the coil, on the membrane
+  for (let i = 0; i < 6; i++) line(m - k * 22, 172 + i * 11, m - k * 10, 177 + i * 11)
+  noStroke(); fill(150)
+  quad(m - k * 10, 185, m, 90, m, 310, m - k * 10, 215)                                // cone or diaphragm
+  fill(220); rect(m - 2, 90, 4, 220, 2)
+  stroke(90); strokeWeight(1.5); noFill()                                              // wires
+  line(flip ? x + 70 : x - 70, 200, flip ? x + 110 : x - 110, 200)
+  noStroke(); fill(170); textSize(14); text(label, x - k * 10, 345)
+}
+
+function trace(list, x0, y0, c) {
+  noStroke(); fill(c)
+  list.forEach((v, i) => circle(x0 + i * 1.5, y0 - 40 * v, 3))
+}
+
+function draw() {
+  background(20)
+  if (input === 'voice') level = meter.getLevel()
+  const d = input === 'voice' ? constrain(level * 9, 0, 1) * Math.sin(TWO_PI * 3 * t) : (on ? 0.9 : 0) * Math.sin(TWO_PI * pushes * t)
+  t += deltaTime / 1000; acc += deltaTime / 1000
+  while (acc >= 1 / 60) { hist.unshift(d); acc -= 1 / 60 }
+  if (hist.length > 400) hist.length = 400
+  osc.amp(on && input === 'tone' ? 0.3 : 0, 0.05)
+  const heard = past((MX - SX) / SPEED)
+
+  machine(SX, d, false, 'loudspeaker')
+  machine(MX, heard, true, 'microphone')
+  // the air between, as grains
+  randomSeed(5); noStroke(); fill(200)
+  for (let i = 0; i < 900; i++) { const x = random(SX + 20, MX - 20), y = random(100, 300); circle(x + AMP * past((x - SX) / SPEED), y, 2.2) }
+  // the signals, in and out
+  ins.unshift(d); outs.unshift(heard); if (ins.length > 140) { ins.pop(); outs.pop() }
+  trace(ins, 30, 470, '#f2c14e'); trace(outs, 560, 470, '#5b7fd1')
+  fill(150); textSize(12); textAlign(LEFT)
+  text('current in (the signal)', 30, 540); text('current out', 560, 540)
+  text('current → coil in a magnet → cone → air', 30, 380); textAlign(RIGHT); text('air → diaphragm → coil in a magnet → current', 770, 380)
+  textAlign(LEFT); fill(235); textSize(16)
+  text(input === 'voice' ? (mic.started ? 'your voice drives the loudspeaker' : 'click to let the microphone listen') : 'a tone: ▶ to send it', 90, 50)
+  if (input === 'tone') playButton(on)
+}
+
+${BUTTON}` },
+
+        { id: 'voice', title: '0.3 · The voice', w: 800, h: 600, ground: '#141414',
+          idea: 'Air from the lungs pushes up through the **vocal folds**, two small membranes in the larynx; they blow open, snap shut, open again, a hundred or more times a second, and chop the air into a **buzz** with many harmonics (its pitch is how fast they flap). Above them the throat and mouth, the **vocal tract**, is a tube that rings at a few frequencies, the **formants**, and those harmonics are loud while the others fade. Move your tongue and lips and the formants move: that is a vowel. Hold the mouse on the chart (right) to sing; drag to change the vowel: left-right is the second formant (tongue forward or back), up-down the first (mouth closed or open). The dots under the throat are the buzz\'s harmonics; their heights are the tract\'s filter. This is the source–filter model, and the next lessons build every sound the same way: a source, then a filter.',
+          pseudo: `source: the folds buzz at $f_0$ $\\to$ harmonics $f_0, 2f_0, 3f_0, \\ldots$
+filter: the tract resonates at $F_1, F_2, F_3$ (the formants)
+vowel = which harmonics the formants let through
+synth: sawtooth($f_0$) $\\to$ band-pass($F_1$) + band-pass($F_2$) + band-pass($F_3$)`,
+          p5: `// 0.3 The voice: folds buzz (the source), the throat and mouth ring at formants (the filter). Hold and drag on the vowel chart to sing.
+const pitch = 120 /* 70..320 */
+const VOWELS = [['i', 'heed', 270, 2290], ['e', 'head', 530, 1840], ['a', 'hot', 730, 1090], ['o', 'law', 570, 840], ['u', 'who', 300, 870]]   // F1, F2 in Hz (adult averages, after Peterson & Barney 1952)
+const PX = 440, PY = 80, PW = 340, PH = 300   // the chart
+const toX = f2 => PX + PW * (2500 - f2) / 1800, toY = f1 => PY + PH * (f1 - 220) / 680
+const fromX = x => 2500 - (x - PX) / PW * 1800, fromY = y => 220 + (y - PY) / PH * 680
+let src, bands = [], f1 = 730, f2 = 1090, singing = false, t = 0
+// a cubic curve as vertices (works the same in p5 1 and 2)
+const cubic = (x0, y0, x1, y1, x2, y2, x3, y3) => { for (let i = 1; i <= 16; i++) { const u = i / 16, v = 1 - u; vertex(v * v * v * x0 + 3 * v * v * u * x1 + 3 * v * u * u * x2 + u * u * u * x3, v * v * v * y0 + 3 * v * v * u * y1 + 3 * v * u * u * y2 + u * u * u * y3) } }
+
+function setup() {
+  createCanvas(800, 600)
+  src = new p5.Oscillator(pitch, 'sawtooth')  // the buzz of the folds
+  src.node.context.lookAhead = 0              // play now: p5.sound (Tone.js) waits 0.1 s by default
+  src.disconnect(); src.amp(0)
+  for (const q of [7, 9, 11]) { const b = new p5.Biquad(1000, 'bandpass'); b.res(q); src.connect(b); bands.push(b) }   // three formants, side by side
+}
+
+const inChart = () => mouseX > PX && mouseX < PX + PW && mouseY > PY && mouseY < PY + PH
+function mousePressed() { if (!inChart()) return; userStartAudio(); if (!src.started) src.start(); singing = true; follow() }
+function mouseDragged() { if (singing) follow() }
+function mouseReleased() { singing = false }
+function follow() { f2 = constrain(fromX(mouseX), 700, 2500); f1 = constrain(fromY(mouseY), 220, 900) }
+
+// how loud the tract lets a frequency through: three resonances
+const gainAt = f => [[f1, 90], [f2, 120], [2600, 160]].reduce((s, [F, B]) => s + 1 / (1 + ((f - F) / B) ** 2), 0)
+
+function draw() {
+  background(20)
+  t += deltaTime / 1000
+  src.freq(pitch, 0.03)
+  src.amp(singing ? 0.5 : 0, 0.06)
+  bands[0].freq(f1); bands[1].freq(f2); bands[2].freq(2600)
+
+  // the tract: a bent tube from the folds up to the lips
+  stroke(90); strokeWeight(2); noFill()
+  const open = map(f1, 220, 900, 10, 40), front = map(f2, 700, 2500, 0, 1)
+  beginShape(); vertex(110, 380); vertex(110, 180); cubic(110, 180, 110, 110, 160, 90, 230, 95); vertex(330, 105 - open / 2); endShape()
+  beginShape(); vertex(150, 380); vertex(150, 200); cubic(150, 200, 150, 160, 180, 150, 230, 150 - front * 25); vertex(330, 115 + open / 2); endShape()
+  noStroke(); fill('#c8664f'); ellipse(230 + front * 30, 150 - front * 20, 60, 22)        // the tongue
+  // the folds: open and shut (slowed down to be seen)
+  const gap = singing ? 6 * Math.abs(Math.sin(TWO_PI * 4 * t)) : 0
+  fill(singing ? '#f2c14e' : 140); rect(111, 360, 19 - gap, 8, 3); rect(130 + gap, 360, 19 - gap, 8, 3)
+  fill(140); textSize(12); textAlign(LEFT)
+  text('vocal folds', 160, 368); text('tongue', 250 + front * 30, 135 - front * 20); text('lips', 336, 110); text('lungs: air ↑', 100, 400)
+  // the harmonics and the tract's filter
+  const base = 560
+  for (let k = 1; k * pitch < 4000; k++) {
+    const f = k * pitch, x = 40 + 360 * f / 4000, h = 120 * Math.min(1, gainAt(f)) / Math.sqrt(k) * 1.6
+    stroke(singing ? '#f2c14e' : 90); strokeWeight(2); line(x, base, x, base - h)
+  }
+  noFill(); stroke('#5b7fd1'); strokeWeight(1.5); beginShape()
+  for (let f = 50; f < 4000; f += 25) vertex(40 + 360 * f / 4000, base - 70 * Math.min(1.4, gainAt(f)))
+  endShape()
+  noStroke(); fill(140); textSize(11)
+  for (const f of [0, 1000, 2000, 3000, 4000]) text(f + ' Hz', 40 + 360 * f / 4000 - 10, base + 16)
+  // the chart of vowels
+  stroke(60); strokeWeight(1); noFill(); rect(PX, PY, PW, PH, 6)
+  noStroke()
+  for (const [v, w, F1, F2] of VOWELS) { fill(200); textSize(22); textAlign(CENTER, CENTER); text(v, toX(F2), toY(F1)); fill(120); textSize(11); text(w, toX(F2), toY(F1) + 18) }
+  fill(singing ? '#f2c14e' : '#c8664f'); circle(toX(f2), toY(f1), 16)
+  fill(140); textSize(11); textAlign(LEFT, BASELINE)
+  text('← tongue forward          tongue back →', PX, PY + PH + 18)
+  text('mouth closed ↑   open ↓', PX, PY - 8)
+  fill(235); textSize(16)
+  text(singing ? 'F1 ' + Math.round(f1) + ' Hz · F2 ' + Math.round(f2) + ' Hz · pitch ' + pitch + ' Hz' : 'hold the mouse on the chart to sing', 40, 40)
+  fill(140); textSize(12); text('harmonics of the buzz, and the tract’s filter (blue)', 40, 590)
+}` },
+
+        { id: 'ear', title: '0.4 · The ear', w: 800, h: 600, ground: '#141414',
+          idea: 'The **outer ear** is a funnel that gathers the pressure wave into the ear canal. At its end the **eardrum**, a membrane, moves with it. Three of the smallest bones in the body, the **hammer**, **anvil** and **stirrup**, work as a lever and press on the **oval window** of the **cochlea**, a snail-shaped tube of fluid. Inside, the **basilar membrane** runs its length, stiff and narrow at the base, wide and floppy at the tip: a high sound shakes it near the base, a low one near the tip, so the cochlea sorts sound by pitch, a spectrum analyser made of flesh (it is drawn here uncoiled). Where it shakes, rows of **hair cells** bend their tiny **stereocilia** (the "cilia") and fire the nerve. Drag along the uncoiled cochlea to choose the pitch, choose **chord** to hear three places at once, or **voice** to see your own voice spread along it. Healthy young ears hear about 20 Hz to 20,000 Hz; the top falls with age.',
+          pseudo: `pressure $\\to$ eardrum $\\to$ hammer, anvil, stirrup (a lever) $\\to$ oval window $\\to$ fluid
+place of the peak for frequency $f$ (Greenwood): $f = 165.4\\,(10^{2.1\\,x} - 0.88)$, $x$ from the tip (0) to the base (1)
+hair cells where it peaks bend $\\to$ the nerve fires: each place is one band of a spectrum`,
+          p5: `// 0.4 The ear: funnel, eardrum, three bones, and the cochlea (drawn uncoiled) that sorts sound by pitch. Drag along the cochlea; ▶ to hear.
+const input = 'tone' /* tone|chord|voice */
+let freq = 1000 /* 20..16000 */
+const CX0 = 70, CX1 = 760, CY = 430              // the uncoiled cochlea: base (left) to tip (right)
+const placeOf = f => Math.log10(f / 165.4 + 0.88) / 2.1         // Greenwood: 1 at the base, 0 at the tip
+const freqAt = x => 165.4 * (Math.pow(10, 2.1 * x) - 0.88)
+const toPx = x => CX0 + (1 - x) * (CX1 - CX0), fromPx = px => 1 - (px - CX0) / (CX1 - CX0)
+let oscs = [], mic, fft, on = false, t = 0
+// a cubic curve as vertices (works the same in p5 1 and 2)
+const cubic = (x0, y0, x1, y1, x2, y2, x3, y3) => { for (let i = 1; i <= 16; i++) { const u = i / 16, v = 1 - u; vertex(v * v * v * x0 + 3 * v * v * u * x1 + 3 * v * u * u * x2 + u * u * u * x3, v * v * v * y0 + 3 * v * v * u * y1 + 3 * v * u * u * y2 + u * u * u * y3) } }
+
+function setup() {
+  createCanvas(800, 600)
+  for (let i = 0; i < 3; i++) { const o = new p5.Oscillator(440, 'sine'); o.amp(0); oscs.push(o) }
+  oscs[0].node.context.lookAhead = 0          // play now: p5.sound (Tone.js) waits 0.1 s by default
+  mic = new p5.AudioIn(); mic.disconnect()    // listen only: never to the speakers
+  fft = new p5.FFT(4096); mic.connect(fft)
+}
+
+function mousePressed() {
+  userStartAudio()
+  if (input === 'voice') { if (!mic.started) mic.start(); return }
+  if (onButton()) { for (const o of oscs) if (!o.started) o.start(); on = !on }
+}
+function mouseDragged() { if (mouseY > CY - 70 && mouseY < CY + 110) freq = constrain(freqAt(fromPx(mouseX)), 20, 16000) }
+
+// how strongly the membrane moves at place x for a tone of frequency f: rises toward its place, then dies fast
+function envelope(x, f) {
+  const p = placeOf(f), d = 1 - x, dp = 1 - p
+  return d <= dp ? Math.pow(d / Math.max(dp, 0.01), 2) : Math.exp(-(((d - dp) / 0.035) ** 2))
+}
+
+function draw() {
+  background(20)
+  t += deltaTime / 1000
+  const tones = input === 'chord' ? [freq, freq * 1.26, freq * 1.5] : input === 'tone' ? [freq] : []
+  oscs.forEach((o, i) => { if (tones[i]) o.freq(tones[i], 0.03); o.amp(on && i < tones.length ? 0.22 : 0, 0.05) })
+  const sounding = (on && tones.length) || (input === 'voice' && mic.started)
+  let spectrum = null, df = 1
+  if (input === 'voice' && mic.started) { spectrum = fft.analyze(); df = getAudioContext().sampleRate / 2 / spectrum.length }
+  const shake = x => {
+    if (spectrum) { const i = Math.round(freqAt(x) / df); return constrain(map(20 * Math.log10((spectrum[i] || 0) + 1e-9), -90, -30, 0, 1), 0, 1) }
+    return sounding ? Math.min(1, tones.reduce((s, f) => s + envelope(x, f), 0)) : 0
+  }
+  const wiggle = sounding ? Math.sin(TWO_PI * 3 * t) : 0
+
+  // the outer ear: a funnel, and the canal
+  noStroke(); fill(90)
+  beginShape(); vertex(45, 85); cubic(45, 85, 95, 75, 112, 125, 120, 140); vertex(120, 175); cubic(120, 175, 102, 200, 85, 255, 50, 250); cubic(50, 250, 75, 205, 78, 125, 45, 85); endShape()
+  fill(60); rect(118, 140, 110, 35)
+  // the eardrum, the bones (a lever), the oval window
+  const e = 4 * wiggle
+  stroke('#f2c14e'); strokeWeight(4); line(232 + e, 128, 232 + e, 187)
+  stroke(220); strokeWeight(6)
+  line(234 + e, 150, 262 + e * 0.8, 128)              // hammer
+  line(262 + e * 0.8, 128, 292 + e * 0.6, 138)         // anvil
+  strokeWeight(4); line(292 + e * 0.6, 138, 318 + e * 0.5, 160); line(300 + e * 0.5, 165, 322 + e * 0.5, 158)   // stirrup
+  stroke('#c8664f'); strokeWeight(3); line(326 + e * 0.5, 148, 326 + e * 0.5, 172)                           // oval window
+  // the cochlea, coiled (two and a half turns)
+  noFill(); stroke(150); strokeWeight(7)
+  beginShape(); for (let a = 0; a < 5 * PI; a += 0.08) { const r = 46 - a * 2.6; vertex(400 + r * Math.cos(a + PI), 160 + r * Math.sin(a + PI)) } endShape()
+  noStroke(); fill(140); textSize(11); textAlign(CENTER)
+  text('outer ear', 70, 280); text('ear canal', 175, 128); text('eardrum', 232, 205); text('three bones', 285, 112); text('cochlea', 400, 228); text('to the brain →', 520, 165)
+  stroke(110); strokeWeight(1); line(440, 160, 480, 160)
+
+  // the cochlea, uncoiled: the basilar membrane and its travelling wave
+  noStroke(); fill(40)
+  beginShape(); vertex(CX0, CY - 26); vertex(CX1, CY - 40); vertex(CX1, CY + 40); vertex(CX0, CY + 26); endShape(CLOSE)
+  stroke('#5b7fd1'); strokeWeight(2); noFill(); beginShape()
+  for (let px = CX0; px <= CX1; px += 3) { const x = fromPx(px); vertex(px, CY + 26 * shake(x) * Math.sin(TWO_PI * 3 * t - (1 - x) * 40)) }
+  endShape()
+  // hair cells, their stereocilia bending where it shakes
+  for (let i = 0; i < 70; i++) {
+    const px = CX0 + 6 + i * (CX1 - CX0 - 12) / 69, s = shake(fromPx(px)), bend = 9 * s * Math.sin(TWO_PI * 3 * t - i * 0.2)
+    noStroke(); fill(s > 0.35 ? '#f2c14e' : 70); circle(px, CY + 62, 7)
+    stroke(s > 0.35 ? '#f2c14e' : 90); strokeWeight(1.2)
+    for (const dx of [-2.5, 0, 2.5]) line(px + dx, CY + 58, px + dx + bend, CY + 46)
+  }
+  // where each frequency lands
+  noStroke(); fill(120); textSize(10); textAlign(CENTER)
+  for (const f of [16000, 8000, 4000, 2000, 1000, 500, 250, 125, 60, 30]) text(f >= 1000 ? f / 1000 + 'k' : f, toPx(placeOf(f)), CY + 92)
+  textAlign(LEFT); text('base: stiff, narrow, high', CX0, CY - 50); textAlign(RIGHT); text('tip: floppy, wide, low', CX1, CY - 50)
+  textAlign(LEFT); fill(140); textSize(12); text('hair cells and their stereocilia', CX0, CY + 118)
+  if (input !== 'voice') { stroke('#c8664f'); strokeWeight(2); for (const f of tones) line(toPx(placeOf(f)), CY - 40, toPx(placeOf(f)), CY + 40) }
+  noStroke(); fill(235); textSize(16); textAlign(LEFT)
+  text(input === 'voice' ? (mic.started ? 'your voice, spread along the cochlea' : 'click to let the microphone listen') : (input === 'chord' ? 'a chord on ' : '') + Math.round(freq) + ' Hz · drag along the cochlea', 90, 40)
+  if (input !== 'voice') playButton(on)
+}
+
+${BUTTON}` }
+      ]
+    },
     {
       id: 'waves',
       title: 'Waves',
