@@ -67,6 +67,10 @@ Image results (data URLs) come back as MCP image content, so an agent can see wh
 - `ams_view` takes `tool` (select, direct, hand, laser, board, point, line, gesture, guide, plane, circle, rect, note, brush, sculpt) and `cycle` (select, line, plane, brush, sculpt: step through that stack, as Shift+V, Shift+1, Shift+2, Shift+B and Shift+S do). `ams_wb_state` includes `shapes` and each tool's `paths`.
 - In scores, `board('Title')` makes a board (if new) and later marks land on it, in fractions of that board.
 
+**Sound: the modular synth**
+- `ams_patch`: the Patch tab's patch (modules and cables as data): get, example, add, remove, connect, disconnect, settings, set, audition.
+- `ams_modular`: the synth drawn on the canvas (the Modular toolbar): modules are boxes, cables are paths whose ends follow their ports. list, add (`from` cables it from a module), plug (`slot`: notes, input, input_N, `mod:<setting>` with an `amount`), unplug, settings, example (euclid, grid, drone, band, arecibo), remove. Both play together; settings can be keyed with `ams_keys` at `patch:<module id>.<setting>`.
+
 ## Films, cameras and keyframes (making films and explainers)
 
 Three tools drive the camera system (details in [films.md](films.md) and [camera-plan.md](camera-plan.md)):

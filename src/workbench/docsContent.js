@@ -249,7 +249,7 @@ A **lesson** is a scene of 16:9 **frames** (slides). Each frame holds boards: a 
 - **Code view.** On an exported page each board's code is one box with tabs (Pseudocode, Studio, p5.js); a click opens a tab, a click on the open tab minimizes it to the bar. A board's **Code** switch (Properties → Board) starts it minimized; the diagrams of a lesson do.
 - **Pages and files.** Export → Page makes the lesson one HTML file whose sketches run; Export → Scene (JSON) writes it as an \`.ams.json\` to import again. Sources the scene reads (pictures, clips) are added by name first.`),
       prose('The lessons in this app (most with a guided tour: Getting started → Walkthroughs):'),
-      ...[['lesson-sampling', 'Pointillism and Expressionism, by sampling'], ['lesson-diffusion', 'Diffusion models: from noise to picture'], ['lesson-threejs', 'Three.js for body and sound'], ['lesson-synthesis', 'Sound synthesis (p5.sound)'], ['lesson-webaudio', 'Web Audio: strings, bells, samples and grains'], ['lesson-modular', 'Modular: patches, sequencers and scores'], ['lesson-painterly', 'Painterly, fading strokes (Klee)'], ['lesson-line-walk', 'Taking a line for a walk']]
+      ...[['lesson-sampling', 'Pointillism and Expressionism, by sampling'], ['lesson-diffusion', 'Diffusion models: from noise to picture'], ['lesson-threejs', 'Three.js for body and sound'], ['lesson-synthesis', 'Sound synthesis (p5.sound)'], ['lesson-webaudio', 'Web Audio: strings, bells, samples and grains'], ['lesson-modular', 'Modular: patches, sequencers and scores'], ['lesson-visuals', 'Modular: pictures that listen'], ['lesson-painterly', 'Painterly, fading strokes (Klee)'], ['lesson-line-walk', 'Taking a line for a walk']]
         .map(([id, t]) => h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, t)), h('button', { class: 'wb-btn', onclick: () => app.openDocs(id) }, 'Read'))))),
 
     T('lesson-sampling', 'Lessons', 'Pointillism and Expressionism, by sampling', 'Seurat, Munch and Muybridge as sources: sample a picture, decide what to draw there.', () => h('div', {},
@@ -300,6 +300,17 @@ Eleven boards in plain Web Audio (p5 only draws): the **graph** and **automation
 The **Patch** tab with its modules and cables (ported from genereti), four sequencers you can see, scores in the manner of IanniX that play the patch by channel, the **Arecibo message** as a sequencer and as a score (397 events and a sweeping bar), automation on the Timeline, and a composition. Building the scene also gives it a patch, routes the score channels to it and adds a lane. The score boards start paused: ▶ by a board's title, then Play.
 `),
       lessonButtons(app, 'modular'))),
+
+    T('lesson-visuals', 'Lessons', 'Modular: pictures that listen', 'Part 2B, brief: the synth drawn on the canvas, and p5.js and three.js sketches that move with it through the `patch` global.', () => h('div', {},
+      prose(`
+A band drawn with the **Modular toolbar** (Euclid drums, a Grid bass, a Steps lead), then four sketches that listen to it:
+
+- **p5.js:** *Notes become rings* (\`patch.onNote\`: a ring per note, in a row for its instrument) and *The spectrum and the wave* (\`patch.bands\`, \`patch.wave\`, \`patch.bass\`).
+- **three.js:** *A Euclid in space* (sixteen spheres for the steps, \`patch.steps\`, a core that swells with the bass) and *A landscape of the sound* (\`patch.spectrum\` scrolling towards you as hills).
+
+Any p5.js or three.js board whose code reads \`patch.\` gets the global: \`on\`, \`level\`, \`bass\`, \`mid\`, \`treble\` (0..1), \`bands\` (8), \`spectrum\` (32), \`wave\` (64), \`steps\` (where each sequencer is) and \`onNote\` (pitch, velocity, module, kind, channel), about thirty times a second. It is live only: a render does not include it. Turn the sound on (the toolbar's power button), then Play.
+`),
+      lessonButtons(app, 'visuals'))),
 
     T('lesson-threejs', 'Lessons', 'Three.js for body and sound', 'A board that runs a three.js sketch, and a ten-lesson course (its own repository) from a spinning cube to body tracking, a laser harp, costumes and paint marks.', () => h('div', {},
       prose(`
