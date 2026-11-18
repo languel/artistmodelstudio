@@ -53,6 +53,10 @@ import { mountShortcuts } from './panels/shortcuts.js';
 import { mountCode } from './panels/code.js';
 import { PhysicsStudio } from '../physics/studio.js';
 import { mountPhysicsToolbar } from '../physics/toolbar.js';
+import { mountModularToolbar } from '../modular/toolbar.js';
+import { ModularOverlay } from '../modular/overlay.js';
+import { syncCables } from '../modular/model.js';
+import { onDoubleClick as modularDoubleClick } from '../modular/interact.js';
 import { UserActions } from './userActions.js';
 import { mountTimeline } from './panels/timeline.js';
 import { mountMixer } from './panels/mixer.js';
@@ -227,7 +231,7 @@ export class Workbench {
   get activeStage() { return this.store.doc.stages.find(s => s.id === this.activeStageId) || this.store.doc.stages[0]; }
   setActiveStage(id) { this.activeStageId = id; this.emit('stage'); this.renderChrome(); }
   /** The brushes the brush stack offers (the Brush button's list). */
-  brushIds() { return Object.keys(BRUSHES).filter(id => !BRUSHES[id].construction && BRUSHES[id].roles?.some(r => ['line', 'plane', 'gesture'].includes(r))); }
+  brushIds() { return Object.keys(BRUSHES).filter(id => !BRUSHES[id].construction && !BRUSHES[id].whole && BRUSHES[id].roles?.some(r => ['line', 'plane', 'gesture'].includes(r))); }
 
   /** The defaults a tool draws with: circle and rectangle make planes, so they use the plane's. */
   toolRole(tool = this.tool) { return tool === 'circle' || tool === 'rect' ? 'plane' : tool; }
@@ -1466,7 +1470,8 @@ export class Workbench {
     this.canvas.onDrawn = () => this.frames.update();
     try { this.playKind = localStorage.getItem('ams_playkind') || 'link'; } catch { this.playKind = 'link'; }
     try { this.playNodeKind = localStorage.getItem('ams_playnode') || 'note'; } catch { this.playNodeKind = 'note'; }
-    this.store.derive = d => { Rel.syncEdges(d); Rel.syncAttached(d); };   // edges follow their nodes; attached events follow their lines
+    this.store.derive = d => { Rel.syncEdges(d); Rel.syncAttached(d); syncCables(d); };   // edges follow their nodes; attached events follow their lines; cables their modules' ports
+    this.canvas.onMarkDoubleClick = (x, y, ev) => modularDoubleClick(this, x, y, ev);   // (a sequencer's cells: src/modular/interact.js)
     this.canvas.playTool = new PlayTool(this, this.canvas);
     this.canvas.onSpaceTap = () => this.player?.toggle();
     this.canvas.onPlayAfter = (el, after) => { if (after.travel) this.store.change('travel', d => Rel.travel(d, after.travel, el.id)); };
@@ -1475,6 +1480,7 @@ export class Workbench {
     this.zoomIsland = h('div', { class: 'wb-island wb-zoom' });
     this.stageArea.append(this.topbar, this.zoomIsland);
     if (!this.embed || this.embed.full) mountPhysicsToolbar(this);   // (its own island: src/physics/toolbar.js)
+    if (!this.embed || this.embed.full) mountModularToolbar(this);   // (its own island: src/modular/toolbar.js)
 
     this.guide = new Guide(this);
     try { if (localStorage.getItem('ams_guide_enabled') === '0') this.guide.enabled = false; } catch { /* ignore */ }
@@ -1527,6 +1533,7 @@ export class Workbench {
     this.patch = new PatchPlayer(this);   // the scene's modular synth (doc.transport.patch): sequencers on the transport, score channels routed to it
     try { this.scoreView = { ...SCORE_LOOK, names: false, ...JSON.parse(localStorage.getItem('ams_scoreview_v1') || '{}') }; } catch { this.scoreView = { ...SCORE_LOOK, names: false }; }
     this.scoreOverlay = new ScoreOverlay(this);   // and shows them: travelers, lit events
+    this.modularOverlay = new ModularOverlay(this);   // the modular synth on the canvas, live: playheads, scopes, the sound on its cables
     this.physics = new PhysicsStudio(this);   // boards with physics on: their marks fall, roll and swing (src/physics)
     this.shortcuts = new Shortcuts(this);
     this.userActions = new UserActions(this);   // (the keys and clicks you make, and what they do: View → Show user actions)
@@ -2716,7 +2723,7 @@ export class Workbench {
       { label: 'Command palette', keys: this.shortcuts.label('app.palette'), run: () => openPalette(this) },
       { label: 'Docs', keys: this.shortcuts.label('app.docs'), run: () => this.openDocs() },
       '-',
-      { label: 'Toolbar', hint: 'Which sections of the toolbar to show', items: [...TOOLBAR_SECTIONS.filter(([id]) => id !== 'frame' || !this.overlay).map(([id, name, hint]) => ({ icon: menuBox(this.toolbarOn(id)), label: name, hint, run: () => this.setToolbarSection(id, !this.toolbarOn(id)) })), ...(this.physicsToolbar ? ['-', { icon: menuBox(this.physicsToolbar.shown), label: 'Physics toolbar', hint: 'Its own island: physics for the board you are on (play, step, reset, hinges, motors, springs)', run: () => this.physicsToolbar.toggle() }] : [])] },
+      { label: 'Toolbar', hint: 'Which sections of the toolbar to show', items: [...TOOLBAR_SECTIONS.filter(([id]) => id !== 'frame' || !this.overlay).map(([id, name, hint]) => ({ icon: menuBox(this.toolbarOn(id)), label: name, hint, run: () => this.setToolbarSection(id, !this.toolbarOn(id)) })), ...(this.physicsToolbar ? ['-', { icon: menuBox(this.physicsToolbar.shown), label: 'Physics toolbar', hint: 'Its own island: physics for the board you are on (play, step, reset, hinges, motors, springs)', run: () => this.physicsToolbar.toggle() }] : []), ...(this.modularToolbar ? [{ icon: menuBox(this.modularToolbar.shown), label: 'Modular toolbar', hint: 'Its own island: a modular synth drawn on the canvas (sequencers, oscillators, instruments, effects; cables are paths)', run: () => this.modularToolbar.toggle() }] : [])] },
       { label: 'Panels', hint: 'Show or hide a panel', items: [
         ...[...this.docks.panels.values()].filter(p => !['settings', 'shortcuts'].includes(p.id)).map(p => { const on = Boolean(this.docks.state.panels[p.id]?.open); return { icon: menuBox(on), label: p.title, run: () => (on ? this.docks.close(p.id, { hide: true }) : this.docks.open(p.id)) }; }),
         '-',

@@ -22,6 +22,8 @@ import { realizeAfter, newPart, canBePath } from '../process/playparts.js';
 import { normalizeElement } from '../process/document.js';
 import { pathTime } from './compile.js';
 import { timeContext } from '../time/sceneTransport.js';
+import { isModule, slotNear, plug } from '../modular/model.js';
+import { outputOf } from '../audio/modular/patch.js';
 
 export const refOf = e => e.label || e.id;
 const isLine = e => ['line', 'gesture', 'guide'].includes(e.role) && (e.points?.length || 0) >= 2;
@@ -35,6 +37,11 @@ const LOGIC = new Set(['led', 'switch', 'counter', 'gate']);
 /** What pointing from a to b would make (the relation is the same either way when the kinds differ). */
 export function infer(a, b) {
   if (!a || !b || a.id === b.id) return null;
+  // Modules of the modular synth: a cable from the one pointed from (or, from the Output, the other way).
+  if (isModule(a) && isModule(b)) {
+    const [x, y] = outputOf(a.play.mod.kind) ? [a, b] : [b, a];
+    return outputOf(x.play.mod.kind) ? { kind: 'cable', from: x.id, to: y.id, label: `a cable into ${y.label || y.play.mod.kind}` } : null;
+  }
   // Nodes: to another node, an edge (a path between them); a lit-able node to a logic gate, one of its inputs; to a line, onto it.
   if (isNode(a) && isNode(b)) {
     if (b.play.node.kind === 'gate' && LOGIC.has(a.play.node.kind || 'note')) return { kind: 'input', from: a.id, to: b.id, label: `an input of ${refOf(b)}` };
@@ -270,6 +277,7 @@ export function syncEdges(d) {
 export function apply(d, rel) {
   if (!rel) return false;
   if (rel.kind === 'edge') return Boolean(edge(d, rel.from, rel.to));
+  if (rel.kind === 'cable') { const a = find(d, rel.from), b = find(d, rel.to), slot = a && b && slotNear(d, a, b); return Boolean(slot && plug(d, rel.from, rel.to, slot)); }
   if (rel.kind === 'input') return input(d, rel.from, rel.to);
   if (rel.kind === 'travel') return travel(d, rel.from, rel.to);
   if (rel.kind === 'send') return send(d, rel.from, rel.to);

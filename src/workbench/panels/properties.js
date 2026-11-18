@@ -19,6 +19,7 @@ import { SCULPTS, sculptParams } from '../../process/sculpt.js';
 import { NOTE_STYLES, NOTE_FONTS, noteProps } from '../../process/notes.js';
 import { playSection, nameRow } from './playSection.js';
 import { physicsSection, physicsMultiSection } from '../../physics/properties.js';
+import { modularSection } from '../../modular/properties.js';
 
 // Compact: the small Properties at the pointer. Choices are glyphs alone there, glyph and name in the side panel.
 let COMPACT = false;
@@ -58,8 +59,14 @@ export function mountProperties(el, app, { compact = false } = {}) {
       }
       app.store.commitFrom(before, label);
     };
-    el.append(h('div', { class: 'wb-panel-title' }, multi ? `${sel.length} elements` : `${e.role}`, h('span', { class: 'wb-muted' }, multi ? '' : ` · ${e.points.length} pts${e.points.length > 1 ? ` · ${Math.round(e.points[e.points.length - 1][2])} ms` : ''}`)));
+    el.append(h('div', { class: 'wb-panel-title' }, multi ? `${sel.length} elements` : `${e.play?.mod ? 'module' : e.play?.cable ? 'cable' : e.role}`, h('span', { class: 'wb-muted' }, multi ? '' : ` · ${e.points.length} pts${e.points.length > 1 ? ` · ${Math.round(e.points[e.points.length - 1][2])} ms` : ''}`)));
 
+    // A module of the modular synth, or a cable: its own settings (src/modular/properties.js), its name and stage.
+    const mod = multi ? null : modularSection(app, e);
+    if (mod) {
+      el.append(mod, section('Element', false, nameRow(app, e), row('Stage', selectField(app.store.doc.stages.map(s => [s.id, s.name]), e.stage, v => patchAll({ stage: v }, 'stage')))));
+      return;
+    }
     el.append(section('Element', true,
       row('Role', glyphSelect(Object.keys(ROLES).map(r => [r, cap(r)]), e.role, v => {
         const brush = BRUSHES[e.realize.brush]?.roles.includes(v) ? e.realize.brush : brushesForRole(v, app.store.doc)[0]?.id || 'ink';

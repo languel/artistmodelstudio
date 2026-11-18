@@ -179,7 +179,7 @@ export function mountBrushes(root, app) {
   };
 
   const renderBar = () => {
-    const groups = [['Built-in', Object.keys(BRUSHES).filter(isBuiltin)], ['Library', Object.keys(BRUSHES).filter(id => BRUSHES[id].scope === 'library')], ['This drawing', Object.keys(BRUSHES).filter(id => BRUSHES[id].scope === 'doc' || (BRUSHES[id].custom && !BRUSHES[id].scope))]];
+    const groups = [['Built-in', Object.keys(BRUSHES).filter(id => isBuiltin(id) && !BRUSHES[id].whole)], ['Library', Object.keys(BRUSHES).filter(id => BRUSHES[id].scope === 'library')], ['This drawing', Object.keys(BRUSHES).filter(id => BRUSHES[id].scope === 'doc' || (BRUSHES[id].custom && !BRUSHES[id].scope))]];
     const sel = h('select', { class: 'wb-select', title: 'Brush' }, ...groups.filter(([, ids]) => ids.length).map(([label, ids]) => h('optgroup', { label }, ...ids.map(id => h('option', { value: id, selected: id === current }, `${BRUSHES[id].label} · ${id}`)))));
     if (!BRUSHES[current]) sel.prepend(h('option', { value: current, selected: true }, `${current} (unsaved)`));
     sel.addEventListener('change', () => { open(sel.value); sel.blur(); });

@@ -498,6 +498,35 @@ The **Patch** tab (beside the Timeline and the Mixer) is the scene's own modular
 
 Start from *Start from…*: a starter (a melody, a beat, an echo, a mixer) or *the Arecibo message, plucked*. The lesson **Modular** (\`/lesson modular\`) goes through it all. Agents: \`ams_patch\`.
 `)),
+    T('score-modular', 'Scores', 'The modular toolbar (a synth on the canvas)', 'Modules are boxes you draw, cables are paths: Euclid rings, Grids, oscillators, LFOs, a sampler, scopes.', () => prose(`
+The **Modular toolbar** (View → Modular toolbar, or \`/modular\`) draws the scene's synth on the canvas, after BespokeSynth, Pure Data and plugdata: each **module** is a box, a mark like any other, and each **cable** is a **path**. They move, scale, group, undo, save and share with the drawing, and they play together with the Patch tab's own patch.
+
+| Group | Modules | Its face shows |
+|---|---|---|
+| Sequencers (amber) | **Euclid**, **Grid**, Steps, Drums, Bits | the rings and their rhythm polygons; the matrix of notes; the melody; the drum rows; the bits |
+| Sources (teal) | **Osc**, **Noise** | the wave and its frequency; the colour |
+| Modulator (violet) | **LFO** | its wave, rate (or a beat division, synced to the tempo) |
+| Instruments (blue) | Synth, Karplus (a plucked string), **Sampler** (a recording from the Media library), DrumSynth, DrumKit, Granular | the envelope, the string, the sample, the pads |
+| Effects (green) | Filter, Delay, Reverb, Distortion, Gain, Mixer, Merge, **Scope** | the filter's curve, the echoes, the tail, the levels; the Scope draws the sound |
+| Output (red) | Output | the level |
+
+**Placing.** Click a button, then where it goes. With one module selected, the new one is cabled from it (sound or notes).
+
+**Ports.** Inputs are on the left of a box (♪ notes first on an instrument), the output on the right (amber notes, teal sound, violet modulation), and along the bottom, the settings a cable can move (\`mod:cutoff\`, \`mod:freq\`, \`mod:level\`…).
+
+**Cables.** Three ways, all paths:
+- **Cable** on the toolbar: click a module, then the one it goes to, near the input you want.
+- **Point** from one module to another with the Play tool, as for any relation.
+- **Draw** any path from a module's output to another module, select it and press **Path → cable**: it keeps the shape you drew.
+
+Cables follow their ports when a module moves; one drawn by hand keeps its middle. An **LFO** (or an oscillator, for FM) cabled into a \`mod:\` slot moves that setting; the cable's *amount* (Properties) scales it.
+
+**Playing the faces.** Double-click a **Grid**'s or a **Drums** row's cell to turn it on or off (Shift: an accent), a **Bits** cell to flip it, a **Euclid** ring to add a hit (Shift: take one away, Alt: turn it a step). Properties has every setting (◆ keys it on the Timeline: \`patch:<mark id>.<setting>\`) and, for a Grid, Clear, Random, shift and double.
+
+**Live.** While the sound is on (the power button, or the Timeline's Play) each sequencer shows its playhead, an instrument's title lights as it plays, the sound rides along the audio cables, modulation cables breathe, and the Scope and Output show the signal. Sequencers play on the Timeline's tempo and loop; sources sound all the time the power is on.
+
+**Ready-made:** Euclidean drums, a Grid melody, a drone with an LFO, a small band, the Arecibo message (the toolbar's last button, or \`/modular band\`). Renders include it. Agents: \`ams_modular\`.
+`)),
     T('score-nodes', 'Scores', 'Nodes on paths (Midinous)', 'Notes, controllers, logic gates, LEDs, counters, switches, terminators and anchors that travelers reach on paths.', () => prose(`
 A **node** is a point that a traveler reaches on a path, after Midinous: it does what its kind does and sends the signal on down the paths that leave it. A line with nodes along it is a chain; a path drawn from one node to another is an **edge**, and it follows its nodes when you move them.
 

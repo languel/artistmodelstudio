@@ -375,6 +375,9 @@ export class ProcessStore {
         if (e.group) { groupMap[e.group] ||= newId('group'); c.group = groupMap[e.group]; d.groups = d.groups || {}; d.groups[c.group] = { name: `${d.groups[e.group]?.name || 'Group'} copy` }; }
         d.elements.push(c); out.push(c.id);
       }
+      // (cables of the modular synth plugged between copied modules are plugged into the copies)
+      const map = new Map(d.elements.filter(x => set.has(x.id)).map((x, i) => [x.id, out[i]]));   // (an original → its copy, in the order they were made)
+      for (const id of out) { const c = d.elements.find(x => x.id === id); const cb = c?.play?.cable; if (cb) c.play.cable = { ...cb, from: map.get(cb.from) || cb.from, to: map.get(cb.to) || cb.to }; }
       return out;
     }, opts);
   }

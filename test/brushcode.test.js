@@ -10,7 +10,7 @@ const plane = { role: 'plane', points: [[0, 0, 0, 0.5], [100, 0, 0, 0.5], [100, 
 
 describe('brushes as code', () => {
   it('every built-in has source that compiles and draws the same way', () => {
-    for (const id of Object.keys(BRUSHES).filter(isBuiltin)) {
+    for (const id of Object.keys(BRUSHES).filter(id => isBuiltin(id) && !BRUSHES[id].whole)) {   // (the modular synth's module and cable draw with the studio's own code: not brushes as code)
       const src = brushSource(id).replace(`"${id}"`, `"${id}-copy"`);
       const def = compileBrush(src);
       expect(def.params.map(p => [p.key, p.default])).toEqual(BRUSHES[id].params.map(p => [p.key, p.default]));

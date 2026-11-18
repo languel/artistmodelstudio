@@ -11,6 +11,7 @@
  */
 import { getSource } from './streams.js';
 import { smoothPath, walkFrames } from './walk.js';
+import { drawModule, drawCable } from '../modular/face.js';
 import { txPaint, txDabs, txHairs, txWash, txBounds, txHash, txLayer, txGrain } from './texture.js';
 
 export function mulberry32(seed) {
@@ -71,6 +72,18 @@ export const BRUSHES = {
       else { ctx.fillStyle = 'rgba(128,128,128,0.15)'; ctx.fillRect(0, 0, 1, 1); }
       ctx.restore();
     }
+  },
+
+  module: {
+    label: 'Module', roles: ['plane'], whole: true, doc: 'A module of the modular synth (play.mod): a small device with its title, a face that shows its settings, and its ports (src/modular).',
+    params: [param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Opacity of the device.')],
+    draw(ctx, e, p) { drawModule(ctx, e, p); }
+  },
+
+  cable: {
+    label: 'Cable', roles: ['line', 'gesture'], whole: true, doc: 'A patch cord of the modular synth (play.cable): amber carries notes, teal sound, dashed violet modulation.',
+    params: [param('width', 'Width', 0.5, 12, 0.1, 2.4, 'Thickness of the cord.'), param('opacity', 'Opacity', 0, 1, 0.05, 1, 'Opacity of the cord.')],
+    draw(ctx, e, p) { drawCable(ctx, e, p); }
   },
 
   none: {
@@ -949,7 +962,7 @@ export function resolveParams(brushId, params = {}) {
 /** Brushes for a role; lines a document defined itself are listed only for that document. */
 export function brushesForRole(role, doc = null) {
   // Picture brushes first (Ink, Pen, …), construction ones (Guide) last.
-  return Object.entries(BRUSHES).filter(([id, b]) => b.roles.includes(role) && (!b.custom || b.scope === 'library' || doc?.lines?.[id] || doc?.brushes?.[id])).sort((a, b) => Number(Boolean(a[1].construction)) - Number(Boolean(b[1].construction))).map(([id, b]) => ({ id, label: b.label }));
+  return Object.entries(BRUSHES).filter(([id, b]) => b.roles.includes(role) && !b.whole && (!b.custom || b.scope === 'library' || doc?.lines?.[id] || doc?.brushes?.[id])).sort((a, b) => Number(Boolean(a[1].construction)) - Number(Boolean(b[1].construction))).map(([id, b]) => ({ id, label: b.label }));
 }
 
 /**

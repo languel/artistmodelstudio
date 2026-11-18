@@ -417,6 +417,41 @@ export function workbenchTools(app) {
       if (a.action === 'stop') { const t = await r.stop(); return t ? { saved: t.title, clips: t.clips.length, seconds: Math.round(t.duration / 1000), asset: t.assetId } : { saved: null }; }
       return { recording: r.recording, clips: r.take?.clips.length || 0, auto: r.settings };
     } },
+    { name: 'ams_modular', description: 'The modular synth drawn on the canvas (the Modular toolbar): each module is a box (a mark with play.mod), each cable a path (a mark with play.cable) whose ends follow the ports. It plays together with ams_patch (the Patch panel). Kinds as ams_patch, plus Grid {cells: rows of x and . , the top row highest; scale, root} (a sequencer), Osc {wave, freq, detune, level} and Noise {color white|pink|brown, level} (sources, always sounding), LFO {wave, rate, sync free|1/16..4 bars, depth} (cable it into a mod slot), Sampler {sample: a Media library sound by name, e.g. edison-lost-chord; root, loop, start, attack, release} (an instrument), Scope (shows the sound). Slots: notes (sequencer to instrument), input / input_1.. (sound), mod:<setting> (an LFO, or a sound for FM, moves a setting: mod:cutoff, mod:freq, mod:level, mod:pan…; amount -1..1). action "list" (modules and cables with ids); "add" {kind, x, y, settings, from?} a module at x, y (artboard units; from: cable it from that module); "plug" {from, to, slot?, amount?}; "unplug" {id: the cable}; "settings" {id, settings}; "example" {name: euclid | grid | drone | band | arecibo, x?, y?}; "remove" {id}. Settings can be keyed on the Timeline: ams_keys "patch:<module id>.<setting>".', inputSchema: S({ action: str('list | add | plug | unplug | settings | example | remove'), kind: str('add: a module kind'), x: num('add / example: left (artboard units)'), y: num('add / example: top'), settings: { type: 'object', description: 'add / settings: values' }, from: str('add / plug: from module id'), to: str('plug: to module id'), slot: str('plug: notes | input | input_N | mod:<setting>'), amount: num('plug: modulation amount -1..1'), id: str('the module or cable'), name: str('example name') }, ['action']), run: async (a) => {
+      const M = await import('../modular/model.js'), X = await import('../modular/examples.js'), { setModSettings } = await import('../modular/properties.js'), { KINDS } = await import('../audio/modular/patch.js');
+      const doc = () => app.store.doc, stage = () => app.canvas.getStage()?.id || doc().stages[0].id;
+      const brief = () => ({ modules: doc().elements.filter(M.isModule).map(e => ({ id: e.id, kind: e.play.mod.kind, name: e.label || undefined, box: M.boxOf(e), settings: e.play.mod.settings })), cables: doc().elements.filter(M.isCable).map(e => ({ id: e.id, ...e.play.cable })) });
+      if (a.action === 'list') return brief();
+      if (a.action === 'add') {
+        if (!KINDS[a.kind]) throw new Error(`Unknown kind ${a.kind}`);
+        const { normalizeElement } = await import('../process/document.js');
+        let id = null, slot = null;
+        app.store.change(`add ${a.kind}`, d => {
+          const e = normalizeElement({ ...M.moduleMark(a.kind, a.x ?? 0, a.y ?? 0, a.settings || {}), stage: stage() }, stage());
+          d.elements.push(e); id = e.id;
+          if (a.from) { const f = d.elements.find(x => x.id === a.from); slot = f && M.slotNear(d, f, e); if (slot) M.plug(d, a.from, e.id, slot); }
+        }, { by: 'agent' });
+        app.modularToolbar?.show();
+        return { id, ...(a.from ? { cabled: slot } : {}) };
+      }
+      if (a.action === 'plug') {
+        let made = null;
+        app.store.change('plug', d => { const f = d.elements.find(x => x.id === a.from), t = d.elements.find(x => x.id === a.to); const slot = a.slot || (f && t && M.slotNear(d, f, t)); made = slot ? M.plug(d, a.from, a.to, slot) : null; if (made && a.amount !== undefined) made.play.cable.amount = Math.max(-1, Math.min(1, Number(a.amount))); }, { by: 'agent' });
+        if (!made) throw new Error('That cable is not allowed (kinds, a taken slot, or a loop)');
+        return { id: made.id, slot: made.play.cable.slot };
+      }
+      if (a.action === 'unplug' || a.action === 'remove') { app.store.change(a.action, d => { d.elements = d.elements.filter(x => x.id !== a.id); }, { by: 'agent' }); return { ok: true }; }
+      if (a.action === 'settings') { setModSettings(app, a.id, a.settings || {}, 'module settings'); return { settings: doc().elements.find(x => x.id === a.id)?.play?.mod?.settings }; }
+      if (a.action === 'example') {
+        if (!X.EXAMPLES[a.name]) throw new Error(`Examples: ${Object.keys(X.EXAMPLES).join(', ')}`);
+        let ids = [];
+        const bits = a.name === 'arecibo' ? (await import('../../examples/media/arecibo-message.json')).default.rows.join('\n') : undefined;
+        app.store.change(`example: ${a.name}`, d => { ids = X.addExample(d, a.name, a.x ?? 0, a.y ?? 0, { stage: stage(), bits }); }, { by: 'agent' });
+        app.modularToolbar?.show();
+        return { ids };
+      }
+      throw new Error('Unknown action');
+    } },
     { name: 'ams_patch', description: 'The scene\'s modular synth (a patch: modules and cables, after genereti; the Patch tab beside the Mixer). Kinds: sequencers Steps {notes: "C3 - Eb3 G3", division, gate, velocity, transpose}, Drums {rows: "kick 36 x...x...\nsnare 38 ....x..."}, Euclid {rings: "16 4 0 36" a line each: steps hits rotation note}, Bits {bits: rows of 0/1, scale, root} (they play while the Timeline plays); instruments Synth {voice sine|subtractive|fm|reed, channel, attack, decay, sustain, release, cutoff, resonance, filter_env, glide, vibrato, fm_ratio, fm_index…}, Karplus {decay, damping}, Granular, DrumKit, DrumSynth (channel 10 by default); effects Gain, Filter, Delay, Reverb, Distortion, Mixer (input_1..8), Merge, Output (the speakers). Cables: audio from a module to a slot ("input", "input_1"…), or "notes" from a sequencer to an instrument. A score reaches an instrument when the mixer sends its channel out "patch" (ams_score sound mixer {channel: {"1": {out: "patch"}}}). Timeline lanes can move any number: ams_keys address "patch:<module>.<setting>". action "get"; "example" {name: starter | arecibo}; "add" {kind, x, y, settings} → id; "remove" {id}; "connect" {from, to, slot?} (slot: the first free one); "disconnect" {from, to, slot}; "settings" {id, settings}; "set" {patch} replaces it all; "audition" {id, note}.', inputSchema: S({ action: str('get | example | add | remove | connect | disconnect | settings | set | audition'), name: str('example: starter | arecibo'), kind: str('add: a module kind'), id: str('the module'), x: num('add: where'), y: num('add: where'), settings: { type: 'object', description: 'add / settings: values' }, from: str('connect: from module'), to: str('connect: to module'), slot: str('connect: input slot, or notes'), patch: { type: 'object', description: 'set: { modules: [{ id, kind, x, y, settings }], cables: [{ from, to, slot }] }' }, note: num('audition: a MIDI note') }, ['action']), run: async (a) => {
       const pp = app.patch, M = await import('../audio/modular/patch.js');
       if (!pp) throw new Error('No patch player');

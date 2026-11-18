@@ -1,5 +1,7 @@
 /**
  * The scene's modular synth, playing (data: `doc.transport.patch`, src/audio/modular/patch.js; engine: src/audio/modular/engine.js).
+ * What plays is the scene's whole patch (scene()): the Patch panel's and the one drawn on the canvas (modules and cables as
+ * marks, src/modular) together; patch() and setPatch() are the panel's own.
  *
  * - The graph follows the patch: every change (the node editor, code, undo) is synced into the running engine, which
  *   keeps what did not change, so editing never stops the sound.
@@ -11,6 +13,7 @@
  */
 import { AudioPatch } from '../audio/modular/engine.js';
 import { toDefs, instrumentsOn, targetsOf, isSequencer, stepsBetween, settingsOf, normalizePatch, examplePatch } from '../audio/modular/patch.js';
+import { scenePatch } from '../modular/model.js';
 
 const AHEAD = 0.15, TICK_MS = 25;
 
@@ -26,14 +29,23 @@ export class PatchPlayer {
     this.listeners = new Set();
     this.live = new Map();            // `${module}.${setting}` → a value automation set (Timeline lanes: 'patch:<module>.<setting>'), not saved
     app.player.on(() => this.onPlayer());
-    app.store?.subscribe?.(() => this.sync());   // (undo, redo, another scene: the sound follows)
+    app.store?.subscribe?.(() => { this.sync(); if (app.player.playing && !this.timer && this.engine && this.hasSequencers()) this.onPlayer(); });   // (undo, redo, another scene, a module drawn: the sound follows)
   }
 
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit() { for (const f of this.listeners) f(this); }
 
-  /** The scene's patch (normalized). */
+  /** The Patch panel's patch (normalized): what the panel and ams_patch edit. */
   patch() { return this.app.player.settings.patch; }
+  /** What plays: the panel's patch and the canvas's together (the same object while neither changes). */
+  scene() {
+    const doc = this.app.store.doc, panel = this.patch(), rev = this.app.store.rev;
+    if (this.sceneOf && this.sceneOf.rev === rev && this.sceneOf.panel === panel && this.sceneOf.doc === doc) return this.sceneOf.patch;
+    const next = scenePatch(doc, panel), json = JSON.stringify(next);
+    const patch = this.sceneOf?.json === json ? this.sceneOf.patch : next;
+    this.sceneOf = { rev, panel, doc, json, patch };
+    return patch;
+  }
   /** Replace the patch: one undo step, saved with the scene; the sound follows. */
   setPatch(next, { transient = false } = {}) {
     const p = normalizePatch(next);
@@ -51,18 +63,27 @@ export class PatchPlayer {
       if (!AC) return false;
       this.ctx = new AC();
       this.engine = new AudioPatch(this.ctx);
+      this.engine.fetchSample = name => fetchSample(this.app, name);
     }
     if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
     this.sync();
     return true;
   }
   get running() { return Boolean(this.ctx && this.ctx.state === 'running'); }
+  /** Sound on or off (the modular toolbar's power: drones and sources stop with it; the Timeline's Play turns it on). */
+  power(on = !this.running) {
+    if (on) return this.ensure();
+    this.allNotesOff();
+    this.ctx?.suspend().catch(() => {});
+    this.emit();
+    return false;
+  }
 
   sync() {
     if (!this.engine) return;
-    const p = this.patch();
-    if (p === this.synced) return;
-    this.synced = p;
+    const p = this.scene(), tempo = this.app.player.settings.tempo || 120;
+    if (p === this.synced && tempo === this.engine.tempo) return;
+    this.synced = p; this.engine.tempo = tempo;
     const { defs, outputs } = toDefs(p);
     for (const [key, v] of this.live) { const [id, prop] = key.split('.'); if (defs.has(id)) defs.get(id).settings[prop] = v; }   // (what lanes set holds)
     try { this.engine.sync(defs, outputs); }
@@ -73,7 +94,7 @@ export class PatchPlayer {
   liveValue(id, prop) {
     const key = `${id}.${prop}`;
     if (this.live.has(key)) return this.live.get(key);
-    const m = this.patch().modules.find(x => x.id === id);
+    const m = this.scene().modules.find(x => x.id === id);
     return m ? settingsOf(m)[prop] : undefined;
   }
   /** Automation: change a setting of the running sound (no undo step, not saved; the patch keeps its own value). */
@@ -97,7 +118,7 @@ export class PatchPlayer {
     const [st, note, vel] = bytes, kind = st & 0xf0, ch = (st & 0x0f) + 1, t = this.audioTime(atMs);
     if (kind === 0xb0 && (note === 120 || note === 123)) { this.allNotesOff(); return; }
     if (kind !== 0x90 && kind !== 0x80) return;
-    for (const id of instrumentsOn(this.patch(), ch)) {
+    for (const id of instrumentsOn(this.scene(), ch)) {
       const key = `${id}:${note}`, list = this.held.get(key) || [];
       if (kind === 0x90 && vel > 0) {
         const v = this.engine.trigger(id, note, t, Infinity, vel / 127);
@@ -120,18 +141,24 @@ export class PatchPlayer {
   /** Play one note on a module now (the editor's audition), for `seconds`. */
   audition(id, note = 60, seconds = 0.4) {
     if (!this.ensure()) return;
-    const m = this.patch().modules.find(x => x.id === id);
+    const m = this.scene().modules.find(x => x.id === id);
     if (!m) return;
-    const targets = isSequencer(m.kind) ? targetsOf(this.patch(), id) : [id];
+    const targets = isSequencer(m.kind) ? targetsOf(this.scene(), id) : [id];
     const t = this.ctx.currentTime + 0.01;
     for (const target of targets) this.engine.trigger(target, note, t, seconds, 0.8);
   }
 
-  flash(id) { this.lit = this.lit || new Map(); this.lit.set(id, performance.now()); }
+  /** An instrument played (at the audio time `at`, or now): the canvas lights its title. */
+  flash(id, at) { this.lit = this.lit || new Map(); this.lit.set(id, performance.now() + (at && this.ctx ? Math.max(0, (at - this.ctx.currentTime) * 1000) : 0)); }
+  /** A setting heard while a slider is dragged (not stored: the change at its end is). */
+  preview(id, prop, v) {
+    const em = this.engine?.modules.get(id);
+    if (em) { em.settings = { ...em.settings, [prop]: v }; this.engine.update(em, em.settings); }
+  }
 
   // ---- sequencers on the Timeline's clock ---------------------------------------------------------------------------
 
-  hasSequencers() { return this.patch().modules.some(m => isSequencer(m.kind)); }
+  hasSequencers() { return this.scene().modules.some(m => isSequencer(m.kind)); }
 
   onPlayer() {
     const pl = this.app.player;
@@ -153,13 +180,14 @@ export class PatchPlayer {
     if (this.lastBeat === null || beatNow < this.lastBeat - AHEAD * bps * rate - 0.5 || beatNow > this.lastBeat + 4) this.lastBeat = beatNow;
     const until = beatNow + AHEAD * bps * rate;
     if (until <= this.lastBeat) return;
-    const p = this.patch(), base = this.ctx.currentTime;
+    this.sync();   // (a module drawn while it plays joins in)
+    const p = this.scene(), base = this.ctx.currentTime;
     for (const m of p.modules) {
       if (!isSequencer(m.kind)) continue;
       const targets = targetsOf(p, m.id);
       for (const ev of stepsBetween(this.withLive(m), this.lastBeat, until)) {
         const t = base + (ev.beat - beatNow) / bps / rate, dur = ev.beats / bps / rate;
-        for (const id of targets) this.engine.trigger(id, ev.note, t, dur, ev.velocity);
+        for (const id of targets) { this.engine.trigger(id, ev.note, t, dur, ev.velocity); this.flash(id, t); }
         this.steps.set(m.id, { step: ev.step, t });
       }
     }
@@ -181,7 +209,7 @@ export class PatchPlayer {
   /** Record the first Output for `seconds` seconds; resolves to { blob, ext }. */
   async record(seconds = 10) {
     if (!this.ensure()) throw new Error('No sound in this browser');
-    const out = this.patch().modules.find(m => m.kind === 'Output' && !settingsOf(m).mute);
+    const out = this.scene().modules.find(m => m.kind === 'Output' && !settingsOf(m).mute);
     if (!out) throw new Error('The patch has no Output');
     const rec = this.engine.record(out.id);
     await new Promise(r => setTimeout(r, seconds * 1000));
@@ -189,4 +217,20 @@ export class PatchPlayer {
   }
 
   stop() { this.allNotesOff(); if (this.timer) { clearInterval(this.timer); this.timer = null; } }
+}
+
+/**
+ * A Sampler's sample as bytes: a Media library asset by id, else by its title (as a sketch's loadSound('edison-lost-chord.mp3')
+ * finds it: the name before the extension, in lower case with dashes), else a source of that name.
+ */
+export async function fetchSample(app, name) {
+  const store = app.assetStore;
+  if (!store || !name) return null;
+  const slug = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  let a = await store.get(name).catch(() => null);
+  if (!a?.blob) {
+    const base = slug(String(name).split('/').pop().replace(/\.[a-z0-9]{2,4}$/i, ''));
+    a = (await store.all()).find(x => x.blob && (slug(x.title) === base || x.id === name));
+  }
+  return a?.blob ? a.blob.arrayBuffer() : null;
 }

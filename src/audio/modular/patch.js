@@ -6,16 +6,20 @@
  *
  *   patch = { modules: [{ id, kind, x, y, name?, settings }], cables: [{ from, to, slot }] }
  *
- * Kinds come in three groups:
+ * Kinds come in five groups:
+ *   source      makes sound by itself, all the time: Osc (an oscillator), Noise
+ *   modulator   moves another module's setting: LFO (cabled to a `mod:<setting>` slot)
  *   instrument  makes sound when a note reaches it: Synth, Karplus, Granular, DrumKit, DrumSynth. A score's notes reach
  *               every instrument whose `channel` they are on (the mixer routes a channel to the patch with out: 'patch');
  *               a sequencer reaches the instruments it is cabled to (slot 'notes')
  *   effect      changes sound: Gain, Filter, Delay, Reverb, Distortion, Mixer, Merge; and Output, the speakers
- *   sequencer   plays notes on the Timeline's clock: Steps (a melody), Drums (a grid), Euclid (rings), Bits (a grid of
- *               0s and 1s read row by row, such as the Arecibo message)
+ *   sequencer   plays notes on the Timeline's clock: Steps (a melody), Drums (a grid), Euclid (rings), Grid (a matrix of
+ *               scale notes by steps, after the Tenori-on), Bits (a grid of 0s and 1s read row by row, such as the Arecibo message)
  *
  * Audio cables go from a module's output to a slot of another (`input`, or `input_1`… on a Mixer or Merge); there are
  * no audio loops (feedback is the Delay's own). Notes cables go from a sequencer to an instrument (slot `notes`).
+ * Modulation cables go from an LFO (or any sound, for audio-rate FM) to a setting that can be moved (`mod:cutoff`…, each
+ * kind's `mods`); the cable's `amount` (−1..1, default 1) scales it. A cable may carry the path it is drawn as (the canvas).
  */
 
 const P = (def, min, max, step) => ({ def, min, max, ...(step ? { step } : {}) });
@@ -25,49 +29,69 @@ const B = def => ({ def, bool: true });
 const CHANNEL = def => P(def, 1, 16, 1);
 
 const WAVES = ['auto', 'sine', 'triangle', 'sawtooth', 'square'];
+const SHAPES = ['sine', 'triangle', 'sawtooth', 'square'];
+/** LFO rates locked to the Timeline's tempo (beats a cycle), or free (Hz). */
+export const LFO_SYNC = Object.freeze({ free: 0, '1/16': 0.25, '1/8': 0.5, '1/4': 1, '1/2': 2, '1 bar': 4, '2 bars': 8, '4 bars': 16 });
+const GRID_DEF = ['................', '..............x.', '..........x.....', '......x.....x...', '....x...........', '..x.....x.......', 'x...............', '........x...x...'].join('\n');
 
 /** Every kind: its group, its settings ({ def, min, max, step } | { def, options } | { def, text } | { def, bool }), its audio inputs. */
 export const KINDS = Object.freeze({
-  Synth: { group: 'instrument', doc: 'A polyphonic voice: sine, subtractive, FM or reed; envelope, filter, glide, vibrato', params: {
+  Synth: { group: 'instrument', doc: 'A polyphonic voice: sine, subtractive, FM or reed; envelope, filter, glide, vibrato', mods: ['level'], params: {
     voice: O('subtractive', ['sine', 'subtractive', 'fm', 'reed']), wave: O('auto', WAVES), channel: CHANNEL(1), level: P(0.35, 0, 1),
     attack: P(0.02, 0.001, 5), decay: P(0.15, 0.001, 5), sustain: P(0.6, 0, 1), release: P(0.3, 0.005, 5),
     filter_mode: O('lowpass', ['lowpass', 'highpass', 'bandpass']), cutoff: P(2200, 20, 18000), resonance: P(0.7, 0.1, 12), filter_env: P(0, 0, 1),
     glide: P(0.015, 0, 1), vibrato: P(0, 0, 2), vibrato_rate: P(5, 0.1, 20), detune: P(0, -100, 100), fm_ratio: P(2, 0.1, 10), fm_index: P(0.7, 0, 10),
     polyphony: P(8, 1, 32, 1) } },
-  Karplus: { group: 'instrument', doc: 'A plucked string (Karplus–Strong): a delay line fed back through a low-pass', params: {
+  Karplus: { group: 'instrument', doc: 'A plucked string (Karplus–Strong): a delay line fed back through a low-pass', mods: ['level'], params: {
     channel: CHANNEL(1), level: P(0.35, 0, 1), decay: P(1.2, 0.05, 5), damping: P(0.5, 0, 1), release: P(0.15, 0.01, 3), polyphony: P(8, 1, 32, 1) } },
-  Granular: { group: 'instrument', doc: 'A pitched cloud of grains', params: {
+  Granular: { group: 'instrument', doc: 'A pitched cloud of grains', mods: ['level'], params: {
     channel: CHANNEL(1), level: P(0.25, 0, 1), grain_size: P(0.08, 0.02, 0.3), density: P(16, 1, 40), spread: P(0.25, 0, 1), release: P(0.2, 0.01, 3), polyphony: P(8, 1, 32, 1) } },
-  DrumKit: { group: 'instrument', doc: 'Kick, snare, hats, toms, clap, rim, ride, cowbell on the General MIDI drum notes', params: {
+  DrumKit: { group: 'instrument', doc: 'Kick, snare, hats, toms, clap, rim, ride, cowbell on the General MIDI drum notes', mods: ['level'], params: {
     channel: CHANNEL(10), level: P(0.4, 0, 1), decay: P(0.18, 0.03, 2), tone: P(1, 0.25, 2) } },
-  DrumSynth: { group: 'instrument', doc: 'Eight synthesized drum voices (kick 36, snare 38, hat 42, open hat 46, toms 41 and 45, clap 39, bell 56)', params: {
+  DrumSynth: { group: 'instrument', doc: 'Eight synthesized drum voices (kick 36, snare 38, hat 42, open hat 46, toms 41 and 45, clap 39, bell 56)', mods: ['level'], params: {
     channel: CHANNEL(10), level: P(0.4, 0, 1), kit: T('', 2), polyphony: P(24, 1, 32, 1) } },
-  Gain: { group: 'effect', doc: 'Level, pan, mute', inputs: ['input'], params: { level: P(0.8, 0, 2), pan: P(0, -1, 1), mute: B(false) } },
-  Filter: { group: 'effect', doc: 'A biquad filter', inputs: ['input'], params: { mode: O('lowpass', ['lowpass', 'highpass', 'bandpass', 'notch']), cutoff: P(1800, 20, 18000), resonance: P(0.7, 0.1, 12) } },
-  Delay: { group: 'effect', doc: 'An echo, fed back into itself', inputs: ['input'], params: { seconds: P(0.25, 0.01, 2), feedback: P(0.25, 0, 0.85), mix: P(0.25, 0, 1) } },
-  Reverb: { group: 'effect', doc: 'A room made of noise (a convolution with a decaying burst)', inputs: ['input'], params: { decay: P(1.5, 0.1, 5), mix: P(0.3, 0, 1) } },
-  Distortion: { group: 'effect', doc: 'Waveshaping drive', inputs: ['input'], params: { drive: P(2, 0, 20), mix: P(0.5, 0, 1) } },
-  Mixer: { group: 'effect', doc: 'Up to eight buses with level, pan, mute and solo', inputs: [1, 2, 3, 4, 5, 6, 7, 8].map(i => `input_${i}`), params: {
+  Sampler: { group: 'instrument', doc: 'Plays a recording from the Media library at the pitch of each note (the root plays it as it is), or loops it', mods: ['level'], params: {
+    sample: T('', 1), channel: CHANNEL(1), level: P(0.6, 0, 1), root: P(60, 0, 127, 1), start: P(0, 0, 1), loop: B(false), attack: P(0.005, 0.001, 2), release: P(0.2, 0.005, 5), polyphony: P(8, 1, 32, 1) } },
+  Osc: { group: 'source', doc: 'An oscillator, always sounding: a drone, a carrier to modulate, or a modulator itself (into another\'s freq: FM)', mods: ['freq', 'detune', 'level'], params: {
+    wave: O('sine', SHAPES), freq: P(110, 0.1, 8000), detune: P(0, -1200, 1200), level: P(0.3, 0, 1) } },
+  Noise: { group: 'source', doc: 'Noise, always sounding: white (bright), pink (even), brown (deep)', mods: ['level'], params: { color: O('white', ['white', 'pink', 'brown']), level: P(0.15, 0, 1) } },
+  LFO: { group: 'modulator', doc: 'A slow wave that moves a setting: cable it to a module and choose which (cutoff, level, pan, freq…)', mods: ['rate', 'depth'], params: {
+    wave: O('sine', SHAPES), rate: P(0.5, 0.01, 40), sync: O('free', Object.keys(LFO_SYNC)), depth: P(0.5, 0, 1) } },
+  Scope: { group: 'effect', doc: 'Shows the sound that goes through it (it passes it on unchanged)', inputs: ['input'], params: { zoom: P(1, 0.25, 8) } },
+  Gain: { group: 'effect', doc: 'Level, pan, mute', mods: ['level', 'pan'], inputs: ['input'], params: { level: P(0.8, 0, 2), pan: P(0, -1, 1), mute: B(false) } },
+  Filter: { group: 'effect', doc: 'A biquad filter', mods: ['cutoff', 'resonance'], inputs: ['input'], params: { mode: O('lowpass', ['lowpass', 'highpass', 'bandpass', 'notch']), cutoff: P(1800, 20, 18000), resonance: P(0.7, 0.1, 12) } },
+  Delay: { group: 'effect', doc: 'An echo, fed back into itself', mods: ['seconds', 'feedback', 'mix'], inputs: ['input'], params: { seconds: P(0.25, 0.01, 2), feedback: P(0.25, 0, 0.85), mix: P(0.25, 0, 1) } },
+  Reverb: { group: 'effect', doc: 'A room made of noise (a convolution with a decaying burst)', mods: ['mix'], inputs: ['input'], params: { decay: P(1.5, 0.1, 5), mix: P(0.3, 0, 1) } },
+  Distortion: { group: 'effect', doc: 'Waveshaping drive', mods: ['mix'], inputs: ['input'], params: { drive: P(2, 0, 20), mix: P(0.5, 0, 1) } },
+  Mixer: { group: 'effect', doc: 'Up to eight buses with level, pan, mute and solo', mods: ['master'], inputs: [1, 2, 3, 4, 5, 6, 7, 8].map(i => `input_${i}`), params: {
     master: P(0.8, 0, 1), ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].flatMap(i => [[`level_${i}`, P(1, 0, 2)], [`pan_${i}`, P(0, -1, 1)], [`mute_${i}`, B(false)], [`solo_${i}`, B(false)]])) } },
   Merge: { group: 'effect', doc: 'Adds its inputs together', inputs: [1, 2, 3, 4].map(i => `in_${i}`), params: {} },
-  Output: { group: 'effect', doc: 'The speakers (through a compressor)', inputs: ['input'], params: { level: P(0.65, 0, 1), mute: B(false) } },
+  Output: { group: 'effect', doc: 'The speakers (through a compressor)', mods: ['level'], inputs: ['input'], params: { level: P(0.65, 0, 1), mute: B(false) } },
   Steps: { group: 'sequencer', doc: 'A melody: notes (C3, Eb4, 60) and rests (- or .), one a step', params: {
     notes: T('C3 - Eb3 G3 - C4 G3 Eb3 C3 - Eb3 G3 Bb3 G3 Eb3 -', 2), division: P(4, 1, 8, 1), gate: P(0.5, 0.05, 1), velocity: P(0.8, 0, 1), transpose: P(0, -48, 48, 1) } },
   Drums: { group: 'sequencer', doc: 'A drum grid: a row a drum, "name note pattern" (x: hit, X: accent, .: rest)', params: {
     rows: T('kick 36 x...x...x...x...\nsnare 38 ....x.......x...\nhat 42 x.x.x.x.x.x.x.x.', 4), division: P(4, 1, 8, 1), velocity: P(0.9, 0, 1) } },
   Euclid: { group: 'sequencer', doc: 'Euclidean rings: a line a ring, "steps hits rotation note"', params: {
     rings: T('16 4 0 36\n16 3 2 38\n16 7 0 42', 4), division: P(4, 1, 8, 1), velocity: P(0.85, 0, 1) } },
+  Grid: { group: 'sequencer', doc: 'A matrix: a row a note of the scale (the top row highest), a column a step; x plays', params: {
+    cells: T(GRID_DEF, 8), scale: O('pentatonic', ['pentatonic', 'major', 'minor', 'chromatic', 'whole tone']), root: P(48, 24, 84, 1), division: P(4, 1, 8, 1), gate: P(0.5, 0.05, 1), velocity: P(0.8, 0, 1) } },
   Bits: { group: 'sequencer', doc: 'A grid of bits read row by row, a 1 a note: its column is its place in the scale', params: {
     bits: T('1010101\n0110011\n1111000', 6), scale: O('pentatonic', ['pentatonic', 'major', 'minor', 'chromatic', 'whole tone']), root: P(48, 24, 84, 1), division: P(4, 1, 8, 1), gate: P(0.6, 0.05, 1), velocity: P(0.75, 0, 1) } }
 });
 
-export const GROUPS = Object.freeze(['sequencer', 'instrument', 'effect']);
+export const GROUPS = Object.freeze(['sequencer', 'source', 'modulator', 'instrument', 'effect']);
 export const isInstrument = kind => KINDS[kind]?.group === 'instrument';
 export const isSequencer = kind => KINDS[kind]?.group === 'sequencer';
 export const isAudio = kind => KINDS[kind] && KINDS[kind].group !== 'sequencer';
+export const isModulator = kind => KINDS[kind]?.group === 'modulator';
 export const inputsOf = kind => KINDS[kind]?.inputs || [];
-/** Can a cable start here (an audio output, or notes)? */
-export const outputOf = kind => (isSequencer(kind) ? 'notes' : kind === 'Output' ? null : KINDS[kind] ? 'audio' : null);
+/** The settings a modulation cable can move: ['mod:cutoff', …]. */
+export const modSlotsOf = kind => (KINDS[kind]?.mods || []).map(p => `mod:${p}`);
+export const isModSlot = slot => String(slot).startsWith('mod:');
+/** What a cable from here carries: 'notes' (a sequencer), 'mod' (an LFO), 'audio', or null (the Output: nothing goes on). */
+export const outputOf = kind => (isSequencer(kind) ? 'notes' : isModulator(kind) ? 'mod' : kind === 'Output' ? null : KINDS[kind] ? 'audio' : null);
+/** Every slot of a module a cable can go into (notes, audio inputs, modulation). */
+export const slotsOf = kind => [...(isInstrument(kind) ? ['notes'] : []), ...inputsOf(kind), ...modSlotsOf(kind)];
 
 export const EMPTY_PATCH = Object.freeze({ modules: Object.freeze([]), cables: Object.freeze([]) });
 
@@ -97,7 +121,7 @@ function storedSettings(kind, settings) {
 /** Would an audio cable from `from` to `to` close a loop? */
 function loops(cables, from, to) {
   const next = new Map();
-  for (const c of cables) if (c.slot !== 'notes') next.set(c.from, [...(next.get(c.from) || []), c.to]);
+  for (const c of cables) if (c.slot !== 'notes') next.set(c.from, [...(next.get(c.from) || []), c.to]);   // (modulation counts: the engine pulls it in like audio)
   const seen = new Set(), stack = [to];
   while (stack.length) { const id = stack.pop(); if (id === from) return true; if (seen.has(id)) continue; seen.add(id); stack.push(...(next.get(id) || [])); }
   return false;
@@ -108,7 +132,8 @@ export function cableAllowed(modules, cables, { from, to, slot }) {
   const a = modules.find(m => m.id === from), b = modules.find(m => m.id === to);
   if (!a || !b || a.id === b.id) return false;
   if (slot === 'notes') return isSequencer(a.kind) && isInstrument(b.kind) && !cables.some(c => c.from === from && c.to === to && c.slot === 'notes');
-  if (outputOf(a.kind) !== 'audio' || !inputsOf(b.kind).includes(slot)) return false;
+  if (isModSlot(slot)) { if (!['mod', 'audio'].includes(outputOf(a.kind)) || !modSlotsOf(b.kind).includes(slot)) return false; }
+  else if (outputOf(a.kind) !== 'audio' || !inputsOf(b.kind).includes(slot)) return false;
   if (cables.some(c => c.to === to && c.slot === slot)) return false;   // (one cable into a slot)
   return !loops(cables, from, to);
 }
@@ -125,19 +150,24 @@ export function normalizePatch(p) {
   const cables = [];
   for (const c of Array.isArray(src.cables) ? src.cables : []) {
     const cable = { from: String(c?.from), to: String(c?.to), slot: String(c?.slot || 'input') };
+    const amount = Number(c?.amount);
+    if (isModSlot(cable.slot) && Number.isFinite(amount) && amount !== 1) cable.amount = Math.max(-1, Math.min(1, amount));
     if (cableAllowed(modules, cables, cable)) cables.push(cable);
   }
   return { modules, cables };
 }
 
-/** For the engine: { defs: Map(id → { kind, settings, inputs: { slot: fromId } }), outputs: Set(ids of Output modules) }. */
+/** For the engine: { defs: Map(id → { kind, settings, inputs: { slot: fromId }, amounts: { modSlot: amount } }), outputs: Set(ids of Output modules) }. */
 export function toDefs(patch) {
   const defs = new Map(), outputs = new Set();
   for (const m of patch.modules) if (isAudio(m.kind)) {
-    defs.set(m.id, { kind: m.kind, settings: settingsOf(m), inputs: {} });
+    defs.set(m.id, { kind: m.kind, settings: settingsOf(m), inputs: {}, amounts: {} });
     if (m.kind === 'Output' && !settingsOf(m).mute) outputs.add(m.id);
   }
-  for (const c of patch.cables) if (c.slot !== 'notes' && defs.has(c.to) && defs.has(c.from)) defs.get(c.to).inputs[c.slot] = c.from;
+  for (const c of patch.cables) if (c.slot !== 'notes' && defs.has(c.to) && defs.has(c.from)) {
+    defs.get(c.to).inputs[c.slot] = c.from;
+    if (isModSlot(c.slot)) defs.get(c.to).amounts[c.slot] = c.amount ?? 1;
+  }
   return { defs, outputs };
 }
 
@@ -160,8 +190,8 @@ export const removeModule = (patch, id) => normalizePatch({ modules: patch.modul
 export const moveModule = (patch, id, x, y) => normalizePatch({ ...patch, modules: patch.modules.map(m => (m.id === id ? { ...m, x, y } : m)) });
 export const renameModule = (patch, id, name) => normalizePatch({ ...patch, modules: patch.modules.map(m => (m.id === id ? { ...m, name } : m)) });
 export const setSettings = (patch, id, values) => normalizePatch({ ...patch, modules: patch.modules.map(m => (m.id === id ? { ...m, settings: { ...settingsOf(m), ...values } } : m)) });
-export function connect(patch, from, to, slot) {
-  const cable = { from, to, slot };
+export function connect(patch, from, to, slot, amount) {
+  const cable = { from, to, slot, ...(amount !== undefined ? { amount } : {}) };
   if (!cableAllowed(patch.modules, patch.cables, cable)) return patch;
   return normalizePatch({ ...patch, cables: [...patch.cables, cable] });
 }
@@ -171,7 +201,9 @@ export function freeSlot(patch, from, to) {
   const a = patch.modules.find(m => m.id === from), b = patch.modules.find(m => m.id === to);
   if (!a || !b) return null;
   if (isSequencer(a.kind)) return isInstrument(b.kind) && cableAllowed(patch.modules, patch.cables, { from, to, slot: 'notes' }) ? 'notes' : null;
-  return inputsOf(b.kind).find(slot => cableAllowed(patch.modules, patch.cables, { from, to, slot })) || null;
+  // (an LFO only modulates; a sound goes into an input, else modulates: an Osc into an Osc is FM)
+  const slots = isModulator(a.kind) ? modSlotsOf(b.kind) : [...inputsOf(b.kind), ...modSlotsOf(b.kind)];
+  return slots.find(slot => cableAllowed(patch.modules, patch.cables, { from, to, slot })) || null;
 }
 
 // ---- sequencers: what they play between two beats (pure) ------------------------------------------------------------
@@ -209,6 +241,10 @@ export function parseRings(text) {
 export const SCALES = Object.freeze({ pentatonic: [0, 2, 4, 7, 9], major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10], chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 'whole tone': [0, 2, 4, 6, 8, 10] });
 /** A grid of bits: rows of 0 and 1 (anything else is skipped). */
 export const parseBits = text => String(text || '').split('\n').map(l => l.replace(/[^01]/g, '')).filter(Boolean).map(l => [...l].map(Number));
+/** A Grid's cells: rows (the top one highest) of steps, x (or 1) on, X an accent, anything else off. */
+export const parseGrid = text => String(text || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => [...l].map(ch => (ch === 'X' ? 1.4 : ch === 'x' || ch === '1' ? 1 : 0)));
+/** The cells as text again (after one is toggled). */
+export const gridText = rows => rows.map(r => r.map(v => (v > 1 ? 'X' : v ? 'x' : '.')).join('')).join('\n');
 /** Column c of a scale, from the root: up the scale, octave after octave. */
 export const scaleNote = (root, scale, c) => { const s = SCALES[scale] || SCALES.pentatonic; return root + 12 * Math.floor(c / s.length) + s[c % s.length]; };
 
@@ -218,6 +254,7 @@ export function lengthOf(m) {
   if (m.kind === 'Steps') return Math.max(1, parseSteps(s.notes).length);
   if (m.kind === 'Drums') return Math.max(1, ...parseDrumRows(s.rows).map(r => r.steps.length));
   if (m.kind === 'Euclid') return Math.max(1, ...parseRings(s.rings).map(r => r.pattern.length));
+  if (m.kind === 'Grid') return Math.max(1, ...parseGrid(s.cells).map(r => r.length));
   if (m.kind === 'Bits') { const g = parseBits(s.bits); return Math.max(1, g.length * (g[0]?.length || 1)); }
   return 1;
 }
@@ -234,11 +271,13 @@ export function stepsBetween(m, fromBeat, toBeat) {
   const stepLen = 1 / div;
   const steps = m.kind === 'Steps' ? parseSteps(s.notes) : null, rows = m.kind === 'Drums' ? parseDrumRows(s.rows) : null;
   const rings = m.kind === 'Euclid' ? parseRings(s.rings) : null, grid = m.kind === 'Bits' ? parseBits(s.bits) : null;
+  const cells = m.kind === 'Grid' ? parseGrid(s.cells) : null, width = cells ? Math.max(1, ...cells.map(r => r.length)) : 0;
   for (let i = Math.max(0, first); i < last; i++) {
     const beat = i / div;
     if (steps?.length) { const n = steps[i % steps.length]; if (n !== null) out.push({ step: i, beat, note: Math.max(0, Math.min(127, n + s.transpose)), velocity: s.velocity, beats: stepLen * s.gate }); }
     if (rows) for (const r of rows) { const v = r.steps[i % r.steps.length]; if (v) out.push({ step: i, beat, note: r.note, velocity: Math.min(1, s.velocity * v), beats: stepLen }); }
     if (rings) for (const r of rings) if (r.pattern[i % r.pattern.length]) out.push({ step: i, beat, note: r.note, velocity: s.velocity, beats: stepLen });
+    if (cells?.length) cells.forEach((r, k) => { const v = r[i % width]; if (v) out.push({ step: i, beat, note: Math.min(127, scaleNote(s.root, s.scale, cells.length - 1 - k)), velocity: Math.min(1, s.velocity * v), beats: stepLen * s.gate }); });
     if (grid?.length) {
       const w = grid[0].length, k = i % (grid.length * w), row = grid[Math.floor(k / w)], c = k % w;
       if (row?.[c]) out.push({ step: i, beat, note: Math.min(127, scaleNote(s.root, s.scale, c)), velocity: s.velocity, beats: stepLen * s.gate });

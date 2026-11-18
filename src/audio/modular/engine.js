@@ -19,14 +19,61 @@ function smooth(p, value, now) {
   else if (targets.get(p) !== value) p.setTargetAtTime(value, now, 0.015);
   targets.set(p, value);
 }
-export const INSTRUMENT_KINDS = Object.freeze(["Synth", "DrumKit", "DrumSynth", "Karplus", "Granular"]);
+export const INSTRUMENT_KINDS = Object.freeze(["Synth", "DrumKit", "DrumSynth", "Karplus", "Granular", "Sampler"]);
+const IS_INSTRUMENT = new Set(INSTRUMENT_KINDS);
+/** LFO cycles in beats when synced (patch.js LFO_SYNC). */
+const SYNC_BEATS = { "1/16": 0.25, "1/8": 0.5, "1/4": 1, "1/2": 2, "1 bar": 4, "2 bars": 8, "4 bars": 16 };
+/**
+ * How far a modulation cable moves a setting at full swing (amount 1, a source at ±1): the setting's own value for what
+ * scales (a frequency, a level), a fixed span for the rest. An LFO's depth scales its swing before this.
+ */
+function modSpan(kind, param, s) {
+  if (param === "freq") return Math.max(1, Number(s.freq) || 110);
+  if (param === "cutoff") return Math.max(20, Number(s.cutoff) || 1000) * 0.9;
+  if (param === "level") return (Number(s.level) || 0.5) * (IS_INSTRUMENT.has(kind) ? 0.3 : 1);
+  if (param === "master" || param === "rate" || param === "seconds") return Math.max(0.01, Number(s[param]) || 0.5) * 0.5;
+  return { detune: 1200, resonance: 6, pan: 1, feedback: 0.4, mix: 0.5, depth: 0.5 }[param] ?? 1;
+}
+/** A second of coloured noise (looped). */
+function noiseBuffer(c, color) {
+  const n = c.sampleRate * 2, b = c.createBuffer(1, n, c.sampleRate), a = b.getChannelData(0);
+  let b0 = 0, b1 = 0, b2 = 0, last = 0;
+  for (let i = 0; i < n; i++) {
+    const w = Math.random() * 2 - 1;
+    if (color === "pink") { b0 = 0.99765 * b0 + w * 0.099046; b1 = 0.963 * b1 + w * 0.2965164; b2 = 0.57 * b2 + w * 1.0526913; a[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2; }
+    else if (color === "brown") { last = (last + 0.02 * w) / 1.02; a[i] = last * 3.5; }
+    else a[i] = w;
+  }
+  return b;
+}
 export class AudioPatch {
   constructor(ctx) {
     this.ctx = ctx;
     this.modules = new Map();
     this.edges = new Map();
     this.waveformTaps = new Map();
+    this.mods = new Map();        // modulation cables: key → { from, gain, param }
     this.noise = null;
+    this.tempo = 120;             // (LFOs synced to the Timeline; the player sets it)
+    this.buffers = new Map();     // Sampler: a sample's name → AudioBuffer | Promise | null
+    this.fetchSample = null;      // async name → ArrayBuffer (the studio gives it: the Media library)
+  }
+  /** A sample, decoded (once); null when there is none. */
+  loadSample(name) {
+    if (!name) return null;
+    if (this.buffers.has(name)) return this.buffers.get(name);
+    if (!this.fetchSample) return null;
+    const p = Promise.resolve()
+      .then(() => this.fetchSample(name))
+      .then((bytes) => (bytes ? this.ctx.decodeAudioData(bytes) : null))
+      .catch(() => null)
+      .then((buf) => { this.buffers.set(name, buf); return buf; });
+    this.buffers.set(name, p);
+    return p;
+  }
+  /** Wait for every sample the Samplers want (before a render books its notes). */
+  async prepare() {
+    await Promise.all([...this.modules.values()].filter((m) => m.kind === "Sampler").map((m) => this.loadSample(m.settings.sample)));
   }
   sync(defs, outputs) {
     const wanted = new Set(),
@@ -64,12 +111,17 @@ export class AudioPatch {
       m.settings = d.settings;
       this.update(m, d.settings);
     }
-    const next = new Map();
+    const next = new Map(), nextMods = new Map();
     for (const id of wanted) {
       const d = defs.get(id),
         m = this.modules.get(id);
       for (const [slot, source] of Object.entries(d.inputs ?? {})) {
         const from = this.modules.get(source)?.output;
+        if (slot.startsWith("mod:")) {   // modulation: through its own gain (amount × span) into the setting
+          const param = slot.slice(4), to = m.params?.[param];
+          if (from && to) nextMods.set(`${source}:${id}:${slot}`, { from, to, scale: (d.amounts?.[slot] ?? 1) * modSpan(m.kind, param, d.settings) });
+          continue;
+        }
         if (m.kind === "Merge" && from && !m.inputs[slot]) {
           const input = this.ctx.createGain();
           m.nodes.push(input);
@@ -90,6 +142,23 @@ export class AudioPatch {
     for (const [key, e] of next)
       if (!this.edges.has(key) || this.edges.get(key).from !== e.from || this.edges.get(key).to !== e.to) e.from.connect(e.to);
     this.edges = next;
+    for (const [key, g] of this.mods) {
+      const n = nextMods.get(key);
+      if (n && n.from === g.from && n.to === g.to) continue;
+      try { g.from.disconnect(g.gain); } catch {}
+      g.gain.disconnect();
+      this.mods.delete(key);
+    }
+    for (const [key, n] of nextMods) {
+      let g = this.mods.get(key);
+      if (!g) {
+        g = { from: n.from, to: n.to, gain: this.ctx.createGain() };
+        n.from.connect(g.gain);
+        g.gain.connect(n.to);
+        this.mods.set(key, g);
+      }
+      smooth(g.gain.gain, n.scale, this.ctx.currentTime);
+    }
   }
   create(kind) {
     const c = this.ctx,
@@ -100,7 +169,16 @@ export class AudioPatch {
       return n;
     };
     m.output = make("createGain");
-    if (["Synth", "DrumKit", "DrumSynth", "Karplus", "Granular"].includes(kind)) return m;
+    m.params = { level: m.output.gain };
+    if (IS_INSTRUMENT.has(kind)) return m;
+    if (kind === "Osc" || kind === "LFO") {
+      m.osc = make("createOscillator");
+      m.osc.connect(m.output);
+      m.osc.start();
+      m.params = kind === "Osc" ? { freq: m.osc.frequency, detune: m.osc.detune, level: m.output.gain } : { rate: m.osc.frequency, depth: m.output.gain };
+      return m;
+    }
+    if (kind === "Noise") return m;   // (its source is made when its colour is known: update)
     if (kind === "Merge") return m;
     if (kind === "Mixer") {
       m.meters = [];
@@ -114,6 +192,7 @@ export class AudioPatch {
         pan.connect(meter);
         m.inputs[`input_${i}`] = gain;
         m[`pan_${i}`] = pan;
+        m.params.master = m.output.gain;
         m.meters.push(meter);
       }
       m.masterMeter = make("createAnalyser");
@@ -128,10 +207,12 @@ export class AudioPatch {
       m.pan = make("createStereoPanner");
       input.connect(m.pan);
       m.pan.connect(m.output);
+      m.params.pan = m.pan.pan;
     } else if (kind === "Filter") {
       m.filter = make("createBiquadFilter");
       input.connect(m.filter);
       m.filter.connect(m.output);
+      m.params = { cutoff: m.filter.frequency, resonance: m.filter.Q };
     } else if (kind === "Delay") {
       m.delay = c.createDelay(2);
       m.nodes.push(m.delay);
@@ -145,6 +226,7 @@ export class AudioPatch {
       m.feedback.connect(m.delay);
       m.delay.connect(m.wet);
       m.wet.connect(m.output);
+      m.params = { seconds: m.delay.delayTime, feedback: m.feedback.gain, mix: m.wet.gain };
     } else if (kind === "Reverb" || kind === "Distortion") {
       m.wet = make("createGain");
       m.dry = make("createGain");
@@ -154,6 +236,7 @@ export class AudioPatch {
       input.connect(m.effect);
       m.effect.connect(m.wet);
       m.wet.connect(m.output);
+      m.params = { mix: m.wet.gain };
     } else if (ANALYSIS_KINDS.has(kind)) {
       input.channelCount = 2;
       input.channelCountMode = "explicit";
@@ -190,6 +273,34 @@ export class AudioPatch {
       return;
     }
     const now = this.ctx.currentTime;
+    if (m.kind === "Osc") {
+      m.osc.type = ["sine", "triangle", "sawtooth", "square"].includes(s.wave) ? s.wave : "sine";
+      smooth(m.osc.frequency, clamp(s.freq, 0.1, 8000), now);
+      smooth(m.osc.detune, clamp(s.detune, -1200, 1200), now);
+      smooth(m.output.gain, clamp(s.level, 0, 1), now);
+      return;
+    }
+    if (m.kind === "LFO") {
+      m.osc.type = ["sine", "triangle", "sawtooth", "square"].includes(s.wave) ? s.wave : "sine";
+      const beats = SYNC_BEATS[s.sync];
+      smooth(m.osc.frequency, beats ? this.tempo / 60 / beats : clamp(s.rate, 0.01, 40), now);
+      smooth(m.output.gain, clamp(s.depth, 0, 1), now);
+      return;
+    }
+    if (m.kind === "Noise") {
+      if (m.color !== s.color) {
+        if (m.src) { try { m.src.stop(); } catch {} m.src.disconnect(); }
+        m.src = this.ctx.createBufferSource();
+        m.src.buffer = noiseBuffer(this.ctx, s.color);
+        m.src.loop = true;
+        m.src.connect(m.output);
+        m.src.start();
+        m.color = s.color;
+      }
+      smooth(m.output.gain, clamp(s.level, 0, 1), now);
+      return;
+    }
+    if (m.kind === "Sampler") this.loadSample(s.sample);
     if (m.kind === "Mixer") {
       const solo = [1, 2, 3, 4, 5, 6, 7, 8].some((i) => s[`solo_${i}`]);
       for (let i = 1; i <= 8; i++) {
@@ -237,8 +348,8 @@ export class AudioPatch {
           m.effectDrive = drive;
         }
       }
-    } else if (["Synth", "DrumKit", "DrumSynth", "Karplus", "Granular"].includes(m.kind)) {
-      smooth(m.output.gain, clamp(s.level, 0, 1) * 0.3, now);
+    } else if (IS_INSTRUMENT.has(m.kind)) {
+      smooth(m.output.gain, clamp(s.level, 0, 1) * (m.kind === "Sampler" ? 1 : 0.3), now);
       for (const v of m.voices)
         if (v.filter && m.kind === "Synth") {
           if (["lowpass", "highpass", "bandpass"].includes(s.filter_mode)) v.filter.type = s.filter_mode;
@@ -250,7 +361,8 @@ export class AudioPatch {
   }
   trigger(id, note, time, duration, velocity = 1) {
     const m = this.modules.get(id);
-    if (!m || !["Synth", "DrumKit", "DrumSynth", "Karplus", "Granular"].includes(m.kind)) return;
+    if (!m || !IS_INSTRUMENT.has(m.kind)) return;
+    if (m.kind === "Sampler" && !(this.buffers.get(m.settings.sample) instanceof AudioBuffer)) { this.loadSample(m.settings.sample); return null; }
     const c = this.ctx,
       s = m.settings,
       t = Math.max(c.currentTime, time),
@@ -276,6 +388,27 @@ export class AudioPatch {
       v.sources.push(o);
       return o;
     };
+    if (m.kind === "Sampler") {
+      const buf = this.buffers.get(s.sample), src = c.createBufferSource(),
+        rate = 2 ** ((note - clamp(s.root, 0, 127)) / 12), attack = clamp(s.attack, 0.001, 2), release = clamp(s.release, 0.005, 5);
+      src.buffer = buf;
+      src.playbackRate.value = rate;
+      src.loop = Boolean(s.loop);
+      filter.frequency.value = 18000;
+      src.connect(filter);
+      v.sources.push(src);
+      src.start(t, clamp(s.start, 0, 1) * buf.duration);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(clamp(velocity, 0, 1), t + attack);
+      const natural = s.loop ? Infinity : (buf.duration * (1 - clamp(s.start, 0, 1))) / rate;
+      const end = t + Math.min(Number.isFinite(duration) ? Math.max(duration, attack) : Infinity, natural);
+      if (Number.isFinite(end)) {
+        gain.gain.setValueAtTime(clamp(velocity, 0, 1), end);
+        gain.gain.linearRampToValueAtTime(0, end + release);
+        this.finish(m, v, end + release + 0.02);
+      }
+      return v;
+    }
     if (m.kind === "DrumSynth") {
       const aliases = { 35: 36, 37: 38, 40: 38, 43: 41, 44: 42, 47: 45, 51: 46, 59: 46 },
         key = aliases[Math.round(note)] ?? Math.round(note),
@@ -702,6 +835,8 @@ export class AudioPatch {
   }
   dispose(m) {
     for (const v of [...m.voices]) this.destroyVoice(m, v);
+    if (m.src) { try { m.src.stop(); } catch {} }
+    if (m.osc) { try { m.osc.stop(); } catch {} }
     for (const n of m.nodes) n.disconnect();
   }
   stop() {
@@ -709,5 +844,7 @@ export class AudioPatch {
     for (const m of this.modules.values()) this.dispose(m);
     this.modules.clear();
     this.edges.clear();
+    for (const g of this.mods.values()) g.gain.disconnect();
+    this.mods.clear();
   }
 }

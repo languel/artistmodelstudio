@@ -130,6 +130,8 @@ export function drawOutlines(ctx, elements, selected, hovered, selectColor, scal
 
 /** A mark that is not textured: its fill, its stroke, its brush (see the loop above). */
 function drawGeneric(ctx, e, brush, env) {
+  // A brush that draws the whole mark itself (a module of the modular synth, a cable): fill and stroke are its own.
+  if (brush.whole) { withLook(ctx, e, () => brush.draw(ctx, e, resolveParams(e.realize.brush, e.realize.params), env)); return; }
   if (e.color === 'none') {
     // No stroke: only the fill (a plane's brush paints it).
     if (e.fill && e.role === 'plane') withLook(ctx, e, () => brush.draw(ctx, { ...e, color: e.fill }, resolveParams(e.realize.brush, e.realize.params), env));

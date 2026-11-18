@@ -37,6 +37,9 @@ export function buildCommands(app) {
     cmd('Record', 'Stop the lecture recording', () => app.lecture.stop()),
     cmd('View', 'Reset layout', () => app.docks.reset()),
     cmd('View', 'Show user actions', () => app.userActions?.toggle(), '', 'The keys and clicks you make, and what they do: an overlay for teaching, demos and recordings'),
+    cmd('Modular', 'Modular toolbar', () => app.modularToolbar?.toggle(), '', 'Its own island: a modular synth drawn on the canvas: sequencers (Euclid, Grid, Steps, Drums, Bits), oscillators, LFOs, instruments, effects; cables are paths'),
+    ...['euclid', 'grid', 'drone', 'band', 'arecibo'].map(k => cmd('Modular', `Modular: add ${({ euclid: 'Euclidean drums', grid: 'a Grid melody', drone: 'a drone with an LFO', band: 'a small band', arecibo: 'the Arecibo message' })[k]}`, () => { app.modularToolbar?.show(); app.modularToolbar?.example(k); })),
+    cmd('Modular', 'Modular: sound on / off', () => app.patch?.power()),
     cmd('Physics', 'Physics toolbar', () => app.physicsToolbar?.toggle(), '', 'Its own island: physics for the board you are on'),
     cmd('Physics', 'Physics on for this board', () => { app.physics?.setWorld(app.activeBoard || 'main', {}); app.physicsToolbar?.show(); }, '', 'What is drawn on the board falls, rolls and collides (closed marks fall, open lines are ground)'),
     cmd('Physics', 'Physics off for this board', () => app.physics?.setWorld(app.activeBoard || 'main', null)),
@@ -144,7 +147,8 @@ function slashAll(app) {
       const id = isModular ? 'modular' : isWebAudio ? 'webaudio' : isSynth ? 'synthesis' : isRein ? 'reiniger' : isThree ? 'threejs' : isDiff ? 'diffusion' : isExpl ? 'sampling-expl' : 'sampling';
       const language = isExpl ? 'expl' : isP5 ? 'p5' : 'studio';
       return m.buildLesson(app, id, { language, expl: isExpl });
-    }).then(n => { if (typeof n === 'number') app.log(`The lesson is a scene: ${n} boards.`); }).catch(err => app.log(`Lesson: ${err.message}`, 'error')) }
+    }).then(n => { if (typeof n === 'number') app.log(`The lesson is a scene: ${n} boards.`); }).catch(err => app.log(`Lesson: ${err.message}`, 'error')) },
+    { name: 'modular', args: '[euclid | grid | drone | band | arecibo]', doc: 'The modular toolbar: a synth drawn on the canvas (modules are boxes, cables are paths). With a name: add that ready-made patch where you are looking', run: arg => { app.modularToolbar?.show(); const k = (String(arg || '').match(/euclid|grid|drone|band|arecibo/i) || [])[0]; if (k) app.modularToolbar?.example(k.toLowerCase()); } }
   ];
 }
 

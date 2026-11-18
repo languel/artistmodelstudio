@@ -824,6 +824,7 @@ export class CanvasView {
     });
     c.addEventListener('dblclick', e => {
       if (this.getTool() === 'direct') { this.insertPointAt(...this.local(e)); return; }
+      if (!this.previewDoc && this.onMarkDoubleClick?.(...this.toWorld(...this.local(e)), e)) return;   // (a mark that answers it: a sequencer's cells)
       const bh = this.boardHandleAt(...this.local(e));
       // Double-click a board's title frames it; Shift+double-click renames it.
       if (bh?.kind === 'title') { if (e.shiftKey) this.onBoardRename?.(bh.id); else this.animateTo(this.camFor(bh.id), 400); }

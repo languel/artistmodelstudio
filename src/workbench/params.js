@@ -89,7 +89,7 @@ export function installParams(app) {
   });
   // The scene's modular synth: 'patch:<module>.<setting>' (src/audio/modular/patch.js); a lane changes the running sound.
   registerScope('patch', (id, prop) => {
-    const pp = app.patch, m = pp?.patch().modules.find(x => x.id === id), spec = KINDS[m?.kind]?.params[prop];
+    const pp = app.patch, m = pp?.scene().modules.find(x => x.id === id), spec = KINDS[m?.kind]?.params[prop];
     if (!m || !spec || spec.text || spec.bool) return null;
     return { get: () => pp.liveValue(id, prop), set: v => pp.setLive(id, prop, v), min: spec.min ?? 0, max: spec.max ?? 1, step: spec.step || (spec.max - spec.min > 50 ? 1 : 0.01), label: `${m.name || m.id} · ${prop.replace(/_/g, ' ')}`, ...(spec.options ? { options: spec.options, kind: 'select' } : {}) };
   });

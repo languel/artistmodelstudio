@@ -49,7 +49,7 @@ export async function mixTake(app, take, range, { onStatus = null } = {}) {
   for (const c of take ? flatClips(take) : []) if (c.track === 'media' && c.asset && !c.url && c.volume > 0) { try { const a = await app.assetStore.get(c.asset); if (a?.blob) urls.set(c.asset, URL.createObjectURL(a.blob)); } catch { /* no sound from it */ } }
   const plan = take ? soundPlan(take, range, assetUrl) : [];   // (a scene with no take may still sound: its patch)
   const { renderPatch, patchSounds } = await import('./renderPatch.js');   // (the scene's modular synth: sequencers, scores sent to it, its lanes)
-  const withPatch = patchSounds(app.player.settings.patch);
+  const withPatch = patchSounds(app.patch?.scene?.() || app.player.settings.patch);
   if (!plan.length && !withPatch) { for (const u of urls.values()) URL.revokeObjectURL(u); return null; }
   const length = Math.ceil((range[1] - range[0]) / 1000 * SAMPLE_RATE), ctx = new OfflineAudioContext(2, Math.max(1, length), SAMPLE_RATE);
   const cache = new Map();

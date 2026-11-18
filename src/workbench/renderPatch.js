@@ -13,6 +13,7 @@ import { toDefs, instrumentsOn, targetsOf, isSequencer, stepsBetween, settingsOf
 import { renderScore } from '../score/runner.js';
 import { createRouter } from '../score/mixer.js';
 import { lanesOf, laneValue } from '../process/keyframes.js';
+import { fetchSample } from './patchPlayer.js';
 
 /** Does the scene's patch make sound (an Output that is on)? */
 export const patchSounds = patch => patch.modules.some(m => m.kind === 'Output' && !settingsOf(m).mute);
@@ -25,12 +26,14 @@ function playingDoc(doc) {
 }
 
 export async function renderPatch(app, ctx, [t0, t1], take = null) {
-  const settings = app.player.settings, patch = settings.patch;
+  const settings = app.player.settings, patch = app.patch?.scene?.() || settings.patch;   // (the panel's and the canvas's)
   if (!patchSounds(patch)) return 0;
   const s0 = t0 / 1000, s1 = t1 / 1000, bps = settings.tempo / 60;
   const lanes = (take ? lanesOf(take) : []).filter(l => l.address.startsWith('patch:'));
   const laneAt = (lane, s) => laneValue(lane, s * 1000 - lane.start, lane.meta);
   const engine = new AudioPatch(ctx);
+  engine.tempo = settings.tempo || 120;
+  engine.fetchSample = name => fetchSample(app, name);
   const { defs, outputs } = toDefs(patch);
   const apply = (s, target) => {   // automation: the value of each lane at s (seconds, scene time)
     for (const lane of lanes) {
@@ -43,6 +46,7 @@ export async function renderPatch(app, ctx, [t0, t1], take = null) {
   };
   apply(s0, defs);
   engine.sync(defs, outputs);
+  await engine.prepare();   // (the Samplers' recordings, decoded before their notes are booked)
   let booked = 0;
 
   // Sequencers, on the tempo.
