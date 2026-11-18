@@ -121,6 +121,10 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
   }
   // Controls the code declares (const n = 6 /* 1..40 */, // @param …): their values, live while the sketch runs.
   const ctlVals = ${JSON.stringify(ctl).replace(/</g, '\\u003c')}, ctlSet = {}, params = { ...ctlVals };
+  // The scene's modular synth as a sketch sees it (sent while its sound is on): level, bass, mid, treble 0..1, bands (8, low
+  // to high), spectrum (32), wave (64 samples, -1..1), steps (a sequencer's name or kind → the step it plays), notes (the notes since the last
+  // message: { note, velocity, module, kind, channel }), last (the last note), count; patch.onNote = n => … runs for each. (wave: scaled to its peak)
+  window.patch = { on: false, level: 0, bass: 0, mid: 0, treble: 0, bands: [0, 0, 0, 0, 0, 0, 0, 0], spectrum: new Array(32).fill(0), wave: new Array(64).fill(0), steps: {}, notes: [], last: null, count: 0, onNote: null };
   window.__ctl = (k, f) => { ctlSet[k] = f; if (k in ctlVals) f(ctlVals[k]); };
   // p5.js code reads windowWidth and windowHeight; so may any sketch here (the board's size), to be copied as it is.
   ${kind === 'p5' ? '' : "Object.defineProperties(window, { windowWidth: { get: () => innerWidth, configurable: true }, windowHeight: { get: () => innerHeight, configurable: true } });"}
@@ -184,6 +188,11 @@ function frameDoc(kind, code, token, board, p5Source = '', files = {}, perf = fa
       (c && c.width > 0 ? createImageBitmap(c) : Promise.resolve(null)).then(bm => parent.postMessage({ amsFrame: token, type: 'advanced', id: d.id, bitmap: bm }, '*', bm ? [bm] : []));
     })();
     if (d.type === 'ctl') { ctlVals[d.key] = params[d.key] = d.value; try { ctlSet[d.key]?.(d.value); if (typeof window.isLooping === 'function' && typeof window.redraw === 'function' && !window.isLooping()) window.redraw(); /* (a p5 sketch that draws once draws again with the new value) */ } catch { /* the sketch's own error */ } }
+    if (d.type === 'patch') {   // the scene's modular synth, live (patchPlayer.js pump): patch.level, .bands, .wave, .steps, patch.onNote = n => …
+      const P = window.patch;
+      Object.assign(P, d.s); P.notes = d.notes || [];
+      for (const n of P.notes) { P.last = n; P.count++; try { P.onNote?.(n); } catch (err) { console.error(err); } }
+    }
     if (d.type === 'input' && d.ev) { try { replay(d.ev); } catch { /* an event the sketch cannot take */ } }
     if (d.type === 'run') { if (d.on && held) { const q = held; held = null; q.forEach(cb => raf0(cb)); } else if (!d.on && !held) held = []; }
     if (d.type === 'reply') { const p = pending.get(d.id); if (p) { pending.delete(d.id); d.error ? p.fail(new Error(d.error)) : p.ok(d.result); } }
@@ -368,6 +377,9 @@ export class BoardFrames {
   }
   /** Ask a board's sketch to pass H and Shift+H to the studio (Perform's controls), or not. */
   /** Tell every running sketch whether the boards are being presented (its arrow keys then step the presentation). */
+  /** The modular synth's live state to every running sketch that reads it (`patch.level`, `patch.onNote`…). */
+  sendPatch(msg) { for (const f of this.frames.values()) if (f.wantsPatch && f.running && f.iframe) { try { f.iframe.contentWindow?.postMessage({ amsFrame: f.token, type: 'patch', ...msg }, '*'); } catch { /* gone */ } } }
+  wantsPatch() { for (const f of this.frames.values()) if (f.wantsPatch && f.running) return true; return false; }
   setPresenting(on) { for (const f of this.frames.values()) { try { f.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'present', on: Boolean(on) }, '*'); } catch { /* gone */ } } }
 
   holdKeys(id, on) { const f = this.frames.get(id); try { f?.iframe?.contentWindow?.postMessage({ amsFrame: f.token, type: 'holdkeys', on: Boolean(on) }, '*'); } catch { /* gone */ } }
@@ -443,6 +455,7 @@ export class BoardFrames {
     const files = Object.fromEntries(wanted.filter(n => this.files[n]).map(n => [n, this.files[n]]));
     if (!f.running || f.code !== inst.sig || f.size !== `${b.width}x${b.height}`) {
       f.code = inst.sig; f.vals = { ...inst.values, ...(this.app.player?.ctlValuesFor?.(b.id) || {}) }; f.size = `${b.width}x${b.height}`; f.running = true; f.errors = [];
+      f.wantsPatch = /\bpatch\s*\.\s*(on|level|bass|mid|treble|bands|spectrum|wave|steps|notes|last|count|onNote)\b/.test(code);   // (only sketches that read the modular synth are sent it)
       f.iframe?.remove();
       const iframe = document.createElement('iframe');
       iframe.setAttribute('sandbox', 'allow-scripts');

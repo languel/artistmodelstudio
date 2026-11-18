@@ -526,6 +526,8 @@ Cables follow their ports when a module moves; one drawn by hand keeps its middl
 **Live.** While the sound is on (the power button, or the Timeline's Play) each sequencer shows its playhead, an instrument's title lights as it plays, the sound rides along the audio cables, modulation cables breathe, and the Scope and Output show the signal. Sequencers play on the Timeline's tempo and loop; sources sound all the time the power is on.
 
 **Ready-made:** Euclidean drums, a Grid melody, a drone with an LFO, a small band, the Arecibo message (the toolbar's last button, or \`/modular band\`). Renders include it. Agents: \`ams_modular\`.
+
+**Pictures that listen.** A p5.js or three.js sketch reads the synth through a global, \`patch\`, sent while the sound is on: \`patch.level\`, \`bass\`, \`mid\`, \`treble\` (0..1), \`bands\` (8), \`spectrum\` (32), \`wave\` (64 samples, scaled to its peak), \`steps\` (each sequencer's step, by its name or kind), and \`patch.onNote = n => …\`, called for every note as it sounds (\`{ note, velocity, module, kind, channel }\`). The lesson \`/lesson visuals\` shows four. It is live only: in a render, use a Timeline lane that follows the sound.
 `)),
     T('score-nodes', 'Scores', 'Nodes on paths (Midinous)', 'Notes, controllers, logic gates, LEDs, counters, switches, terminators and anchors that travelers reach on paths.', () => prose(`
 A **node** is a point that a traveler reaches on a path, after Midinous: it does what its kind does and sends the signal on down the paths that leave it. A line with nodes along it is a chain; a path drawn from one node to another is an **edge**, and it follows its nodes when you move them.

@@ -821,6 +821,15 @@ export class AudioPatch {
   clearWaveforms() {
     for (const id of [...this.waveformTaps.keys()]) this.removeWaveformTap(id);
   }
+  /** An Output's spectrum now (0..1 a bin, low to high) and its wave, for pictures: { spec: Float32Array(256), wave: Float32Array(512) } or null. */
+  spectrum(id) {
+    const m = this.modules.get(id);
+    if (!m?.analyser) return null;
+    m.bytes ||= new Uint8Array(m.analyser.frequencyBinCount);
+    m.analyser.getByteFrequencyData(m.bytes);
+    m.analyser.getFloatTimeDomainData(m.samples);
+    return { spec: m.bytes, wave: m.samples };
+  }
   meter(id) {
     const m = this.modules.get(id);
     if (!m?.analyser) return { rms: 0, peak: 0 };

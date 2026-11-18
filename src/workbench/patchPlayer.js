@@ -64,6 +64,7 @@ export class PatchPlayer {
       this.ctx = new AC();
       this.engine = new AudioPatch(this.ctx);
       this.engine.fetchSample = name => fetchSample(this.app, name);
+      this.pumpTimer = setInterval(() => this.pump(), 33);   // (pictures that read the patch: boardFrames.sendPatch)
     }
     if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
     this.sync();
@@ -123,7 +124,7 @@ export class PatchPlayer {
       if (kind === 0x90 && vel > 0) {
         const v = this.engine.trigger(id, note, t, Infinity, vel / 127);
         if (v) { list.push(v); this.held.set(key, list); }
-        this.flash(id);
+        this.flash(id); this.heard(id, note, vel / 127, t);
       } else {
         const v = list.shift();
         if (v) this.engine.release(this.engine.modules.get(id), v, t);
@@ -150,6 +151,39 @@ export class PatchPlayer {
 
   /** An instrument played (at the audio time `at`, or now): the canvas lights its title. */
   flash(id, at) { this.lit = this.lit || new Map(); this.lit.set(id, performance.now() + (at && this.ctx ? Math.max(0, (at - this.ctx.currentTime) * 1000) : 0)); }
+  /** A note played (at the audio time `at`): pictures that read the patch get it when it sounds (`patch.onNote` in a sketch). */
+  heard(id, note, velocity, at) {
+    const m = this.scene().modules.find(x => x.id === id);
+    (this.notesOut ||= []).push({ at: performance.now() + Math.max(0, (at - this.ctx.currentTime) * 1000), n: { note, velocity: Math.round(velocity * 100) / 100, module: m?.name || id, kind: m?.kind || '', channel: m ? settingsOf(m).channel ?? null : null } });
+  }
+
+  /**
+   * The patch's sound for pictures, ~30 times a second while it is on: the first Output's level, bass, mid, treble, eight bands
+   * and its wave, each sequencer's step, and the notes now due, to every sketch that reads `patch` (boardFrames.sendPatch).
+   */
+  pump() {
+    const frames = this.app.frames;
+    if (!this.engine || !frames?.wantsPatch()) { this.notesOut = []; return; }
+    const now = performance.now(), due = (this.notesOut || []).filter(x => x.at <= now);
+    this.notesOut = (this.notesOut || []).filter(x => x.at > now).slice(-256);
+    const out = this.scene().modules.find(m => m.kind === 'Output' && !settingsOf(m).mute), sp = out && this.running ? this.engine.spectrum(out.id) : null;
+    const s = { on: this.running, level: 0, bass: 0, mid: 0, treble: 0, bands: new Array(8).fill(0), spectrum: new Array(32).fill(0), wave: new Array(64).fill(0), steps: {} };
+    if (sp) {
+      const N = sp.spec.length, nyq = this.ctx.sampleRate / 2, bin = f => Math.min(N - 1, Math.round(f / nyq * N));
+      const avg = (f0, f1) => { let t = 0, n = 0; for (let i = bin(f0); i <= bin(f1); i++) { t += sp.spec[i]; n++; } return n ? Math.max(0, Math.min(1, (t / n / 255 - 0.35) / 0.6)) : 0; };   // (the analyser's −100..−30 dB as 0..1 sits high: the bottom third is the floor)
+      const edges = [30, 60, 120, 250, 500, 1000, 2000, 4000, 9000];
+      s.bands = edges.slice(0, 8).map((f, i) => Math.round(avg(f, edges[i + 1]) * 1000) / 1000);
+      s.spectrum = Array.from({ length: 32 }, (_, i) => Math.round(avg(40 * 300 ** (i / 32), 40 * 300 ** ((i + 1) / 32)) * 1000) / 1000);   // (32 bins, 40 Hz to 12 kHz, log-spaced)
+      s.bass = Math.round(avg(30, 250) * 1000) / 1000; s.mid = Math.round(avg(250, 2000) * 1000) / 1000; s.treble = Math.round(avg(2000, 9000) * 1000) / 1000;
+      let sum = 0, peak = 0; for (const x of sp.wave) { sum += x * x; peak = Math.max(peak, Math.abs(x)); }
+      s.level = Math.min(1, Math.round(Math.sqrt(sum / sp.wave.length) * 8 * 1000) / 1000);   // (a mix sits around 0.02–0.1 RMS: ×8 makes it 0..1 to the eye)
+      const g = 1 / Math.max(0.08, peak);   // the wave scaled to its own peak, so a quiet sound still shows its shape
+      s.wave = Array.from({ length: 64 }, (_, i) => Math.round(sp.wave[i * 4] * g * 1000) / 1000);
+    }
+    if (this.app.player.playing) for (const m of this.scene().modules) if (isSequencer(m.kind)) { const st = this.stepNow(m.id); if (st !== null) s.steps[m.name || m.kind] = st; }
+    frames.sendPatch({ s, notes: due.map(x => x.n) });
+  }
+
   /** A setting heard while a slider is dragged (not stored: the change at its end is). */
   preview(id, prop, v) {
     const em = this.engine?.modules.get(id);
@@ -187,7 +221,7 @@ export class PatchPlayer {
       const targets = targetsOf(p, m.id);
       for (const ev of stepsBetween(this.withLive(m), this.lastBeat, until)) {
         const t = base + (ev.beat - beatNow) / bps / rate, dur = ev.beats / bps / rate;
-        for (const id of targets) { this.engine.trigger(id, ev.note, t, dur, ev.velocity); this.flash(id, t); }
+        for (const id of targets) { this.engine.trigger(id, ev.note, t, dur, ev.velocity); this.flash(id, t); this.heard(id, ev.note, ev.velocity, t); }
         this.steps.set(m.id, { step: ev.step, t });
       }
     }

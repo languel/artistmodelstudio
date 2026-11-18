@@ -53,8 +53,8 @@ export function addExample(d, name, x, y, { stage, board, bits } = {}) {
     const bass = add('bass', 'Synth', 260, 220, { voice: 'subtractive', wave: 'sawtooth', cutoff: 500, resonance: 4, filter_env: 0.6, release: 0.1, channel: 3 });
     const lead = add('lead', 'Synth', 260, 390, { voice: 'fm', fm_ratio: 3, fm_index: 1.2, release: 0.3, channel: 4, level: 0.25 });
     const echo = add('echo', 'Delay', 440, 395, { seconds: 0.375, feedback: 0.35, mix: 0.3 });
-    const mix = add('mix', 'Mixer', 620, 150, { level_1: 1, level_2: 0.9, level_3: 0.7 });
-    const out = add('out', 'Output', 810, 180);
+    const mix = add('mix', 'Mixer', 620, 150, { level_1: 1.2, level_2: 1.1, level_3: 0.9, master: 1 });
+    const out = add('out', 'Output', 810, 180, { level: 0.9 });
     wire(drums, kit, 'notes'); wire(bassSeq, bass, 'notes'); wire(leadSeq, lead, 'notes');
     wire(kit, mix, 'input_1'); wire(bass, mix, 'input_2'); wire(lead, echo); wire(echo, mix, 'input_3'); wire(mix, out);
   } else if (name === 'arecibo') {
