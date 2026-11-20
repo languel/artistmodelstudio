@@ -1,84 +1,58 @@
-# Artist Model Studio (AMS)
+# Artist Model Studio (artmost)
 
-Can we teach a model to draw and paint the way we teach people, through a visible, staged process of seeing, constructing and making marks, rather than by sampling a finished picture from latent space?
+**A creative environment for teaching and learning, for humans and machines alike.**
 
-Artist Model Studio is a training ground for that question: *creative coding for AI*. Drawings are **process documents**: named stages, paths with roles (point, line, plane, guide, gesture, note), brushes that realize them, decisions, and a reason and author for every mark. Models write **scores** (small JavaScript programs in a point / line / plane vocabulary) whose runs record that process. So what they learn, and what we can inspect, is how a picture was made, not just what it looks like. See [docs/design.md](docs/design.md) for the direction and [docs/workbench.md](docs/workbench.md) for the workbench.
+### ▶ [Open the studio](https://languel.github.io/artistmodelstudio/) · runs in your browser, nothing to install
 
-- **Workbench** (`/`): an infinite canvas with dockable panels (after underscores). Draw with time and pressure, work in stages, edit with an outliner, transforms and a right-click menu, place images as layers, write and run scores in a real code editor, study processes (filmstrip, decisions, reasons, process sheets), generate with models or agents, and keep everything in Assets. A command palette (Cmd+K), searchable docs, reassignable shortcuts and walkthroughs come with it.
-- **Brushes are code**: every brush, the built-ins included, is a small program you (or a model, or an agent) can read, fork and write, with a live preview; drawings carry the brushes they use.
-- **Sculpting**: push, grab, smooth, relax, pinch, twist, jitter, simplify (or resample) and thicken marks with a brush (after threegrease), from a Sculpt tool or Shift+drag. Sculpt tools are code as well.
-- **Parameters are controls**: parameters declared in code become sliders that act on the selection, the active brush or the tool in use. They also appear in the preview and on Opt+right-click, and any number in code can be scrubbed.
-- **Scenes, boards and pages**: a project holds scenes (drawings), a scene holds boards (artboards, like slides) with their own live code. Present them, or export a scene as one HTML page (a lecture, a blog post, an agent's report) that carries the drawing and replays it.
-- **Physics**: turn it on for a board and make marks physical (falls, ground, hinges, motors, springs); Rapier 2D in a worker, on the Timeline's clock or its own; contacts fire score events.
-- **Timeline and History**: record takes as clips on editor-style tracks (drawing, narration, titles, camera, audio) and export video with sound. History keeps every change, to preview, restore or drag onto the Timeline.
-- **Studies**: *Study: Senecio* walks through studying a painting, writing its methods as brushes and a score, reproducing it, and drawing a new subject in its manner.
-- **Decisions**: the Decide panel turns drawing into typed decisions a small local model (lev) can learn from your choices.
-- **Exercises** after Kandinsky, Klee and the algorists: the same briefs for students and models.
-- **Exports**: SVG with the full process record, p5.js sketches that re-run the score, Excalidraw (to underscores), and process sheets.
-- **Agents**: every action is an MCP tool; an agent can be the engine and answer generation requests with its own scores.
+![Seurat's dots, Munch's strokes and Muybridge's walker, redrawn by code in the sampling lesson](docs/images/hero.jpg)
 
-The first phase (reproducing *train to paint with code*) is kept as the **classic studio** (`/classic.html`), with the features below. The reasons for moving on are in [docs/design.md](docs/design.md#2-what-we-learned-reproducing-train-to-paint).
+Artist Model Studio, or artmost for short, is an infinite canvas where drawing, code, sound, motion and film live side by side, and where every piece of work keeps a record of **how it was made**. Boards hold drawings, p5.js and three.js sketches, synthesizers, physics and video; lessons are scenes of live boards you can read, run and change; anything can be presented as slides, recorded on a timeline, or published as a page.
 
----
+What makes it unusual is who it is for. A student, a teacher, a language model and an AI agent all work here the same way: by writing small, readable programs and making visible decisions. So the studio is as much a place to *teach machines* (and to watch how they learn) as it is a place to teach people.
 
-## The classic studio
+## Lessons
 
-- **Four candidates per prompt** from a choice of engines, rendered as flat shapes, watercolor (`p5.brush`), pixel art or ASCII (character sets including braille, teletext sextants and code page 437; a choice of fonts). Programs are plain JSON / text DSL you can read and edit.
-- **Reference Fitter**: approximates a reference image with a budget of shapes (12 to 800) by greedy search, with no model involved. Candidates A–D use mixed, rectangle, circle and triangle shapes, so one round shows how the shape vocabulary changes the look. See [docs/reference-fitter.md](docs/reference-fitter.md).
-- **Continuous mode**: the fitter as an endless painting. Shapes land one at a time (or fade in and out together), live for a cycle and are replaced by new fits, repainting the reference forever, in any of the four looks. Save PNG, plain-text ASCII, or record GIF/MP4.
-- **Exports**: Text DSL, JSON, or a self-contained **p5.js project** (zip with `index.html`, `sketch.js`, vendored `p5.min.js` and `p5.brush`). Static exports can animate, loop, fit or fill the window and switch watercolor/flat; continuous exports run forever with live density, pacing and style controls.
-- **Assets**: a browser for saved variations, paintings and imported images (IndexedDB), with folders, search, tags, stars and export; any asset can be used as the reference.
-- **Distilled models**: a pipeline that trains small models (LFM2.5-350M, Qwen3-0.6B) with LoRA on Reference Fitter programs of public-domain Paul Klee paintings, served locally for the *Distilled Klee* engine. See [training/klee/README.md](training/klee/README.md).
-- **References**: bundled public-domain works with sources and rights recorded ([fixtures/README.md](fixtures/README.md)), your own uploads (images, animated GIF/WebP, video), or the webcam, all kept in the browser. Live sources are sampled continuously, at an interval, or held.
+Build any lesson with one click (Docs → Lessons → *Build the scene*, or type `/lesson` in the command palette). Each is a scene of slides, and every picture, diagram and instrument on them is live code.
 
-## Quick start
+<table>
+<tr>
+<td width="50%"><img src="docs/images/sampling.jpg" alt="Seurat's painting resampled as pure-colour dots"><br><b>Pointillism and Expressionism, by sampling</b><br>How the eye samples light, then Seurat, Munch and Muybridge as sources: sample a picture, decide what to draw there.</td>
+<td width="50%"><img src="docs/images/reiniger.jpg" alt="A paper silhouette puppet walking toward the sun"><br><b>The silhouette film</b><br>Rebuild Lotte Reiniger's method for <i>The Adventures of Prince Achmed</i>: lightbox, paper, hinges, a puppet, a layered set and a walk, in three.js.</td>
+</tr>
+<tr>
+<td><img src="docs/images/synthesis.jpg" alt="A sawtooth wave built from six sine waves, with its harmonics"><br><b>Sound synthesis, from a sine wave to a band</b><br>What sound is (pressure, the voice, the ear), then waveforms, envelopes, filters, FM, scales, drums and sequencers; strings, bells, samples and grains in plain Web Audio.</td>
+<td><img src="docs/images/modular.jpg" alt="The Arecibo message played as a graphic score"><br><b>Modular: patches, scores and pictures that listen</b><br>A modular synth drawn on the canvas, sequencers you can see, graphic scores (the Arecibo message among them) that play it, and sketches that move with the music.</td>
+</tr>
+<tr>
+<td><img src="docs/images/threejs.jpg" alt="A pin screen pushed up by a dancing figure"><br><b>Three.js for body and sound</b><br>From a spinning cube to a body you can play, dress, draw and paint with: a pin screen, a laser harp, a body drum, Schlemmer costumes. The full course: <a href="https://github.com/languel/threejslessons">threejslessons</a>.</td>
+<td><img src="docs/images/diffusion.jpg" alt="Points flowing along a score field toward the data"><br><b>Diffusion models, from noise to picture</b><br>How image models work, in diagrams and live simulations: the forward and reverse process, the schedule, sampling, guidance.</td>
+</tr>
+</table>
+
+## What you can do here
+
+- **Learn and teach with live material.** Lessons, walkthroughs that guide your cursor to the real controls, and exercises after Kandinsky, Klee and the early algorithmic artists, written for students and models alike.
+- **Make with code you can see.** Drawings, brushes, sketches and instruments are short programs you can read, fork and change; numbers in code become sliders.
+- **Mix media on one canvas.** Drawings, p5.js and three.js, a modular synthesizer, sound analysis that drives any parameter, 2D physics, images and video.
+- **Present, record and publish.** Show boards as slides, record takes on a timeline with narration, music and cameras, and export a film or a single HTML page that replays the work.
+- **Keep the process, not only the result.** Every mark and change keeps its order, its tool and the reason for it, so work can be replayed step by step, studied, and learned from.
+- **Work with models and agents.** Language models write the same programs people do; an agent can drive every control through MCP, build scenes and make films; a small local model learns from your decisions.
+
+## Why the name
+
+The short name, artmost, comes from **Art**ist **Mo**del **St**udio. The project began with a research question: can a model learn to draw the way a person is taught to, through a staged, visible process of seeing, constructing and making marks, rather than producing a finished picture in one step? That question shaped the studio's core idea, that the record of *how* something was made is worth as much as the result. It has since grown into a general environment for creative teaching and learning, and the question is now one strand of many. The original thinking is in the [design note](docs/design.md).
+
+## More
+
+- **[Documentation](docs/README.md)**: getting started, the lessons, guides
+- **[Technical overview](docs/technical.md)**: running it locally, architecture, the classic studio, engines and models, a map of every document
+- **[Driving it from agents](docs/mcp.md)** (MCP)
+
+Run it on your own machine:
 
 ```bash
 npm install
-npm run dev          # http://localhost:3000 (use --port to pick another)
-npm test
+npm run dev
 ```
 
-Pick **Reference Fitter** as the engine, choose a reference in the **Reference** tab, and press **Generate 4**. For the endless painting, press **Play** in the Reference tab (**Clear** starts it over from blank).
-
-## Engines
-
-| Engine | What it is |
-| --- | --- |
-| Procedural | Offline rule-based generator; instant, no model. |
-| Reference Fitter | Greedy shape fitting to the reference image; the "model" menu is the shape budget. |
-| Distilled Klee (local MLX) | A small model fine-tuned on fitter programs, served by `training/klee/serve.sh`. |
-| Ollama / OpenAI-compatible / OpenRouter | Prompted language models writing the drawing DSL. |
-| WebGPU (browser) | Small ONNX models running client-side via `@huggingface/transformers`. |
-| Fine-Tuned Adapter | Teaching demo, see below. |
-
-## Honest notes
-
-- **Fine-Tuned Adapter / "in-browser LoRA"** is a teaching demo: it trains a small standalone matrix on hashed prompt features and replays an exemplar program with jitter. It does not fine-tune a language model. Real LoRA training lives in `training/klee/` (mlx-lm on Apple Silicon).
-- **Hardware estimator** figures in the Help panel are estimates from hardware presets, not measurements.
-- Measured so far: LoRA on 3,264 examples takes about 30 min (LFM2.5-350M) and 60 min (Qwen3-0.6B) on an M5 Max; results are in [training/klee/README.md](training/klee/README.md).
-- The **preference export** currently treats a viewed/selected candidate as chosen and the others as rejected; explicit Keep/Reject judgments are planned before using it for training.
-
-## One file
-
-`npm run build:single` makes the workbench one self-contained HTML file, `dist-single/ams.html` (about 3 MB): open it from disk, for example in a transparent browser window used as an overlay (CloudyWindow), and set `/transparent` in the command palette. In-browser models (WebGPU) and the dev server's agent relay are left out; Assets, scenes and settings live in the browser as usual.
-
-## Documentation
-
-- [Reference Fitter, continuous mode and p5 export](docs/reference-fitter.md)
-- [Driving the studio from agents (MCP / WebMCP), agent as engine](docs/mcp.md)
-- [Klee distillation pipeline and results](training/klee/README.md)
-- [References and rights](fixtures/README.md)
-- [Handoff: where things stand, what is next](docs/HANDOFF.md)
-- [System architecture and drawing language](docs/architecture.md)
-- [Training scaffolding](docs/TRAINING.md) · [Experiments log](docs/experiments.md) · [Classroom demo](docs/classroom-demo.md)
-
-## Licenses
-
-MIT © 2026 Artist Model Studio contributors. Exported sketches vendor p5.js (LGPL-2.1) and p5.brush (MIT) unmodified; the built-in score sound is jzz and jzz-synth-tiny (MIT) with g200kg's webaudio-tinysynth (MIT); bundled reference images are public domain (see `fixtures/references/*/sources.json`).
-
-## three.js boards and the body-and-sound lessons
-
-A board can hold a three.js sketch (Code panel → kind → *three.js*, or `/lesson threejs`): an ES module importing `three` and common addons, run live in a sandboxed frame like a p5 board. three.js is bundled, so no network is needed.
-
-The ten-lesson course that goes with it (a spinning cube up to MediaPipe body tracking, depth, a laser harp, a body drum, Schlemmer costumes, Picasso one-line drawings and Ghostcatching-style paint marks) lives in its own repository, `threejslessons`.
+MIT licensed. Bundled reference images are public domain; third-party licenses are listed in the [technical overview](docs/technical.md#licenses).
