@@ -804,6 +804,21 @@ html.wb-transparent, html.wb-transparent body, html.wb-transparent .wb, html.wb-
 
 /* Document and program boards (markdown, html, p5), laid over the canvas at their boards. */
 .wb-frames { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+/* Notes in Markdown and math (richNotes.js): laid out in artboard units, scaled by the camera. */
+.wb-rnotes { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.wb-rnote { position: absolute; left: 0; top: 0; box-sizing: border-box; transform-origin: 0 0; overflow-wrap: break-word; }
+.wb-rnote.sticky { box-shadow: 0 0.15em 0.5em rgba(0, 0, 0, 0.18); }
+.wb-rnote > :first-child { margin-top: 0; }
+.wb-rnote > :last-child { margin-bottom: 0; }
+.wb-rnote p, .wb-rnote ul, .wb-rnote ol, .wb-rnote blockquote, .wb-rnote pre { margin: 0 0 0.45em; }
+.wb-rnote ul, .wb-rnote ol { padding-left: 1.2em; }
+.wb-rnote h1, .wb-rnote h2, .wb-rnote h3, .wb-rnote h4 { margin: 0.2em 0 0.3em; line-height: 1.15; font-weight: 600; }
+.wb-rnote h1 { font-size: 1.6em; } .wb-rnote h2 { font-size: 1.35em; } .wb-rnote h3 { font-size: 1.15em; }
+.wb-rnote code { font-family: ui-monospace, Menlo, monospace; font-size: 0.85em; background: rgba(127, 127, 127, 0.16); padding: 0.05em 0.25em; border-radius: 3px; }
+.wb-rnote pre code { background: none; padding: 0; }
+.wb-rnote blockquote { border-left: 0.15em solid currentColor; padding-left: 0.6em; opacity: 0.8; }
+.wb-rnote a { color: inherit; }
+.wb-rnote .katex-display { margin: 0.3em 0; }
 .wb-frames.mod, .wb-frames.mod * { pointer-events: none !important; }
 .wb-bframe { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; pointer-events: none; }
 .wb-bframe iframe { width: 100%; height: 100%; border: 0; display: block; background: transparent; pointer-events: none; }

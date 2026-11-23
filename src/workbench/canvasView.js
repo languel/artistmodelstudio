@@ -14,7 +14,7 @@ import { closeLasso, lazyFollow, lazyCatchUp, straightEnd, effectiveLazy } from 
 import { rdp } from '../process/sculpt.js';
 import { renderDocument, nextTimed, drawOutlines } from '../process/render.js';
 import { smoothPath } from '../process/walk.js';
-import { normalizeElement, DEFAULT_REALIZE } from '../process/document.js';
+import { normalizeElement, DEFAULT_REALIZE, inkOn } from '../process/document.js';
 import { realizeAfter } from '../process/playparts.js';
 import { BRUSHES, resolveParams, mulberry32 } from '../process/brushes.js';
 import { noteCorners, noteProps, NOTE_FONTS } from '../process/notes.js';
@@ -270,7 +270,7 @@ export class CanvasView {
     for (const b of boards) if (b.hidden || this.composedIds?.has(b.id)) skip.add(b.id);
     renderDocument(ctx, skip.size ? { ...doc, elements: doc.elements.filter(e => !skip.has(e.board || MAIN)) } : doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
-      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, now: this.frameNow, view: this.viewRect(),
+      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, richNotes: true, now: this.frameNow, view: this.viewRect(),
       selectColor: css.getPropertyValue('--wb-select').trim() || '#8a8a8a'
     });
     if (composed.length) this.drawComposed(ctx, doc, composed, css);
@@ -825,6 +825,7 @@ export class CanvasView {
     c.addEventListener('dblclick', e => {
       if (this.getTool() === 'direct') { this.insertPointAt(...this.local(e)); return; }
       if (!this.previewDoc && this.onMarkDoubleClick?.(...this.toWorld(...this.local(e)), e)) return;   // (a mark that answers it: a sequencer's cells)
+      if (!this.previewDoc && this.editNote(this.hitTest(...this.toWorld(...this.local(e)), x => x.role === 'note'))) return;   // (a note: write in it)
       const bh = this.boardHandleAt(...this.local(e));
       // Double-click a board's title frames it; Shift+double-click renames it.
       if (bh?.kind === 'title') { if (e.shiftKey) this.onBoardRename?.(bh.id); else this.animateTo(this.camFor(bh.id), 400); }
@@ -941,7 +942,7 @@ export class CanvasView {
       const under = boardAt(this.store.doc, wx, wy);
       if (under && (under.locked || under.hidden)) { this.flash(under.locked ? 'This board is locked' : 'This board is hidden'); return; }
       if (tool === 'point') { const [px, py] = this.snapPt(wx, wy); return this.commitNew('point', [[px, py, 0, 0.5]]); }
-      if (tool === 'note') { const [nx, ny] = this.snapPt(wx, wy); const [nsx, nsy] = this.toScreen(nx, ny); return this.startNote(nsx, nsy, nx, ny); }
+      if (tool === 'note') { if (this.editNote(this.hitTest(wx, wy, x => x.role === 'note'))) return; const [nx, ny] = this.snapPt(wx, wy); const [nsx, nsy] = this.toScreen(nx, ny); return this.startNote(nsx, nsy, nx, ny); }
       if (tool === 'circle' || tool === 'rect') return this.startShape(e, tool, wx, wy);
       this.startStroke(e, tool, wx, wy);
     });
@@ -990,7 +991,7 @@ export class CanvasView {
         if (!marks) { marks = new Map(); for (const e of doc.elements) { const k = e.board || MAIN; (marks.get(k) || marks.set(k, []).get(k)).push(e); } }
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(W * s)); canvas.height = Math.max(1, Math.round(H * s));
-        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, frozen: true, now: this.frameNow });
+        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, richNotes: true, frozen: true, now: this.frameNow });
         c = { key, canvas };
         this.baked.set(b.id, c);
       }
@@ -1823,29 +1824,77 @@ export class CanvasView {
     }
   }
 
-  startNote(sx, sy, wx, wy) {
+  /**
+   * Write a note in place: a new one at (wx, wy), or `existing` (a note mark) edited where it is.
+   * Enter starts a new line; Cmd/Ctrl+Enter, Esc or a click elsewhere finishes (an emptied note is deleted).
+   */
+  startNote(sx, sy, wx, wy, existing = null) {
+    if (this.noteEditing) return;
     const ta = document.createElement('textarea');
     ta.className = 'wb-note-input';
-    // Look like the note it will become (the note tool's current style), at the current zoom.
-    const np = noteProps({ note: this.getDefaults('note').note, color: this.getDefaults('note').color, points: [] });
+    // Look like the note it will become (the note tool's current style, or the note's own), at the current zoom.
+    const d = this.getDefaults('note');
+    const np = existing ? noteProps(existing) : noteProps({ note: d.note, color: d.color, points: [] });
+    // The text is the color the note will be: the stroke color (with none chosen, the ink the stroke swatch shows,
+    // which reads on the paper); a note being edited, its own color, else the ink of its board (as render.js draws it).
+    // (A note on its own paper, sticky or card, keeps the ink that reads on that paper.)
+    if (!existing) np.ink = d.color || (np.bg ? np.ink : getComputedStyle(document.documentElement).getPropertyValue('--wb-ink').trim() || np.ink);
+    else if (!existing.color && !np.bg) np.ink = inkOn(boardsOf(this.store.doc).find(b => b.id === (existing.board || MAIN))?.ground) || np.ink;
     const z = this.cam.z;
     Object.assign(ta.style, {
       left: `${sx}px`, top: `${sy}px`, width: `${np.width * z}px`, minHeight: `${np.size * 1.6 * z}px`,
       font: `${np.size * z}px ${NOTE_FONTS[np.font][1]}`, lineHeight: np.font === 'hand' ? '1.15' : '1.32',
-      color: np.ink, background: np.bg || 'transparent', padding: `${(np.bg ? np.size * 0.55 : np.size * 0.15) * z}px`
+      color: np.ink, background: np.bg || 'transparent', padding: `${(np.bg ? np.size * 0.55 : np.size * 0.15) * z}px`,
+      ...(np.angle ? { transform: `rotate(${np.angle}rad)`, transformOrigin: '0 0' } : {})
     });
+    ta.rows = 1;
     ta.placeholder = 'Note…';
+    if (existing) ta.value = existing.text || '';
+    // The box grows with its lines (it hides its scrollbar, so a new line must make room).
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = `${ta.scrollHeight + 2}px`; };
+    ta.addEventListener('input', grow);
     this.host.appendChild(ta);
-    setTimeout(() => ta.focus());
+    grow();
+    // The note being edited is hidden meanwhile (no undo step: it comes back when the edit ends).
+    const live = existing && this.store.doc.elements.find(e => e.id === existing.id);
+    const wasHidden = live?.hidden;
+    if (live) { live.hidden = true; this.store.emit('edit note', true); }
+    this.noteEditing = true;
+    const focus = () => { if (document.activeElement === ta || !ta.isConnected) return; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); };
+    // The click that opened it must not take the keyboard back (or end it): a blur counts once that click is over.
+    let armed = false;
+    const arm = () => { armed = true; focus(); };
+    focus(); setTimeout(focus);
+    window.addEventListener('pointerup', arm, { once: true });
+    setTimeout(() => { if (!armed) arm(); }, 400);   // (opened by a double-click: no pointerup is coming)
     let done = false;
-    const finish = ok => {
+    const finish = () => {
       if (done) return; done = true;
-      const text = ta.value.trim();
+      this.noteEditing = false;
+      const text = ta.value.replace(/\s+$/, '').replace(/^\s*\n/, '');
       ta.remove();
-      if (ok && text) this.commitNew('note', [[wx, wy, 0, 0.5]], { text });
+      if (!existing) { if (text.trim()) this.commitNew('note', [[wx, wy, 0, 0.5]], { text }); return; }
+      const e = this.store.doc.elements.find(x => x.id === existing.id);
+      if (e) { if (wasHidden) e.hidden = wasHidden; else delete e.hidden; }
+      if (!e) return;
+      if (!text.trim()) { this.store.removeElements([e.id]); return; }
+      if (text !== e.text) this.store.updateElement(e.id, { text }, 'edit note');
+      else this.store.emit('edit note', true);
+      this.select([e.id]);
     };
-    ta.addEventListener('keydown', ev => { if (ev.key === 'Escape') finish(false); if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); finish(true); } ev.stopPropagation(); });
-    ta.addEventListener('blur', () => finish(true));
+    ta.addEventListener('keydown', ev => {
+      ev.stopPropagation();
+      if (ev.key === 'Escape' || (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey))) { ev.preventDefault(); finish(); }
+    });
+    ta.addEventListener('blur', () => { if (armed) finish(); else setTimeout(focus); });
+  }
+
+  /** Edit a note mark's text in place. */
+  editNote(e) {
+    if (!e || e.role !== 'note' || !this.editable(e)) return false;
+    const [sx, sy] = this.toScreen(e.points[0][0], e.points[0][1]);
+    this.startNote(sx, sy, e.points[0][0], e.points[0][1], e);
+    return true;
   }
 
   /** What a mark made by the Play tool carries: its `play`, and the marker brush that goes with it. */

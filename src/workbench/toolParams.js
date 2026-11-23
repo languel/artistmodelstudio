@@ -156,5 +156,53 @@ export function openToolDefaults(app, tool, x, y, shape = null) {
   open = { close };
 }
 
+/**
+ * Ctrl+click (or right-click) the Note tool: the lettering of new notes (style, font, size, width, paper, ink).
+ * With notes selected, they change too.
+ */
+export function openNoteDefaults(app, x, y) {
+  open?.close();
+  const pop = h('div', { class: 'wb-cp-pop wb-tp' });
+  const line = (label, control, doc) => h('label', { class: 'wb-tp-row wb-tp-row2', title: doc || '' }, h('span', { class: 'wb-tp-label' }, label), control);
+  const selected = () => (app.selectedElements?.() || []).filter(e => e.role === 'note');
+  const set = patch => {
+    const { color, ...note } = patch;
+    app.setDefaults('note', { ...('color' in patch ? { color } : {}), ...(Object.keys(note).length ? { note } : {}) });
+    const ids = selected().map(e => e.id);
+    if (ids.length) app.store.change('note', d => { for (const e of d.elements) if (ids.includes(e.id)) { if ('color' in patch) e.color = color || null; if (Object.keys(note).length) e.note = { ...(e.note || {}), ...note }; } });
+  };
+  const render = () => {
+    const sel = selected();
+    const d = app.defaults('note');
+    const p = sel.length ? noteProps(sel[0]) : noteProps({ note: d.note, color: d.color, points: [] });
+    const seg = h('div', { class: 'wb-seg wb-tp-seg' }, ...Object.entries(NOTE_STYLES).map(([k, v]) => h('button', { class: k === p.style ? 'on' : '', title: v, style: 'padding-inline: 6px', onclick: () => { set({ style: k, bg: undefined, font: undefined, size: undefined }); render(); } }, { notebook: 'Book', sticky: 'Sticky', card: 'Card', plain: 'Plain' }[k] || k)));
+    const ink = (sel.length ? sel[0].color : d.color) || (p.bg ? p.ink : getComputedStyle(document.documentElement).getPropertyValue('--wb-ink').trim() || p.ink);   // (what the text will be: see startNote)
+    const font = h('select', { class: 'wb-select', title: 'Lettering' }, ...Object.entries(NOTE_FONTS).map(([k, [label]]) => h('option', { value: k, selected: k === p.font, style: `font-family: ${NOTE_FONTS[k][1]}` }, label)));
+    font.addEventListener('change', () => set({ font: font.value }));
+    font.addEventListener('keydown', e => e.stopPropagation());
+    const paper = h('div', { class: 'wb-row' },
+      colorField(p.bg || '#fbe9a6', v => { set({ bg: v }); render(); }, { title: 'Paper', fallback: '#fbe9a6', app }),
+      h('label', { class: 'wb-row', title: 'No paper: writing straight on the page' }, h('input', { type: 'checkbox', checked: !p.bg, onchange: ev => { set({ bg: ev.target.checked ? null : '#fbe9a6' }); render(); } }), h('span', {}, 'none')));
+    pop.replaceChildren(
+      h('div', { class: 'wb-tp-head' }, h('span', { class: 'wb-tp-title' }, h('span', { html: icon('note') }), sel.length ? `${sel.length === 1 ? 'Note' : `${sel.length} notes`} and new notes` : 'New notes')),
+      line('Style', seg, 'Notebook writes on the page; sticky, card and plain are other looks'),
+      line('Font', font),
+      slider({ label: 'Size', min: 6, max: 120, step: 1, value: Math.round(p.size), doc: 'Letter size in artboard units', onInput: v => set({ size: v }) }),
+      slider({ label: 'Width', min: 40, max: 1200, step: 5, value: Math.round(p.width), doc: 'Wrap width (or drag a side of a note)', onInput: v => set({ width: v }) }),
+      line('Paper', paper),
+      line('Ink', colorField(sel.length ? sel[0].color : d.color, v => set({ color: v || null }), { title: 'Text color (empty: the stroke color, else the ink that reads on the paper)', fallback: ink, app })));
+  };
+  render();
+  document.body.append(pop);
+  const r = pop.getBoundingClientRect();
+  pop.style.left = `${Math.max(8, Math.min(x, window.innerWidth - r.width - 8))}px`;
+  pop.style.top = `${Math.max(8, Math.min(y, window.innerHeight - r.height - 8))}px`;
+  const outside = e => { if (!pop.contains(e.target) && !e.target.closest?.('.wb-cp-pop')) close(); };   // (the color picker is its own popup)
+  const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const close = () => { pop.remove(); window.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', esc, true); open = null; };
+  setTimeout(() => { window.addEventListener('pointerdown', outside, true); window.addEventListener('keydown', esc, true); });
+  open = { close };
+}
+
 /** A board's settings at the pointer: the board's Properties. */
 export function openBoardParams(app, id, x, y) { app.canvas.selectBoard(id); return openPropertiesPopup(app, x, y); }

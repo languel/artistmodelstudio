@@ -11,7 +11,7 @@ import { envelope, reveal, expired, nextChange, cutPath } from './envelope.js';
 import { BRUSHES, mulberry32, resolveParams, installLines, KIT } from './brushes.js';
 import { boardDoc, boardsOf, MAIN } from './boards.js';
 import { inkOn } from './document.js';
-import { drawNote, noteCorners } from './notes.js';
+import { drawNote, noteCorners, noteProps, isRichNote } from './notes.js';
 import { txBeginFrame, txArm, txDisarm, txKnown, txBlit, txHash, txPpu } from './texture.js';
 
 // A mark's opacity from its time envelope, for the mark being drawn (read by withLook).
@@ -36,7 +36,8 @@ export const timedActive = (doc, now) => nextTimed(doc, now) === 0;
 
 export function renderDocument(ctx, doc, {
   mode = 'process', upTo = Infinity, transform = { x: 0, y: 0, scale: 1 },
-  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a', frozen = false, now = null, view = null
+  selected = new Set(), hovered = null, ground = true, showNotes = true, screenNotes = false, selectColor = '#8a8a8a', frozen = false, now = null, view = null,
+  richNotes = false   // (the studio shows notes in Markdown and math itself, as HTML: they are not drawn here)
 } = {}) {
   const { width, height } = doc.artboard;
   txBeginFrame();
@@ -63,7 +64,7 @@ export function renderDocument(ctx, doc, {
   const overlay = [];
   for (const e0 of ordered) {
     let e = e0;
-    if (!e.color && !e.fill) { const ink = inks.get(e.board || MAIN); if (ink) e = { ...e, color: ink }; }
+    if (!e.color && !e.fill && !(e.role === 'note' && noteProps(e).bg)) { const ink = inks.get(e.board || MAIN); if (ink) e = { ...e, color: ink }; }   // (a note on its own paper keeps the ink that reads on that paper)
     const s = stageOf.get(e.stage);
     if (!s || !s.visible || e.hidden) continue;
     if ((rank.get(e.stage) ?? 0) > upTo) continue;
@@ -103,7 +104,7 @@ export function renderDocument(ctx, doc, {
     for (const e of overlay) {
       env.rng = mulberry32(e.seed || 1);
       env.straight = e.path === 'straight';
-      if (e.role === 'note') { if (showNotes) withLook(ctx, e, () => drawNote(ctx, e)); continue; }
+      if (e.role === 'note') { if (showNotes && !(richNotes && isRichNote(e))) withLook(ctx, e, () => drawNote(ctx, e)); continue; }
       const brushId = BRUSHES[e.realize?.brush]?.construction ? e.realize.brush : 'guide';
       withLook(ctx, e, () => BRUSHES[brushId].draw(ctx, e, resolveParams(brushId, e.realize.params), env));
     }

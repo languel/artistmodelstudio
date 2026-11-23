@@ -70,17 +70,35 @@ function wrap(ctx, text, maxW) {
   return out;
 }
 
+/**
+ * A note written in Markdown or with math ($x^2$, $$…$$, \(…\)): the studio shows it rendered (an HTML
+ * layer over the canvas, src/workbench/richNotes.js); elsewhere (a PNG, an SVG) it is drawn as plain text.
+ */
+const RICH = /(?<![\\$\w])\$(?!\s)[^$\n]+?(?<!\s)\$(?![\w$])|\$\$|\\\(|\\\[|^\s{0,3}#{1,6}\s|\*\*[^*\n]+\*\*|(^|\s)_(?!\s)[^_\n]+?(?<!\s)_(?=\s|$|[.,;:!?])|(^|\s)\*(?![\s*])[^*\n]+?(?<!\s)\*(?=\s|$|[.,;:!?])|`[^`\n]+`|^\s*[-*+]\s|^\s*\d+[.)]\s|^\s*>\s|\[[^\]\n]+\]\([^)\n]+\)/m;
+export const isRichNote = e => RICH.test(String(e?.text || ''));
+
+/** Its height as rendered (artboard units), by note id: set by the HTML layer, so its box fits what is shown. */
+export const noteHeights = new Map();
+
+/** Markdown read as plain text (for drawing without HTML): marks of emphasis, headings and code go; math stays as written. */
+export const plainNoteText = text => String(text)
+  .replace(/^\s{0,3}#{1,6}\s+/gm, '').replace(/^\s*>\s?/gm, '').replace(/^(\s*)[-*+]\s+/gm, '$1• ')
+  .replace(/\*\*([^*\n]+)\*\*/g, '$1').replace(/(^|\s)[*_]([^*_\n]+)[*_](?=\s|$|[.,;:!?])/g, '$1$2')
+  .replace(/`([^`\n]+)`/g, '$1').replace(/\[([^\]\n]+)\]\([^)\n]+\)/g, '$1');
+
 /** Box and wrapped lines of a note, in artboard units (unrotated, from its top-left point). */
 export function noteLayout(e) {
   const p = noteProps(e);
   const [x, y] = e.points[0] || [0, 0];
   const ctx = measureCtx();
   ctx.font = `${p.size}px ${NOTE_FONTS[p.font][1]}`;
-  const text = e.text || e.why || '';
+  const rich = isRichNote(e);
+  const text = rich ? plainNoteText(e.text) : e.text || e.why || '';
   const pad = p.bg ? p.size * 0.55 : p.size * 0.15;
   const lines = text ? wrap(ctx, text, p.width - pad * 2) : [''];
   const lh = p.size * (p.font === 'hand' ? 1.15 : 1.32);
-  return { x, y, w: p.width, h: lines.length * lh + pad * 2, pad, lh, lines, props: p };
+  const shown = rich && noteHeights.get(e.id);
+  return { x, y, w: p.width, h: shown || lines.length * lh + pad * 2, pad, lh, lines, props: p, rich };
 }
 
 /** The four corners of a note's box in artboard units, after its rotation (about its top-left). */

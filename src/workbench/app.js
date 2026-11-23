@@ -7,7 +7,7 @@ import { mountAssist } from './panels/assist.js';
 import { Speaker } from './voiceOut.js';
 import { RequestLog } from './requestLog.js';
 import { Lecture } from './lecture.js';
-import { openToolParams, openGridParams, openCanvasParams, openToolDefaults, openBoardParams } from './toolParams.js';
+import { openToolParams, openGridParams, openCanvasParams, openToolDefaults, openBoardParams, openNoteDefaults } from './toolParams.js';
 import { openRadial } from './radial.js';
 import { boardAt, boardDoc, boardById, boardsOf, boardKind, findBoard, isFrame, boardsInFrame, slidesOf, MAIN, BLACKBOARD, boardForPoints, trainBoard, rateOf, newBoardId, nextBoardPlace } from '../process/boards.js';
 import { FX, normalizeFx } from '../process/fx.js';
@@ -96,6 +96,7 @@ import { initWorkbenchMCP } from './mcp.js';
 import { Sources } from './sources.js';
 import { startDiagnostics } from './diagnostics.js';
 import { BoardFrames } from './boardFrames.js';
+import { RichNotes } from './richNotes.js';
 import { boardPart, scenePart, selectionPart, importPart, isPart } from '../process/parts.js';
 import { p5ToStudio, isStudioSketch, textKind, p5Size } from '../process/convert.js';
 import { sketchFromPaste } from '../process/pasteSketch.js';
@@ -415,6 +416,7 @@ export class Workbench {
     const t = this.tool;
     if (t === 'sculpt' || t === 'brush') return openToolParams(this, x, y);
     if (['point', 'line', 'plane', 'gesture', 'guide', 'circle', 'rect'].includes(t)) return openToolDefaults(this, this.toolRole(t), x, y, t === 'circle' || t === 'rect' ? t : null);
+    if (t === 'note') return openNoteDefaults(this, x, y);
     if (this.selectedElements().length) return openToolParams(this, x, y);   // Select and Direct: the selected marks' brush settings
   }
 
@@ -762,7 +764,8 @@ export class Workbench {
       return { ...this.defaults(r), role: r, realize: { brush: b, params: { ...(this.brush.params[b] || {}) } } };
     }
     const d = this.toolDefaults[role] || {};
-    return { color: (role !== 'note' && this.paint?.stroke) || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...((d.path ?? (role === 'guide' ? 'straight' : null)) === 'straight' ? { path: 'straight' } : {}), ...(role === 'note' ? { note: d.note || {} } : {}), ...(d.lazy ? { lazy: d.lazy } : {}) };
+    const stroke = this.paint?.stroke && !(role === 'note' && this.paint.stroke === 'none') ? this.paint.stroke : null;   // (a note takes the stroke color too, unless its own is set; never none: it would not show)
+    return { color: role === 'note' ? d.color || stroke || null : stroke || d.color || null, fill: role !== 'note' ? this.paint?.fill || null : null, why: d.why || '', realize: d.realize || structuredClone(DEFAULT_REALIZE[role] || DEFAULT_REALIZE.line), opacity: d.opacity ?? 1, blend: d.blend || 'normal', ...((d.path ?? (role === 'guide' ? 'straight' : null)) === 'straight' ? { path: 'straight' } : {}), ...(role === 'note' ? { note: d.note || {} } : {}), ...(d.lazy ? { lazy: d.lazy } : {}) };
   }
 
   // ---- boards ----------------------------------------------------------------------
@@ -1467,7 +1470,8 @@ export class Workbench {
     this.outputs = new Outputs(this);   // boards sent to pinned overlays and windows (outputs.js)
     // The score runner, for code outside the app (lesson builders): the app's own, with its sources.
     this.runScript = runScript;
-    this.canvas.onDrawn = () => this.frames.update();
+    this.richNotes = new RichNotes(this);   // notes in Markdown and math, rendered over the canvas (richNotes.js)
+    this.canvas.onDrawn = () => { this.frames.update(); this.richNotes.update(); };
     try { this.playKind = localStorage.getItem('ams_playkind') || 'link'; } catch { this.playKind = 'link'; }
     try { this.playNodeKind = localStorage.getItem('ams_playnode') || 'note'; } catch { this.playNodeKind = 'note'; }
     this.store.derive = d => { Rel.syncEdges(d); Rel.syncAttached(d); syncCables(d); };   // edges follow their nodes; attached events follow their lines; cables their modules' ports
@@ -2389,7 +2393,7 @@ export class Workbench {
       if (id === 'line') { parts.drawing.push(this.lineStackButton()); continue; }
       const drawing = ['point', 'line', 'plane'].includes(id);
       (id === 'board' ? parts.selection : parts.drawing).push(h('button', { class: `wb-tool${this.tool === id ? ' on' : ''}`, 'data-guide': `tool:${id}`, title: `${tip} (${key})${drawing ? ' · right-click: brush and look for new marks' : ''}`, html: `${icon(id)}<kbd>${key}</kbd>`, onclick: () => this.setTool(id), oncontextmenu: drawing ? e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); openToolDefaults(this, id, r.left, r.bottom + 6); } : null }));
-      if (id === 'board') { const [nid, ntip, nkey] = NOTE_TOOL; parts.selection.push(h('button', { class: `wb-tool${this.tool === nid ? ' on' : ''}`, 'data-guide': `tool:${nid}`, title: `${ntip} (${nkey})`, html: `${icon(nid)}<kbd>${nkey}</kbd>`, onclick: () => this.setTool(nid) })); }
+      if (id === 'board') { const [nid, ntip, nkey] = NOTE_TOOL; parts.selection.push(h('button', { class: `wb-tool${this.tool === nid ? ' on' : ''}`, 'data-guide': `tool:${nid}`, title: `${ntip} (${nkey}) · Ctrl+click or right-click: style, font, size, paper`, html: `${icon(nid)}<kbd>${nkey}</kbd>`, onclick: e => { if (e.ctrlKey || e.metaKey) { const r = e.currentTarget.getBoundingClientRect(); openNoteDefaults(this, r.left, r.bottom + 6); return; } this.setTool(nid); }, oncontextmenu: e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); openNoteDefaults(this, r.left, r.bottom + 6); } })); }
     }
     // Brush: the active brush (click again or right-click for the list).
     const bb = BRUSHES[this.brush.id] || BRUSHES.ink;
