@@ -17,8 +17,10 @@ export function startBridge(app, { origin = location.origin } = {}) {
   let passthrough = false;
   let rev = 0;
   let hostPoses = null;   // Map markId -> { ox, oy, x, y, a } for live host physics poses
-  const basePosed = app.canvas.posed;
-  app.canvas.posed = doc => {
+  // The studio's own physics (src/physics/studio.js) sets canvas.posed a moment after startup: keep
+  // whatever it sets as the base, so the host's poses are drawn over it whichever comes first.
+  let basePosed = app.canvas.posed;
+  const hostPosed = doc => {
     const d0 = basePosed?.(doc) || doc;
     if (!hostPoses?.size) return d0 === doc ? null : d0;
     let hit = false;
@@ -35,6 +37,11 @@ export function startBridge(app, { origin = location.origin } = {}) {
     });
     return hit ? { ...d0, elements } : (d0 === doc ? null : d0);
   };
+  Object.defineProperty(app.canvas, 'posed', {
+    configurable: true,
+    get: () => hostPosed,
+    set: fn => { basePosed = fn === hostPosed ? basePosed : fn; }
+  });
   const declared = new Map();   // the host's boards: they come back after every load, so a loaded drawing never loses them
 
   // The host's own declared boards (Genereti's Image and Mask, say): they exist, with their size and paper.
