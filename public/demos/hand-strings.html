@@ -31,6 +31,26 @@
   #start .err { color: var(--warm); min-height: 1.4em; margin-top: 10px; }
   #panel { position: fixed; top: 12px; right: 12px; width: 270px; max-width: calc(100vw - 24px); background: var(--panel); border: 1px solid #333; border-radius: 10px; padding: 8px 12px; z-index: 5; backdrop-filter: blur(6px); }
   #panel summary { cursor: pointer; font-weight: 600; list-style: none; }
+  #panel { max-height: calc(100vh - 24px); overflow-y: auto; }
+  #midi { border-top: 1px solid #333; margin-top: 8px; padding-top: 6px; }
+  .mon { font-size: 12px; color: var(--dim); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .mon.warn { color: var(--warm); }
+  #mapper { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,0.6); display: grid; place-items: center; padding: 16px; }
+  #mapper[hidden] { display: none; }
+  #mapper .sheet { background: #17171b; border: 1px solid #3a3a42; border-radius: 12px; padding: 16px 18px; width: min(860px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
+  #mapper h2 { margin: 0 0 6px; font-size: 18px; }
+  #mapper p { color: var(--dim); font-size: 13px; margin: 6px 0; }
+  #mapper p.small { font-size: 12px; }
+  #mapper table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  #mapper th { text-align: left; color: var(--dim); font-weight: 500; padding: 4px; }
+  #mapper td { padding: 3px 4px; }
+  #mapper td.map-help { color: var(--dim); font-size: 11.5px; padding: 0 4px 8px; border-bottom: 1px solid #2a2a30; }
+  #mapper input[type=number] { width: 72px; background: #222228; border: 1px solid #44444c; border-radius: 5px; padding: 2px 4px; }
+  #mapper input:disabled { opacity: 0.35; }
+  #mapper td button { padding: 2px 8px; margin-right: 4px; }
+  #mapper textarea { width: 100%; background: #111; color: var(--ink); border: 1px solid #44444c; border-radius: 6px; font: 12px ui-monospace, Menlo, monospace; margin-top: 6px; }
+  #mapper .btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  #map-err { color: var(--dim); font-size: 12px; }
   #panel summary::-webkit-details-marker { display: none; }
   #panel summary::after { content: ' ▾'; color: var(--dim); }
   #panel label { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 6px 0; color: var(--dim); }
@@ -88,12 +108,38 @@
   <label>Mirror <input id="s-mirror" type="range" min="0" max="1" step="0.01"></label>
   <label>Skeleton <select id="s-skeleton"><option value="off">off</option><option value="hands">hands</option><option value="full">hands, face, body</option></select></label>
   <label>Face modulates <input id="s-face" type="checkbox"></label>
+  <details id="midi"><summary>MIDI</summary>
+    <div class="btns"><button id="m-enable">Enable MIDI</button><button id="m-edit">Edit map…</button></div>
+    <label>In <select id="m-in"></select></label>
+    <label>In channel <select id="m-inch"></select></label>
+    <label>Out <select id="m-out"></select></label>
+    <label>Strings out on ch <select id="m-outch"></select></label>
+    <label>Pads out on ch <select id="m-padch"></select></label>
+    <label>Play sound here <input id="m-local" type="checkbox"></label>
+    <label>Send notes out <input id="m-send" type="checkbox"></label>
+    <label>Send face as CC <input id="m-face" type="checkbox"></label>
+    <div class="mon" id="m-mon">MIDI is off</div>
+    <div class="mon warn" id="m-warn"></div>
+  </details>
   <div class="btns"><button id="b-undo">Undo last</button><button id="b-clear">Clear</button><button id="b-seed">Example</button><button id="b-help">Help</button></div>
   <div class="map">
     <b>Strings</b>: height → note on the scale, length → octave (shorter is higher; swap in “Pitch from”), angle → tone (level: bright steel, upright: dark nylon), left–right → stereo, where you pluck → timbre.<br>
     <b>Pads</b>: size → note (bigger is lower), height → material (glass, bell, vibes, marimba, drum from top to bottom), where you hit → centre is pure, edge is ringing.
   </div>
 </details>
+
+<div id="mapper" hidden><div class="sheet">
+  <h2>MIDI map</h2>
+  <p>Each row turns notes or a controller (CC) into something the instrument does. Notes use the first row that matches; a controller drives every row with its number. <b>Learn</b>, then play a key or move a control, to fill a row. For notes the two numbers are the range of notes; for a CC they are the range it is scaled to.</p>
+  <div class="btns"><select id="map-preset"></select><button id="map-load">Load preset</button><button id="map-add">Add row</button></div>
+  <table><thead><tr><th>From</th><th>Ch</th><th>CC #</th><th>Does</th><th>Min / low</th><th>Max / high</th><th></th></tr></thead><tbody id="map-rows"></tbody></table>
+  <details><summary>As JSON (copy, edit, paste back)</summary>
+    <textarea id="map-json" rows="8" spellcheck="false"></textarea>
+    <div class="btns"><button id="map-apply">Use this JSON</button><button id="map-copy">Copy</button><span id="map-err"></span></div>
+  </details>
+  <p class="small"><b>ForgeRing</b> (github.com/languel/forgering): in Ring Studio set the MIDI output to a virtual port (macOS: Audio MIDI Setup › Window › Show MIDI Studio › IAC Driver › “Device is online”), channel 1, and here choose that port as In and load the ForgeRing preset: X (CC 20) strums, Y (CC 21) brightens, Z (CC 22) aims, a gesture (CC 24) throws a ball, heart rate (CC 23) adds vibrato, gesture notes 60–75 hit the pads. To play another synth instead, untick “Play sound here”, tick “Send notes out”, and choose its port as Out.</p>
+  <div class="btns"><button class="primary" id="map-close">Done</button></div>
+</div></div>
 
 <div id="help">
   <b>Two-hand pinch</b>, pull apart, let go → a string · <b>thumbs + index fingers together</b> (hold) → a pad, as big as the ring ·
@@ -205,11 +251,14 @@ function impulse(sec) {                             // a room: two channels of n
 }
 
 const face = { present: false, jaw: 0, brow: 0, smile: 0, closedSince: 0, hold: false, pts: null };
-function pluck(s, pos, vel) {                       // Karplus–Strong, computed ahead into a buffer
-  if (!ac) return;
-  const sr = ac.sampleRate, f = mtof(s.midi), D = sr / f, k = s.damp;
+function pluck(s, pos, vel, o = {}) {               // Karplus–Strong, computed ahead into a buffer (o.midi: another pitch; o.fromMidi)
+  const midi = o.midi ?? s.midi, k = clamp(s.damp + MIDI.tone, 0.02, 0.5);
+  const T60 = S.sustain * (1 - 0.45 * k) * (face.hold ? 3 : 1);
+  s.hit = { t: performance.now(), vel, pos, T60 };
+  midiNote(midi, vel, Math.min(T60, 2.5), MIDI.outCh, o.fromMidi);
+  if (!ac || !MIDI.local) return;                   // MIDI only: the picture moves, the sound goes out
+  const sr = ac.sampleRate, f = mtof(midi), D = sr / f;
   const M = Math.max(2, Math.floor(D - k - 0.1)), d = D - k - M, C = (1 - d) / (1 + d);   // integer line + allpass fraction: in tune
-  const T60 = S.sustain * (1 - 0.45 * s.damp) * (face.hold ? 3 : 1);
   const gLoss = 10 ** (-3 / (T60 * f));             // loss per trip, so every note rings T60 seconds
   const len = Math.ceil(Math.min(T60 * 1.05 + 0.1, 12) * sr);
   const buf = ac.createBuffer(1, len, sr), out = buf.getChannelData(0), line = new Float32Array(M);
@@ -232,14 +281,15 @@ function pluck(s, pos, vel) {                       // Karplus–Strong, compute
   lfoDepth.connect(src.detune);
   src.connect(new GainNode(ac, { gain: 0.3 * (0.25 + 0.75 * vel) })).connect(new StereoPannerNode(ac, { pan: s.pan })).connect(bus);
   src.start();
-  s.hit = { t: performance.now(), vel, pos, T60 };
 }
-function strike(p, r, vel, angle = Math.random() * 6.283) {                        // modal synthesis: a few sines, each dying at its own rate
-  if (!ac) return;
-  const m = MATERIAL[p.mat], f = mtof(p.midi), t = ac.currentTime + 0.005;
+function strike(p, r, vel, angle = Math.random() * 6.283, o = {}) {   // modal synthesis: a few sines, each dying at its own rate
+  const m = MATERIAL[p.mat], midi = o.midi ?? p.midi, ringScale = (S.sustain / 3.5) * (face.hold ? 2.5 : 1);
+  p.hit = { t: performance.now(), vel, r, angle, T: m.ring * ringScale };
+  midiNote(midi, vel, Math.min(m.ring * ringScale, 2), MIDI.padCh, o.fromMidi);
+  if (!ac || !MIDI.local) return;
+  const f = mtof(midi), t = ac.currentTime + 0.005;
   const out = new GainNode(ac, { gain: 0.2 * (0.3 + 0.7 * vel) });
   out.connect(new StereoPannerNode(ac, { pan: p.pan })).connect(bus);
-  const ringScale = (S.sustain / 3.5) * (face.hold ? 2.5 : 1);
   m.modes.forEach((ratio, k) => {
     const fk = f * ratio; if (fk > ac.sampleRate * 0.45) return;
     const a = k === 0 ? 1 - 0.55 * r : (0.2 + 0.8 * r) * (0.4 + 0.6 * vel) / (k + 1) ** 0.5;   // centre: pure; edge: ringing
@@ -257,16 +307,202 @@ function strike(p, r, vel, angle = Math.random() * 6.283) {                     
   ns.connect(new BiquadFilterNode(ac, { type: 'bandpass', frequency: Math.min(f * 3, 8000), Q: 1 }))
     .connect(new GainNode(ac, { gain: vel * (p.mat === 'drum' ? 1.4 : 0.5) })).connect(out);
   ns.start(t);
-  p.hit = { t: performance.now(), vel, r, angle, T: m.ring * ringScale };
 }
 function applyFace(now) {                           // the face, as modulation of the whole instrument
   if (!ac) return;
   const t = ac.currentTime, on = S.face && face.present;
-  wah.frequency.setTargetAtTime(on ? 1100 * 2 ** (face.jaw * 4) : 18000, t, 0.05);
-  wah.Q.setTargetAtTime(on ? 3 : 0.7, t, 0.1);
-  send.gain.setTargetAtTime(clamp(S.reverb + (on ? face.brow * 0.8 : 0), 0, 1.2), t, 0.1);
-  lfoDepth.gain.setTargetAtTime(on ? face.smile * 40 : 0, t, 0.08);
+  const pick = (a, b) => a == null ? b : b == null ? a : Math.max(a, b);   // the face and a MIDI controller: the larger wins
+  const bright = pick(on ? face.jaw : null, MIDI.mods.bright), verb = pick(on ? face.brow : null, MIDI.mods.reverb), vib = pick(on ? face.smile : null, MIDI.mods.vibrato);
+  wah.frequency.setTargetAtTime(bright == null ? 18000 : 1100 * 2 ** (bright * 4), t, 0.05);
+  wah.Q.setTargetAtTime(bright == null ? 0.7 : 3, t, 0.1);
+  send.gain.setTargetAtTime(clamp(S.reverb + (verb ?? 0) * 0.8, 0, 1.2), t, 0.1);
+  lfoDepth.gain.setTargetAtTime((vib ?? 0) * 40, t, 0.08);
   face.hold = on && face.closedSince > 0 && now - face.closedSince > 250;
+  if (on && MIDI.faceOut) { midiCC(74, face.jaw); midiCC(91, face.brow); midiCC(1, face.smile); midiCC(64, face.hold ? 1 : 0); }
+}
+
+// ─── MIDI ───────────────────────────────────────────────────────────────────────────────────────────────
+// In: notes and controllers play strings and pads and move the sound, through a map you can edit.
+// Out: every pluck and hit as a note (strings and pads on their own channels), the face as controllers.
+// Two pages talk through a virtual port (macOS: Audio MIDI Setup › IAC Driver › Device is online).
+const TARGETS = {                                   // what a row of the map can do; note: for notes, cc: for controllers
+  'strings by pitch': { note: 1, help: 'the nearest string, sounding the note played' },
+  'strings in order': { note: 1, help: 'lowest note of the range → lowest string, and up' },
+  'pads in order': { note: 1, help: 'lowest note of the range → lowest pad, and up' },
+  'throw ball': { note: 1, cc: 1, help: 'a ball from the middle, the way “aim” points (a controller: when it rises past 64)' },
+  'pluck all': { note: 1, cc: 1, help: 'every string at once (a controller: rising past 64)' },
+  'hit all pads': { note: 1, cc: 1, help: 'every pad at once (a controller: rising past 64)' },
+  'strum strings': { cc: 1, help: 'sweep the value: plucks each string it passes, left to right' },
+  'brightness': { cc: 1, help: 'opens the filter, like opening your mouth (0..1)' },
+  'reverb': { cc: 1, help: 'more echo, like raising your brows (0..1)' },
+  'vibrato': { cc: 1, help: 'vibrato depth, like a smile (0..1)' },
+  'sustain': { cc: 1, help: 'how long strings ring, seconds (0.6..8)' },
+  'tone': { cc: 1, help: 'string damping added to every string: − brighter, + darker (−0.3..0.3)' },
+  'aim': { cc: 1, help: 'direction of thrown balls, degrees (−180 left, −90 up, 0 right)' },
+  'register': { cc: 1, help: 'the octave of the whole instrument (1..5)' },
+  'key': { cc: 1, help: 'the root of the scale, semitones above C (0..11)' }
+};
+const DEFAULT_RANGE = { sustain: [0.6, 8], tone: [-0.3, 0.3], aim: [-170, -10], register: [1, 5], key: [0, 11] };
+const row = (type, ch, num, target, min, max) => ({ type, ch, num, target, min: min ?? (type === 'note' ? 0 : DEFAULT_RANGE[target]?.[0] ?? 0), max: max ?? (type === 'note' ? 127 : DEFAULT_RANGE[target]?.[1] ?? 1) });
+const PRESETS = {
+  'General': () => [row('note', 10, 0, 'pads in order', 36, 51), row('note', 0, 0, 'strings by pitch'),
+    row('cc', 0, 1, 'vibrato'), row('cc', 0, 74, 'brightness'), row('cc', 0, 91, 'reverb'), row('cc', 0, 64, 'pluck all'), row('cc', 0, 7, 'sustain')],
+  'ForgeRing': () => [row('cc', 1, 20, 'strum strings'), row('cc', 1, 21, 'brightness'), row('cc', 1, 22, 'aim'),
+    row('cc', 1, 24, 'throw ball'), row('note', 1, 0, 'pads in order', 60, 75), row('cc', 1, 23, 'vibrato', 0, 0.6)],
+  'Empty': () => []
+};
+const MIDI = Object.assign({ inId: 'all', inCh: 0, outId: 'none', outCh: 1, padCh: 2, local: true, send: false, faceOut: false, preset: 'General', map: PRESETS.General() },
+  store.get('hand-strings-midi') || {});
+Object.assign(MIDI, { access: null, learn: -1, mods: { bright: null, reverb: null, vibrato: null }, tone: 0, aim: -Math.PI / 2, prevCC: {}, sentCC: {}, recent: new Map(), strumPos: null });
+const saveMidi = () => store.set('hand-strings-midi', { inId: MIDI.inId, inCh: MIDI.inCh, outId: MIDI.outId, outCh: MIDI.outCh, padCh: MIDI.padCh, local: MIDI.local, send: MIDI.send, faceOut: MIDI.faceOut, preset: MIDI.preset, map: MIDI.map });
+const outPorts = () => MIDI.access ? [...MIDI.access.outputs.values()].filter(o => MIDI.outId === 'all' || o.id === MIDI.outId) : [];
+function midiSend(bytes, at) { for (const o of outPorts()) { try { o.send(bytes, at); } catch {} } }
+function midiNote(note, vel, dur, ch, fromMidi) {   // a note out (not the ones that came in: no loops)
+  if (!MIDI.send || fromMidi || !MIDI.access) return;
+  note = clamp(Math.round(note), 0, 127); const c = (ch - 1) & 15;
+  midiSend([0x90 | c, note, clamp(Math.round(vel * 127), 1, 127)]);
+  midiSend([0x80 | c, note, 0], performance.now() + dur * 1000);
+  MIDI.recent.set(c + ':' + note, performance.now());
+}
+function midiCC(cc, v) {                            // a controller out, only when it changes
+  if (!MIDI.send || !MIDI.access) return;
+  const val = clamp(Math.round(v * 127), 0, 127);
+  if (MIDI.sentCC[cc] === val) return;
+  MIDI.sentCC[cc] = val; midiSend([0xb0 | ((MIDI.outCh - 1) & 15), cc, val]);
+}
+function monitor(t) { $('m-mon').textContent = t; }
+function onMidi(e) {
+  const [st, d1, d2 = 0] = e.data, type = st & 0xf0, ch = (st & 15) + 1;
+  let msg;
+  if (type === 0x90 && d2 > 0) msg = { type: 'note', ch, num: d1, val: d2 };
+  else if (type === 0xb0) msg = { type: 'cc', ch, num: d1, val: d2 };
+  else return;                                      // note offs: the strings ring on their own
+  if (MIDI.inCh && ch !== MIDI.inCh) return;
+  if (msg.type === 'note' && performance.now() - (MIDI.recent.get((ch - 1) + ':' + d1) || 0) < 60) return;   // our own note, back through the same bus
+  monitor(`in: ch ${ch} · ${msg.type === 'note' ? 'note ' + d1 + ' (' + noteName(d1) + ') vel ' + d2 : 'CC ' + d1 + ' = ' + d2}`);
+  if (MIDI.learn >= 0) {                            // Learn: the next message fills the row
+    const r = MIDI.map[MIDI.learn]; MIDI.learn = -1;
+    if (r) { r.type = msg.type; r.ch = ch; if (msg.type === 'cc') r.num = msg.num; else { r.min = msg.num; if (r.max < r.min) r.max = 127; }
+      if (!TARGETS[r.target][r.type]) r.target = msg.type === 'cc' ? 'brightness' : 'strings by pitch'; }
+    saveMidi(); renderMap(); return;
+  }
+  for (const r of MIDI.map) {
+    if (r.type !== msg.type || (r.ch && r.ch !== ch)) continue;
+    if (msg.type === 'cc') { if (r.num === msg.num) applyCC(r, msg.val); }
+    else if (msg.num >= r.min && msg.num <= r.max) { applyNote(r, msg.num, msg.val / 127); break; }   // notes: the first row that matches
+  }
+}
+const center = () => ({ x: W / 2, y: H * 0.6 });
+const byPitch = list => [...list].sort((a, b) => a.midi - b.midi);
+function applyNote(r, num, vel) {
+  const o = { fromMidi: true };
+  switch (r.target) {
+    case 'strings by pitch': {
+      if (!strings.length) return;
+      const s = strings.reduce((a, b) => Math.abs(b.midi - num) < Math.abs(a.midi - num) ? b : a);
+      return pluck(s, 0.25 + Math.random() * 0.5, vel, { ...o, midi: num });
+    }
+    case 'strings in order': { const s = byPitch(strings)[num - r.min]; return s && pluck(s, 0.3, vel, o); }
+    case 'pads in order': { const p = byPitch(pads)[num - r.min]; return p && strike(p, 0.2, vel, undefined, o); }
+    default: return trigger(r.target, vel);
+  }
+}
+function trigger(target, vel) {
+  if (target === 'throw ball') throwBall(center(), Math.cos(MIDI.aim), Math.sin(MIDI.aim), vel);
+  if (target === 'pluck all') strings.forEach((s, i) => setTimeout(() => pluck(s, 0.3, vel, { fromMidi: true }), i * 18));
+  if (target === 'hit all pads') pads.forEach(p => strike(p, 0.3, vel, undefined, { fromMidi: true }));
+}
+function applyCC(r, val) {
+  const x = val / 127, v = r.min + x * (r.max - r.min), key = r.ch + ':' + r.num + ':' + r.target, prev = MIDI.prevCC[key];
+  MIDI.prevCC[key] = val;
+  switch (r.target) {
+    case 'brightness': MIDI.mods.bright = clamp(v); break;
+    case 'reverb': MIDI.mods.reverb = clamp(v); break;
+    case 'vibrato': MIDI.mods.vibrato = clamp(v); break;
+    case 'sustain': S.sustain = clamp(v, 0.3, 12); $('s-sustain').value = S.sustain; break;
+    case 'tone': MIDI.tone = v; break;
+    case 'aim': MIDI.aim = v * Math.PI / 180; MIDI.aimShown = performance.now(); break;
+    case 'register': { const o = clamp(Math.round(v), 0, 7); if (o !== S.octave) { S.octave = o; $('s-octave').value = o; tuneAll(); } break; }
+    case 'key': { const k = ((Math.round(v) % 12) + 12) % 12; if (k !== S.root) { S.root = k; $('s-root').value = k; tuneAll(); } break; }
+    case 'strum strings': {                         // the value as a hand moving across the strings, left to right
+      const list = [...strings].sort((a, b) => (a.a.x + a.b.x) - (b.a.x + b.b.x)), n = list.length;
+      if (!n) break;
+      const pos = x * n, was = MIDI.strumPos ?? pos; MIDI.strumPos = pos;
+      const lo = Math.min(was, pos), hi = Math.max(was, pos), speed = clamp(Math.abs(pos - was) / 2 + 0.3);
+      list.forEach((s, i) => { if (i + 0.5 > lo && i + 0.5 <= hi) pluck(s, 0.5, speed, { fromMidi: true }); });
+      break;
+    }
+    default: if (prev !== undefined && prev < 64 && val >= 64) trigger(r.target, x);   // triggers: rising past the middle
+  }
+}
+async function enableMidi() {
+  if (!navigator.requestMIDIAccess) { monitor('this browser has no Web MIDI (use Chrome, Edge or Firefox)'); return; }
+  try {
+    MIDI.access = await navigator.requestMIDIAccess({ sysex: false });
+    MIDI.access.onstatechange = () => { fillPorts(); listen(); };
+    fillPorts(); listen();
+    $('m-enable').textContent = 'MIDI on'; $('m-enable').disabled = true;
+    monitor('waiting for MIDI…');
+  } catch (e) { monitor('MIDI was not allowed (' + (e.name || e.message) + ')'); }
+}
+function listen() { for (const i of MIDI.access.inputs.values()) i.onmidimessage = (MIDI.inId === 'all' || i.id === MIDI.inId) ? onMidi : null; }
+function fillPorts() {
+  const fill = (el, ports, extra, value) => {
+    el.innerHTML = ''; extra.forEach(([v, t]) => el.add(new Option(t, v)));
+    ports.forEach(p => el.add(new Option(p.name || p.id, p.id)));
+    el.value = [...el.options].some(o => o.value === value) ? value : extra[0][0];
+  };
+  fill($('m-in'), MIDI.access ? [...MIDI.access.inputs.values()] : [], [['all', 'all inputs'], ['none', 'none']], MIDI.inId);
+  fill($('m-out'), MIDI.access ? [...MIDI.access.outputs.values()] : [], [['none', 'none'], ['all', 'all outputs']], MIDI.outId);
+  const same = MIDI.outId !== 'none' && (MIDI.inId === 'all' || MIDI.inId === MIDI.outId);
+  $('m-warn').textContent = same && MIDI.send ? 'In and out share a port: notes this page sends are ignored when they come back.' : '';
+}
+function renderMap() {                              // the map editor: one row per rule
+  const tb = $('map-rows'); tb.innerHTML = '';
+  const sel = (opts, value, on) => { const e = document.createElement('select'); opts.forEach(([v, t]) => e.add(new Option(t, v))); e.value = value; e.onchange = () => on(e.value); return e; };
+  const num = (value, on, step = 1, disabled) => { const e = document.createElement('input'); e.type = 'number'; e.step = step; e.value = value; e.disabled = !!disabled; e.onchange = () => on(+e.value); return e; };
+  const chans = [[0, 'any'], ...Array.from({ length: 16 }, (_, i) => [i + 1, String(i + 1)])];
+  MIDI.map.forEach((r, i) => {
+    const tr = document.createElement('tr'), td = (...els) => { const c = document.createElement('td'); c.append(...els); tr.append(c); };
+    const change = () => { saveMidi(); renderMap(); };
+    td(sel([['note', 'notes'], ['cc', 'CC']], r.type, v => { r.type = v; if (!TARGETS[r.target][v]) r.target = v === 'cc' ? 'brightness' : 'strings by pitch'; Object.assign(r, row(r.type, r.ch, r.num, r.target)); change(); }));
+    td(sel(chans, r.ch, v => { r.ch = +v; change(); }));
+    td(num(r.num, v => { r.num = v; change(); }, 1, r.type === 'note'));
+    td(sel(Object.keys(TARGETS).filter(t => TARGETS[t][r.type]).map(t => [t, t]), r.target, v => { r.target = v; if (r.type === 'cc' && DEFAULT_RANGE[v]) [r.min, r.max] = DEFAULT_RANGE[v]; change(); }));
+    td(num(r.min, v => { r.min = v; change(); }, r.type === 'note' ? 1 : 0.01));
+    td(num(r.max, v => { r.max = v; change(); }, r.type === 'note' ? 1 : 0.01));
+    const learn = document.createElement('button'); learn.textContent = MIDI.learn === i ? 'move a control…' : 'Learn';
+    learn.onclick = () => { MIDI.learn = MIDI.learn === i ? -1 : i; renderMap(); };
+    const del = document.createElement('button'); del.textContent = '✕'; del.title = 'Delete this row';
+    del.onclick = () => { MIDI.map.splice(i, 1); change(); };
+    td(learn, del);
+    const help = document.createElement('tr'), hc = document.createElement('td'); hc.colSpan = 7; hc.className = 'map-help';
+    hc.textContent = (r.type === 'note' ? `notes ${r.min}–${r.max} (${noteName(r.min)}–${noteName(r.max)}) → ` : `CC ${r.num} → ${r.min}..${r.max}: `) + TARGETS[r.target].help;
+    help.append(hc); tb.append(tr, help);
+  });
+  $('map-json').value = JSON.stringify(MIDI.map, null, 1);
+}
+{                                                   // the MIDI panel's controls
+  const chans = el => { for (let c = 1; c <= 16; c++) el.add(new Option(String(c), c)); };
+  $('m-inch').add(new Option('any', 0)); chans($('m-inch')); chans($('m-outch')); chans($('m-padch'));
+  Object.keys(PRESETS).forEach(n => $('map-preset').add(new Option(n, n)));
+  const bind = (id, key, conv = v => v) => { const el = $(id); if (el.type === 'checkbox') el.checked = MIDI[key]; else el.value = MIDI[key];
+    el.addEventListener('change', () => { MIDI[key] = el.type === 'checkbox' ? el.checked : conv(el.value); saveMidi(); if (MIDI.access) { fillPorts(); listen(); } }); };
+  bind('m-in', 'inId'); bind('m-out', 'outId'); bind('m-inch', 'inCh', Number); bind('m-outch', 'outCh', Number); bind('m-padch', 'padCh', Number);
+  bind('m-local', 'local'); bind('m-send', 'send'); bind('m-face', 'faceOut');
+  fillPorts();
+  $('m-enable').onclick = () => { initAudio(); enableMidi(); };
+  $('m-edit').onclick = () => { renderMap(); $('mapper').hidden = false; };
+  $('map-close').onclick = () => { MIDI.learn = -1; $('mapper').hidden = true; };
+  $('map-add').onclick = () => { MIDI.map.push(row('cc', 0, 20, 'brightness')); saveMidi(); renderMap(); };
+  $('map-preset').value = MIDI.preset;
+  $('map-load').onclick = () => { MIDI.preset = $('map-preset').value; MIDI.map = PRESETS[MIDI.preset](); saveMidi(); renderMap(); };
+  $('map-apply').onclick = () => {
+    try { const m = JSON.parse($('map-json').value); if (!Array.isArray(m)) throw new Error('not a list');
+      MIDI.map = m.filter(r => TARGETS[r.target]).map(r => row(r.type === 'cc' ? 'cc' : 'note', +r.ch || 0, +r.num || 0, r.target, +r.min, +r.max)); saveMidi(); renderMap(); $('map-err').textContent = ''; }
+    catch (e) { $('map-err').textContent = 'Could not read it: ' + e.message; }
+  };
+  $('map-copy').onclick = () => { navigator.clipboard?.writeText($('map-json').value); $('map-err').textContent = 'Copied.'; };
 }
 
 // ─── the scene ──────────────────────────────────────────────────────────────────────────────────────────
@@ -426,7 +662,7 @@ function throwBall(at, dx, dy, power) {
   balls.push({ x: at.x + dx * 30, y: at.y + dy * 30, vx: dx * speed, vy: dy * speed, r: d, born: performance.now(), hue: Math.random() * 360, trail: [], hits: new Map() });
   if (balls.length > 14) balls.shift();
   clap.flash = { ...at, t: performance.now() };
-  if (ac) {                                         // the clap itself: a burst of filtered noise
+  if (ac && MIDI.local) {                           // the clap itself: a burst of filtered noise
     const n = Math.floor(ac.sampleRate * 0.08), b = ac.createBuffer(1, n, ac.sampleRate), x = b.getChannelData(0);
     for (let i = 0; i < n; i++) x[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ac.sampleRate * 0.012));
     const src = new AudioBufferSourceNode(ac, { buffer: b });
@@ -584,7 +820,7 @@ cv.addEventListener('pointerup', pointerUp);
 cv.addEventListener('pointercancel', pointerUp);
 cv.addEventListener('dblclick', e => { const hit = hitTest({ x: e.clientX, y: e.clientY }); if (hit) remove(hit.obj); });
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  if (['SELECT', 'INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName) || !$('mapper').hidden) return;
   if (e.key === 'h' || e.key === 'H') $('help').classList.toggle('hidden');
   if (e.key === ' ' && mouse.p) {                    // the mouse's clap: throw from the cursor the way it is moving
     e.preventDefault(); initAudio();
@@ -736,6 +972,11 @@ function frame(now) {
   }
   pads.forEach(p => drawPad(p, now, held.has(p)));
   drawBalls(now);
+  if (MIDI.aimShown && now - MIDI.aimShown < 1200) {   // where a MIDI-thrown ball will go
+    const c = center(), a = 1 - (now - MIDI.aimShown) / 1200;
+    g.strokeStyle = `rgba(242,193,78,${a})`; g.lineWidth = 3; g.beginPath(); g.moveTo(c.x, c.y);
+    g.lineTo(c.x + 70 * Math.cos(MIDI.aim), c.y + 70 * Math.sin(MIDI.aim)); g.stroke();
+  }
   strings.forEach(s => drawString(s, now, held.has(s)));
   if (draft) {
     if (draft.pad) { g.strokeStyle = 'rgba(242,193,78,0.8)'; g.setLineDash([6, 6]); g.lineWidth = 2; g.beginPath(); g.arc(draft.a.x, draft.a.y, dist(draft.a, draft.b), 0, 7); g.stroke(); g.setLineDash([]); }
@@ -778,7 +1019,7 @@ resize(); load();
 addEventListener('resize', resize);
 addEventListener('load', resize);
 requestAnimationFrame(frame);
-window.__hs = { strings, pads, hands, balls, throwBall, S, pluck, strike, face, updateHands, get fit() { return fit; } };   // for poking at it from the console
+window.__hs = { strings, pads, hands, balls, throwBall, MIDI, onMidi, S, pluck, strike, face, updateHands, get fit() { return fit; } };   // for poking at it from the console
 </script>
 </body>
 </html>
