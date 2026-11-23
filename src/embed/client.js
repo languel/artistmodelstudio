@@ -121,6 +121,8 @@ export function createEditor(container, { src, ns = 'ams-embed', theme = 'host',
     callTool: (name, args) => request('call', { name, args }),
     listTools: () => request('list-tools'),
     setUI: ui => request('set-ui', ui),
+    setHostToolbar: sections => request('host-toolbar', { sections }),
+    setHostPoses: poses => request('host-poses', { poses }),
     /** 'dark' | 'light' | 'auto', or 'host' to follow the host page's theme again. */
     setTheme: t => { following = t === 'host'; return request('theme', { theme: following ? hostTheme() : t }); },
     /** 'overlay' (a layer over the host's canvas: the host owns the view and the interface) or 'standalone' (the editor on its own, with the studio's zoom, zen, panels and menus). */

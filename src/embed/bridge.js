@@ -16,6 +16,25 @@ export function startBridge(app, { origin = location.origin } = {}) {
   const boardOf = ref => { const bs = boardsOf(app.store.doc); return bs.find(b => b.id === ref || b.title === ref) || bs.find(b => b.id === MAIN); };
   let passthrough = false;
   let rev = 0;
+  let hostPoses = null;   // Map markId -> { ox, oy, x, y, a } for live host physics poses
+  const basePosed = app.canvas.posed;
+  app.canvas.posed = doc => {
+    const d0 = basePosed?.(doc) || doc;
+    if (!hostPoses?.size) return d0 === doc ? null : d0;
+    let hit = false;
+    const elements = d0.elements.map(e => {
+      const p = hostPoses.get(e.id);
+      if (!p || !Array.isArray(e.points)) return e;
+      hit = true;
+      const c = Math.cos(p.a), s = Math.sin(p.a);
+      const points = e.points.map(q => {
+        const dx = q[0] - p.ox, dy = q[1] - p.oy;
+        return [p.x + dx * c - dy * s, p.y + dx * s + dy * c, ...q.slice(2)];
+      });
+      return { ...e, points };
+    });
+    return hit ? { ...d0, elements } : (d0 === doc ? null : d0);
+  };
   const declared = new Map();   // the host's boards: they come back after every load, so a loaded drawing never loses them
 
   // The host's own declared boards (Genereti's Image and Mask, say): they exist, with their size and paper.
@@ -72,6 +91,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
   };
   const ui = patch => {
     // Only the keys that mean something (a message carries others), and the panels class the stylesheet keys on.
+    if (patch && 'transport' in patch) { transportWanted = Boolean(patch.transport); app.embedTransport?.show(transportWanted && !zen); }
     const p = Object.fromEntries(['all', 'tools', 'view', 'zoom', 'panels'].filter(k => patch && k in patch).map(k => [k, Boolean(patch[k])]));
     if ('panels' in p || 'all' in p) document.documentElement.classList.toggle('ams-panels', Boolean('all' in p ? p.all : p.panels));
     app.hostSetUI(p);
@@ -88,7 +108,19 @@ export function startBridge(app, { origin = location.origin } = {}) {
     return zen;
   };
   window.addEventListener('keydown', e => {
-    if (e.altKey && e.code === 'KeyZ' && !e.metaKey && !e.ctrlKey && !hostKey) { e.preventDefault(); e.stopImmediatePropagation(); setZen(!zen); }
+    if (e.altKey && e.code === 'KeyZ' && !e.metaKey && !e.ctrlKey && !hostKey) { e.preventDefault(); e.stopImmediatePropagation(); setZen(!zen); return; }
+    if (app.overlay && (e.metaKey || e.ctrlKey) && !e.altKey) {
+      if (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd') {
+        e.preventDefault(); e.stopImmediatePropagation();
+        post({ type: 'action', id: 'view:zoom-in', ids: [] });
+      } else if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
+        e.preventDefault(); e.stopImmediatePropagation();
+        post({ type: 'action', id: 'view:zoom-out', ids: [] });
+      } else if (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0') {
+        e.preventDefault(); e.stopImmediatePropagation();
+        post({ type: 'action', id: 'view:zoom-reset', ids: [] });
+      }
+    }
   }, true);
   const configure = cfg => {
     if (cfg.passthrough != null) passthrough = !!cfg.passthrough;
@@ -96,6 +128,7 @@ export function startBridge(app, { origin = location.origin } = {}) {
     // The host owns the sound: the built-in General MIDI sound is switched off (the score still makes signals and events).
     if (cfg.sound === false) app.score?.setSound({ gm: false });
     if (cfg.actions) app.hostActions = cfg.actions.filter(a => a?.id && a?.label);
+    if (cfg.hostToolbar) { app.hostToolbar = cfg.hostToolbar; app.renderChrome(); }
     if (cfg.dock) document.documentElement.classList.toggle('dock-left', cfg.dock === 'left');
     if (cfg.ui) ui(cfg.ui);
     if (cfg.theme) theme(cfg.theme);
@@ -209,6 +242,16 @@ export function startBridge(app, { origin = location.origin } = {}) {
     call: ({ name, args }) => window.ams.callTool(name, args || {}),
     'list-tools': () => window.ams.listTools(),
     'set-ui': m => { ui(m); return {}; },
+    'host-toolbar': ({ sections }) => { app.hostToolbar = sections || null; app.renderChrome(); return {}; },
+    'host-poses': ({ poses }) => {
+      if (!poses || !Object.keys(poses).length) {
+        if (hostPoses?.size) { hostPoses = null; app.canvas.invalidate(); }
+        return {};
+      }
+      hostPoses = new Map(Object.entries(poses));
+      app.canvas.invalidate();
+      return {};
+    },
     theme: ({ theme: t }) => { theme(t); return {}; },
     tool: ({ tool }) => { app.setTool(tool); return {}; },
     mode: ({ mode }) => { setMode(mode); return {}; },
@@ -256,9 +299,18 @@ export function startBridge(app, { origin = location.origin } = {}) {
   const pointer = e => post({ type: 'pointer', event: e.type, x: e.clientX, y: e.clientY,
     pointerId: e.pointerId, pointerType: e.pointerType, button: e.button, buttons: e.buttons,
     pressure: e.pressure, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey });
+  const isHostTool = () => typeof app.tool === 'string' && app.tool.startsWith('host:');
   canvas.addEventListener('pointerdown', e => {
     lastPassed = false;
-    if (!passthrough || !app.overlay || app.tool !== 'select' || app.canvas.space) return;
+    if (!passthrough || !app.overlay || app.canvas.space) return;
+    if (isHostTool()) {
+      passing = lastPassed = true;
+      e.preventDefault(); e.stopImmediatePropagation();
+      canvas.setPointerCapture(e.pointerId);
+      pointer(e);
+      return;
+    }
+    if (app.tool !== 'select' && app.tool !== 'direct') return;
     const [x, y] = app.canvas.local(e), [wx, wy] = app.canvas.toWorld(x, y);
     if (app.canvas.hitTest(wx, wy) || app.canvas.handleAt(x, y) || app.canvas.boardHandleAt?.(x, y)) { lastPassed = false; return; }
     passing = lastPassed = true;
@@ -267,13 +319,25 @@ export function startBridge(app, { origin = location.origin } = {}) {
     pointer(e);
   }, true);
   for (const type of ['pointermove', 'pointerup', 'pointercancel']) canvas.addEventListener(type, e => {
-    if (!passing) return;
-    e.preventDefault(); e.stopImmediatePropagation(); pointer(e);
-    if (type !== 'pointermove') passing = false;
+    if (passing) {
+      e.preventDefault(); e.stopImmediatePropagation(); pointer(e);
+      if (type !== 'pointermove') passing = false;
+      return;
+    }
+    if (type === 'pointermove' && passthrough && app.overlay && (isHostTool() || app.tool === 'direct') && !app.canvas.space) {
+      pointer(e);
+    }
   }, true);
   for (const type of ['click', 'dblclick', 'contextmenu']) canvas.addEventListener(type, e => {
-    if (!lastPassed || !passthrough || !app.overlay || app.tool !== 'select') return;
+    if (!lastPassed || !passthrough || !app.overlay || (app.tool !== 'select' && app.tool !== 'direct' && !isHostTool())) return;
     e.preventDefault(); e.stopImmediatePropagation(); pointer(e);
+  }, true);
+  // Escape while a host tool is active returns cleanly to Poliplan's Select tool.
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isHostTool() && !e.target.closest?.('input,textarea,select,[contenteditable]')) {
+      e.preventDefault(); e.stopImmediatePropagation();
+      app.setTool('select');
+    }
   }, true);
   // Empty drawing selection leaves Delete and undo/redo to the circuit. Text fields
   // and selected drawing marks retain the editor's own editing/history shortcuts.

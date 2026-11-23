@@ -146,13 +146,15 @@ const TOOLBAR_SECTIONS = [
   ['selection', 'Selection', 'Select, pan and the laser pointer, boards and text'],
   ['drawing', 'Drawing', 'Point, line, plane, brush, sculpt and the colours'],
   ['score', 'Score', 'Play: author a score by pointing'],
+  ['physics', 'Physics', 'Physics brushes, constraints, presets and settings'],
+  ['circuit', 'Circuit', 'Add electronic components, connect pins, and circuit settings'],
   ['canvas', 'Canvas', 'Snap to the grid, and the canvas settings'],
   ['frame', 'Frame', 'Zoom out, in, the zoom and fit']
 ];
 /** The on/off mark in menus: a rounded frame, with a filled rounded square inside it (a hairline between) when on. */
 const menuBox = on => `<span class="wb-box${on ? ' on' : ''}"></span>`;
 const TOOLBAR_KEY = 'ams_toolbar_sections';
-const TOOLBAR_DEFAULT = { selection: true, drawing: true, score: false, canvas: true, frame: true };
+const TOOLBAR_DEFAULT = { selection: true, drawing: true, score: false, physics: true, circuit: true, canvas: true, frame: true };
 const BRUSH_KEY = 'ams_brush_active';
 /** Settings of the shape tools (right-click the tool): a circle's sides, a rectangle's roundness (0 square, 1 a pill). */
 const SHAPES_KEY = 'ams_shapes_v1';
@@ -2386,7 +2388,7 @@ export class Workbench {
     // The chrome is minimal: tools in the middle, view controls and the menu on the right; scenes,
     // boards, stages live in panels (right-click and Opt+right-click for properties).
     const tools = h('div', { class: 'wb-island wb-tools-island' });
-    const parts = { selection: [], drawing: [], score: [], canvas: [], frame: [] };   // the toolbar's sections (see TOOLBAR_SECTIONS)
+    const parts = { selection: [], drawing: [], score: [], physics: [], circuit: [], canvas: [], frame: [] };   // the toolbar's sections (see TOOLBAR_SECTIONS)
     // Select / direct: one slot showing the one in use (V, Shift+V pick directly; click again for both).
     const selT = SELECTS.find(c => c[0] === this.tool) || SELECTS.find(c => c[0] === this.selectTool) || SELECTS[0];
     const selMenu = (x, y) => showMenu([{ label: 'Select' }, ...SELECTS.map(([id, tip, key]) => ({ icon: icon(id), active: id === selT[0], label: tip.split(':')[0], hint: tip, keys: key, run: () => this.setTool(id) }))], x, y);
@@ -2428,6 +2430,73 @@ export class Workbench {
     playBtn.addEventListener('click', () => { if (this.tool === 'play') { const r = playBtn.getBoundingClientRect(); this.playMenu(r.left, r.bottom + 4); } else this.setTool('play'); });
     playBtn.addEventListener('contextmenu', ev => { ev.preventDefault(); this.playMenu(ev.clientX, ev.clientY); });
     parts.drawing.push(brushBtn, sculptBtn); parts.score.push(playBtn);
+    // Host-provided toolbar sections (e.g. Physics brushes, constraints, presets & settings inside Poliplan's toolbar).
+    if (this.hostToolbar && typeof this.hostToolbar === 'object') {
+      this.hostStackActive ||= {};
+      for (const [secId, stacks] of Object.entries(this.hostToolbar)) {
+        if (!parts[secId] || !Array.isArray(stacks)) continue;
+        for (const st of stacks) {
+          if (!st) continue;
+          const items = Array.isArray(st.items) ? st.items : [];
+          const toolItems = items.filter(it => it && it.tool);
+          const isToolStack = toolItems.length > 0;
+          const activeItem = isToolStack
+            ? (toolItems.find(it => it.tool === this.tool) || toolItems.find(it => it.tool === this.hostStackActive[st.id]) || toolItems[0])
+            : null;
+          const isOn = isToolStack ? toolItems.some(it => it.tool === this.tool) : Boolean(st.active);
+          const btnIcon = activeItem?.icon || st.icon || '';
+          const btnTip = activeItem ? `${st.label}: ${activeItem.label}${st.kbd ? ` (${st.kbd})` : ''}. Click again or right-click for options` : (st.hint || st.label || '');
+          const openStackMenu = (x, y) => {
+            const menuItems = items.map(it => {
+              if (it === '-') return '-';
+              if (it.heading) return { label: it.heading };
+              return {
+                icon: it.checked != null ? menuBox(Boolean(it.checked)) : (it.icon || undefined),
+                label: it.label,
+                hint: it.hint,
+                keys: it.keys,
+                active: it.tool ? it.tool === this.tool : Boolean(it.active),
+                disabled: Boolean(it.disabled),
+                run: () => {
+                  if (it.tool) {
+                    this.hostStackActive[st.id] = it.tool;
+                    this.setTool(it.tool);
+                  } else if (it.action) {
+                    this.emit('host-action', it.action, [...this.canvas.selected]);
+                  }
+                }
+              };
+            });
+            showMenu(menuItems, x, y);
+          };
+          const btn = h('button', {
+            class: st.text
+              ? `wb-tool wb-zoom-pct${isOn ? ' on' : ''}`
+              : `wb-tool${items.length ? ' wb-tool-stack' : ''}${isOn ? ' on' : ''}`,
+            style: st.text ? { width: 'auto', padding: '0 6px' } : undefined,
+            title: btnTip,
+            html: st.text
+              ? `${st.text}`
+              : `${btnIcon}${st.kbd ? `<kbd>${st.kbd}</kbd>` : ''}${items.length ? '<span class="wb-tool-caret"></span>' : ''}`
+          });
+          btn.addEventListener('click', () => {
+            if (isToolStack && !isOn && activeItem) {
+              this.hostStackActive[st.id] = activeItem.tool;
+              this.setTool(activeItem.tool);
+            } else if (items.length) {
+              const r = btn.getBoundingClientRect();
+              openStackMenu(r.left, r.bottom + 4);
+            } else if (st.action) {
+              this.emit('host-action', st.action, [...this.canvas.selected]);
+            }
+          });
+          if (items.length) {
+            btn.addEventListener('contextmenu', ev => { ev.preventDefault(); openStackMenu(ev.clientX, ev.clientY); });
+          }
+          parts[secId].push(btn);
+        }
+      }
+    }
     // Snap to grid: on shows the grid at full strength; off, fainter.
     const snapKey = this.shortcuts?.label('view.snap') || '';
     parts.drawing.push(this.paintSwatches());
@@ -2737,7 +2806,7 @@ export class Workbench {
       { label: 'Command palette', keys: this.shortcuts.label('app.palette'), run: () => openPalette(this) },
       { label: 'Docs', keys: this.shortcuts.label('app.docs'), run: () => this.openDocs() },
       '-',
-      { label: 'Toolbar', hint: 'Which sections of the toolbar to show', items: [...TOOLBAR_SECTIONS.filter(([id]) => id !== 'frame' || !this.overlay).map(([id, name, hint]) => ({ icon: menuBox(this.toolbarOn(id)), label: name, hint, run: () => this.setToolbarSection(id, !this.toolbarOn(id)) })), ...(this.physicsToolbar ? ['-', { icon: menuBox(this.physicsToolbar.shown), label: 'Physics toolbar', hint: 'Its own island: physics for the board you are on (play, step, reset, hinges, motors, springs)', run: () => this.physicsToolbar.toggle() }] : []), ...(this.modularToolbar ? [{ icon: menuBox(this.modularToolbar.shown), label: 'Modular toolbar', hint: 'Its own island: a modular synth drawn on the canvas (sequencers, oscillators, instruments, effects; cables are paths)', run: () => this.modularToolbar.toggle() }] : [])] },
+      { label: 'Toolbar', hint: 'Which sections of the toolbar to show', items: [...TOOLBAR_SECTIONS.filter(([id]) => (id !== 'frame' || !this.overlay || this.hostToolbar?.frame?.length) && (id !== 'physics' || this.hostToolbar?.physics?.length) && (id !== 'circuit' || this.hostToolbar?.circuit?.length)).map(([id, name, hint]) => ({ icon: menuBox(this.toolbarOn(id)), label: name, hint, run: () => this.setToolbarSection(id, !this.toolbarOn(id)) })), ...(this.physicsToolbar ? ['-', { icon: menuBox(this.physicsToolbar.shown), label: 'Physics toolbar', hint: 'Its own island: physics for the board you are on (play, step, reset, hinges, motors, springs)', run: () => this.physicsToolbar.toggle() }] : []), ...(this.modularToolbar ? [{ icon: menuBox(this.modularToolbar.shown), label: 'Modular toolbar', hint: 'Its own island: a modular synth drawn on the canvas (sequencers, oscillators, instruments, effects; cables are paths)', run: () => this.modularToolbar.toggle() }] : [])] },
       { label: 'Panels', hint: 'Show or hide a panel', items: [
         ...[...this.docks.panels.values()].filter(p => !['settings', 'shortcuts'].includes(p.id)).map(p => { const on = Boolean(this.docks.state.panels[p.id]?.open); return { icon: menuBox(on), label: p.title, run: () => (on ? this.docks.close(p.id, { hide: true }) : this.docks.open(p.id)) }; }),
         '-',
