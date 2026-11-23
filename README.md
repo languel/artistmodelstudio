@@ -20,7 +20,7 @@ Build any lesson with one click (Docs → Lessons → *Build the scene*, or type
 <td width="50%"><img src="docs/images/reiniger.jpg" alt="A paper silhouette puppet walking toward the sun"><br><b>The silhouette film</b><br>Rebuild Lotte Reiniger's method for <i>The Adventures of Prince Achmed</i>: lightbox, paper, hinges, a puppet, a layered set and a walk, in three.js.</td>
 </tr>
 <tr>
-<td><img src="docs/images/synthesis.jpg" alt="A sawtooth wave built from six sine waves, with its harmonics"><br><b>Sound synthesis, from a sine wave to a band</b><br>What sound is (pressure, the voice, the ear), then waveforms, envelopes, filters, FM, scales, drums and sequencers; strings, bells, samples and grains in plain Web Audio.</td>
+<td><img src="docs/images/synthesis.jpg" alt="A sawtooth wave built from six sine waves, with its harmonics"><br><b>Sound synthesis, from a sine wave to a band</b><br>What sound is (pressure, the voice, the ear), then waveforms, envelopes, filters, FM, scales, drums and sequencers; strings, bells, samples and grains in plain Web Audio; and <a href="https://languel.github.io/artistmodelstudio/demos/hand-strings.html">Strings in the Air</a>, an instrument you draw and play with your hands in front of the camera.</td>
 <td><img src="docs/images/visuals.jpg" alt="A modular synth drawn on the canvas: sequencers, synths, a mixer and cables"><br><b>Modular: patches, scores and pictures that listen</b><br>A modular synth drawn on the canvas, sequencers you can see, graphic scores (the Arecibo message among them) that play it, and sketches that move with the music.</td>
 </tr>
 <tr>

@@ -1,0 +1,697 @@
+<!doctype html>
+<!--
+  Strings in the Air: a standalone Web Audio + MediaPipe instrument (part of the Web Audio lesson, examples/lessons/webaudio).
+  See yourself in a mirror; pinch with both hands and pull to stretch a Karplus–Strong string between them; join thumbs and
+  index fingers (a ring, a heart) to make a struck pad. Swipe a fingertip across a string to pluck it, poke a pad to hit it,
+  pinch one to move it. Every pitch comes from where the thing is, snapped to a scale you choose. The face modulates:
+  mouth → brightness, brows → reverb, smile → vibrato, eyes closed → long sustain.
+  One file, no build: MediaPipe Tasks Vision from jsDelivr, models from Google's storage, the sound in plain Web Audio.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strings in the Air</title>
+<style>
+  :root { --ink: #eee8dc; --dim: #9a958c; --accent: #f2c14e; --warm: #c8664f; --panel: rgba(18, 18, 22, 0.82); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0c0c0f; color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+  video { position: fixed; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+  button, select, input { font: inherit; color: inherit; }
+  button { background: #2a2a30; border: 1px solid #44444c; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--warm); border-color: var(--warm); color: #fff; font-weight: 600; }
+  select { background: #222228; border: 1px solid #44444c; border-radius: 5px; padding: 2px 4px; }
+  #start { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, #23202a, #0c0c0f 70%); z-index: 10; padding: 16px; }
+  #start .card { max-width: 560px; }
+  #start h1 { font-size: 34px; margin: 0 0 6px; font-weight: 650; letter-spacing: -0.01em; }
+  #start p { color: var(--dim); margin: 0 0 12px; }
+  #start .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  #start .err { color: var(--warm); min-height: 1.4em; margin-top: 10px; }
+  #panel { position: fixed; top: 12px; right: 12px; width: 270px; max-width: calc(100vw - 24px); background: var(--panel); border: 1px solid #333; border-radius: 10px; padding: 8px 12px; z-index: 5; backdrop-filter: blur(6px); }
+  #panel summary { cursor: pointer; font-weight: 600; list-style: none; }
+  #panel summary::-webkit-details-marker { display: none; }
+  #panel summary::after { content: ' ▾'; color: var(--dim); }
+  #panel label { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 6px 0; color: var(--dim); }
+  #panel input[type=range] { width: 120px; accent-color: var(--accent); }
+  #panel .btns { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  #panel .map { font-size: 12px; color: var(--dim); border-top: 1px solid #333; margin-top: 8px; padding-top: 6px; }
+  #panel .map b { color: var(--ink); font-weight: 600; }
+  #hud { position: fixed; top: 12px; left: 12px; z-index: 5; pointer-events: none; }
+  #hud .title { font-weight: 650; font-size: 16px; }
+  #status { color: var(--dim); font-size: 13px; }
+  #face { margin-top: 8px; font-size: 12px; color: var(--dim); display: none; }
+  #face .m { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  #face .bar { width: 70px; height: 5px; background: #333; border-radius: 3px; overflow: hidden; }
+  #face .bar i { display: block; height: 100%; background: var(--accent); width: 0; }
+  #face .on { color: var(--accent); }
+  #help { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 5; background: var(--panel); border: 1px solid #333; border-radius: 10px; padding: 8px 14px; font-size: 12.5px; color: var(--dim); max-width: min(760px, calc(100vw - 24px)); }
+  #help b { color: var(--ink); font-weight: 600; }
+  #help.hidden { display: none; }
+  @media (max-width: 640px) { #help { font-size: 11.5px; } #panel { width: auto; left: 12px; top: auto; bottom: 12px; } #help { bottom: auto; top: 70px; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<video id="v" playsinline muted></video>
+
+<div id="start"><div class="card">
+  <h1>Strings in the Air</h1>
+  <p>A mirror you can play. Pinch with both hands and pull to stretch a plucked string between them; join your thumbs and index fingers (a ring, a heart) to make a drum or bell. Swipe a fingertip across a string to pluck it, poke a pad to hit it, pinch one to move it.</p>
+  <p>Every note comes from where the thing is, snapped to a scale you choose, so it always sounds in tune. Your face plays too: open your mouth for a brighter sound, raise your brows for more echo, smile for vibrato, close your eyes for long sustain.</p>
+  <p>The camera stays in your browser; nothing is uploaded.</p>
+  <div class="row"><button class="primary" id="go-cam">Start with camera</button><button id="go-mouse">Mouse only</button></div>
+  <div class="err" id="err"></div>
+</div></div>
+
+<div id="hud">
+  <div class="title">Strings in the Air</div>
+  <div id="status"></div>
+  <div id="face">
+    <div class="m"><span>mouth</span><span class="bar"><i id="f-jaw"></i></span><span>brightness</span></div>
+    <div class="m"><span>brows</span><span class="bar"><i id="f-brow"></i></span><span>reverb</span></div>
+    <div class="m"><span>smile</span><span class="bar"><i id="f-smile"></i></span><span>vibrato</span></div>
+    <div class="m" id="f-eyes">eyes closed → long sustain</div>
+  </div>
+</div>
+
+<details id="panel" open>
+  <summary>Tuning and view</summary>
+  <label>Key <select id="s-root"></select></label>
+  <label>Scale <select id="s-scale"></select></label>
+  <label>Register <input id="s-octave" type="range" min="1" max="5" step="1"></label>
+  <label>Pitch from <select id="s-pitchFrom"><option value="height">height (length: octave)</option><option value="length">length (height: octave)</option></select></label>
+  <label>Sustain <input id="s-sustain" type="range" min="0.6" max="8" step="0.1"></label>
+  <label>Reverb <input id="s-reverb" type="range" min="0" max="1" step="0.01"></label>
+  <label>Pluck with <select id="s-fingers"><option value="index">index fingers</option><option value="all">all fingertips</option></select></label>
+  <label>Mirror <input id="s-mirror" type="range" min="0" max="1" step="0.01"></label>
+  <label>Skeleton <select id="s-skeleton"><option value="off">off</option><option value="hands">hands</option><option value="full">hands, face, body</option></select></label>
+  <label>Face modulates <input id="s-face" type="checkbox"></label>
+  <div class="btns"><button id="b-undo">Undo last</button><button id="b-clear">Clear</button><button id="b-seed">Example</button><button id="b-help">Help</button></div>
+  <div class="map">
+    <b>Strings</b>: height → note on the scale, length → octave (shorter is higher; swap in “Pitch from”), angle → tone (level: bright steel, upright: dark nylon), left–right → stereo, where you pluck → timbre.<br>
+    <b>Pads</b>: size → note (bigger is lower), height → material (glass, bell, vibes, marimba, drum from top to bottom), where you hit → centre is pure, edge is ringing.
+  </div>
+</details>
+
+<div id="help">
+  <b>Two-hand pinch</b>, pull apart, let go → a string · <b>thumbs + index fingers together</b> (hold) → a pad, as big as the ring ·
+  <b>swipe</b> a fingertip across a string → pluck · <b>poke</b> a pad → hit · <b>one-hand pinch</b> on an end, a string or a pad → move it; drop it on ✕ to delete.<br>
+  Mouse: drag → string · shift-drag → pad · move across strings → pluck · click a pad → hit · double-click → delete · H hides this.
+</div>
+
+<script type="module">
+// ─── setup ──────────────────────────────────────────────────────────────────────────────────────────────
+const CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21';
+const MODELS = {
+  hands: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+  face: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+  pose: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
+};
+const $ = id => document.getElementById(id);
+const cv = $('c'), g = cv.getContext('2d'), video = $('v');
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+const mid = (p, q) => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
+const remap = (v, a, b) => clamp((v - a) / (b - a));
+const store = {                                     // per-viewer conveniences only; the page works without it
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+// ─── tuning ─────────────────────────────────────────────────────────────────────────────────────────────
+const NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+const SCALES = {
+  'major pentatonic': [0, 2, 4, 7, 9], 'minor pentatonic': [0, 3, 5, 7, 10], 'major': [0, 2, 4, 5, 7, 9, 11],
+  'natural minor': [0, 2, 3, 5, 7, 8, 10], 'dorian': [0, 2, 3, 5, 7, 9, 10], 'mixolydian': [0, 2, 4, 5, 7, 9, 10],
+  'harmonic minor': [0, 2, 3, 5, 7, 8, 11], 'hirajoshi': [0, 2, 3, 7, 8], 'in-sen': [0, 1, 5, 7, 10],
+  'whole tone': [0, 2, 4, 6, 8, 10], 'chromatic': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+};
+const S = Object.assign({ root: 2, scale: 'minor pentatonic', octave: 3, pitchFrom: 'height', sustain: 3.5, reverb: 0.3,
+  fingers: 'index', mirror: 0.85, skeleton: 'hands', face: true }, store.get('hand-strings-settings') || {});
+const mtof = m => 440 * 2 ** ((m - 69) / 12);
+const noteName = m => NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+function degreeToMidi(deg, oct) {                   // the deg-th note of the scale, counted up from the root in octave oct
+  const sc = SCALES[S.scale], n = sc.length;
+  return 12 * (oct + 1 + Math.floor(deg / n)) + S.root + sc[((deg % n) + n) % n];
+}
+
+let W = innerWidth || 1280, H = innerHeight || 720;
+const strings = [], pads = [];
+let nextId = 1;
+const MATS = ['glass', 'bell', 'vibes', 'marimba', 'drum'];
+const MATERIAL = {                                  // mode frequency ratios and how long the lowest one rings (s)
+  glass: { modes: [1, 2.32, 4.25, 6.63, 9.38], ring: 3.2 },
+  bell: { modes: [0.5, 1, 1.183, 1.506, 2, 2.514, 2.662, 3.011], ring: 4.5 },
+  vibes: { modes: [1, 2.756, 5.404, 8.933], ring: 2.6 },
+  marimba: { modes: [1, 3.93, 9.97], ring: 1.0 },
+  drum: { modes: [1, 1.594, 2.136, 2.296, 2.653, 2.918], ring: 0.55, drop: true }
+};
+
+function tuneString(s) {
+  const mx = (s.a.x + s.b.x) / 2, my = (s.a.y + s.b.y) / 2, L = dist(s.a, s.b) / Math.hypot(W, H);
+  const n = SCALES[S.scale].length, span = 2 * n + 1;       // two octaves of the scale, and the root on top
+  const h = clamp(1 - my / H, 0, 0.999), l = clamp((L - 0.06) / 0.5, 0, 0.999);
+  let deg, oct;
+  if (S.pitchFrom === 'height') { deg = Math.floor(h * span); oct = L < 0.15 ? 1 : L > 0.42 ? -1 : 0; }
+  else { deg = Math.floor((1 - l) * span); oct = h > 0.67 ? 1 : h < 0.33 ? -1 : 0; }
+  const old = s.midi;
+  s.midi = degreeToMidi(deg + oct * n, S.octave);
+  const upright = Math.abs(Math.sin(Math.atan2(s.b.y - s.a.y, s.b.x - s.a.x)));   // 0 level, 1 upright
+  s.damp = 0.06 + 0.42 * upright;                   // level: bright steel; upright: dark nylon
+  s.pan = clamp(mx / W * 2 - 1, -1, 1) * 0.8;
+  return old !== undefined && old !== s.midi;
+}
+function tunePad(p) {
+  const n = SCALES[S.scale].length, span = 2 * n;
+  const r = clamp((p.r / Math.min(W, H) - 0.04) / 0.28, 0, 0.999);
+  const old = p.midi, oldMat = p.mat;
+  p.midi = degreeToMidi(Math.floor((1 - r) * span), S.octave - 1);    // bigger is lower
+  p.mat = MATS[Math.floor(clamp(p.y / H, 0, 0.999) * MATS.length)];
+  p.pan = clamp(p.x / W * 2 - 1, -1, 1) * 0.8;
+  return old !== undefined && (old !== p.midi || oldMat !== p.mat);
+}
+const tuneAll = () => { strings.forEach(tuneString); pads.forEach(tunePad); };
+
+// ─── sound ──────────────────────────────────────────────────────────────────────────────────────────────
+let ac, bus, wah, send, lfoDepth;
+function initAudio() {
+  if (ac) return ac.resume();
+  ac = new AudioContext({ latencyHint: 'interactive' });
+  bus = new GainNode(ac);                           // every voice comes here
+  wah = new BiquadFilterNode(ac, { type: 'lowpass', frequency: 18000, Q: 0.7 });   // the mouth opens it
+  const master = new GainNode(ac, { gain: 0.9 });
+  const comp = new DynamicsCompressorNode(ac, { threshold: -16, ratio: 4, attack: 0.003, release: 0.25 });
+  const hp = new BiquadFilterNode(ac, { type: 'highpass', frequency: 30 });
+  send = new GainNode(ac, { gain: S.reverb });
+  const verb = new ConvolverNode(ac, { buffer: impulse(3) });
+  bus.connect(wah).connect(master);
+  wah.connect(send).connect(verb).connect(master);
+  master.connect(hp).connect(comp).connect(ac.destination);
+  const lfo = new OscillatorNode(ac, { frequency: 5.3 });                          // the smile's vibrato
+  lfoDepth = new GainNode(ac, { gain: 0 });
+  lfo.connect(lfoDepth); lfo.start();
+  return ac.resume();
+}
+function impulse(sec) {                             // a room: two channels of noise dying away
+  const len = Math.floor(ac.sampleRate * sec), b = ac.createBuffer(2, len, ac.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = b.getChannelData(c);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3.2 * (i < 400 ? i / 400 : 1);
+  }
+  return b;
+}
+
+const face = { present: false, jaw: 0, brow: 0, smile: 0, closedSince: 0, hold: false, pts: null };
+function pluck(s, pos, vel) {                       // Karplus–Strong, computed ahead into a buffer
+  if (!ac) return;
+  const sr = ac.sampleRate, f = mtof(s.midi), D = sr / f, k = s.damp;
+  const M = Math.max(2, Math.floor(D - k - 0.1)), d = D - k - M, C = (1 - d) / (1 + d);   // integer line + allpass fraction: in tune
+  const T60 = S.sustain * (1 - 0.45 * s.damp) * (face.hold ? 3 : 1);
+  const gLoss = 10 ** (-3 / (T60 * f));             // loss per trip, so every note rings T60 seconds
+  const len = Math.ceil(Math.min(T60 * 1.05 + 0.1, 12) * sr);
+  const buf = ac.createBuffer(1, len, sr), out = buf.getChannelData(0), line = new Float32Array(M);
+  const ex = new Float32Array(M); let lp = 0; const bright = 0.12 + 0.85 * vel;
+  for (let i = 0; i < M; i++) { lp += bright * (Math.random() * 2 - 1 - lp); ex[i] = lp; }         // softer pluck: darker noise
+  const P = Math.max(1, Math.round(clamp(pos, 0.04, 0.96) * M)); let mean = 0, peak = 1e-6;
+  for (let i = 0; i < M; i++) { line[i] = ex[i] - ex[(i + P) % M]; mean += line[i] / M; }        // where you pluck: a comb
+  for (let i = 0; i < M; i++) { line[i] -= mean; peak = Math.max(peak, Math.abs(line[i])); }
+  for (let i = 0; i < M; i++) line[i] /= peak;
+  let p = 0, prev = 0, x1 = 0, y1 = 0;
+  for (let i = 0; i < len; i++) {
+    const v = line[p]; out[i] = v;
+    const lo = (1 - k) * v + k * prev; prev = v;    // the averaging: high partials die first
+    const ap = C * lo + x1 - C * y1; x1 = lo; y1 = ap;
+    line[p] = gLoss * ap; p = (p + 1) % M;
+  }
+  const fade = Math.min(len, Math.floor(0.05 * sr));
+  for (let i = 0; i < fade; i++) out[len - 1 - i] *= i / fade;
+  const src = new AudioBufferSourceNode(ac, { buffer: buf });
+  lfoDepth.connect(src.detune);
+  src.connect(new GainNode(ac, { gain: 0.3 * (0.25 + 0.75 * vel) })).connect(new StereoPannerNode(ac, { pan: s.pan })).connect(bus);
+  src.start();
+  s.hit = { t: performance.now(), vel, pos, T60 };
+}
+function strike(p, r, vel, angle = Math.random() * 6.283) {                        // modal synthesis: a few sines, each dying at its own rate
+  if (!ac) return;
+  const m = MATERIAL[p.mat], f = mtof(p.midi), t = ac.currentTime + 0.005;
+  const out = new GainNode(ac, { gain: 0.2 * (0.3 + 0.7 * vel) });
+  out.connect(new StereoPannerNode(ac, { pan: p.pan })).connect(bus);
+  const ringScale = (S.sustain / 3.5) * (face.hold ? 2.5 : 1);
+  m.modes.forEach((ratio, k) => {
+    const fk = f * ratio; if (fk > ac.sampleRate * 0.45) return;
+    const a = k === 0 ? 1 - 0.55 * r : (0.2 + 0.8 * r) * (0.4 + 0.6 * vel) / (k + 1) ** 0.5;   // centre: pure; edge: ringing
+    const T = m.ring * ringScale / ratio ** 0.6;
+    const o = new OscillatorNode(ac, { frequency: fk }), gn = new GainNode(ac, { gain: 0 });
+    if (m.drop) { o.frequency.setValueAtTime(fk * 1.08, t); o.frequency.exponentialRampToValueAtTime(fk, t + 0.09); }
+    lfoDepth.connect(o.detune);
+    gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(a, t + 0.002);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + T);
+    o.connect(gn).connect(out); o.start(t); o.stop(t + T + 0.05);
+  });
+  const n = Math.floor(ac.sampleRate * 0.03), nb = ac.createBuffer(1, n, ac.sampleRate), nd = nb.getChannelData(0);
+  for (let i = 0; i < n; i++) nd[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 3;                  // the stick: a click of noise
+  const ns = new AudioBufferSourceNode(ac, { buffer: nb });
+  ns.connect(new BiquadFilterNode(ac, { type: 'bandpass', frequency: Math.min(f * 3, 8000), Q: 1 }))
+    .connect(new GainNode(ac, { gain: vel * (p.mat === 'drum' ? 1.4 : 0.5) })).connect(out);
+  ns.start(t);
+  p.hit = { t: performance.now(), vel, r, angle, T: m.ring * ringScale };
+}
+function applyFace(now) {                           // the face, as modulation of the whole instrument
+  if (!ac) return;
+  const t = ac.currentTime, on = S.face && face.present;
+  wah.frequency.setTargetAtTime(on ? 1100 * 2 ** (face.jaw * 4) : 18000, t, 0.05);
+  wah.Q.setTargetAtTime(on ? 3 : 0.7, t, 0.1);
+  send.gain.setTargetAtTime(clamp(S.reverb + (on ? face.brow * 0.8 : 0), 0, 1.2), t, 0.1);
+  lfoDepth.gain.setTargetAtTime(on ? face.smile * 40 : 0, t, 0.08);
+  face.hold = on && face.closedSince > 0 && now - face.closedSince > 250;
+}
+
+// ─── the scene ──────────────────────────────────────────────────────────────────────────────────────────
+const history = [];
+const made = () => { if (!made.done) { made.done = true; $('help').classList.add('hidden'); } };   // the help steps aside once you have made something
+function addString(a, b, quiet) { const s = { id: nextId++, a: { ...a }, b: { ...b } }; tuneString(s); strings.push(s); history.push(s); if (!quiet) { pluck(s, 0.3, 0.6); save(); made(); } return s; }
+function addPad(x, y, r, quiet) { const p = { id: nextId++, x, y, r }; tunePad(p); pads.push(p); history.push(p); if (!quiet) { strike(p, 0.3, 0.6); save(); made(); } return p; }
+function remove(o) {
+  for (const list of [strings, pads]) { const i = list.indexOf(o); if (i >= 0) list.splice(i, 1); }
+  const j = history.indexOf(o); if (j >= 0) history.splice(j, 1);
+  save();
+}
+function save() {
+  store.set('hand-strings-scene', { W, H, strings: strings.map(s => ({ a: s.a, b: s.b })), pads: pads.map(p => ({ x: p.x, y: p.y, r: p.r })) });
+}
+function seed() {
+  strings.length = pads.length = history.length = 0;
+  const P = (u, v) => ({ x: u * W, y: v * H }), m = Math.min(W, H);
+  addString(P(0.06, 0.28), P(0.27, 0.2), true); addString(P(0.73, 0.2), P(0.94, 0.3), true);
+  addString(P(0.1, 0.45), P(0.2, 0.68), true); addString(P(0.8, 0.66), P(0.9, 0.43), true);
+  addString(P(0.3, 0.52), P(0.7, 0.52), true);
+  addPad(0.12 * W, 0.8 * H, 0.07 * m, true); addPad(0.5 * W, 0.78 * H, 0.1 * m, true); addPad(0.72 * W, 0.86 * H, 0.06 * m, true);
+  save();
+}
+function load() {
+  const sc = store.get('hand-strings-scene');
+  const ok = v => Number.isFinite(v);
+  if (!sc || !(sc.W > 0 && sc.H > 0) || (!sc.strings?.length && !sc.pads?.length) ||
+    !sc.strings.every(s => ok(s.a?.x) && ok(s.a?.y) && ok(s.b?.x) && ok(s.b?.y)) || !sc.pads.every(p => ok(p.x) && ok(p.y) && ok(p.r))) return seed();
+  const kx = W / sc.W, ky = H / sc.H, km = Math.min(W, H) / Math.min(sc.W, sc.H);
+  sc.strings.forEach(s => addString({ x: s.a.x * kx, y: s.a.y * ky }, { x: s.b.x * kx, y: s.b.y * ky }, true));
+  sc.pads.forEach(p => addPad(p.x * kx, p.y * ky, p.r * km, true));
+}
+const TRASH = () => ({ x: 46, y: H - 46, r: 30 });
+const inTrash = p => dist(p, TRASH()) < TRASH().r + 12;
+
+function segDist(p, a, b) {                         // distance from p to segment ab, and where along it (0..1)
+  const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy || 1;
+  const t = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / L2);
+  return { d: Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy), t };
+}
+function segCross(p, q, a, b) {                     // where the motion p→q crosses the string ab (0..1 along it), or -1
+  const rx = q.x - p.x, ry = q.y - p.y, sx = b.x - a.x, sy = b.y - a.y, den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-9) return -1;
+  const ax = a.x - p.x, ay = a.y - p.y, u = (ax * sy - ay * sx) / den, t = (ax * ry - ay * rx) / den;
+  return u >= 0 && u <= 1 && t >= 0 && t <= 1 ? t : -1;
+}
+function hitTest(p, reach = 26) {                   // what a pinch or a click at p would take hold of
+  for (const s of strings) for (const end of ['a', 'b']) if (dist(p, s[end]) < reach) return { kind: 'end', obj: s, end };
+  for (const pad of pads) if (dist(p, pad) < pad.r + 6) return { kind: 'pad', obj: pad };
+  for (const s of strings) { const { d, t } = segDist(p, s.a, s.b); if (d < reach * 0.8 && t > 0.08 && t < 0.92) return { kind: 'string', obj: s }; }
+  return null;
+}
+const lastTune = new Map();
+function moveHeld(grab, p) {                        // move what is held; play it softly when it lands on a new note
+  const o = grab.obj, dx = p.x - grab.last.x, dy = p.y - grab.last.y; grab.last = { ...p };
+  let changed;
+  if (grab.kind === 'end') { o[grab.end] = { ...p }; changed = tuneString(o); }
+  else if (grab.kind === 'string') { o.a.x += dx; o.a.y += dy; o.b.x += dx; o.b.y += dy; changed = tuneString(o); }
+  else { o.x += dx; o.y += dy; changed = tunePad(o); }
+  const now = performance.now();
+  if (changed && now - (lastTune.get(o) || 0) > 110) { lastTune.set(o, now); grab.kind === 'pad' ? strike(o, 0.2, 0.25) : pluck(o, 0.5, 0.25); }
+}
+function release(grab, p) { if (inTrash(p)) remove(grab.obj); else save(); }
+
+// ─── hands ──────────────────────────────────────────────────────────────────────────────────────────────
+let M = null, handsTask = null, faceTask = null, poseTask = null, posePts = null, camera = false;
+let fit = { ox: 0, oy: 0, dw: W, dh: H };
+const toScreen = l => ({ x: fit.ox + (1 - l.x) * fit.dw, y: fit.oy + l.y * fit.dh });   // mirrored: you see yourself
+const newHand = () => ({ present: false, pts: null, pinch: false, pinchPt: null, pd: 9, scale: 80, state: null, grab: null, tips: {}, t: 0, grace: 0 });
+const hands = [newHand(), newHand()];
+let draft = null;                                   // a string being stretched between two pinches
+const heart = { progress: 0, armed: true, away: 0, c: null, r: 0 };
+const cooldown = new Map();
+const TIP_SETS = { index: [8], all: [4, 8, 12, 16, 20] };
+
+function assign(dets) {                             // keep each hand in its own slot from frame to frame
+  const cost = (slot, det) => hands[slot].present ? dist(hands[slot].pts[0], det[0]) : 300;
+  if (dets.length === 0) return [null, null];
+  if (dets.length === 1) return cost(0, dets[0]) <= cost(1, dets[0]) ? [dets[0], null] : [null, dets[0]];
+  return cost(0, dets[0]) + cost(1, dets[1]) <= cost(0, dets[1]) + cost(1, dets[0]) ? [dets[0], dets[1]] : [dets[1], dets[0]];
+}
+function updateHands(res, now) {
+  const dets = (res.landmarks || []).map(l => l.map(toScreen));
+  assign(dets).forEach((det, i) => {
+    const h = hands[i];
+    if (!det) { if (h.present) { if (h.pinch) pinchEnd(h, i); h.present = false; h.tips = {}; } return; }
+    h.pts = h.present ? det.map((q, j) => ({ x: h.pts[j].x + 0.7 * (q.x - h.pts[j].x), y: h.pts[j].y + 0.7 * (q.y - h.pts[j].y) })) : det;
+    h.present = true;
+    h.scale = Math.max(20, dist(h.pts[0], h.pts[9]));
+    h.pd = dist(h.pts[4], h.pts[8]) / h.scale;
+    h.pinchPt = mid(h.pts[4], h.pts[8]);
+    const was = h.pinch;
+    h.pinch = was ? h.pd < 0.5 : h.pd < 0.28;       // two thresholds, so a pinch does not flicker
+    if (!was && h.pinch) pinchStart(h);
+    else if (was && !h.pinch) pinchEnd(h, i);
+    else if (h.pinch && h.grab) moveHeld(h.grab, h.pinchPt);
+  });
+  const [A, B] = hands;
+  if (A.pinch && B.pinch && A.state === 'free' && B.state === 'free') { A.state = B.state = 'draw'; draft = { a: A.pinchPt, b: B.pinchPt }; }
+  if (draft) { draft.a = A.pinchPt; draft.b = B.pinchPt; }
+  detectHeart(now);
+  hands.forEach((h, i) => playWith(h, i, now));
+}
+function pinchStart(h) {
+  const hit = hitTest(h.pinchPt, Math.max(22, h.scale * 0.35));
+  if (hit) { h.state = 'grab'; h.grab = { ...hit, last: { ...h.pinchPt } }; }
+  else h.state = 'free';
+}
+function pinchEnd(h, i) {
+  const other = hands[1 - i];
+  if (h.state === 'draw' && draft) {
+    if (dist(draft.a, draft.b) > 50) addString(draft.a, draft.b);
+    draft = null; if (other.state === 'draw') other.state = 'spent';
+  }
+  if (h.state === 'grab' && h.grab) release(h.grab, h.pinchPt);
+  h.state = null; h.grab = null; h.grace = performance.now() + 250;
+}
+function detectHeart(now) {                         // thumbs together and index fingers together, hands open: a ring
+  const [A, B] = hands;
+  let pose = false;
+  if (A.present && B.present && !A.pinch && !B.pinch) {
+    const hs = (A.scale + B.scale) / 2, thumbs = mid(A.pts[4], B.pts[4]), indices = mid(A.pts[8], B.pts[8]);
+    const ring = dist(thumbs, indices);
+    pose = dist(A.pts[4], B.pts[4]) < 0.45 * hs && dist(A.pts[8], B.pts[8]) < 0.45 * hs && A.pd > 0.6 && B.pd > 0.6 && ring > 0.5 * hs;
+    if (pose) { heart.c = { x: (A.pts[4].x + B.pts[4].x + A.pts[8].x + B.pts[8].x) / 4, y: (A.pts[4].y + B.pts[4].y + A.pts[8].y + B.pts[8].y) / 4 }; heart.r = ring / 2; }
+  }
+  const dt = Math.min(0.1, (now - (heart.t || now)) / 1000); heart.t = now;
+  if (pose && heart.armed) {
+    heart.progress += dt / 0.5;
+    if (heart.progress >= 1) { addPad(heart.c.x, heart.c.y, Math.max(24, heart.r)); heart.armed = false; heart.progress = 0; }
+  } else heart.progress = Math.max(0, heart.progress - dt * 4);
+  if (pose) heart.away = 0; else if ((heart.away += dt) > 0.3) heart.armed = true;   // let go of the pose before the next pad
+  heart.pose = pose;
+}
+function playWith(h, i, now) {                      // fingertips crossing strings pluck them; entering pads hits them
+  if (!h.present) return;
+  const busy = h.pinch || h.state || now < h.grace || heart.pose || h.pd < 0.45;
+  for (const tip of TIP_SETS[S.fingers]) {
+    const cur = h.pts[tip], prev = h.tips[tip];
+    h.tips[tip] = { ...cur };
+    if (!prev || busy) continue;
+    const dtS = Math.max(0.008, (now - h.t) / 1000), speed = dist(prev, cur) / dtS;
+    const vel = clamp(speed / (h.scale * 14), 0.12, 1);
+    for (const s of strings) {
+      const t = segCross(prev, cur, s.a, s.b);
+      if (t < 0.03 || t > 0.97) continue;
+      const key = i + '.' + tip + '.' + s.id;
+      if (now - (cooldown.get(key) || 0) < 90) continue;
+      cooldown.set(key, now); pluck(s, t, vel);
+    }
+    for (const p of pads) {
+      if (dist(prev, p) <= p.r || dist(cur, p) > p.r) continue;
+      const key = i + '.' + tip + '.' + p.id;
+      if (now - (cooldown.get(key) || 0) < 120) continue;
+      cooldown.set(key, now); strike(p, clamp(segDist(p, prev, { x: 2 * cur.x - prev.x, y: 2 * cur.y - prev.y }).d / p.r), vel, Math.atan2(cur.y - p.y, cur.x - p.x));
+    }
+  }
+  h.t = now;
+}
+function updateFace(res, now) {
+  const f = res.faceLandmarks?.[0], bs = res.faceBlendshapes?.[0];
+  if (!f || !bs) { face.present = false; face.closedSince = 0; return; }
+  face.present = true; face.pts = f.map(toScreen);
+  const b = Object.fromEntries(bs.categories.map(c => [c.categoryName, c.score]));
+  const ease = (k, v) => { face[k] += 0.4 * (v - face[k]); };
+  ease('jaw', remap(b.jawOpen, 0.04, 0.55));
+  ease('brow', remap(((b.browInnerUp || 0) + ((b.browOuterUpLeft || 0) + (b.browOuterUpRight || 0)) / 2) / 2, 0.12, 0.65));
+  ease('smile', remap(((b.mouthSmileLeft || 0) + (b.mouthSmileRight || 0)) / 2, 0.2, 0.75));
+  const closed = ((b.eyeBlinkLeft || 0) + (b.eyeBlinkRight || 0)) / 2 > 0.5;
+  face.closedSince = closed ? face.closedSince || now : 0;
+}
+
+async function startCamera() {
+  $('err').textContent = '';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
+    video.srcObject = stream; await video.play(); camera = true;
+  } catch (e) { $('err').textContent = 'No camera (' + (e.name || e.message) + '). Playing with the mouse.'; return false; }
+  status('loading the hand tracker…');
+  try {
+    M = await import(/* @vite-ignore */ `${CDN}/vision_bundle.mjs`);
+    const files = await M.FilesetResolver.forVisionTasks(`${CDN}/wasm`);
+    const make = async (Task, path, extra) => {     // the GPU if there is one, the CPU otherwise
+      try { return await Task.createFromOptions(files, { baseOptions: { modelAssetPath: path, delegate: 'GPU' }, runningMode: 'VIDEO', ...extra }); }
+      catch { return Task.createFromOptions(files, { baseOptions: { modelAssetPath: path, delegate: 'CPU' }, runningMode: 'VIDEO', ...extra }); }
+    };
+    handsTask = await make(M.HandLandmarker, MODELS.hands, { numHands: 2, minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
+    status('show both hands');
+    make(M.FaceLandmarker, MODELS.face, { numFaces: 1, outputFaceBlendshapes: true }).then(t => { faceTask = t; }).catch(() => {});
+    window.__makePose = () => poseTask || make(M.PoseLandmarker, MODELS.pose, { numPoses: 1 }).then(t => (poseTask = t));
+    if (S.skeleton === 'full') window.__makePose();
+  } catch (e) { status('the tracker did not load (' + e.message + '); the mouse still plays'); }
+  return true;
+}
+let statusText = '';
+const status = t => { statusText = t; $('status').textContent = t; };
+
+// ─── mouse and touch ────────────────────────────────────────────────────────────────────────────────────
+const mouse = { p: null, down: null, grab: null, pad: false, moved: false, t: 0 };
+cv.addEventListener('pointerdown', e => {
+  initAudio();
+  const p = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId);
+  mouse.down = p; mouse.moved = false; mouse.pad = e.shiftKey;
+  const hit = e.shiftKey ? null : hitTest(p);
+  mouse.grab = hit ? { ...hit, last: { ...p } } : null;
+  if (hit?.kind === 'pad') strike(hit.obj, clamp(dist(p, hit.obj) / hit.obj.r), 0.75, Math.atan2(p.y - hit.obj.y, p.x - hit.obj.x));
+  if (!hit) draft = { a: { ...p }, b: { ...p }, mouse: true, pad: e.shiftKey };
+});
+cv.addEventListener('pointermove', e => {
+  const p = { x: e.clientX, y: e.clientY }, now = performance.now();
+  if (mouse.down) {
+    if (dist(p, mouse.down) > 6) mouse.moved = true;
+    if (mouse.grab && mouse.moved) moveHeld(mouse.grab, p);
+    else if (draft?.mouse) draft.b = { ...p };
+  } else if (mouse.p && e.pointerType === 'mouse') {  // hovering across a string plucks it
+    const vel = clamp(dist(mouse.p, p) / Math.max(0.008, (now - mouse.t) / 1000) / 1400, 0.15, 1);
+    for (const s of strings) {
+      const t = segCross(mouse.p, p, s.a, s.b);
+      if (t > 0.03 && t < 0.97 && now - (cooldown.get('m' + s.id) || 0) > 60) { cooldown.set('m' + s.id, now); pluck(s, t, vel); }
+    }
+  }
+  mouse.p = p; mouse.t = now;
+});
+const pointerUp = e => {
+  const p = { x: e.clientX, y: e.clientY };
+  if (mouse.grab && mouse.moved) release(mouse.grab, p);
+  if (draft?.mouse) {
+    if (draft.pad) { const r = dist(draft.a, draft.b); if (r > 18) addPad(draft.a.x, draft.a.y, r); }
+    else if (dist(draft.a, draft.b) > 40) addString(draft.a, draft.b);
+    draft = null;
+  }
+  mouse.down = mouse.grab = null;
+};
+cv.addEventListener('pointerup', pointerUp);
+cv.addEventListener('pointercancel', pointerUp);
+cv.addEventListener('dblclick', e => { const hit = hitTest({ x: e.clientX, y: e.clientY }); if (hit) remove(hit.obj); });
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  if (e.key === 'h' || e.key === 'H') $('help').classList.toggle('hidden');
+  if (e.key === 'Backspace' || e.key === 'Delete') { const o = history.at(-1); if (o) remove(o); }
+});
+
+// ─── panel ──────────────────────────────────────────────────────────────────────────────────────────────
+NAMES.forEach((n, i) => $('s-root').add(new Option(n, i)));
+Object.keys(SCALES).forEach(n => $('s-scale').add(new Option(n, n)));
+for (const k of ['root', 'scale', 'octave', 'pitchFrom', 'sustain', 'reverb', 'fingers', 'mirror', 'skeleton', 'face']) {
+  const el = $('s-' + k);
+  if (el.type === 'checkbox') el.checked = S[k]; else el.value = S[k];
+  el.addEventListener('input', () => {
+    S[k] = el.type === 'checkbox' ? el.checked : el.type === 'range' || k === 'root' ? +el.value : el.value;
+    if (['root', 'scale', 'octave', 'pitchFrom'].includes(k)) tuneAll();
+    if (k === 'reverb' && send) send.gain.value = S.reverb;
+    if (k === 'skeleton' && S.skeleton === 'full' && window.__makePose) window.__makePose();
+    store.set('hand-strings-settings', S);
+  });
+}
+$('b-undo').onclick = () => { const o = history.at(-1); if (o) remove(o); };
+$('b-clear').onclick = () => { strings.length = pads.length = history.length = 0; save(); };
+$('b-seed').onclick = () => seed();
+$('b-help').onclick = () => $('help').classList.toggle('hidden');
+
+async function begin(withCamera) {
+  await initAudio();
+  $('start').style.display = 'none';
+  if (withCamera && !(await startCamera())) { $('start').style.display = ''; $('go-cam').textContent = 'Try the camera again'; return; }
+  if (!withCamera) status('mouse: drag a string, shift-drag a pad, move across to pluck');
+}
+$('go-cam').onclick = () => begin(true);
+$('go-mouse').onclick = () => begin(false);
+
+// ─── drawing ────────────────────────────────────────────────────────────────────────────────────────────
+function resize() {
+  if (!(innerWidth > 0 && innerHeight > 0)) return;  // a hidden frame has no size yet
+  const kx = innerWidth / W, ky = innerHeight / H, km = Math.min(innerWidth, innerHeight) / Math.min(W, H);
+  W = innerWidth; H = innerHeight;
+  const dpr = devicePixelRatio || 1;
+  cv.width = W * dpr; cv.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if ((kx !== 1 || ky !== 1) && Number.isFinite(kx * ky * km)) {
+    strings.forEach(s => { s.a.x *= kx; s.a.y *= ky; s.b.x *= kx; s.b.y *= ky; });
+    pads.forEach(p => { p.x *= kx; p.y *= ky; p.r *= km; });
+    tuneAll(); save();
+  }
+}
+const hue = m => (((m % 12) + 12) % 12) * 30;
+function label(text, x, y, color) {
+  g.font = '600 12px system-ui, sans-serif'; const w = g.measureText(text).width + 10;
+  g.fillStyle = 'rgba(10,10,14,0.7)'; g.beginPath(); g.roundRect(x - w / 2, y - 9, w, 18, 9); g.fill();
+  g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, x, y + 0.5);
+}
+function drawString(s, now, held) {
+  const L = dist(s.a, s.b), nx = -(s.b.y - s.a.y) / (L || 1), ny = (s.b.x - s.a.x) / (L || 1);
+  const col = `hsl(${hue(s.midi)} 85% 68%)`;
+  let A = 0, age = 0;
+  if (s.hit) { age = (now - s.hit.t) / 1000; A = s.hit.vel * Math.min(46, L * 0.14) * Math.exp(-age * Math.max(1.6, 6.9 / s.hit.T60)); if (A < 0.2) A = 0; }   // exaggerated, so you can see it
+  const fv = 2.2 + clamp(s.midi - 36, 0, 48) * 0.05;   // a slowed-down stand-in for the string's frequency, so the eye can follow it
+  g.lineCap = 'round';
+  g.strokeStyle = col; g.lineWidth = 1.5 + 2.5 * (1 - s.damp) + (A ? 1 : 0);
+  g.shadowColor = col; g.shadowBlur = A ? 16 : held ? 10 : 4;
+  g.beginPath();
+  const pos = s.hit?.pos ?? 0.5, steps = A ? 120 : 1;
+  const amps = [];                                  // the first 8 modes: excited by where you plucked, the higher ones dying sooner
+  for (let n = 1; n <= 8; n++) amps.push(Math.sin(n * Math.PI * pos) / n * Math.exp(-age * n * (0.5 + 3 * s.damp)) * Math.cos(2 * Math.PI * fv * Math.sqrt(n) * n * age));
+  for (let i = 0; i <= steps; i++) {
+    const u = i / steps;
+    let d = 0; for (let n = 1; n <= 8; n++) d += amps[n - 1] * Math.sin(n * Math.PI * u);
+    d *= 1.4 * A;
+    const x = s.a.x + (s.b.x - s.a.x) * u + nx * d, y = s.a.y + (s.b.y - s.a.y) * u + ny * d;
+    i ? g.lineTo(x, y) : g.moveTo(x, y);
+  }
+  g.stroke(); g.shadowBlur = 0;
+  for (const e of [s.a, s.b]) { g.fillStyle = '#111'; g.strokeStyle = col; g.lineWidth = 2; g.beginPath(); g.arc(e.x, e.y, 6, 0, 7); g.fill(); g.stroke(); }
+  const m = mid(s.a, s.b), side = ny > 0 ? -1 : 1;
+  label(noteName(s.midi), m.x + nx * 18 * side, m.y + ny * 18 * side, col);
+}
+const RING = [0, 1, 2, 0, 3, 1, 4, 2];               // the drum head's modes, by how many times they wave around the rim (0: the whole head breathes)
+function drawPad(p, now, held) {
+  const col = `hsl(${hue(p.midi)} 75% 62%)`, m = MATERIAL[p.mat];
+  let k = 0, age = 9;
+  if (p.hit) { age = (now - p.hit.t) / 1000; k = p.hit.vel * Math.exp(-age * 5 / Math.max(0.4, p.hit.T)); }
+  const outline = scale => {                        // the rim, wobbling in the modes the hit excited, aimed where it landed
+    g.beginPath();
+    const live = p.hit && age < 4, h = p.hit || {}, amps = [];
+    if (live) m.modes.slice(0, 8).forEach((ratio, i) => {
+      const a = (i === 0 ? 1 - 0.55 * h.r : (0.25 + 0.75 * h.r) / (i + 1) ** 0.4) * Math.exp(-age * (1.4 + 0.8 * i) / Math.max(0.5, Math.min(2, h.T)));
+      amps.push([RING[i], a * Math.cos(2 * Math.PI * 2.2 * Math.sqrt(ratio) * age)]);
+    });
+    for (let j = 0; j <= 96; j++) {
+      const th = j / 96 * 2 * Math.PI;
+      let d = 0; for (const [ring, a] of amps) d += a * Math.cos(ring * (th - h.angle));
+      const r = p.r * scale * (1 + (live ? 0.22 * h.vel * d : 0));
+      j ? g.lineTo(p.x + r * Math.cos(th), p.y + r * Math.sin(th)) : g.moveTo(p.x + r * Math.cos(th), p.y + r * Math.sin(th));
+    }
+  };
+  g.fillStyle = `hsl(${hue(p.midi)} 70% 50% / ${0.14 + 0.45 * k})`;
+  g.strokeStyle = col; g.lineWidth = held ? 3 : 2; g.shadowColor = col; g.shadowBlur = 6 + 24 * k;
+  outline(1); g.fill(); g.stroke(); g.shadowBlur = 0;
+  if (p.mat === 'glass' || p.mat === 'bell') { g.lineWidth = 1; outline(0.82); g.stroke(); }
+  if (p.mat === 'drum') { g.lineWidth = 1; g.setLineDash([3, 5]); outline(0.9); g.stroke(); g.setLineDash([]); }
+  if (age < 0.6) { g.strokeStyle = `hsl(${hue(p.midi)} 90% 75% / ${1 - age / 0.6})`; g.lineWidth = 2; g.beginPath(); g.arc(p.x, p.y, p.r * (1 + age * 1.2), 0, 7); g.stroke(); }
+  label(noteName(p.midi) + ' · ' + p.mat, p.x, p.y, col);
+}
+function drawLines(pts, conns, color, width) {
+  if (!pts || !conns) return;
+  g.strokeStyle = color; g.lineWidth = width; g.beginPath();
+  for (const c of conns) { const a = pts[c.start], b = pts[c.end]; if (a && b) { g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); } }
+  g.stroke();
+}
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (camera && video.videoWidth) {
+    const s = Math.max(W / video.videoWidth, H / video.videoHeight);
+    fit = { dw: video.videoWidth * s, dh: video.videoHeight * s }; fit.ox = (W - fit.dw) / 2; fit.oy = (H - fit.dh) / 2;
+    if (handsTask && video.currentTime !== frame.vt) {
+      frame.vt = video.currentTime;
+      try {
+        updateHands(handsTask.detectForVideo(video, now), now);
+        if (faceTask && S.face && (frame.n = (frame.n || 0) + 1) % 2 === 0) updateFace(faceTask.detectForVideo(video, now), now);
+        if (poseTask && S.skeleton === 'full') posePts = poseTask.detectForVideo(video, now).landmarks?.[0]?.map(toScreen) || null;
+        if (statusText === 'show both hands' && hands[0].present && hands[1].present) status('pinch with both hands and pull apart');
+      } catch (e) { console.warn(e); }
+    }
+  }
+  applyFace(now);
+  g.fillStyle = '#0c0c0f'; g.fillRect(0, 0, W, H);
+  if (camera && video.videoWidth && S.mirror > 0) {   // the mirror
+    g.save(); g.globalAlpha = S.mirror; g.translate(fit.ox + fit.dw, fit.oy); g.scale(-1, 1);
+    g.drawImage(video, 0, 0, fit.dw, fit.dh); g.restore();
+    g.fillStyle = 'rgba(8,8,12,0.38)'; g.fillRect(0, 0, W, H);
+  }
+  const held = new Set([...hands.map(h => h.grab?.obj), mouse.grab?.obj].filter(Boolean));
+  const grabbing = hands.some(h => h.grab) || (mouse.grab && mouse.moved);
+  const placingPad = heart.progress > 0 || draft?.pad || [...held].some(o => pads.includes(o));
+  if (placingPad) {                                 // pads: height chooses the material
+    g.font = '12px system-ui, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+    MATS.forEach((m, i) => { const y = H * i / MATS.length; g.fillStyle = i % 2 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)'; g.fillRect(0, y, W, H / MATS.length); g.fillStyle = 'rgba(255,255,255,0.45)'; g.fillText(m, 12, y + H / MATS.length / 2); });
+  }
+  if (grabbing) {                                   // the bin
+    const t = TRASH(), over = [...hands.filter(h => h.grab).map(h => h.pinchPt), mouse.grab && mouse.moved ? mouse.p : null].some(p => p && inTrash(p));
+    g.fillStyle = over ? 'rgba(200,102,79,0.55)' : 'rgba(200,102,79,0.2)'; g.beginPath(); g.arc(t.x, t.y, t.r, 0, 7); g.fill();
+    g.fillStyle = '#fff'; g.font = '600 20px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('✕', t.x, t.y + 1);
+  }
+  pads.forEach(p => drawPad(p, now, held.has(p)));
+  strings.forEach(s => drawString(s, now, held.has(s)));
+  if (draft) {
+    if (draft.pad) { g.strokeStyle = 'rgba(242,193,78,0.8)'; g.setLineDash([6, 6]); g.lineWidth = 2; g.beginPath(); g.arc(draft.a.x, draft.a.y, dist(draft.a, draft.b), 0, 7); g.stroke(); g.setLineDash([]); }
+    else { const pre = { a: draft.a, b: draft.b }; tuneString(pre); g.setLineDash([8, 6]); drawString(pre, now, true); g.setLineDash([]); }
+  }
+  if (heart.progress > 0 && heart.c) {              // the ring filling up while it is held
+    g.strokeStyle = 'rgba(242,193,78,0.9)'; g.lineWidth = 4;
+    g.beginPath(); g.arc(heart.c.x, heart.c.y, Math.max(24, heart.r), -Math.PI / 2, -Math.PI / 2 + heart.progress * 2 * Math.PI); g.stroke();
+  }
+  if (S.skeleton === 'full') {
+    drawLines(posePts, M?.PoseLandmarker?.POSE_CONNECTIONS, 'rgba(255,255,255,0.35)', 2);
+    if (face.present && M) for (const k of ['FACE_LANDMARKS_FACE_OVAL', 'FACE_LANDMARKS_LIPS', 'FACE_LANDMARKS_LEFT_EYE', 'FACE_LANDMARKS_RIGHT_EYE', 'FACE_LANDMARKS_LEFT_EYEBROW', 'FACE_LANDMARKS_RIGHT_EYEBROW'])
+      drawLines(face.pts, M.FaceLandmarker[k], 'rgba(242,193,78,0.5)', 1.2);
+  }
+  hands.forEach(h => {
+    if (!h.present) return;
+    if (S.skeleton !== 'off') drawLines(h.pts, M?.HandLandmarker?.HAND_CONNECTIONS, 'rgba(255,255,255,0.45)', 2);
+    for (const tip of TIP_SETS[S.fingers]) { g.fillStyle = '#fff'; g.beginPath(); g.arc(h.pts[tip].x, h.pts[tip].y, 4, 0, 7); g.fill(); }
+    const close = clamp((0.7 - h.pd) / 0.42), p = h.pinchPt;   // how close the pinch is: a ring that fills
+    if (close > 0) {
+      g.strokeStyle = h.pinch ? '#f2c14e' : `rgba(242,193,78,${0.25 + 0.5 * close})`; g.lineWidth = 2;
+      g.beginPath(); g.arc(p.x, p.y, 14 - 6 * close, 0, 7); g.stroke();
+      if (h.pinch) { g.fillStyle = 'rgba(242,193,78,0.5)'; g.fill(); }
+      if (!h.pinch) { const hit = hitTest(p, Math.max(22, h.scale * 0.35)); if (hit) { const q = hit.kind === 'end' ? hit.obj[hit.end] : hit.kind === 'pad' ? hit.obj : p; g.strokeStyle = '#fff'; g.setLineDash([3, 3]); g.beginPath(); g.arc(q.x, q.y, 16, 0, 7); g.stroke(); g.setLineDash([]); } }
+    }
+  });
+  const fp = $('face');                             // the face meters
+  fp.style.display = camera && S.face && faceTask ? 'block' : 'none';
+  if (camera) {
+    const on = face.present;
+    $('f-jaw').style.width = (on ? face.jaw * 100 : 0) + '%';
+    $('f-brow').style.width = (on ? face.brow * 100 : 0) + '%';
+    $('f-smile').style.width = (on ? face.smile * 100 : 0) + '%';
+    $('f-eyes').className = 'm' + (face.hold ? ' on' : '');
+  }
+}
+
+if (innerHeight < 760 || innerWidth < 900) $('panel').open = false;
+resize(); load();
+addEventListener('resize', resize);
+addEventListener('load', resize);
+requestAnimationFrame(frame);
+window.__hs = { strings, pads, hands, S, pluck, strike, face, updateHands, get fit() { return fit; } };   // for poking at it from the console
+</script>
+</body>
+</html>

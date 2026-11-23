@@ -20,7 +20,7 @@ const onButton = () => dist(mouseX, mouseY, 44, 44) < 24`;
 
 export const LESSON = {
   title: 'Web Audio: strings, bells, samples and grains',
-  subtitle: 'The engine under p5.sound: nodes, exact time, samples written by hand, physical models, recordings and grains. Part B of the synthesis series.',
+  subtitle: 'The engine under p5.sound: nodes, exact time, samples written by hand, physical models, recordings and grains, and strings drawn in the air. Part B of the synthesis series.',
   idea: 'Underneath every web synth is one small machine: a graph of nodes that the browser runs on its own clock. Learn to schedule on that clock and to write samples yourself, and you can build a string, a bell or a cloud of grains from nothing.',
   main: 'graph',
   codePanel: true,
@@ -803,6 +803,104 @@ function draw() {
 
 ${BUTTON}` }
       ]
+    },
+    {
+      id: 'hands',
+      title: 'Strings in the air',
+      label: 'Hands',
+      text: 'The strings of 4.1 and the struck objects of 4.2 do not have to sit in rows. Draw a string anywhere, at any angle, and let **where it is** decide how it sounds: its height chooses a note, its length an octave, its slant its tone. Snap every note to a **scale** and anything you draw is in tune, so the space itself becomes the instrument. The standalone demo **[Strings in the Air](demos/hand-strings.html)** plays it with your hands through the camera (MediaPipe): you see yourself in a mirror, pinch with both hands and pull to stretch a string, join thumbs and index fingers in a ring to make a drum or a bell, swipe to pluck, poke to hit, pinch to move. Your face plays too: open your mouth to brighten the sound, raise your brows for reverb, smile for vibrato, close your eyes for long sustain. It is one HTML file: save it and open it anywhere.',
+      boards: [
+        { id: 'strings-in-space', title: '7.1 · Strings in space', w: 800, h: 600, ground: '#141414',
+          idea: 'Drag to stretch a string; move the mouse across strings to pluck them, faster for louder. Each string is the Karplus–Strong loop of 4.1, but its note comes from **where** it is: the height of its middle picks a step of the scale (the top is high), a short string goes up an octave and a long one down, and a **level** string is bright steel while an **upright** one is dark nylon (the slant sets the damping). Change **scale** and every string retunes at once. The picture is the string as a sum of its **modes** (as in 4.2), slowed down so the eye can follow: right after a pluck it ripples with several, and the higher ones die first. The full version, played with both hands in front of a camera, with pads you hit and a face that modulates the sound, is the standalone demo [Strings in the Air](demos/hand-strings.html).',
+          pseudo: `step $\\leftarrow \\lfloor$ height $\\times$ (steps in two octaves) $\\rfloor$;  octave $\\leftarrow$ +1 if short, −1 if long
+note $\\leftarrow$ root $+$ scale[step mod $n$] $+ 12\\,\\lfloor$step$/n\\rfloor$ $+ 12\\cdot$octave    # always in the scale
+damping $\\leftarrow 0.06 + 0.42\\,|\\sin(\\text{angle})|$    # level: bright; upright: dark
+pluck when the mouse's path crosses the string: at $t$ along it, as hard as it was fast`,
+          p5: `// 7.1 Strings in space: drag to draw a string anywhere; move across strings to pluck. Height: note (in the scale); length: octave; slant: tone.
+const scaleName = 'minor pentatonic' /* major pentatonic|minor pentatonic|major|dorian|hirajoshi */
+const rootNote = 50 /* 36..60 */
+const SCALES = { 'major pentatonic': [0, 2, 4, 7, 9], 'minor pentatonic': [0, 3, 5, 7, 10], major: [0, 2, 4, 5, 7, 9, 11], dorian: [0, 2, 3, 5, 7, 9, 10], hirajoshi: [0, 2, 3, 7, 8] }
+const NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
+let ac, strings = [], drawing = null, prev = null, prevT = 0
+
+function setup() {
+  createCanvas(800, 600)
+  strings = [[150, 200, 330, 150], [470, 150, 650, 200], [200, 330, 260, 480], [400, 380, 640, 380]].map(p => tune({ a: { x: p[0], y: p[1] }, b: { x: p[2], y: p[3] } }))
+}
+
+function tune(s) {                             // where the string is decides how it sounds
+  const sc = SCALES[scaleName], n = sc.length
+  const my = (s.a.y + s.b.y) / 2, len = dist(s.a.x, s.a.y, s.b.x, s.b.y)
+  const step = Math.floor(constrain(1 - my / height, 0, 0.999) * (2 * n + 1))   // height: a step of the scale
+  const octave = len < 160 ? 1 : len > 420 ? -1 : 0                             // length: the octave
+  s.midi = rootNote + 12 * Math.floor(step / n) + sc[step % n] + 12 * octave
+  s.damp = 0.06 + 0.42 * Math.abs(Math.sin(Math.atan2(s.b.y - s.a.y, s.b.x - s.a.x)))   // slant: the tone
+  return s
+}
+
+function pluck(s, pos, vel) {                  // 4.1's loop, with the pluck position as a comb on the noise
+  if (!ac) ac = new AudioContext()
+  ac.resume()
+  const sr = ac.sampleRate, f = 440 * 2 ** ((s.midi - 69) / 12), N = Math.round(sr / f - s.damp), len = 3 * sr
+  const buf = ac.createBuffer(1, len, sr), out = buf.getChannelData(0), ln = new Float32Array(N)
+  const P = Math.max(1, Math.round(pos * N)), noiseLine = Array.from({ length: N }, () => Math.random() * 2 - 1)
+  for (let i = 0; i < N; i++) ln[i] = noiseLine[i] - noiseLine[(i + P) % N]
+  const loss = 10 ** (-3 / (3 * f))              // lose 60 dB in 3 seconds, whatever the note
+  let p = 0, last = 0
+  for (let i = 0; i < len; i++) {
+    const v = ln[p]; out[i] = 0.2 * v
+    ln[p] = loss * ((1 - s.damp) * v + s.damp * last); last = v
+    p = (p + 1) % N
+  }
+  const src = new AudioBufferSourceNode(ac, { buffer: buf }), g = new GainNode(ac, { gain: 0.2 + 0.8 * vel })
+  src.connect(g).connect(ac.destination); src.start()
+  s.hit = { t: millis(), vel, pos }
+}
+
+function crossing(p, q, a, b) {                // where the path p->q crosses the string a-b (0..1), or -1
+  const r = { x: q.x - p.x, y: q.y - p.y }, d = { x: b.x - a.x, y: b.y - a.y }, den = r.x * d.y - r.y * d.x
+  if (Math.abs(den) < 1e-9) return -1
+  const u = ((a.x - p.x) * d.y - (a.y - p.y) * d.x) / den, t = ((a.x - p.x) * r.y - (a.y - p.y) * r.x) / den
+  return u >= 0 && u <= 1 && t > 0.03 && t < 0.97 ? t : -1
+}
+
+function mousePressed() { drawing = { a: { x: mouseX, y: mouseY }, b: { x: mouseX, y: mouseY } } }
+function mouseDragged() { if (drawing) drawing.b = { x: mouseX, y: mouseY } }
+function mouseReleased() {
+  if (drawing && dist(drawing.a.x, drawing.a.y, drawing.b.x, drawing.b.y) > 40) { const s = tune(drawing); strings.push(s); pluck(s, 0.3, 0.6) }
+  drawing = null
+}
+function mouseMoved() {                        // the mouse's path since the last frame: a fingertip
+  const q = { x: mouseX, y: mouseY }
+  if (prev) {
+    const vel = constrain(dist(prev.x, prev.y, q.x, q.y) / max(8, millis() - prevT) / 1.5, 0.15, 1)
+    for (const s of strings) { const t = crossing(prev, q, s.a, s.b); if (t >= 0) pluck(s, t, vel) }
+  }
+  prev = q; prevT = millis()
+}
+
+function draw() {
+  background(20)
+  for (const s of [...strings, drawing].filter(Boolean)) {
+    if (s === drawing) tune(s)
+    const age = s.hit ? (millis() - s.hit.t) / 1000 : 9, A = s.hit ? s.hit.vel * min(40, 0.12 * dist(s.a.x, s.a.y, s.b.x, s.b.y)) * Math.exp(-age * 1.8) : 0
+    const L = dist(s.a.x, s.a.y, s.b.x, s.b.y), nx = -(s.b.y - s.a.y) / L, ny = (s.b.x - s.a.x) / L, pos = s.hit ? s.hit.pos : 0.5
+    colorMode(HSB); stroke((s.midi % 12) * 30, 60, 100); colorMode(RGB)
+    strokeWeight(1.5 + 2.5 * (1 - s.damp)); noFill(); beginShape()
+    for (let i = 0; i <= 100; i++) {           // the string as a sum of its first 8 modes (slowed down so you can see them):
+      const u = i / 100; let d = 0              // where you plucked decides how much of each; the higher ones die sooner
+      for (let n = 1; n <= 8; n++) d += Math.sin(n * PI * pos) / n * Math.exp(-age * n * (0.5 + 3 * s.damp)) * Math.sin(n * PI * u) * Math.cos(TWO_PI * 2.5 * Math.sqrt(n) * n * age)
+      vertex(lerp(s.a.x, s.b.x, u) + nx * 1.4 * A * d, lerp(s.a.y, s.b.y, u) + ny * 1.4 * A * d)
+    }
+    endShape()
+    noStroke(); fill(200); textSize(12); textAlign(CENTER)
+    text(NAMES[s.midi % 12] + (Math.floor(s.midi / 12) - 1), (s.a.x + s.b.x) / 2 + nx * 16, (s.a.y + s.b.y) / 2 + ny * 16)
+  }
+  noStroke(); fill(235); textSize(16); textAlign(LEFT)
+  text(scaleName + ' from ' + NAMES[rootNote % 12] + ' · drag to draw a string · move across to pluck', 30, 40)
+  fill(130); textSize(13); text('height: the note · length: the octave · slant: steel (level) to nylon (upright)', 30, 64)
+}` }
+      ]
     }
   ],
   bibliography: [
@@ -818,6 +916,11 @@ ${BUTTON}` }
       ['Julius O. Smith III. *Physical Audio Signal Processing*. CCRMA, Stanford. Free online: strings, waveguides, modes.', 'https://ccrma.stanford.edu/~jos/pasp/'],
       ['Antony Hewish, Jocelyn Bell, John Pilkington, Paul Scott, Robin Collins (1968). Observation of a rapidly pulsating radio source. *Nature* 217, 709–713. The first pulsar.', 'https://doi.org/10.1038/217709a0'],
       ['Jason Hessels et al. (2006). A radio pulsar spinning at 716 Hz. *Science* 311, 1901–1904.', 'https://doi.org/10.1126/science.1123430']
+    ] },
+    { title: 'Hands and faces', items: [
+      ['Google. MediaPipe hand landmarker: 21 points per hand, in the browser.', 'https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker'],
+      ['Google. MediaPipe face landmarker: 478 points and 52 expression scores (blendshapes).', 'https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker'],
+      ['Michel Waisvisz and *The Hands* (1984): an instrument played by moving the hands in the air, made at STEIM.', 'https://en.wikipedia.org/wiki/Michel_Waisvisz']
     ] }
   ]
 };
