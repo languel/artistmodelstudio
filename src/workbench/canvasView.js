@@ -270,7 +270,7 @@ export class CanvasView {
     for (const b of boards) if (b.hidden || this.composedIds?.has(b.id)) skip.add(b.id);
     renderDocument(ctx, skip.size ? { ...doc, elements: doc.elements.filter(e => !skip.has(e.board || MAIN)) } : doc, {
       mode: this.viewMode(), upTo: this.upTo, transform: { x: this.cam.x, y: this.cam.y, scale: this.cam.z },
-      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, richNotes: true, now: this.frameNow, view: this.viewRect(),
+      selected: this.previewDoc ? new Set() : this.selected, hovered: this.previewDoc ? null : this.hovered, ground: false, screenNotes: true, richNotes: Boolean(this.richNotes), now: this.frameNow, view: this.viewRect(),
       selectColor: css.getPropertyValue('--wb-select').trim() || '#8a8a8a'
     });
     if (composed.length) this.drawComposed(ctx, doc, composed, css);
@@ -991,7 +991,7 @@ export class CanvasView {
         if (!marks) { marks = new Map(); for (const e of doc.elements) { const k = e.board || MAIN; (marks.get(k) || marks.set(k, []).get(k)).push(e); } }
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(W * s)); canvas.height = Math.max(1, Math.round(H * s));
-        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, richNotes: true, frozen: true, now: this.frameNow });
+        renderDocument(canvas.getContext('2d'), { ...doc, elements: marks.get(b.id) || [] }, { mode, upTo: this.upTo, transform: { x: (m - b.x) * s, y: (m - b.y) * s, scale: s }, ground: false, screenNotes: true, richNotes: Boolean(this.richNotes), frozen: true, now: this.frameNow });
         c = { key, canvas };
         this.baked.set(b.id, c);
       }

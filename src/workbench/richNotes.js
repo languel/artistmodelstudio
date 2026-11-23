@@ -8,10 +8,14 @@
  * (what the Markdown and math take) is known in artboard units: noteHeights, so selection and
  * hit-testing fit what is shown.
  */
-import { renderMarkdown } from '../process/markdown.js';
 import { noteProps, isRichNote, noteHeights, NOTE_FONTS } from '../process/notes.js';
 import { boardsOf, MAIN } from '../process/boards.js';
 import { inkOn } from '../process/document.js';
+
+// Marked, KaTeX and its stylesheet, loaded when a note first needs them (Poliplan's lean build keeps them out of its main
+// script: vite.embed.config.js stubs markdown.js everywhere but here).
+let loading = null;
+const loadMarkdown = () => (loading ||= Promise.all([import('../process/markdown.js'), import('katex/dist/katex.min.css')]).then(([m]) => m.renderMarkdown));
 
 export class RichNotes {
   constructor(app) {
@@ -26,6 +30,12 @@ export class RichNotes {
   /** After each canvas redraw (the camera may have moved) and when the drawing changes. */
   update() {
     const cv = this.canvas, doc = cv.previewDoc || this.app.store.doc, z = cv.cam.z;
+    // Until the renderer is here, the canvas draws these notes as plain text (cv.richNotes off).
+    if (!this.render) {
+      if (!this.failed && !this.pending && doc.elements.some(e => e.role === 'note' && isRichNote(e)))
+        this.pending = loadMarkdown().then(r => { this.render = r; cv.richNotes = true; this.update(); cv.invalidate(); }, err => { this.failed = true; console.warn('Notes in Markdown: the renderer did not load', err); });
+      return;
+    }
     const seen = new Set();
     // Notes show in the process view, on visible stages up to the one shown (as renderDocument draws them).
     if (cv.viewMode?.() === 'process') {
@@ -51,7 +61,7 @@ export class RichNotes {
           });
           r.el.classList.toggle('sticky', p.style === 'sticky');
           let html;
-          try { html = renderMarkdown(e.text); } catch { html = ''; }
+          try { html = this.render(e.text); } catch { html = ''; }
           r.el.innerHTML = html;
           const h = r.el.offsetHeight;   // (unscaled: artboard units)
           if (h && Math.abs((noteHeights.get(e.id) || 0) - h) > 0.5) { noteHeights.set(e.id, h); cv.invalidate(); }

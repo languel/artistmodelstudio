@@ -16,6 +16,8 @@ const LEAN_STUBS = new Set([
   'src/workbench/lessons.js', 'src/workbench/docsContent.js', 'src/workbench/streamSamples.js', 'src/workbench/takeExport.js',
   'src/artists/artistRegistry.js', 'src/process/markdown.js', 'src/process/page.js', 'src/ui/AssetPanel.js'
 ]);
+// …except where these import them: notes in Markdown and math load the renderer (marked, KaTeX) on demand, in a chunk of its own.
+const LEAN_KEEP = { 'src/process/markdown.js': ['src/workbench/richNotes.js'] };
 const OUT = process.env.AMS_EMBED_OUT || (FULL ? 'dist-embed-full' : 'dist-embed');
 
 export default defineConfig({
@@ -31,7 +33,7 @@ export default defineConfig({
     resolveId(source, importer) {
       if (FULL || !importer || !source.startsWith('.')) return;
       const target = path.relative(process.cwd(), path.resolve(path.dirname(importer.split('?')[0]), source)).replace(/\\/g, '/');
-      if (LEAN_STUBS.has(target)) return path.resolve('src/embed/stubs.js');
+      if (LEAN_STUBS.has(target) && !LEAN_KEEP[target]?.some(k => importer.split('?')[0].endsWith(k))) return path.resolve('src/embed/stubs.js');
     }
   }, {
     name: 'ams-embed-no-samples',
