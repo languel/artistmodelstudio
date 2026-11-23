@@ -250,7 +250,9 @@ A **lesson** is a scene of 16:9 **frames** (slides). Each frame holds boards: a 
 - **Pages and files.** Export → Page makes the lesson one HTML file whose sketches run; Export → Scene (JSON) writes it as an \`.ams.json\` to import again. Sources the scene reads (pictures, clips) are added by name first.`),
       prose('The lessons in this app (most with a guided tour: Getting started → Walkthroughs):'),
       ...[['lesson-sampling', 'Pointillism and Expressionism, by sampling'], ['lesson-diffusion', 'Diffusion models: from noise to picture'], ['lesson-threejs', 'Three.js for body and sound'], ['lesson-synthesis', 'Sound synthesis (p5.sound)'], ['lesson-webaudio', 'Web Audio: strings, bells, samples and grains'], ['lesson-modular', 'Modular: patches, sequencers and scores'], ['lesson-visuals', 'Modular: pictures that listen'], ['lesson-painterly', 'Painterly, fading strokes (Klee)'], ['lesson-line-walk', 'Taking a line for a walk']]
-        .map(([id, t]) => h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, t)), h('button', { class: 'wb-btn', onclick: () => app.openDocs(id) }, 'Read'))))),
+        .map(([id, t]) => h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, t)), h('button', { class: 'wb-btn', onclick: () => app.openDocs(id) }, 'Read'))),
+      prose('Standalone demos (one HTML file each, to open in a new tab or save and share):'),
+      h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, 'Strings in the Air'), ' · draw strings and drums in the air with your hands, pluck, hit and clap (Web Audio lesson)'), h('button', { class: 'wb-btn', onclick: () => window.open('demos/hand-strings.html', '_blank') }, 'Open')))),
 
     T('lesson-sampling', 'Lessons', 'Pointillism and Expressionism, by sampling', 'Seurat, Munch and Muybridge as sources: sample a picture, decide what to draw there.', () => h('div', {},
       prose(`
@@ -291,9 +293,12 @@ Twenty-two p5.js boards, each a small instrument you can read and play, one idea
 
     T('lesson-webaudio', 'Lessons', 'Web Audio: strings, bells, samples and grains', 'Part 1B: the engine under p5.sound, exact time, physical models, sampling and granular synthesis.', () => h('div', {},
       prose(`
-Eleven boards in plain Web Audio (p5 only draws): the **graph** and **automation**; **time** (a look-ahead scheduler against a timer, with each hit's lateness drawn; pulsars at their real periods, rhythm turning into pitch); **writing samples** (an AudioBuffer by formula; an AudioWorklet bit crusher); **physical models** (a Karplus–Strong guitar; bars, bells, glass and drums from their modes); **recordings** (a sampler; granular synthesis on the Voyager greetings); and *Voyager, plucked*, a piece from all of it.
+Twelve boards in plain Web Audio (p5 only draws): the **graph** and **automation**; **time** (a look-ahead scheduler against a timer, with each hit's lateness drawn; pulsars at their real periods, rhythm turning into pitch); **writing samples** (an AudioBuffer by formula; an AudioWorklet bit crusher); **physical models** (a Karplus–Strong guitar; bars, bells, glass and drums from their modes); **recordings** (a sampler; granular synthesis on the Voyager greetings); *Voyager, plucked*, a piece from all of it; and **strings in space**, strings drawn anywhere whose place sets their note in a scale.
+
+**Strings in the Air** is the same idea as a standalone instrument played with your body in front of the camera (MediaPipe hands and face): you see yourself in a mirror; pinch with both hands and pull to stretch a string, join thumbs and index fingers in a ring to make a drum or a bell, swipe to pluck, poke to hit, pinch to move, clap to throw a ball that bounces off everything it plays. Your face modulates the sound (mouth: brightness, brows: reverb, smile: vibrato, eyes closed: sustain). A mouse mode works without a camera. One HTML file: \`public/demos/hand-strings.html\`.
 `),
-      lessonButtons(app, 'webaudio'))),
+      lessonButtons(app, 'webaudio'),
+      h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, 'Strings in the Air'), ' · the hand-played demo'), h('button', { class: 'wb-btn', onclick: () => window.open('demos/hand-strings.html', '_blank') }, 'Open')))),
 
     T('lesson-modular', 'Lessons', 'Modular: patches, sequencers and scores', 'Part 2: the studio\'s own synth, sequencers you can see, IanniX-style scores, the Arecibo message, the Timeline.', () => h('div', {},
       prose(`
