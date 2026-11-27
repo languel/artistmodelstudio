@@ -251,7 +251,7 @@ A **lesson** is a scene of 16:9 **frames** (slides). Each frame holds boards: a 
 - **Code view.** On an exported page each board's code is one box with tabs (Pseudocode, Studio, p5.js); a click opens a tab, a click on the open tab minimizes it to the bar. A board's **Code** switch (Properties → Board) starts it minimized; the diagrams of a lesson do.
 - **Pages and files.** Export → Page makes the lesson one HTML file whose sketches run; Export → Scene (JSON) writes it as an \`.ams.json\` to import again. Sources the scene reads (pictures, clips) are added by name first.`),
       prose('The lessons in this app (most with a guided tour: Getting started → Walkthroughs):'),
-      ...[['lesson-sampling', 'Pointillism and Expressionism, by sampling'], ['lesson-diffusion', 'Diffusion models: from noise to picture'], ['lesson-threejs', 'Three.js for body and sound'], ['lesson-synthesis', 'Sound synthesis (p5.sound)'], ['lesson-webaudio', 'Web Audio: strings, bells, samples and grains'], ['lesson-modular', 'Modular: patches, sequencers and scores'], ['lesson-visuals', 'Modular: pictures that listen'], ['lesson-painterly', 'Painterly, fading strokes (Klee)'], ['lesson-line-walk', 'Taking a line for a walk']]
+      ...[['lesson-sampling', 'Pointillism and Expressionism, by sampling'], ['lesson-diffusion', 'Diffusion models: from noise to picture'], ['lesson-threejs', 'Three.js for body and sound'], ['lesson-synthesis', 'Sound synthesis (p5.sound)'], ['lesson-webaudio', 'Web Audio: strings, bells, samples and grains'], ['lesson-airstrings', 'Strings in the Air: an instrument for the body'], ['lesson-modular', 'Modular: patches, sequencers and scores'], ['lesson-visuals', 'Modular: pictures that listen'], ['lesson-painterly', 'Painterly, fading strokes (Klee)'], ['lesson-line-walk', 'Taking a line for a walk']]
         .map(([id, t]) => h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, t)), h('button', { class: 'wb-btn', onclick: () => app.openDocs(id) }, 'Read'))),
       prose('Standalone demos (one HTML file each, to open in a new tab or save and share):'),
       h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, 'Strings in the Air'), ' · draw strings and drums in the air with your hands, pluck, hit and clap (Web Audio lesson)'), h('button', { class: 'wb-btn', onclick: () => window.open('demos/hand-strings.html', '_blank') }, 'Open')))),
@@ -301,6 +301,13 @@ Twelve boards in plain Web Audio (p5 only draws): the **graph** and **automation
 `),
       lessonButtons(app, 'webaudio'),
       h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, 'Strings in the Air'), ' · the hand-played demo'), h('button', { class: 'wb-btn', onclick: () => window.open('demos/hand-strings.html', '_blank') }, 'Open')))),
+
+    T('lesson-airstrings', 'Lessons', 'Strings in the Air: an instrument for the body', 'Hands, face and claps in front of a camera play strings and drums you make in the air; MIDI in and out. p5.js, MediaPipe, Web Audio.', () => h('div', {},
+      prose(`
+An instrument played with the body, built one idea at a time in nine p5.js boards that open the camera themselves (MediaPipe, in the browser; each also plays with the mouse): **hands as numbers** (21 points a hand, mirrored); **a pinch** (thumb to index in hand sizes, two thresholds); **a string between two pinches**; **a pluck** (a fingertip crossing a line, Karplus–Strong, pitch from length and so out of tune); **in tune anywhere** (height picks a note of the scale, length the octave, slant the tone); **a ring of fingers makes a pad** (modal synthesis, material by height, a rim that wobbles in its modes); **the face as a controller** (mouth: a filter, brows: an echo, smile: vibrato); **clap to throw** balls that pluck and bounce; **MIDI in and out** (a map from controllers to knobs, the [ForgeRing](https://github.com/languel/forgering) ring's tilt as a strum). The last board is the whole instrument, *Strings in the Air*, also a page of its own.
+`),
+      lessonButtons(app, 'airstrings'),
+      h('div', { class: 'wb-doc-card' }, h('div', {}, h('b', {}, 'Strings in the Air'), ' · the whole instrument in its own tab'), h('button', { class: 'wb-btn', onclick: () => window.open('demos/hand-strings.html', '_blank') }, 'Open')))),
 
     T('lesson-modular', 'Lessons', 'Modular: patches, sequencers and scores', 'Part 2: the studio\'s own synth, sequencers you can see, IanniX-style scores, the Arecibo message, the Timeline.', () => h('div', {},
       prose(`

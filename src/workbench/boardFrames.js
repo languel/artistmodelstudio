@@ -460,7 +460,7 @@ export class BoardFrames {
       const iframe = document.createElement('iframe');
       iframe.setAttribute('sandbox', 'allow-scripts');
       iframe.setAttribute('credentialless', '');
-      iframe.setAttribute('allow', 'autoplay; midi; microphone');   // sound starts on a click inside; a sketch may read a MIDI keyboard or listen to the microphone
+      iframe.setAttribute('allow', 'autoplay; midi; microphone; camera');   // sound starts on a click inside; a sketch may read a MIDI keyboard, listen to the microphone or watch the camera (the browser asks first)
       iframe.title = b.title;
       f.perf = Boolean(this.app.perfWanted?.(b));
       iframe.srcdoc = frameDoc(f.kind, code, f.token, b, this.p5Source, files, f.perf, f.threeMods, this.seeds.get(b.id) ?? null, f.vals, f.scaleSent = this.pixelRatioFor(), Boolean(this.renderMode));

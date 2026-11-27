@@ -20,12 +20,16 @@ Build any lesson with one click (Docs → Lessons → *Build the scene*, or type
 <td width="50%"><img src="docs/images/reiniger.jpg" alt="A paper silhouette puppet walking toward the sun"><br><b>The silhouette film</b><br>Rebuild Lotte Reiniger's method for <i>The Adventures of Prince Achmed</i>: lightbox, paper, hinges, a puppet, a layered set and a walk, in three.js.</td>
 </tr>
 <tr>
-<td><img src="docs/images/synthesis.jpg" alt="A sawtooth wave built from six sine waves, with its harmonics"><br><b>Sound synthesis, from a sine wave to a band</b><br>What sound is (pressure, the voice, the ear), then waveforms, envelopes, filters, FM, scales, drums and sequencers; strings, bells, samples and grains in plain Web Audio; and <a href="https://languel.github.io/artistmodelstudio/demos/hand-strings.html">Strings in the Air</a>, an instrument you draw and play with your hands in front of the camera.</td>
+<td><img src="docs/images/synthesis.jpg" alt="A sawtooth wave built from six sine waves, with its harmonics"><br><b>Sound synthesis, from a sine wave to a band</b><br>What sound is (pressure, the voice, the ear), then waveforms, envelopes, filters, FM, scales, drums and sequencers; strings, bells, samples and grains in plain Web Audio.</td>
 <td><img src="docs/images/visuals.jpg" alt="A modular synth drawn on the canvas: sequencers, synths, a mixer and cables"><br><b>Modular: patches, scores and pictures that listen</b><br>A modular synth drawn on the canvas, sequencers you can see, graphic scores (the Arecibo message among them) that play it, and sketches that move with the music.</td>
 </tr>
 <tr>
 <td><img src="docs/images/threejs.jpg" alt="A pin screen pushed up by a dancing figure"><br><b>Three.js for body and sound</b><br>From a spinning cube to a body you can play, dress, draw and paint with: a pin screen, a laser harp, a body drum, Schlemmer costumes. The full course: <a href="https://github.com/languel/threejslessons">threejslessons</a>.</td>
 <td><img src="docs/images/diffusion.jpg" alt="Points flowing along a score field toward the data"><br><b>Diffusion models, from noise to picture</b><br>How image models work, in diagrams and live simulations: the forward and reverse process, the schedule, sampling, guidance.</td>
+</tr>
+<tr>
+<td><img src="docs/images/airstrings.jpg" alt="Glowing strings at many angles, vibrating, with round drum pads and a thrown ball"><br><b>Strings in the Air: an instrument for the body</b><br>Hands, face and claps in front of a camera: stretch strings between two pinches, make drums with a ring of fingers, pluck, hit and throw balls, always in tune; MIDI in and out. Built one idea at a time in p5.js, MediaPipe and Web Audio, and <a href="https://languel.github.io/artistmodelstudio/demos/hand-strings.html">played whole in its own page</a>.</td>
+<td></td>
 </tr>
 </table>
 
