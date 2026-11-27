@@ -25,11 +25,26 @@ describe('the Strings in the Air lesson', () => {
     expect(LESSON.bibliography.flatMap(c => c.items).every(([text, url]) => text && /^https:\/\//.test(url))).toBe(true);
   });
 
-  it('every camera sketch can play with the mouse, and asks for the camera only from ▶', () => {
-    for (const b of boards.filter(x => x.p5 && /createCapture/.test(x.p5))) {
+  it('every camera sketch can play with the mouse, asks for the camera only from ▶, and has a Mediathèque film for no camera', () => {
+    const cams = boards.filter(x => x.p5 && /getUserMedia/.test(x.p5));
+    expect(cams.length).toBe(8);
+    for (const b of cams) {
       expect(b.p5, b.id).toMatch(/onStart\(\)/);
       expect(b.p5, b.id).toMatch(/mouse(Pressed|Moved|X)/);
+      expect(b.p5, b.id).toMatch(/languel\.github\.io\/mediatheque\/items\//);
+      expect(b.p5, b.id).toMatch(/crossOrigin = 'anonymous'[^\n]*src = film/);   // or the tracker cannot read the frames
     }
+  });
+
+  it('a filmed picture is not mirrored, the camera is, and neither is stretched', () => {
+    const run = (film, vw, vh) => {
+      const code = sketch('hands') + `\n;cam = { elt: { videoWidth: ${vw}, videoHeight: ${vh} } }; film = ${film};`;
+      return new Function('width', 'height', 'max', `${code}\n;return mirror`)(800, 600, Math.max);
+    };
+    expect(run('null', 640, 480)({ x: 0.25, y: 0.5 })).toEqual({ x: 600, y: 300 });
+    expect(run("['f', 'F']", 640, 480)({ x: 0.25, y: 0.5 })).toEqual({ x: 200, y: 300 });
+    const tall = run("['f', 'F']", 500, 800)({ x: 1, y: 0 });             // a portrait film: as wide as the canvas, cropped top and bottom
+    expect(tall.x).toBeCloseTo(800); expect(tall.y).toBeCloseTo(-340);
   });
 
   it('crossing: where a fingertip\'s path crosses a string, and not when it misses', () => {

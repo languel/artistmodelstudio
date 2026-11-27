@@ -28,6 +28,10 @@
   #start h1 { font-size: 34px; margin: 0 0 6px; font-weight: 650; letter-spacing: -0.01em; }
   #start p { color: var(--dim); margin: 0 0 12px; }
   #start .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  #start .film { margin-top: 10px; align-items: center; color: var(--dim); font-size: 14px; }
+  #start .film select { max-width: 100%; }
+  #credit { position: fixed; right: 12px; bottom: 10px; font: 11px system-ui, sans-serif; color: rgba(255,255,255,0.55); pointer-events: auto; z-index: 3; }
+  #credit a { color: inherit; }
   #start .err { color: var(--warm); min-height: 1.4em; margin-top: 10px; }
   #panel { position: fixed; top: 12px; right: 12px; width: 270px; max-width: calc(100vw - 24px); background: var(--panel); border: 1px solid #333; border-radius: 10px; padding: 8px 12px; z-index: 5; backdrop-filter: blur(6px); }
   #panel summary { cursor: pointer; font-weight: 600; list-style: none; }
@@ -82,9 +86,11 @@
   <p>Every note comes from where the thing is, snapped to a scale you choose, so it always sounds in tune. Your face plays too: open your mouth for a brighter sound, raise your brows for more echo, smile for vibrato, close your eyes for long sustain.</p>
   <p>The camera stays in your browser; nothing is uploaded.</p>
   <div class="row"><button class="primary" id="go-cam">Start with camera</button><button id="go-mouse">Mouse only</button></div>
+  <div class="row film"><span>No camera? Play along with a film:</span><select id="film-pick"></select><button id="go-film">Play the film</button></div>
   <div class="err" id="err"></div>
 </div></div>
 
+<div id="credit" hidden></div>
 <div id="hud">
   <div class="title">Strings in the Air</div>
   <div id="status"></div>
@@ -570,8 +576,17 @@ function release(grab, p) { if (inTrash(p)) remove(grab.obj); else save(); }
 
 // ─── hands ──────────────────────────────────────────────────────────────────────────────────────────────
 let M = null, handsTask = null, faceTask = null, poseTask = null, posePts = null, camera = false;
+// No camera? A film from the Mediathèque (languel.github.io/mediatheque: public-domain teaching media, served to any page) stands in,
+// so the trackers still have someone to watch: a face for the face controls, a body whose hands the hand tracker finds now and then.
+const MEDIATHEQUE = 'https://languel.github.io/mediatheque/';
+const FILMS = {
+  demeny: { item: 'animdemeny-je-vous-aime-planche', file: 'proxy.webm', title: '« Je vous aime » (Georges Demenÿ, 1891)', note: 'a face: the mouth plays brightness' },
+  sneeze: { item: 'hapci-fr', file: 'proxy.webm', title: 'Fred Ott\'s Sneeze (Edison, 1894)', note: 'a face, small: brows and eyes' },
+  sandow: { item: 'sandow-1894', file: 'clips/02.webm', title: 'Sandow (Edison, 1894)', note: 'a body: hands now and then' },
+};
+let film = null;                                    // the FILMS entry playing in place of the camera, if any
 let fit = { ox: 0, oy: 0, dw: W, dh: H };
-const toScreen = l => ({ x: fit.ox + (1 - l.x) * fit.dw, y: fit.oy + l.y * fit.dh });   // mirrored: you see yourself
+const toScreen = l => ({ x: fit.ox + (film ? l.x : 1 - l.x) * fit.dw, y: fit.oy + l.y * fit.dh });   // the camera mirrored (you see yourself); a film as it is
 const newHand = () => ({ present: false, pts: null, pinch: false, pinchPt: null, pd: 9, scale: 80, state: null, grab: null, tips: {}, t: 0, grace: 0 });
 const hands = [newHand(), newHand()];
 let draft = null;                                   // a string being stretched between two pinches
@@ -754,12 +769,28 @@ function updateFace(res, now) {
   face.closedSince = closed ? face.closedSince || now : 0;
 }
 
-async function startCamera() {
+function playFilm(key, why = 'no camera') {                           // a Mediathèque film in place of the camera
+  film = FILMS[key] || FILMS.demeny;
+  video.srcObject = null; video.crossOrigin = 'anonymous';   // (before the address, or the trackers cannot read its frames)
+  video.loop = true; video.muted = true; video.src = `${MEDIATHEQUE}items/${film.item}/${film.file}`;
+  const c = $('credit'); c.hidden = false;
+  c.innerHTML = `${why}: <a href="${MEDIATHEQUE}site/index.html#/${film.item}" target="_blank" rel="noopener">${film.title}</a>, from the Mediathèque · public domain`;
+  return video.play();
+}
+async function startCamera(filmKey) {
   $('err').textContent = '';
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
-    video.srcObject = stream; await video.play(); camera = true;
-  } catch (e) { $('err').textContent = 'No camera (' + (e.name || e.message) + '). Playing with the mouse.'; return false; }
+    if (filmKey) await playFilm(filmKey);
+    else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
+        video.srcObject = stream; await video.play();
+      } catch (e) {
+        await playFilm($('film-pick').value, 'no camera (' + (e.name || e.message) + ')');
+      }
+    }
+    camera = true;
+  } catch (e) { $('err').textContent = 'Neither a camera nor the film (' + (e.name || e.message) + '). Try Mouse only.'; return false; }
   status('loading the hand tracker…');
   try {
     M = await import(/* @vite-ignore */ `${CDN}/vision_bundle.mjs`);
@@ -769,7 +800,7 @@ async function startCamera() {
       catch { return Task.createFromOptions(files, { baseOptions: { modelAssetPath: path, delegate: 'CPU' }, runningMode: 'VIDEO', ...extra }); }
     };
     handsTask = await make(M.HandLandmarker, MODELS.hands, { numHands: 2, minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
-    status('show both hands');
+    status(film ? 'film: ' + film.note + ' · the mouse plays: drag a string, move across to pluck' : 'show both hands');
     make(M.FaceLandmarker, MODELS.face, { numFaces: 1, outputFaceBlendshapes: true }).then(t => { faceTask = t; }).catch(() => {});
     window.__makePose = () => poseTask || make(M.PoseLandmarker, MODELS.pose, { numPoses: 1 }).then(t => (poseTask = t));
     if (S.skeleton === 'full') window.__makePose();
@@ -849,14 +880,16 @@ $('b-clear').onclick = () => { strings.length = pads.length = history.length = 0
 $('b-seed').onclick = () => seed();
 $('b-help').onclick = () => $('help').classList.toggle('hidden');
 
-async function begin(withCamera) {
+async function begin(withCamera, filmKey) {
   await initAudio();
   $('start').style.display = 'none';
-  if (withCamera && !(await startCamera())) { $('start').style.display = ''; $('go-cam').textContent = 'Try the camera again'; return; }
+  if (withCamera && !(await startCamera(filmKey))) { $('start').style.display = ''; $('go-cam').textContent = 'Try the camera again'; return; }
   if (!withCamera) status('mouse: drag a string, shift-drag a pad, move across to pluck');
 }
 $('go-cam').onclick = () => begin(true);
 $('go-mouse').onclick = () => begin(false);
+$('film-pick').innerHTML = Object.entries(FILMS).map(([k, f]) => `<option value="${k}">${f.title}: ${f.note}</option>`).join('');
+$('go-film').onclick = () => begin(true, $('film-pick').value);
 
 // ─── drawing ────────────────────────────────────────────────────────────────────────────────────────────
 function resize() {
@@ -954,8 +987,10 @@ function frame(now) {
   stepBalls(now, Math.min(0.033, (now - (frame.last || now)) / 1000)); frame.last = now;
   g.fillStyle = '#0c0c0f'; g.fillRect(0, 0, W, H);
   if (camera && video.videoWidth && S.mirror > 0) {   // the mirror
-    g.save(); g.globalAlpha = S.mirror; g.translate(fit.ox + fit.dw, fit.oy); g.scale(-1, 1);
-    g.drawImage(video, 0, 0, fit.dw, fit.dh); g.restore();
+    g.save(); g.globalAlpha = S.mirror;
+    if (film) g.drawImage(video, fit.ox, fit.oy, fit.dw, fit.dh);
+    else { g.translate(fit.ox + fit.dw, fit.oy); g.scale(-1, 1); g.drawImage(video, 0, 0, fit.dw, fit.dh); }
+    g.restore();
     g.fillStyle = 'rgba(8,8,12,0.38)'; g.fillRect(0, 0, W, H);
   }
   const held = new Set([...hands.map(h => h.grab?.obj), mouse.grab?.obj].filter(Boolean));

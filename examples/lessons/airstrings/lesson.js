@@ -3,8 +3,8 @@
  * a pinch, a string between two pinches, a pluck, tuning by place, pads made by a ring of fingers, the face as a controller, claps that
  * throw balls, MIDI in and out, and at the end the whole instrument (public/demos/hand-strings.html) on a board of its own.
  *
- * Built by the sampling lesson's scene builder (`/lesson airstrings`). Every board is a p5.js sketch that opens the camera with
- * createCapture and runs MediaPipe (Tasks Vision, from jsDelivr) itself, so it can be copied into the p5 editor as it is. The sound is
+ * Built by the sampling lesson's scene builder (`/lesson airstrings`). Every board is a p5.js sketch that opens the camera itself
+ * (or, without one, a public-domain film from languel/mediatheque) and runs MediaPipe (Tasks Vision, from jsDelivr) itself, so it can be copied into the p5 editor as it is. The sound is
  * plain Web Audio (the strings and bells of the Web Audio lesson, 4.1 and 4.2). Each sketch also plays with the mouse, without a camera.
  * The shared pieces (camera and tracker, hands, pinch, strings, struck objects, tuning) are written once below and pasted into each sketch.
  * Names p5 already uses (scale, key, color, noise…) are not used as globals.
@@ -23,12 +23,26 @@ const START = `function startButton() {                // ▶ starts the camera 
 const onStart = () => dist(mouseX, mouseY, 44, 44) < 24`;
 
 const CAMERA = `// The camera, mirrored, and a MediaPipe tracker on it, loaded from a CDN on the first click of ▶.
+// No camera, or you said no? A film from the Mediathèque (languel.github.io/mediatheque, public domain) stands in.
 const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21'
 const MODELS = 'https://storage.googleapis.com/mediapipe-models/'
-let cam, camReady = false, tracker = null, started = false, lastSeen = -1, lastAnswer = null
+const FILMS = {                                  // someone for the tracker to watch: hands in one, a face in the other
+  hands: ['https://languel.github.io/mediatheque/items/sandow-1894/clips/02.webm', 'Sandow (Edison, 1894)'],
+  face: ['https://languel.github.io/mediatheque/items/animdemeny-je-vous-aime-planche/proxy.webm', '« Je vous aime » (Demenÿ, 1891)'] }
+let SOURCE = 'camera'                            // or 'film', to watch the film even with a camera
+let cam, camReady = false, film = null, tracker = null, started = false, lastSeen = -1, lastAnswer = null
 async function start(kind) {
   started = true; audio()
-  cam = createCapture(VIDEO, () => { camReady = true }); cam.hide()
+  cam = createVideo([]); cam.hide()              // an empty video: the camera's stream or the film goes into it
+  const v = cam.elt; v.muted = true; v.playsInline = true; v.onloadeddata = () => { camReady = true }
+  try {
+    if (SOURCE === 'film') throw 'film'
+    v.srcObject = await navigator.mediaDevices.getUserMedia({ video: true })   // the browser asks first
+  } catch {
+    film = FILMS[kind] || FILMS.hands
+    v.crossOrigin = 'anonymous'; v.loop = true; v.src = film[0]   // (crossOrigin first, or the tracker may not read it)
+  }
+  v.play()
   const mp = await import(MP + '/vision_bundle.mjs'), files = await mp.FilesetResolver.forVisionTasks(MP + '/wasm')
   const [Task, path, extra] = kind === 'face'
     ? [mp.FaceLandmarker, 'face_landmarker/face_landmarker/float16/1/face_landmarker.task', { numFaces: 1, outputFaceBlendshapes: true }]
@@ -38,15 +52,27 @@ async function start(kind) {
     catch (err) { console.warn(err) }
   }
 }
-function track() {                               // the tracker's answer for the camera's latest frame (asked once a frame)
+function track() {                               // the tracker's answer for the latest frame (asked once a frame)
   if (!tracker || !camReady || cam.elt.readyState < 2) return null
   if (cam.elt.currentTime !== lastSeen) { lastSeen = cam.elt.currentTime; lastAnswer = tracker.detectForVideo(cam.elt, performance.now()) }
   return lastAnswer
 }
-const mirror = p => ({ x: (1 - p.x) * width, y: p.y * height })   // flipped left to right: you see yourself as in a mirror
+function frameBox() {                              // where the picture goes: the whole canvas, cropped, never stretched
+  const w = cam.elt.videoWidth || 4, h = cam.elt.videoHeight || 3, s = max(width / w, height / h)
+  return { x: (width - w * s) / 2, y: (height - h * s) / 2, w: w * s, h: h * s }
+}
+const mirror = p => {                            // a point, from fractions of the picture to the canvas; the camera flipped, as in a mirror
+  const b = frameBox()
+  return { x: b.x + (film ? p.x : 1 - p.x) * b.w, y: b.y + p.y * b.h }
+}
 function drawCamera(alpha) {
   if (!camReady) return
-  push(); translate(width, 0); scale(-1, 1); tint(255, alpha); image(cam, 0, 0, width, height); pop()
+  const b = frameBox()
+  push(); tint(255, alpha)
+  if (film) image(cam, b.x, b.y, b.w, b.h)
+  else { translate(width, 0); scale(-1, 1); image(cam, width - b.x - b.w, b.y, b.w, b.h) }
+  pop()
+  if (film) { push(); noStroke(); fill(255, 150); textSize(11); textAlign(RIGHT, BOTTOM); text('no camera: ' + film[1] + ', from the Mediathèque', width - 10, height - 8); pop() }
 }`;
 
 const HANDS = `let hands = []                                  // each hand: 21 points in the canvas's pixels (0 wrist, 4 thumb tip, 8 index tip…)
@@ -167,7 +193,7 @@ export const LESSON = {
       text: 'A **hand landmarker** (MediaPipe, from Google, running in the browser) looks at each frame of the camera and answers with 21 points for each hand it sees: the wrist, four joints on each finger and the fingertips, as fractions of the picture (0 to 1). We flip the picture left to right so it behaves like a **mirror**, and multiply by the canvas size. Everything after this is arithmetic on those points. The first useful one is the **pinch**: the thumb tip and the index tip close together. To make it work near and far from the camera, the distance is measured in **hand sizes** (wrist to the middle knuckle), and two thresholds (start below 0.28, end above 0.5) keep it from flickering.',
       boards: [
         { id: 'hands', title: '1.1 · Your hands, as numbers', w: 800, h: 600, ground: '#141414',
-          idea: 'Click ▶ and allow the camera. MediaPipe\'s hand landmarker finds up to two hands and gives **21 points** each: 0 is the wrist, 4 the thumb tip, 8 the index tip, 12, 16 and 20 the other fingertips. They come as fractions of the picture; `mirror()` flips them (so your right hand is on the right, as in a mirror) and scales them to the canvas. The lines between the points are the bones (`BONES`). The **hand size**, wrist to the middle knuckle, tells how near the hand is: we will measure everything else in it.',
+          idea: 'Click ▶ and allow the camera. MediaPipe\'s hand landmarker finds up to two hands and gives **21 points** each: 0 is the wrist, 4 the thumb tip, 8 the index tip, 12, 16 and 20 the other fingertips. No camera, or you say no? Then a film from the [Mediathèque](https://languel.github.io/mediatheque/) plays instead (Sandow, 1894; for the face, Demenÿ\'s lip-reading study), so there is still someone to track; set `SOURCE = \'film\'` to watch it anyway. The points come as fractions of the picture; `mirror()` flips them (so your right hand is on the right, as in a mirror) and scales them to the canvas. The lines between the points are the bones (`BONES`). The **hand size**, wrist to the middle knuckle, tells how near the hand is: we will measure everything else in it.',
           pseudo: `each frame: answer $\\leftarrow$ tracker.detect(camera frame)
 for each hand: 21 points $(u, v) \\in [0,1]^2$
 on screen: $x = (1 - u)\\cdot$width, $y = v\\cdot$height    # mirrored
@@ -562,7 +588,7 @@ ${STATUS}` }
       text: 'A **face landmarker** gives 478 points on the face and, more useful for music, 52 **expression scores** (blendshapes), each from 0 to 1: how open the jaw is, how raised the brows, how much each corner of the mouth smiles, whether each eye is closed. They are made to drive an animated face, and they work just as well as knobs you play without your hands, which are busy. Mouth open opens a **filter** (the sound gets brighter, like a wah pedal); brows up send more into an **echo**; a smile adds **vibrato** (a slow wobble of the pitch). In the full instrument, closed eyes make the strings ring longer.',
       boards: [
         { id: 'face', title: '5.1 · Mouth, brows and smile', w: 800, h: 600, ground: '#141414',
-          idea: 'Click ▶ and allow the camera; the strings play a slow tune by themselves so you can hear what your face does to them. **Open your mouth**: a low-pass filter opens (from 400 Hz to about 13 kHz), and the sound brightens. **Raise your brows**: more of it goes into an echo. **Smile**: vibrato, an oscillator wobbling every voice\'s pitch. The bars are the blendshape scores the face landmarker gives (0 to 1); the dots are its 478 points. Without a camera, the mouse plays the face: left–right is the mouth, up–down the brows.',
+          idea: 'Click ▶ and allow the camera; the strings play a slow tune by themselves so you can hear what your face does to them. **Open your mouth**: a low-pass filter opens (from 400 Hz to about 13 kHz), and the sound brightens. **Raise your brows**: more of it goes into an echo. **Smile**: vibrato, an oscillator wobbling every voice\'s pitch. The bars are the blendshape scores the face landmarker gives (0 to 1); the dots are its 478 points. Without a camera, the mouse plays the face (left–right is the mouth, up–down the brows) until you click ▶; then Georges Demenÿ\'s 1891 film of a man saying « Je vous aime », from the Mediathèque, mouths for you.',
           pseudo: `scores $\\leftarrow$ face.blendshapes    # 52 numbers in $[0, 1]$
 cutoff $= 400 \\cdot 2^{5\\,\\text{jawOpen}}$ Hz
 echo send $= 0.8 \\cdot$ browInnerUp
